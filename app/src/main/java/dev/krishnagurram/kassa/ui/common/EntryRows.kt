@@ -16,6 +16,8 @@ fun TransactionRow(
     ledger: Ledger,
     showDivider: Boolean = true,
     modifier: Modifier = Modifier,
+    /** Replaces the small line under the amount, for example with the running balance on an account page. */
+    noteOverride: String? = null,
     onClick: ((Transaction) -> Unit)? = null,
 ) {
     val m = if (onClick != null) modifier.clickable { onClick(t) } else modifier
@@ -29,7 +31,7 @@ fun TransactionRow(
                 title = "To ${to?.name ?: "an account"}",
                 subtitle = "From ${acct ?: "an account"}",
                 amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
-                note = when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
+                note = noteOverride ?: when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
                 showDivider = showDivider, modifier = m,
             )
         }
@@ -38,14 +40,14 @@ fun TransactionRow(
             title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
             subtitle = acct ?: "",
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
-            note = "Investing", showDivider = showDivider, modifier = m,
+            note = noteOverride ?: "Investing", showDivider = showDivider, modifier = m,
         )
         TxKind.PERSON_IN, TxKind.PERSON_OUT -> EntryRow(
             badge = { GlyphBadge(person?.take(1) ?: "?") },
             title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) "${person ?: "Someone"} paid you" else "You paid ${person ?: "someone"}" },
             subtitle = acct ?: "",
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
-            note = "Settle up", showDivider = showDivider, modifier = m,
+            note = noteOverride ?: "Settle up", showDivider = showDivider, modifier = m,
         )
         else -> {
             val cat = t.categoryId?.let { ledger.categoryById[it] }
@@ -57,7 +59,7 @@ fun TransactionRow(
                 subtitle = listOfNotNull(cat?.name ?: "Uncategorized", share).joinToString(", "),
                 amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
                 amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
-                note = acct ?: person?.let { "Paid by $it" },
+                note = noteOverride ?: acct ?: person?.let { "Paid by $it" },
                 showDivider = showDivider, modifier = m,
             )
         }

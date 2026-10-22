@@ -21,10 +21,23 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 ## Build and release
 - `./gradlew :domain:test :importer:test` runs the logic tests.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
-  certificate and the no-network rule, launches it on an emulator, then publishes `v0.1.<run>` as a GitHub release.
+  certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
+  as a GitHub release. Only the newest commit on `main` is published.
 - Pushes from the Claude GitHub App sometimes don't trigger a run; start one with a `workflow_dispatch`.
 - Build logs aren't readable through the API from Claude sessions, so failures upload logs to a draft release
   `diag-<run>`, and emulator screenshots/logcat go to `ci-<run>`.
+
+## Navigation
+`ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
+Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week,
+settings). Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+the tabs; at 720dp+ it opens beside the list it came from. Anything that removes or replaces data asks first
+(`ConfirmDialog`).
+
+## Wording
+Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the
+statement date, **Total balance** is both. Accounts show Assets, Liabilities and Net worth; people are Receivable or
+Payable.
 
 ## Style
 Plain, specific UI copy in sentence case. Color is only for categories and state; primary actions are ink on ground.

@@ -115,6 +115,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE personId = :personId ORDER BY epochMillis DESC")
     fun observeForPerson(personId: Long): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId OR toAccountId = :accountId ORDER BY epochMillis DESC, id DESC")
+    fun observeForAccount(accountId: Long): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions WHERE personId IS NOT NULL")
     fun observeWithPeople(): Flow<List<TransactionEntity>>
 

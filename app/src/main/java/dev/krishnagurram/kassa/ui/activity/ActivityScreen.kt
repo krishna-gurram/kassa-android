@@ -110,7 +110,13 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun ActivityScreen(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, onEdit: (Transaction) -> Unit, vm: ActivityViewModel = viewModel()) {
+fun ActivityScreen(
+    ledger: dev.krishnagurram.kassa.ui.Ledger,
+    contentPadding: PaddingValues,
+    onEdit: (Transaction) -> Unit,
+    selectedId: Long? = null,
+    vm: ActivityViewModel = viewModel(),
+) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
     val today = LocalDate.now()
@@ -132,7 +138,7 @@ fun ActivityScreen(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: Pa
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Spent", Money.format(s.spent, wholeDollars = true), modifier = Modifier.weight(1f))
+                    Stat("Expenses", Money.format(s.spent, wholeDollars = true), modifier = Modifier.weight(1f))
                     Stat("Income", Money.format(s.income, wholeDollars = true), Kassa.colors.positive, Modifier.weight(1f))
                     Stat("Net", Money.format(s.income - s.spent, wholeDollars = true, showPlus = true), modifier = Modifier.weight(1f))
                 }
@@ -165,7 +171,14 @@ fun ActivityScreen(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: Pa
                     HorizontalDivider(color = Kassa.colors.line)
                 }
             }
-            items(entries, key = { it.id }) { t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp), onClick = onEdit) }
+            items(entries, key = { it.id }) { t ->
+                val sel = t.id == selectedId
+                dev.krishnagurram.kassa.ui.common.TransactionRow(
+                    t, ledger, showDivider = t !== entries.last() && !sel,
+                    modifier = Modifier.widthIn(max = 720.dp).then(if (sel) Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(horizontal = 8.dp) else Modifier),
+                    onClick = onEdit,
+                )
+            }
         }
     }
 }

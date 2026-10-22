@@ -98,3 +98,67 @@ object TodayPlan {
         return Result(period, plan, slices.filter { it.spent > 0 || it.budget > 0 }.sortedByDescending { it.spent })
     }
 }
+
+/**
+ * Spending this week so far, next to what a usual week looks like by the same weekday.
+ * "Usual" is the average of up to [weeks] previous weeks, counting only weeks that start on or after the first
+ * entry, so a new ledger isn't compared against empty weeks. Spending is expenses at your share.
+ */
+object WeekPace {
+    data class Result(
+        val start: LocalDate,
+        val today: LocalDate,
+        val spent: Long,
+        /** Average spent from the start of a week through the same weekday. Null with no history. */
+        val usualByNow: Long?,
+        /** Average spent over a whole week. Null with no history. */
+        val usualWeek: Long?,
+        val weeksCompared: Int,
+    )
+
+    fun startOf(day: LocalDate, firstDay: java.time.DayOfWeek): LocalDate =
+        day.minusDays(((day.dayOfWeek.value - firstDay.value + 7) % 7).toLong())
+
+    fun compute(
+        transactions: Iterable<Transaction>,
+        today: LocalDate,
+        firstDay: java.time.DayOfWeek,
+        zone: java.time.ZoneId,
+        weeks: Int = 8,
+    ): Result {
+        val byDay = HashMap<LocalDate, Long>()
+        var first: LocalDate? = null
+        for (t in transactions) {
+            if (t.kind != TxKind.EXPENSE) continue
+            val d = java.time.Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
+            byDay[d] = (byDay[d] ?: 0) + t.categoryAmount
+            if (first == null || d.isBefore(first)) first = d
+        }
+        fun sum(from: LocalDate, toInclusive: LocalDate): Long {
+            var s = 0L
+            var d = from
+            while (!d.isAfter(toInclusive)) { s += byDay[d] ?: 0; d = d.plusDays(1) }
+            return s
+        }
+        val start = startOf(today, firstDay)
+        val offset = java.time.temporal.ChronoUnit.DAYS.between(start, today)
+        val spent = sum(start, today)
+        var n = 0
+        var byNow = 0L
+        var whole = 0L
+        for (i in 1..weeks) {
+            val ws = start.minusWeeks(i.toLong())
+            val f = first ?: break
+            if (ws.isBefore(startOf(f, firstDay))) break
+            byNow += sum(ws, ws.plusDays(offset))
+            whole += sum(ws, ws.plusDays(6))
+            n++
+        }
+        return Result(
+            start = start, today = today, spent = spent,
+            usualByNow = if (n > 0) byNow / n else null,
+            usualWeek = if (n > 0) whole / n else null,
+            weeksCompared = n,
+        )
+    }
+}

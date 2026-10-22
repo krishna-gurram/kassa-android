@@ -54,7 +54,6 @@ import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.ui.accounts.AccountsScreen
 import dev.krishnagurram.kassa.ui.activity.ActivityScreen
 import dev.krishnagurram.kassa.ui.cards.CardsScreen
-import dev.krishnagurram.kassa.ui.entry.EntrySheet
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.importer.ImportScreen
 import dev.krishnagurram.kassa.ui.theme.Kassa
@@ -131,18 +130,12 @@ private fun LockScreen(onUnlock: () -> Unit) {
     }
 }
 
-private enum class Tab(val label: String) { TODAY("Today"), ACTIVITY("Activity"), CARDS("Cards"), INSIGHTS("Insights"), ACCOUNTS("Accounts") }
-
 @Composable
 private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit) {
-    var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
-    var importing by rememberSaveable { mutableStateOf(false) }
+    val nav: NavViewModel = viewModel()
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
-    var selectedCard by rememberSaveable { mutableStateOf<Long?>(null) }
-    var entry by remember { mutableStateOf<EntryStart?>(null) }
-    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
-    var categoryOpen by remember { mutableStateOf<dev.krishnagurram.kassa.domain.Category?>(null) }
+    var paying by remember { mutableStateOf<Long?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
@@ -154,109 +147,225 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
-    val edit: (Transaction) -> Unit = { t ->
-        scope.launch { vm.loadForEdit(t.id)?.let { (tx, split) -> entry = EntryStart(editing = tx, splitWith = split) } }
+    // Back closes the top page; with none open it returns to Today before leaving the app.
+    BackHandler(enabled = nav.stack.isNotEmpty() || nav.tab != Tab.TODAY) {
+        if (nav.stack.isNotEmpty()) nav.pop() else nav.select(Tab.TODAY)
     }
 
-    val needs = object : dev.krishnagurram.kassa.ui.today.NeedsYouActions {
-        fun draftFrom(p: dev.krishnagurram.kassa.data.db.PendingEntity) = dev.krishnagurram.kassa.data.EntryDraft(
-            id = null, kind = if (p.isCredit) dev.krishnagurram.kassa.domain.TxKind.INCOME else dev.krishnagurram.kassa.domain.TxKind.EXPENSE,
-            amount = p.amount, accountId = p.accountId, toAccountId = null, categoryId = if (p.isCredit) null else p.categoryId, personId = null,
-            epochMillis = p.epochMillis, note = p.merchant ?: "", splitWith = emptyList(),
-        )
-        override fun addAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) {
-            if (p.isCredit) { editAlert(p); return }
-            vm.save(draftFrom(p)) { vm.dismissPending(p.id) }
-        }
-        override fun editAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) { entry = EntryStart(prefill = draftFrom(p), afterSave = { vm.dismissPending(p.id) }) }
-        override fun dismissAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) { vm.dismissPending(p.id, "Dismissed. Nothing was added.") }
-        override fun approve(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) { vm.approveRecurring(r, amount) }
-        override fun editRecurring(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) {
-            val l = ledger ?: return
-            val due = dev.krishnagurram.kassa.domain.RecurringRules.dueDate(r, java.time.YearMonth.from(l.today))
-            entry = EntryStart(
-                prefill = dev.krishnagurram.kassa.data.EntryDraft(null, dev.krishnagurram.kassa.domain.TxKind.EXPENSE, amount, r.accountId, null, r.categoryId, null,
-                    due.atTime(9, 0).atZone(l.zone).toInstant().toEpochMilli(), r.name, emptyList()),
-                afterSave = { vm.markHandled(r) },
-            )
-        }
-        override fun skip(r: dev.krishnagurram.kassa.domain.Recurring) { vm.skipRecurring(r) }
-        override fun allocate(p: dev.krishnagurram.kassa.data.db.PendingEntity) { allocating = p }
-    }
-
-    Box(Modifier.fillMaxSize().background(Kassa.colors.ground)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Kassa.colors.ground)) {
+        val wide = maxWidth >= 600.dp
+        val split = maxWidth >= 720.dp
         val l = ledger
+
+        /** From a list: beside it when unfolded, on top of it on the cover screen. */
+        val openFromList: (Page) -> Unit = { p -> nav.open(p, besideList = split) }
+        val edit: (Transaction, Boolean) -> Unit = { t, fromPage ->
+            scope.launch {
+                vm.loadForEdit(t.id)?.let { (tx, split2) ->
+                    val page = Page.Entry(EntryStart(editing = tx, splitWith = split2))
+                    if (fromPage) nav.push(page) else openFromList(page)
+                }
+            }
+        }
+        val editFromList: (Transaction) -> Unit = { edit(it, false) }
+        val editFromPage: (Transaction) -> Unit = { edit(it, true) }
+
+        val needs = object : dev.krishnagurram.kassa.ui.today.NeedsYouActions {
+            fun draftFrom(p: dev.krishnagurram.kassa.data.db.PendingEntity) = dev.krishnagurram.kassa.data.EntryDraft(
+                id = null, kind = if (p.isCredit) dev.krishnagurram.kassa.domain.TxKind.INCOME else dev.krishnagurram.kassa.domain.TxKind.EXPENSE,
+                amount = p.amount, accountId = p.accountId, toAccountId = null, categoryId = if (p.isCredit) null else p.categoryId, personId = null,
+                epochMillis = p.epochMillis, note = p.merchant ?: "", splitWith = emptyList(),
+            )
+            override fun addAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) {
+                if (p.isCredit) { editAlert(p); return }
+                vm.save(draftFrom(p)) { vm.dismissPending(p.id) }
+            }
+            override fun editAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) {
+                openFromList(Page.Entry(EntryStart(prefill = draftFrom(p), afterSave = { vm.dismissPending(p.id) })))
+            }
+            override fun dismissAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) { vm.dismissPending(p.id, "Dismissed. Nothing was added.") }
+            override fun approve(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) { vm.approveRecurring(r, amount) }
+            override fun editRecurring(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) {
+                val lg = ledger ?: return
+                val due = dev.krishnagurram.kassa.domain.RecurringRules.dueDate(r, java.time.YearMonth.from(lg.today))
+                openFromList(Page.Entry(EntryStart(
+                    prefill = dev.krishnagurram.kassa.data.EntryDraft(null, dev.krishnagurram.kassa.domain.TxKind.EXPENSE, amount, r.accountId, null, r.categoryId, null,
+                        due.atTime(9, 0).atZone(lg.zone).toInstant().toEpochMilli(), r.name, emptyList()),
+                    afterSave = { vm.markHandled(r) },
+                )))
+            }
+            override fun skip(r: dev.krishnagurram.kassa.domain.Recurring) { vm.skipRecurring(r) }
+            override fun allocate(p: dev.krishnagurram.kassa.data.db.PendingEntity) { allocating = p }
+        }
+
+        /** Draws one page. [onBack] is null for the pane's default page, which has nothing to go back to. */
+        @Composable
+        fun PageHost(page: Page, lg: Ledger, padding: PaddingValues, onBack: (() -> Unit)?) {
+            val back = onBack ?: {}
+            when (page) {
+                is Page.Entry -> dev.krishnagurram.kassa.ui.entry.EntryPage(
+                    ledger = lg, start = page.start, contentPadding = padding,
+                    loadNotes = { vm.notes(it) },
+                    onSave = { vm.save(it, page.start.afterSave); nav.pop() },
+                    onDelete = { vm.delete(it); nav.pop() },
+                    onAddPerson = { name, then -> vm.addPerson(name, then) },
+                    onBack = back,
+                )
+                is Page.CardDetail -> {
+                    val c = lg.cards().firstOrNull { it.account.id == page.accountId }
+                    if (c == null) Gone(padding, onBack)
+                    else dev.krishnagurram.kassa.ui.cards.CardPage(c, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = c.account.id })
+                }
+                is Page.AccountDetail -> {
+                    val a = lg.accountById[page.accountId]
+                    val card = lg.cards().firstOrNull { it.account.id == page.accountId }
+                    when {
+                        a == null -> Gone(padding, onBack)
+                        card != null && !a.archived -> dev.krishnagurram.kassa.ui.cards.CardPage(card, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = card.account.id })
+                        else -> {
+                            val history by remember(a.id) { vm.accountHistory(a.id) }.collectAsState(initial = emptyList())
+                            dev.krishnagurram.kassa.ui.accounts.AccountPage(
+                                lg, a, history, padding, onBack,
+                                onEditEntry = editFromPage,
+                                onSaveAccount = { acct, group -> vm.updateAccount(acct, group) },
+                                onArchive = { vm.setArchived(a, it) },
+                            )
+                        }
+                    }
+                }
+                is Page.PersonDetail -> {
+                    val p = lg.people.people.firstOrNull { it.id == page.personId }
+                    if (p == null) Gone(padding, onBack)
+                    else dev.krishnagurram.kassa.ui.accounts.PersonPage(p, lg.personBalances()[p.id] ?: 0, lg, padding, onBack, onSave = { vm.save(it) })
+                }
+                is Page.CategoryDetail -> {
+                    val c = lg.categoryById[page.categoryId]
+                    if (c == null) Gone(padding, onBack)
+                    else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
+                }
+                Page.Week -> dev.krishnagurram.kassa.ui.today.WeekPage(lg, padding, onBack, onEdit = editFromPage)
+                Page.Settings -> {
+                    val alertApps by vm.alertApps.collectAsState()
+                    val seenApps by vm.seenApps.collectAsState()
+                    Box(Modifier.padding(padding)) {
+                        SettingsScreen(
+                            lg, remember(vm) { settingsActions(vm, context) { nav.push(Page.Import) } },
+                            dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn),
+                            onClose = back,
+                        )
+                    }
+                }
+                Page.Import -> Box(Modifier.padding(padding)) {
+                    ImportScreen(firstRun = false, onFinished = { nav.select(Tab.TODAY) }, onCancel = back)
+                }
+            }
+        }
+
+        @Composable
+        fun TabContent(lg: Ledger, padding: PaddingValues, selected: Page?) {
+            when (nav.tab) {
+                Tab.TODAY -> TodayScreen(
+                    lg, padding, onEdit = editFromList,
+                    onOpenCard = { openFromList(Page.CardDetail(it)) },
+                    onOpenAccount = { openFromList(Page.AccountDetail(it)) },
+                    onWeek = { openFromList(Page.Week) },
+                    onSeeAll = { nav.select(Tab.ACTIVITY) },
+                    onSettings = { nav.push(Page.Settings) },
+                    needs = needs,
+                )
+                Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
+                Tab.INSIGHTS -> {
+                    val monthKey = dev.krishnagurram.kassa.domain.Budgets.key(lg.period.yearMonth)
+                    dev.krishnagurram.kassa.ui.insights.InsightsScreen(
+                        lg, padding,
+                        sensitivity = runCatching { dev.krishnagurram.kassa.domain.Insights.Sensitivity.valueOf(sensitivity) }.getOrDefault(dev.krishnagurram.kassa.domain.Insights.Sensitivity.BALANCED),
+                        dismissed = dismissedFlags.mapNotNull { k -> k.split(':').takeIf { it.size == 2 && it[1] == monthKey.toString() }?.get(0)?.toLongOrNull() }.toSet(),
+                        actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
+                            override fun setCap(category: dev.krishnagurram.kassa.domain.Category, amount: Long) { vm.setCap(category, amount) }
+                            override fun dismissFlag(category: dev.krishnagurram.kassa.domain.Category) = vm.dismissFlag(category)
+                            override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { openFromList(Page.CategoryDetail(category.id)) }
+                        },
+                    )
+                }
+                Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })
+                Tab.ACCOUNTS -> AccountsScreen(
+                    lg, padding,
+                    selectedAccount = (selected as? Page.AccountDetail)?.accountId,
+                    onOpenAccount = { openFromList(Page.AccountDetail(it)) },
+                    onOpenPerson = { openFromList(Page.PersonDetail(it)) },
+                    onImportAgain = { nav.push(Page.Import) },
+                    onAddAccount = { a, g -> vm.addAccount(a, g) },
+                    onAddPerson = { vm.addPerson(it) },
+                    onSaveHolding = { vm.saveHolding(it) },
+                    onDeleteHolding = { vm.deleteHolding(it.id) },
+                )
+            }
+        }
+
+        val top = nav.top
         when {
             entryCount < 0 || l == null -> Unit // database still opening
             entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() })
             }
-            importing -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                BackHandler { importing = false }
-                ImportScreen(firstRun = false, onFinished = { importing = false }, onCancel = { importing = false })
+            // Cover screen, or a page that takes the whole screen: the page replaces the tabs, with a back button.
+            top != null && (!wide || !top.besideList) -> Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                PageHost(top, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = 24.dp), onBack = nav::pop)
             }
-            else -> Shell(tab, onTab = { tab = it; if (it != Tab.CARDS) selectedCard = null }, onAdd = { entry = EntryStart() }, snackbar = snackbar) { padding ->
-                when (tab) {
-                    Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY }, onSettings = { settingsOpen = true }, needs = needs)
-                    Tab.ACTIVITY -> ActivityScreen(l, padding, onEdit = edit)
-                    Tab.INSIGHTS -> {
-                        val monthKey = dev.krishnagurram.kassa.domain.Budgets.key(l.period.yearMonth)
-                        dev.krishnagurram.kassa.ui.insights.InsightsScreen(
-                            l, padding,
-                            sensitivity = runCatching { dev.krishnagurram.kassa.domain.Insights.Sensitivity.valueOf(sensitivity) }.getOrDefault(dev.krishnagurram.kassa.domain.Insights.Sensitivity.BALANCED),
-                            dismissed = dismissedFlags.mapNotNull { k -> k.split(':').takeIf { it.size == 2 && it[1] == monthKey.toString() }?.get(0)?.toLongOrNull() }.toSet(),
-                            actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
-                                override fun setCap(category: dev.krishnagurram.kassa.domain.Category, amount: Long) { vm.setCap(category, amount) }
-                                override fun dismissFlag(category: dev.krishnagurram.kassa.domain.Category) = vm.dismissFlag(category)
-                                override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { categoryOpen = category }
-                            },
-                        )
+            else -> Shell(nav.tab, onTab = nav::select, onAdd = { openFromList(Page.Entry(EntryStart())) }) { padding ->
+                // Unfolded: a list on the left and the page it opened on the right. Cards shows the first card by
+                // default; Activity waits for a tap.
+                val default: Page? = if (nav.tab == Tab.CARDS) dev.krishnagurram.kassa.ui.cards.cardsByDueDate(l).firstOrNull()?.let { Page.CardDetail(it.account.id) } else null
+                val shown = top ?: default
+                if (split && (top != null || nav.tab == Tab.CARDS || nav.tab == Tab.ACTIVITY)) {
+                    Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(1f)) {
+                            TabContent(l, PaddingValues(start = 24.dp, end = 20.dp, top = 16.dp, bottom = 32.dp), shown)
+                        }
+                        androidx.compose.material3.VerticalDivider(color = Kassa.colors.line)
+                        Box(Modifier.weight(1f)) {
+                            val pad = PaddingValues(start = 16.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)
+                            if (shown != null) PageHost(shown, l, pad, onBack = if (top != null) nav::pop else null)
+                            else dev.krishnagurram.kassa.ui.common.PanePlaceholder("Tap an entry to see or edit it here.")
+                        }
                     }
-                    Tab.CARDS -> CardsScreen(l, padding, selectedCard, onSelect = { selectedCard = it }, onEdit = edit, onPay = { vm.save(it) })
-                    Tab.ACCOUNTS -> AccountsScreen(
-                        l, padding,
-                        onImportAgain = { importing = true },
-                        onAddAccount = { a, g -> vm.addAccount(a, g) },
-                        onArchive = { a, archived -> vm.setArchived(a, archived) },
-                        onAddPerson = { vm.addPerson(it) },
-                        onSave = { vm.save(it) },
-                        onSaveHolding = { vm.saveHolding(it) },
-                        onDeleteHolding = { vm.deleteHolding(it.id) },
-                    )
+                } else if (top != null) {
+                    PageHost(top, l, padding, onBack = nav::pop)
+                } else {
+                    TabContent(l, padding, null)
                 }
             }
         }
-        if (settingsOpen && l != null) {
-            val alertApps by vm.alertApps.collectAsState()
-            val seenApps by vm.seenApps.collectAsState()
-            SettingsScreen(
-                l, remember(vm) { settingsActions(vm, context) { settingsOpen = false; importing = true } },
-                dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn),
-                onClose = { settingsOpen = false },
-            )
-        }
-        categoryOpen?.let { c ->
-            if (l != null) CategorySheet(l, c, onEdit = { categoryOpen = null; edit(it) }, onDismiss = { categoryOpen = null })
-        }
+
+        // One place for messages, above the bottom bar on the cover screen.
+        SnackbarHost(
+            snackbar,
+            Modifier.align(androidx.compose.ui.Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(bottom = if (!wide && top == null) 88.dp else 16.dp),
+        )
+
         allocating?.let { p ->
             if (l != null) dev.krishnagurram.kassa.ui.invest.AllocateSheet(
                 p, l,
-                onCash = { vm.dismissPending(p.id, "Counted as cash in the investment account."); allocating = null },
+                onCash = { vm.dismissPending(p.id, "Kept as uninvested cash in the brokerage account."); allocating = null },
                 onBuy = { t, sh, pr -> p.accountId?.let { vm.buy(it, t, sh, pr, p.id) }; allocating = null },
                 onDismiss = { allocating = null },
             )
         }
-        val start = entry
-        if (start != null && l != null) {
-            EntrySheet(
-                ledger = l, start = start,
-                loadNotes = { vm.notes(it) },
-                onSave = { vm.save(it, start.afterSave); entry = null },
-                onDelete = { vm.delete(it); entry = null },
-                onAddPerson = { name, then -> vm.addPerson(name, then) },
-                onDismiss = { entry = null },
-            )
+        paying?.let { id ->
+            l?.cards()?.firstOrNull { it.account.id == id }?.let { c ->
+                dev.krishnagurram.kassa.ui.cards.PaySheet(c, l, onDismiss = { paying = null }, onPay = { draft -> paying = null; vm.save(draft) })
+            }
         }
+    }
+}
+
+/** Shown when a page's account, card, person or category was removed while it was open. */
+@Composable
+private fun Gone(padding: PaddingValues, onBack: (() -> Unit)?) {
+    androidx.compose.foundation.layout.Column(Modifier.padding(padding)) {
+        dev.krishnagurram.kassa.ui.common.PageTop("", onBack)
+        Text("This is no longer here.", style = dev.krishnagurram.kassa.ui.theme.KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
     }
 }
 
@@ -265,7 +374,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
  * a navigation rail with the add button at its top. Switches by itself when the phone folds or unfolds.
  */
 @Composable
-private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, snackbar: SnackbarHostState, content: @Composable (PaddingValues) -> Unit) {
+private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @Composable (PaddingValues) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 600.dp
         val fab: @Composable () -> Unit = {
@@ -274,7 +383,7 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, snackbar: S
             }
         }
         if (wide) {
-            Scaffold(containerColor = Kassa.colors.ground, snackbarHost = { SnackbarHost(snackbar) }) { inner ->
+            Scaffold(containerColor = Kassa.colors.ground) { inner ->
                 Row(Modifier.fillMaxSize().padding(inner)) {
                     NavigationRail(containerColor = Kassa.colors.ground, header = { Spacer(Modifier.height(8.dp)); fab(); Spacer(Modifier.height(24.dp)) }) {
                         Tab.entries.forEach { t ->
@@ -294,7 +403,6 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, snackbar: S
         } else {
             Scaffold(
                 containerColor = Kassa.colors.ground,
-                snackbarHost = { SnackbarHost(snackbar) },
                 floatingActionButton = fab,
                 bottomBar = {
                     NavigationBar(containerColor = Kassa.colors.ground) {
@@ -375,34 +483,3 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
         context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 }
-
-/** A category's month: what it went to, by subcategory, and every entry. */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun CategorySheet(l: Ledger, c: dev.krishnagurram.kassa.domain.Category, onEdit: (Transaction) -> Unit, onDismiss: () -> Unit) {
-    val p = l.period
-    val ids = l.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
-    val entries = l.recent.filter { t ->
-        t.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && t.categoryId in ids &&
-            java.time.Instant.ofEpochMilli(t.epochMillis).atZone(l.zone).toLocalDate().let { it in p }
-    }.sortedByDescending { it.epochMillis }
-    val bySub = entries.groupBy { t -> l.categoryById[t.categoryId]?.takeIf { it.parentId == c.id }?.name ?: "Other" }
-        .mapValues { (_, v) -> v.sumOf { it.categoryAmount } }.entries.sortedByDescending { it.value }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
-        androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).androidx_verticalScroll()) {
-            Text(c.name, style = dev.krishnagurram.kassa.ui.theme.KassaType.section, color = Kassa.colors.ink)
-            Text("${dev.krishnagurram.kassa.domain.Money.format(entries.sumOf { it.categoryAmount })} this month", style = dev.krishnagurram.kassa.ui.theme.KassaType.body, color = Kassa.colors.ink2)
-            if (bySub.size > 1) bySub.forEach { (name, v) ->
-                androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 6.dp)) {
-                    Text(name, style = dev.krishnagurram.kassa.ui.theme.KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-                    Text(dev.krishnagurram.kassa.domain.Money.format(v), style = dev.krishnagurram.kassa.ui.theme.KassaType.bodyStrong, color = Kassa.colors.ink)
-                }
-            }
-            dev.krishnagurram.kassa.ui.common.SectionHeader("Entries")
-            entries.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, l, showDivider = i < entries.lastIndex, onClick = onEdit) }
-        }
-    }
-}
-
-@Composable
-private fun Modifier.androidx_verticalScroll(): Modifier = this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))

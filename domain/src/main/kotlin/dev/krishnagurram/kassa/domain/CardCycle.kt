@@ -7,8 +7,12 @@ import java.time.ZoneId
 /**
  * Statement math for a credit card.
  *
- * "Outstanding" is what the last statement billed and is still unpaid. "Not yet billed" is everything charged
- * after the last statement closed. A statement or due day past the end of a short month falls on its last day.
+ * Wording follows Money Manager and card issuers:
+ * - [payable] ("Balance payable") is what the last statement billed and is still unpaid. The due date applies to it.
+ * - [outstanding] ("Outstanding") is what was charged after the statement date, less any payment beyond the
+ *   statement balance. It goes on the next statement.
+ * - [totalBalance] is the two together: what paying the card off today would take.
+ * A statement or due day past the end of a short month falls on its last day.
  * A due day on or before the statement day means the following month.
  */
 data class CardSnapshot(
@@ -20,14 +24,19 @@ data class CardSnapshot(
     val paidSinceClose: Long,
     val notYetBilled: Long,
 ) {
-    val outstanding: Long get() = (statementTotal - paidSinceClose).coerceAtLeast(0)
+    val payable: Long get() = (statementTotal - paidSinceClose).coerceAtLeast(0)
+
+    /** Charges since the statement date. A payment beyond the statement balance comes off this first. */
+    val outstanding: Long get() = (notYetBilled - (paidSinceClose - statementTotal).coerceAtLeast(0)).coerceAtLeast(0)
+
+    val totalBalance: Long get() = payable + outstanding
 
     fun daysUntilDue(today: LocalDate): Long = java.time.temporal.ChronoUnit.DAYS.between(today, due)
 
     val status: Status
         get() = when {
             statementTotal <= 0 -> Status.NOTHING_DUE
-            outstanding == 0L -> Status.PAID
+            payable == 0L -> Status.PAID
             paidSinceClose > 0 -> Status.PARTLY_PAID
             else -> Status.UNPAID
         }

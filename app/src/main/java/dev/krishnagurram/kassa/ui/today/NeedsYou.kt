@@ -51,7 +51,7 @@ fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
     val due = ledger.dueRecurring()
     val count = alerts.size + allocs.size + due.size
     if (count == 0) return
-    SectionHeader("Needs you", "$count to review")
+    SectionHeader("Pending review", "$count to confirm")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
         alerts.forEach { p ->
             val cat = p.categoryId?.let { ledger.categoryById[it] }

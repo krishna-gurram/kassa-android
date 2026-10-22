@@ -71,6 +71,10 @@ class KassaRepository(private val db: KassaDatabase) {
     fun transactionsBetween(fromMillis: Long, toMillis: Long): Flow<List<Transaction>> =
         db.transactions().observeBetween(fromMillis, toMillis).map { list -> list.map { it.toDomain() } }
 
+    /** Every entry that moved money in or out of one account, newest first. */
+    fun accountHistory(accountId: Long): Flow<List<Transaction>> =
+        db.transactions().observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
+
     suspend fun transaction(id: Long): Transaction? = db.transactions().byId(id)?.toDomain()
 
     suspend fun splitPeopleFor(txId: Long): List<Long> = db.loans().forTransaction(txId).map { it.personId }
@@ -145,6 +149,14 @@ class KassaRepository(private val db: KassaDatabase) {
     }
 
     suspend fun updateAccount(account: Account) = db.accounts().update(account.toEntity())
+
+    /** Saves an edited account, creating its group first when a new group name was typed. */
+    suspend fun updateAccount(account: Account, newGroupName: String?) = db.withTransaction {
+        val groupId = if (!newGroupName.isNullOrBlank()) {
+            db.groups().insert(AccountGroup(name = newGroupName.trim(), sortOrder = Int.MAX_VALUE / 2).toEntity())
+        } else account.groupId
+        db.accounts().update(account.copy(groupId = groupId).toEntity())
+    }
 
     /** Creates or updates a category. Subcategories always follow their parent's kind. */
     suspend fun saveCategory(category: Category): Long = db.withTransaction {

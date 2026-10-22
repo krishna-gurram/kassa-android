@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -29,8 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import dev.krishnagurram.kassa.BuildConfigInfo
 import dev.krishnagurram.kassa.domain.Account
@@ -101,10 +98,10 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
             is Page.Edit -> p.back
         }
     }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        BackHandler(onBack = back)
-        Surface(Modifier.fillMaxSize(), color = Kassa.colors.ground) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+    BackHandler(onBack = back)
+    Surface(Modifier.fillMaxSize(), color = Kassa.colors.ground) {
+        run {
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = back) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
@@ -280,20 +277,28 @@ private fun SplitwiseCleanup(ledger: Ledger, actions: SettingsActions) {
         style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp),
     )
     val accounts = splitwiseAccounts(ledger)
+    var converting by remember { mutableStateOf<Account?>(null) }
     if (accounts.isEmpty()) Text("Nothing left to clean up.", style = KassaType.body, color = Kassa.colors.ink2)
     accounts.forEach { a ->
         val bal = ledger.accounts.balances[a.id] ?: 0
         var name by remember(a.id) { mutableStateOf("Splitwise friends") }
+        if (converting == a) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+            title = "Turn ${a.name} into ${name.trim()}?",
+            body = "${name.trim()} starts with a balance of ${Money.format(Math.abs(bal))} " +
+                (if (bal >= 0) "receivable" else "payable") + ". ${a.name} is archived with its history.",
+            confirm = "Convert", destructive = false,
+            onConfirm = { actions.convertToPerson(a, bal, name) }, onDismiss = { converting = null },
+        )
         Column(Modifier.padding(vertical = 10.dp)) {
             EntryRow(
                 badge = { GlyphBadge(a.name.take(1)) },
                 title = a.name,
-                subtitle = when { bal > 0 -> "They owe you"; bal < 0 -> "You owe them"; else -> "Settled" },
+                subtitle = when { bal > 0 -> "Receivable, they owe you"; bal < 0 -> "Payable, you owe them"; else -> "Settled" },
                 amount = Money.format(Math.abs(bal)), showDivider = false,
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Person name") }, modifier = Modifier.weight(1f))
-                TextButton(onClick = { if (name.isNotBlank()) actions.convertToPerson(a, bal, name) }) { Text("Convert", color = Kassa.colors.ink) }
+                TextButton(onClick = { if (name.isNotBlank()) converting = a }) { Text("Convert", color = Kassa.colors.ink) }
             }
             HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 10.dp))
         }
@@ -308,6 +313,7 @@ private fun BackupPage(actions: SettingsActions) {
     var confirm by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<Pair<org.json.JSONObject, String>?>(null) }
+    var confirmRestore by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val stamp = java.time.LocalDate.now().toString()
     val saver = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -344,7 +350,12 @@ private fun BackupPage(actions: SettingsActions) {
         Text(summary, style = KassaType.bodyStrong, color = Kassa.colors.ink)
         Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
         Gap(8)
-        dev.krishnagurram.kassa.ui.importer.PrimaryButton("Replace with this backup") { actions.restore(json); pending = null; status = "Restoring..." }
+        dev.krishnagurram.kassa.ui.importer.PrimaryButton("Replace with this backup") { confirmRestore = true }
+        if (confirmRestore) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+            title = "Replace everything in Kassa?",
+            body = "All accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.",
+            confirm = "Replace", onConfirm = { actions.restore(json); pending = null; status = "Restoring..." }, onDismiss = { confirmRestore = false },
+        )
         TextButton(onClick = { pending = null }) { Text("Cancel", color = Kassa.colors.ink2) }
     }
     Gap(24)

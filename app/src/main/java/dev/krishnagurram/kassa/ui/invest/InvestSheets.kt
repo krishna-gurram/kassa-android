@@ -70,7 +70,7 @@ fun AllocateSheet(
             Text("Where did ${Money.format(p.amount)} go?", style = KassaType.section, color = Kassa.colors.ink)
             Text("Your answer keeps net worth accurate.", style = KassaType.body, color = Kassa.colors.ink2)
             if (!buying) {
-                Option("It's sitting as cash", "Counts as cash in the investment account", onCash)
+                Option("It's uninvested cash", "Stays as cash in the brokerage account", onCash)
                 Option("I bought something", "Add the ticker, shares and price") { buying = true }
                 Option("Decide later", "Stays on Today until you answer", onDismiss)
             } else {
@@ -87,9 +87,9 @@ fun AllocateSheet(
                 }
                 Text(
                     when {
-                        cost == null -> "Anything left over stays as cash."
+                        cost == null -> "Anything left over stays as uninvested cash."
                         cost > p.amount -> "That costs ${Money.format(cost)}, more than the ${Money.format(p.amount)} you moved."
-                        else -> "${Money.format(cost)} invested, ${Money.format(p.amount - cost)} stays as cash."
+                        else -> "${Money.format(cost)} invested, ${Money.format(p.amount - cost)} stays as uninvested cash."
                     },
                     style = KassaType.small, color = if (cost != null && cost > p.amount) Kassa.colors.attention else Kassa.colors.ink2,
                     modifier = Modifier.padding(top = 8.dp),
@@ -121,10 +121,16 @@ fun HoldingSheet(
     var shares by remember { mutableStateOf(if (isNew) "" else BigDecimal.valueOf(holding.microShares).movePointLeft(6).stripTrailingZeros().toPlainString()) }
     var price by remember { mutableStateOf(if (isNew) "" else BigDecimal.valueOf(holding.price).movePointLeft(2).toPlainString()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var confirmRemove by remember { mutableStateOf(false) }
+    if (confirmRemove) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+        title = "Remove ${holding.ticker}?",
+        body = "It comes off your holdings and net worth. Entries that moved money stay as they are.",
+        confirm = "Remove", onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
+    )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
             Text(if (isNew) "Add a holding" else ticker, style = KassaType.section, color = Kassa.colors.ink)
-            if (!isNew) Text("Type today's price to update net worth. Kassa never looks prices up.", style = KassaType.body, color = Kassa.colors.ink2)
+            if (!isNew) Text("Type today's price to update its market value. Kassa never looks prices up.", style = KassaType.body, color = Kassa.colors.ink2)
             if (isNew) OutlinedTextField(ticker, { ticker = it.uppercase() }, singleLine = true, label = { Text("Ticker") },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             OutlinedTextField(price, { price = it }, singleLine = true, label = { Text("Price per share") },
@@ -138,7 +144,7 @@ fun HoldingSheet(
                 error = when { ticker.isBlank() -> "Enter the ticker."; s == null -> "Enter the shares."; pr == null || pr <= 0 -> "Enter the price."; else -> null }
                 if (error == null) onSave(holding.copy(ticker = ticker.trim().uppercase(), microShares = s!!, price = pr!!, priceMillis = System.currentTimeMillis()))
             }
-            if (!isNew) TextButton(onClick = { onDelete(holding) }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
+            if (!isNew) TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
         }
     }
 }

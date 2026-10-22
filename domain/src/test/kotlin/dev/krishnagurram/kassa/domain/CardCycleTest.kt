@@ -60,7 +60,9 @@ class CardCycleTest {
         val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
         assertEquals(25_000, s.statementTotal)
         assertEquals(5_000, s.paidSinceClose)
-        assertEquals(20_000, s.outstanding)
+        assertEquals(20_000, s.payable)
+        assertEquals(7_500, s.outstanding)
+        assertEquals(27_500, s.totalBalance)
         assertEquals(7_500, s.notYetBilled)
         assertEquals(CardSnapshot.Status.PARTLY_PAID, s.status)
         assertEquals(LocalDate.of(2026, 11, 4), s.due)
@@ -76,7 +78,20 @@ class CardCycleTest {
         )
         val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
         assertEquals(17_000, s.statementTotal)
-        assertEquals(0, s.outstanding)
+        assertEquals(0, s.payable)
         assertEquals(CardSnapshot.Status.PAID, s.status)
+    }
+
+    @Test
+    fun paymentBeyondTheStatementComesOffOutstanding() {
+        val txs = listOf(
+            charge("2026-09-20", 10_000),
+            charge("2026-10-15", 8_000),
+            payment("2026-10-16", 13_000),
+        )
+        val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
+        assertEquals(0, s.payable)
+        assertEquals(5_000, s.outstanding)
+        assertEquals(5_000, s.totalBalance)
     }
 }

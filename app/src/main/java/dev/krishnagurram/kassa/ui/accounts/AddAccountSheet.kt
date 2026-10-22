@@ -46,21 +46,33 @@ fun AddAccountSheet(
     payFromOptions: List<Account>,
     onDismiss: () -> Unit,
     onSave: (Account, String?) -> Unit,
+    /** An account to edit, with its balance today. Changing the balance adjusts the starting balance. */
+    editing: Account? = null,
+    currentBalance: Long = 0,
 ) {
-    var type by remember { mutableStateOf(AccountType.CHECKING) }
-    var name by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
-    var statementDay by remember { mutableStateOf("") }
-    var dueDay by remember { mutableStateOf("") }
-    var limit by remember { mutableStateOf("") }
-    var groupId by remember { mutableStateOf(groups.firstOrNull()?.id) }
+    fun input(c: Long?) = c?.let { java.math.BigDecimal.valueOf(kotlin.math.abs(it)).movePointLeft(2).toPlainString() } ?: ""
+    var type by remember { mutableStateOf(editing?.type ?: AccountType.CHECKING) }
+    var name by remember { mutableStateOf(editing?.name ?: "") }
+    var balance by remember {
+        mutableStateOf(
+            when {
+                editing == null -> ""
+                editing.type.isDebt -> input(currentBalance)
+                else -> java.math.BigDecimal.valueOf(currentBalance).movePointLeft(2).toPlainString()
+            }
+        )
+    }
+    var statementDay by remember { mutableStateOf(editing?.statementDay?.toString() ?: "") }
+    var dueDay by remember { mutableStateOf(editing?.dueDay?.toString() ?: "") }
+    var limit by remember { mutableStateOf(input(editing?.creditLimit)) }
+    var groupId by remember { mutableStateOf(editing?.groupId ?: groups.firstOrNull()?.id) }
     var newGroup by remember { mutableStateOf("") }
-    var payFrom by remember { mutableStateOf(payFromOptions.firstOrNull()?.id) }
+    var payFrom by remember { mutableStateOf(editing?.payFromId ?: payFromOptions.firstOrNull()?.id) }
     var error by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
-            Text("Add an account", style = KassaType.title.copy(fontSize = KassaType.title.fontSize * 0.75f), color = Kassa.colors.ink)
+            Text(if (editing != null) "Edit ${editing.name}" else "Add an account", style = KassaType.title.copy(fontSize = KassaType.title.fontSize * 0.75f), color = Kassa.colors.ink)
             Gap(16)
             Label("Type")
             FlowRow {
@@ -84,6 +96,10 @@ fun AddAccountSheet(
                 balance, { balance = it },
                 label = if (type.isDebt) "Amount owed today" else "Balance today",
                 keyboard = KeyboardType.Decimal, placeholder = "0.00",
+            )
+            if (editing != null) Text(
+                "Changing the balance adjusts the account's starting balance. Entries stay as they are.",
+                style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
             )
             if (type == AccountType.CREDIT_CARD) {
                 Row {
@@ -113,7 +129,7 @@ fun AddAccountSheet(
             Field(newGroup, { newGroup = it }, "Or a new group", placeholder = "India accounts")
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 8.dp)) }
             Gap(16)
-            PrimaryButton("Add account") {
+            PrimaryButton(if (editing != null) "Save changes" else "Add account") {
                 val cents = if (balance.isBlank()) 0L else Money.parseCents(balance)
                 val st = statementDay.toIntOrNull()
                 val du = dueDay.toIntOrNull()
@@ -126,9 +142,11 @@ fun AddAccountSheet(
                 }
                 if (error == null) {
                     // Debts are stored as negative balances so net worth adds up directly.
-                    val opening = if (type.isDebt) -kotlin.math.abs(cents!!) else cents!!
+                    val today = if (type.isDebt) -kotlin.math.abs(cents!!) else cents!!
+                    // Editing: shift the starting balance by the difference, so entries don't change.
+                    val opening = if (editing != null) editing.openingBalance + (today - currentBalance) else today
                     onSave(
-                        Account(
+                        (editing ?: Account(name = "", type = type)).copy(
                             name = name.trim(), type = type, groupId = groupId, openingBalance = opening,
                             statementDay = if (type.hasStatement) st else null,
                             dueDay = if (type.hasStatement) du else null,

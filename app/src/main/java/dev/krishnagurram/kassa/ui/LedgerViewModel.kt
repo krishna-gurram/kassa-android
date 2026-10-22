@@ -251,5 +251,11 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         return t to repo.splitPeopleFor(id)
     }
 
+    fun accountHistory(accountId: Long) = repo.accountHistory(accountId)
+
+    fun updateAccount(account: Account, newGroupName: String?) = viewModelScope.launch {
+        repo.updateAccount(account, newGroupName); _messages.tryEmit("${account.name} saved.")
+    }
+
     suspend fun notes(kind: TxKind): List<String> = repo.frequentNotes(kind)
 }

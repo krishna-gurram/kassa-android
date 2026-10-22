@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.entry
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,11 +10,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,14 +28,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,7 +59,9 @@ import dev.krishnagurram.kassa.domain.Split
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
+import dev.krishnagurram.kassa.ui.common.ConfirmDialog
 import dev.krishnagurram.kassa.ui.common.Gap
+import dev.krishnagurram.kassa.ui.common.PageTop
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
@@ -69,28 +71,32 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-/** What the sheet opens with: a blank entry, an existing one to edit, or a prefilled one (card payment). */
+/** What the page opens with: a blank entry, an existing one to edit, or a prefilled one (a bank alert or bill). */
 data class EntryStart(
     val editing: Transaction? = null,
     val splitWith: List<Long> = emptyList(),
     val prefill: EntryDraft? = null,
-    /** Runs after a successful save, for example to clear the alert or bill that opened the sheet. */
+    /** Runs after a successful save, for example to clear the alert or bill that opened the page. */
     val afterSave: (() -> Unit)? = null,
 )
 
 private const val MAX_DIGITS = 8
 
-/** The add and edit sheet: amount first on a number pad, then category, account, date, note and split. */
+/**
+ * The add and edit page: amount first on a number pad, then category, account, date, note and split.
+ * Leaving with unsaved changes asks first.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun EntrySheet(
+fun EntryPage(
     ledger: Ledger,
     start: EntryStart,
+    contentPadding: PaddingValues,
     loadNotes: suspend (TxKind) -> List<String>,
     onSave: (EntryDraft) -> Unit,
     onDelete: (Long) -> Unit,
     onAddPerson: (String, (Long) -> Unit) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val e = start.editing
     val p = start.prefill
@@ -110,6 +116,11 @@ fun EntrySheet(
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var picking by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val initial = remember { listOf(kind, amount, categoryId, accountId, toAccountId, date, note, splitWith.toList()) }
+    val dirty = listOf(kind, amount, categoryId, accountId, toAccountId, date, note, splitWith.toList()) != initial
+    val leave: () -> Unit = { if (dirty) confirmDiscard = true else onBack() }
+    BackHandler(enabled = dirty) { confirmDiscard = true }
 
     LaunchedEffect(kind) { notes = if (kind == TxKind.TRANSFER) emptyList() else loadNotes(kind) }
 
@@ -145,8 +156,16 @@ fun EntrySheet(
         )
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        BoxWithConstraints(Modifier.navigationBarsPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().padding(contentPadding)) {
+        PageTop(
+            when {
+                e != null -> "Edit entry"
+                p != null -> "Review entry"
+                else -> "New entry"
+            },
+            onBack = leave,
+        )
+        BoxWithConstraints(Modifier.weight(1f).imePadding()) {
             val wide = maxWidth >= 600.dp
 
             val header: @Composable () -> Unit = {
@@ -239,7 +258,7 @@ fun EntrySheet(
                 }
             }
 
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 4.dp).padding(bottom = 20.dp)) {
                 header()
                 if (wide) {
                     Row(Modifier.padding(top = 8.dp)) {
@@ -287,15 +306,18 @@ fun EntrySheet(
         }
     }
 
-    if (confirmDelete && e != null) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this entry?") },
-            text = { Text("${e.note.ifBlank { "This entry" }}, ${Money.format(e.amount)}. Balances update right away. This can't be undone.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete(e.id) }) { Text("Delete", color = Kassa.colors.attention) } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Keep it", color = Kassa.colors.ink) } },
-        )
-    }
+    if (confirmDelete && e != null) ConfirmDialog(
+        title = "Delete this entry?",
+        body = "${e.note.ifBlank { "This entry" }}, ${Money.format(e.amount)}. Balances update right away. This can't be undone.",
+        confirm = "Delete", dismiss = "Keep it",
+        onConfirm = { onDelete(e.id) }, onDismiss = { confirmDelete = false },
+    )
+    if (confirmDiscard) ConfirmDialog(
+        title = if (e != null) "Discard your changes?" else "Discard this entry?",
+        body = if (e != null) "The entry stays as it was before you opened it." else "Nothing you typed here will be saved.",
+        confirm = "Discard", dismiss = "Keep editing",
+        onConfirm = onBack, onDismiss = { confirmDiscard = false },
+    )
 }
 
 /**

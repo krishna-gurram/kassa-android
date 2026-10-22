@@ -127,19 +127,20 @@ fun InsightsScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlagsBlock(flags: List<Insights.Flag>, ledger: Ledger, actions: InsightActions) {
-    SectionHeader("Worth a look", if (flags.isEmpty()) "All calm" else "${flags.size} running hot")
-    if (flags.isEmpty()) Text("Every everyday category is within its usual pace and budget.", style = KassaType.body, color = Kassa.colors.ink2)
+    SectionHeader("Worth a look", if (flags.isEmpty()) "All within range" else "${flags.size} above average")
+    if (flags.isEmpty()) Text("Every everyday category is within its 3-month average and budget.", style = KassaType.body, color = Kassa.colors.ink2)
     flags.take(4).forEach { f ->
         Column(Modifier.padding(vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CategoryBadge(f.category, size = 30)
-                Text("  ${f.category.name} is running hot", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Text("  ${f.category.name}: above your 3-month average", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
             val month = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
             val budgetLine = f.budget?.takeIf { it > 0 && f.soFar > it }?.let { " That's already ${Money.format(f.soFar - it, wholeDollars = true)} over its ${Money.format(it, wholeDollars = true)} budget." } ?: ""
             Text(
-                "${Money.format(f.soFar, wholeDollars = true)} so far. At this pace $month ends near ${Money.format(f.projected, wholeDollars = true)}, " +
-                    "against your usual ${Money.format(f.usual, wholeDollars = true)}. Holding to your usual saves about ${Money.format(maxOf(0, f.extra), wholeDollars = true)}.$budgetLine",
+                "${Money.format(f.soFar, wholeDollars = true)} month to date. At this pace $month ends near ${Money.format(f.projected, wholeDollars = true)}, " +
+                    "against a 3-month average of ${Money.format(f.usual, wholeDollars = true)}: a variance of ${Money.format(maxOf(0, f.extra), wholeDollars = true)}. " +
+                    "Holding to the average saves that much.$budgetLine",
                 style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
             )
             FlowRow(Modifier.padding(top = 8.dp)) {

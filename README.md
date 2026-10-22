@@ -28,7 +28,7 @@ number traces back to entries you made. Built to replace Money Manager.
 ## Building
 
 Every push to `main` runs the tests, builds a signed release APK, and attaches it to a GitHub release named
-`v0.1.<run number>`. Install it on the phone from the release page; later releases install over it and keep your data.
+`v0.2.<commit count>`. Install it on the phone from the release page; later releases install over it and keep your data.
 
 Signing uses four repository secrets: `KASSA_KEYSTORE_BASE64`, `KASSA_KEYSTORE_PASSWORD`, `KASSA_KEY_ALIAS`,
 `KASSA_KEY_PASSWORD`. Without them the APK is signed with a throwaway debug key, which can't update an installed copy.
@@ -46,11 +46,12 @@ Real backups never go in this repo. Tests use a synthetic source shaped like the
 
 ## What's in it
 
-- Today: safe-to-spend from your budgets, spending bar with an even-pace line, things to confirm, what's due
+- Today: spent this week against a usual week, month to date, card payments due, cash and bank balances, items pending review
 - Entries: number pad, top categories that collapse once picked, all-categories grid with search, splits
-- Cards: statement balance vs not billed yet, by due date; pay statement, current balance or any amount
+- Cards: total card balance split into balance payable and outstanding, by due date; record a payment of either or any amount
 - Insights: red flags against your usual months, caps, trend, weekday pattern, repeating charges, weekly recap
-- Accounts: unlimited accounts and groups, holdings at prices you enter, people you split with or lend to
+- Accounts: assets, liabilities and net worth; unlimited accounts and groups, each with its own page of entries and running
+  balance; holdings at prices you enter; people as receivables and payables
 - Assist: bank notification capture, recurring bills that ask first, investment transfer prompts
 - Settings: categories with emoji, built-in icons or your own photo, budgets, month start day, app lock, encrypted backup
 

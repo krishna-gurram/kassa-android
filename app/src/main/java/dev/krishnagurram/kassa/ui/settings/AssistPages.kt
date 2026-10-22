@@ -123,7 +123,13 @@ private fun RecurringForm(ledger: Ledger, r: Recurring, onSave: (Recurring) -> U
         }
         if (error == null) onSave(r.copy(name = name.trim(), dayOfMonth = d!!, fixedAmount = amt, categoryId = categoryId, accountId = accountId, active = active))
     }
-    if (r.id != 0L) TextButton(onClick = { onDelete(r) }, modifier = Modifier.fillMaxWidth()) { Text("Delete bill", color = Kassa.colors.attention) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (r.id != 0L) TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) { Text("Delete bill", color = Kassa.colors.attention) }
+    if (confirmDelete) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+        title = "Delete ${r.name}?",
+        body = "Kassa stops asking about this bill. Entries already added for it stay.",
+        confirm = "Delete", onConfirm = { onDelete(r) }, onDismiss = { confirmDelete = false },
+    )
     TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
     Gap(24)
 }

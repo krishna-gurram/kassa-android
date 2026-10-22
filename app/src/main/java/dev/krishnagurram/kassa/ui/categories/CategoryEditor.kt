@@ -90,6 +90,7 @@ fun CategoryEditor(
     var typedEmoji by remember { mutableStateOf("") }
     var newSub by remember { mutableStateOf("") }
     var mergeOpen by remember { mutableStateOf(false) }
+    var mergeInto by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -219,7 +220,14 @@ fun CategoryEditor(
             if (mergeOpen) {
                 val targets = ledger.categories.filter { it.kind == original.kind && it.id != original.id && !it.hidden && (it.parentId == null) == isTop }
                 Text("Every entry moves, then ${original.name} is hidden. This can't be undone.", style = KassaType.small, color = Kassa.colors.attention)
-                FlowRow(Modifier.padding(top = 6.dp)) { targets.forEach { t -> Chip(t.name, selected = false) { onMerge(original, t) } } }
+                FlowRow(Modifier.padding(top = 6.dp)) { targets.forEach { t -> Chip(t.name, selected = false) { mergeInto = t } } }
+            }
+            mergeInto?.let { t ->
+                dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+                    title = "Move everything into ${t.name}?",
+                    body = "Every ${original.name} entry moves to ${t.name}, then ${original.name} is hidden. This can't be undone.",
+                    confirm = "Move entries", onConfirm = { onMerge(original, t) }, onDismiss = { mergeInto = null },
+                )
             }
         }
 
