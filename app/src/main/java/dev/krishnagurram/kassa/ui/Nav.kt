@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 
-enum class Tab(val label: String) { TODAY("Today"), ACTIVITY("Activity"), CARDS("Cards"), INSIGHTS("Insights"), ACCOUNTS("Accounts"), SETTINGS("Settings") }
+enum class Tab(val label: String) { TODAY("Overview"), ACTIVITY("Activity"), CARDS("Cards"), INSIGHTS("Insights"), ACCOUNTS("Accounts"), SETTINGS("Settings") }
 
 /**
  * A page opened on top of a tab, with a back button. Quick actions (pay a card, record a payment, update a price)
@@ -25,6 +25,10 @@ sealed interface Page {
     data class CategoryDetail(val categoryId: Long) : Page
     /** Where the spending went: this week, or this budget month. */
     data class Spending(val month: Boolean) : Page
+    /** Card payments and bills in the next 30 days. */
+    data object Upcoming : Page
+    /** Bank alerts, bills and investment transfers waiting to be confirmed. */
+    data object Review : Page
     data object Import : Page { override val besideList: Boolean get() = false }
 }
 

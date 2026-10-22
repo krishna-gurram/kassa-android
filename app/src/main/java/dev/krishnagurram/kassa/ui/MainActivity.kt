@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -47,7 +48,7 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -258,6 +259,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
                 is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
+                Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
+                Page.Review -> dev.krishnagurram.kassa.ui.today.ReviewPage(lg, padding, onBack, needs)
                 Page.Import -> Box(Modifier.padding(padding)) {
                     ImportScreen(firstRun = false, onFinished = { nav.select(Tab.TODAY) }, onCancel = back)
                 }
@@ -268,12 +271,13 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
         fun TabContent(lg: Ledger, padding: PaddingValues, selected: Page?) {
             when (nav.tab) {
                 Tab.TODAY -> TodayScreen(
-                    lg, padding, onEdit = editFromList,
+                    lg, padding,
                     onOpenCard = { openFromList(Page.CardDetail(it)) },
-                    onOpenAccount = { openFromList(Page.AccountDetail(it)) },
                     onSpending = { openFromList(Page.Spending(it)) },
-                    onSeeAll = { nav.select(Tab.ACTIVITY) },
-                    needs = needs,
+                    onUpcoming = { openFromList(Page.Upcoming) },
+                    onReview = { openFromList(Page.Review) },
+                    onAccounts = { nav.select(Tab.ACCOUNTS) },
+                    onCards = { nav.select(Tab.CARDS) },
                 )
                 Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
                 Tab.INSIGHTS -> {
@@ -436,25 +440,37 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @C
                 }
             }
         } else {
+            // Add sits in the middle of the tab bar, so nothing floats over the content. Labels show for the
+            // current tab only, which keeps seven targets readable on the cover screen.
             Scaffold(
                 containerColor = Kassa.colors.ground,
-                floatingActionButton = fab,
                 bottomBar = {
-                    NavigationBar(containerColor = Kassa.colors.ground) {
-                        Tab.entries.forEach { t ->
+                    NavigationBar(containerColor = Kassa.colors.raised) {
+                        val colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Kassa.colors.ink, selectedTextColor = Kassa.colors.ink,
+                            indicatorColor = Kassa.colors.chip, unselectedIconColor = Kassa.colors.ink3, unselectedTextColor = Kassa.colors.ink3,
+                        )
+                        Tab.entries.forEachIndexed { i, t ->
+                            if (i == 3) NavigationBarItem(
+                                selected = false, onClick = onAdd,
+                                icon = {
+                                    Box(
+                                        Modifier.size(width = 44.dp, height = 36.dp).background(Kassa.colors.ink, RoundedCornerShape(12.dp)),
+                                        contentAlignment = androidx.compose.ui.Alignment.Center,
+                                    ) { Icon(plusIcon(), "Add an entry", tint = Kassa.colors.onInk) }
+                                },
+                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
+                            )
                             NavigationBarItem(
                                 selected = tab == t, onClick = { onTab(t) },
-                                icon = { Icon(iconFor(t), null) }, label = { Text(t.label) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Kassa.colors.ink, selectedTextColor = Kassa.colors.ink,
-                                    indicatorColor = Kassa.colors.chip, unselectedIconColor = Kassa.colors.ink3, unselectedTextColor = Kassa.colors.ink3,
-                                ),
+                                icon = { Icon(iconFor(t), t.label) }, label = { Text(t.label, maxLines = 1) },
+                                alwaysShowLabel = false, colors = colors,
                             )
                         }
                     }
                 },
             ) { inner ->
-                content(PaddingValues(start = 20.dp, end = 20.dp, top = inner.calculateTopPadding() + 16.dp, bottom = inner.calculateBottomPadding() + 88.dp))
+                content(PaddingValues(start = 20.dp, end = 20.dp, top = inner.calculateTopPadding() + 12.dp, bottom = inner.calculateBottomPadding() + 16.dp))
             }
         }
     }
@@ -469,7 +485,7 @@ private fun line(name: String, build: androidx.compose.ui.graphics.vector.PathBu
 private fun plusIcon() = line("plus") { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
 
 private fun iconFor(t: Tab): ImageVector = when (t) {
-    Tab.TODAY -> androidx.compose.material.icons.Icons.Outlined.Today
+    Tab.TODAY -> androidx.compose.material.icons.Icons.Outlined.Dashboard
     Tab.ACTIVITY -> androidx.compose.material.icons.Icons.Outlined.ReceiptLong
     Tab.CARDS -> androidx.compose.material.icons.Icons.Outlined.CreditCard
     Tab.INSIGHTS -> androidx.compose.material.icons.Icons.Outlined.Insights

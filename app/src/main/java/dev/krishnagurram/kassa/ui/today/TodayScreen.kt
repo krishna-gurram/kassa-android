@@ -30,6 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Spending
@@ -66,154 +70,273 @@ val CASH_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CA
 fun weekPace(ledger: Ledger): WeekPace.Result =
     WeekPace.compute(ledger.recent, ledger.today, WeekFields.of(Locale.getDefault()).firstDayOfWeek, ledger.zone)
 
+/** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
+fun pendingCount(ledger: Ledger): Int = ledger.assist.pending.size + ledger.dueRecurring().size
+
+/** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
+data class Upcoming(val date: java.time.LocalDate, val name: String, val kind: String, val amount: Long?, val accountId: Long?)
+
+fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
+    val until = ledger.today.plusDays(days)
+    val cards = ledger.cards().filter { it.snapshot.payable > 0 && !it.snapshot.due.isAfter(until) }
+        .map { Upcoming(it.snapshot.due, it.account.name, "Card payment", it.snapshot.payable, it.account.id) }
+    val bills = ledger.assist.recurring.mapNotNull { r ->
+        dev.krishnagurram.kassa.domain.RecurringRules.upcoming(r, ledger.today, days)?.let { d ->
+            val est = dev.krishnagurram.kassa.domain.RecurringRules.estimate(r, ledger.recent, d, ledger.zone)
+            Upcoming(d, r.name, if (r.fixedAmount == null) "Bill, estimated" else "Bill", est, null)
+        }
+    }
+    return (cards + bills).sortedBy { it.date }
+}
+
 /**
- * What opening the app answers, in order: this week's spending and where it went, this month's cash flow,
- * anything waiting for review, cards to pay, and cash and bank balances.
+ * The Overview: spending this week or this month, what's coming up, and net worth. Built to fit the
+ * cover screen without scrolling; everything else is a tap away.
  */
 @Composable
 fun TodayScreen(
     ledger: Ledger,
     contentPadding: PaddingValues,
-    onEdit: (Transaction) -> Unit,
     onOpenCard: (Long) -> Unit,
-    onOpenAccount: (Long) -> Unit,
     onSpending: (month: Boolean) -> Unit,
-    onSeeAll: () -> Unit,
-    needs: NeedsYouActions,
+    onUpcoming: () -> Unit,
+    onReview: () -> Unit,
+    onAccounts: () -> Unit,
+    onCards: () -> Unit,
 ) {
-    val recent = ledger.recent.sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id }).take(5)
-
+    var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
-        val week: @Composable () -> Unit = { WeekPanel(ledger, onOpen = { onSpending(false) }) }
-        val month: @Composable () -> Unit = { MonthSection(ledger, onSpent = { onSpending(true) }) }
-        val pending: @Composable () -> Unit = { NeedsYou(ledger, needs) }
-        val cards: @Composable () -> Unit = { CardsDue(ledger, onOpenCard) }
-        val cash: @Composable () -> Unit = { CashAndBank(ledger, onOpenAccount) }
-        val bills: @Composable () -> Unit = { UpcomingBills(ledger) }
-        val recentBlock: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                SectionHeader("Recent", modifier = Modifier.weight(1f))
-                Text("See all", style = KassaType.bodyStrong, color = Kassa.colors.ink2, modifier = Modifier.clickable(onClick = onSeeAll).padding(bottom = 4.dp, start = 8.dp))
+        val pending = pendingCount(ledger)
+        val banner: @Composable () -> Unit = {
+            if (pending > 0) Row(
+                Modifier.fillMaxWidth().padding(bottom = 14.dp).clip(RoundedCornerShape(12.dp))
+                    .background(Kassa.colors.attention.copy(alpha = 0.10f)).clickable(onClick = onReview)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.attention))
+                Text(
+                    if (pending == 1) "1 transaction to confirm" else "$pending transactions to confirm",
+                    style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink,
+                    modifier = Modifier.weight(1f).padding(start = 10.dp),
+                )
+                androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
             }
-            if (recent.isEmpty()) Text("No entries yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 16.dp))
-            recent.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < recent.lastIndex, onClick = onEdit) }
         }
+        val spending: @Composable () -> Unit = { SpendingSection(ledger, month, { month = it }, wide, onOpen = { onSpending(month) }) }
+        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 2, onOpenCard, onUpcoming) }
+        val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
-            Text(ledger.today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), style = KassaType.small, color = Kassa.colors.ink2)
-            Text("Today", style = KassaType.title, color = Kassa.colors.ink)
-            Gap(16)
+            Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
             if (wide) {
-                Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-                    Column(Modifier.weight(1f)) { week(); month(); pending(); recentBlock() }
-                    Column(Modifier.weight(1f)) { cards(); cash(); bills() }
+                banner()
+                Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Column(Modifier.weight(1f)) { spending() }
+                    androidx.compose.material3.VerticalDivider(color = Kassa.colors.line, modifier = Modifier.height(420.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) { coming(); worth() }
                 }
             } else {
-                Column(Modifier.widthIn(max = 640.dp)) { week(); pending(); month(); cards(); cash(); bills(); recentBlock() }
-            }
-            Gap(8)
-        }
-    }
-}
-
-/** This week's total and the three categories it mostly went to. */
-@Composable
-private fun WeekPanel(ledger: Ledger, onOpen: () -> Unit) {
-    val w = weekPace(ledger)
-    val rows = spendingByCategory(ledger, w.start)
-    val firstName = w.start.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-    val todayName = ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-    RaisedPanel(Modifier.clickable(onClick = onOpen)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("Spent this week", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-            Text(if (w.start == ledger.today) todayName else "$firstName to $todayName", style = KassaType.tiny, color = Kassa.colors.ink3)
-        }
-        Text(Money.format(w.spent), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.8f), color = Kassa.colors.ink)
-        if (rows.isNotEmpty()) {
-            HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
-            rows.take(3).forEach { (c, amt) ->
-                Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CategoryBadge(c, size = 26)
-                    Text(c?.name ?: "Uncategorized", style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(horizontal = 10.dp), maxLines = 1)
-                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column { banner(); spending() }
+                    coming(); worth()
                 }
             }
         }
-        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (rows.size > 3) "All ${rows.size} categories" else "Entries", style = KassaType.bodyStrong, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-            androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3)
+    }
+}
+
+/** A section title on the left and a link to the full view on the right. */
+@Composable
+private fun SectionTop(title: String, link: String? = null, onLink: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = KassaType.section, color = Kassa.colors.ink)
+        Box(Modifier.weight(1f))
+        trailing()
+        if (link != null && onLink != null) LinkText(link, onLink)
+    }
+}
+
+@Composable
+private fun LinkText(text: String, onClick: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** Dollars large, cents small, the way bank apps show a headline figure. */
+@Composable
+fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) {
+    val text = Money.format(cents)
+    val dot = text.lastIndexOf('.')
+    Text(
+        buildAnnotatedString {
+            append(text.substring(0, dot))
+            withStyle(SpanStyle(fontSize = (sizeSp * 0.5f).sp, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.8f))) {
+                append(text.substring(dot))
+            }
+        },
+        style = KassaType.hero.copy(fontSize = sizeSp.sp, letterSpacing = (-sizeSp / 32f).sp),
+        color = color, maxLines = 1,
+    )
+}
+
+@Composable
+private fun SpendingSection(ledger: Ledger, month: Boolean, setMonth: (Boolean) -> Unit, wide: Boolean, onOpen: () -> Unit) {
+    val from = if (month) ledger.period.start else weekPace(ledger).start
+    val inRange = ledger.recent.filter { dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
+    val total = inRange.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
+    val income = inRange.filter { it.kind == TxKind.INCOME }.sumOf { it.amount }
+    val days = ChronoUnit.DAYS.between(from, ledger.today) + 1
+    val top = spendingByCategory(ledger, from).take(3)
+    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+
+    SectionTop("Spending") {
+        Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
+            listOf(false to "This week", true to monthName).forEach { (m, label) ->
+                val on = m == month
+                Text(
+                    label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
+                        .clickable { setMonth(m) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
+    BigMoney(total)
+    if (top.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        top.forEach { (c, amt) ->
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised)
+                    .then(if (c != null) Modifier.clickable(onClick = onOpen) else Modifier).padding(10.dp),
+            ) {
+                CategoryBadge(c, size = 26)
+                Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+                Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+            }
+        }
+        repeat(3 - top.size) { Box(Modifier.weight(1f)) }
+    }
+    HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+    Row {
+        Column(Modifier.weight(1f)) {
+            Text("Income", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(Money.format(income), style = KassaType.bodyStrong, color = if (income > 0) Kassa.colors.positive else Kassa.colors.ink)
+        }
+        Column(Modifier.weight(1f)) {
+            Text("Daily average", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(Money.format(total / days), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+        }
+    }
+    Box(Modifier.padding(top = 6.dp)) { LinkText("Where it went", onOpen) }
+}
+
+@Composable
+private fun UpcomingSection(ledger: Ledger, show: Int, onOpenCard: (Long) -> Unit, onAll: () -> Unit) {
+    val items = upcoming(ledger, 30)
+    SectionTop("Upcoming", "Next 30 days", onAll)
+    if (items.isEmpty()) {
+        Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
+        return
+    }
+    items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
+}
+
+@Composable
+fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
+    val soon = ChronoUnit.DAYS.between(ledger.today, u.date) <= 3
+    Column(if (u.accountId != null) Modifier.clickable { onOpenCard(u.accountId) } else Modifier) {
+        HorizontalDivider(color = Kassa.colors.line)
+        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                u.date.format(DateTimeFormatter.ofPattern("MMM d")).uppercase(),
+                style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = if (soon) Kassa.colors.attention else Kassa.colors.ink2,
+                modifier = Modifier.widthIn(min = 56.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(u.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+                Text(u.kind, style = KassaType.tiny, color = Kassa.colors.ink2)
+            }
+            Text(u.amount?.let { Money.format(it) } ?: "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
         }
     }
 }
 
-/** This budget month's cash flow: spent, income, net, and what's left in budgets. */
 @Composable
-private fun MonthSection(ledger: Ledger, onSpent: () -> Unit) {
-    val p = ledger.period
-    val inMonth = ledger.recent.filter { dateOf(it, ledger).let { d -> !d.isBefore(p.start) && !d.isAfter(ledger.today) } }
-    val spent = inMonth.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-    val income = inMonth.filter { it.kind == TxKind.INCOME }.sumOf { it.amount }
-    val byTop = Spending.byTopCategory(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
-    val budgeted = ledger.categories.filter { it.parentId == null && it.kind == dev.krishnagurram.kassa.domain.CategoryKind.EXPENSE && !it.hidden }
-        .mapNotNull { c -> dev.krishnagurram.kassa.domain.Budgets.amountFor(c.id, p.yearMonth, ledger.budgets)?.takeIf { it > 0 }?.let { c.id to it } }
-    val budgetTotal = budgeted.sumOf { it.second }
-    val budgetSpent = budgeted.sumOf { (id, _) -> byTop[id] ?: 0 }
-    SectionHeader(
-        p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()),
-        "Day ${ChronoUnit.DAYS.between(p.start, ledger.today) + 1} of ${ChronoUnit.DAYS.between(p.start, p.endInclusive) + 1}",
-    )
-    ValueRow("Spent", Money.format(spent), onClick = onSpent)
-    ValueRow("Income", Money.format(income), color = if (income > 0) Kassa.colors.positive else Kassa.colors.ink)
-    ValueRow("Net cash flow", Money.format(income - spent, showPlus = true), last = budgetTotal == 0L)
-    if (budgetTotal > 0) {
-        val left = budgetTotal - budgetSpent
-        ValueRow(if (left >= 0) "Left in budgets" else "Over budgets", Money.format(Math.abs(left)), color = if (left < 0) Kassa.colors.attention else Kassa.colors.ink, last = true)
+private fun NetWorthSection(ledger: Ledger, onAccounts: () -> Unit, onCards: () -> Unit) {
+    val active = ledger.accounts.accounts.filter { !it.archived }
+    val bal = ledger.accounts.balances
+    val cash = active.filter { it.type in CASH_TYPES }.sumOf { bal[it.id] ?: 0 }
+    val cardOwed = -active.filter { it.type == AccountType.CREDIT_CARD }.sumOf { bal[it.id] ?: 0 }
+    val investAccts = active.filter { it.type == AccountType.INVESTMENT }
+    val invest = investAccts.sumOf { (bal[it.id] ?: 0) + ledger.holdingsValue(it.id) }
+    val people = ledger.personBalances().values
+    val receivable = people.filter { it > 0 }.sum()
+    val payable = -people.filter { it < 0 }.sum()
+    val holdings = ledger.assist.holdings.filter { h -> active.any { it.id == h.accountId } }.sumOf { it.value }
+    val worth = active.sumOf { bal[it.id] ?: 0 } + holdings + receivable - payable
+
+    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Net worth", style = KassaType.section, color = Kassa.colors.ink)
+        Box(Modifier.padding(start = 10.dp)) { BigMoney(worth, sizeSp = 18f) }
+        Box(Modifier.weight(1f))
+        LinkText("Accounts", onAccounts)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WorthTile(Modifier.weight(1f), accountIcon(AccountType.CHECKING), "Cash and bank", Money.format(cash), onAccounts)
+            WorthTile(Modifier.weight(1f), accountIcon(AccountType.CREDIT_CARD), "Card balances", Money.format(-cardOwed), onCards)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WorthTile(Modifier.weight(1f), accountIcon(AccountType.INVESTMENT), "Investments", Money.format(invest), onAccounts)
+            WorthTile(Modifier.weight(1f), androidx.compose.material.icons.Icons.Outlined.People, "Receivable", Money.format(receivable), onAccounts)
+        }
     }
 }
 
 @Composable
-private fun CardsDue(ledger: Ledger, onOpenCard: (Long) -> Unit) {
-    val due = cardsByDueDate(ledger).filter { it.snapshot.payable > 0 }
-    if (ledger.cards().isEmpty()) return
-    SectionHeader("Card payments due", if (due.isEmpty()) null else Money.format(due.sumOf { it.snapshot.payable }))
-    if (due.isEmpty()) Text("No balance payable.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-    due.forEachIndexed { i, c -> CardRow(c, ledger.today, showDivider = i < due.lastIndex) { onOpenCard(c.account.id) } }
-}
-
-@Composable
-private fun CashAndBank(ledger: Ledger, onOpenAccount: (Long) -> Unit) {
-    val accounts = ledger.accounts.accounts.filter { !it.archived && it.type in CASH_TYPES }
-    if (accounts.isEmpty()) return
-    val balances = ledger.accounts.balances
-    SectionHeader("Cash and bank", Money.format(accounts.sumOf { balances[it.id] ?: 0 }))
-    accounts.forEachIndexed { i, a ->
-        EntryRow(
-            badge = { IconBadge(accountIcon(a.type)) },
-            title = a.name, subtitle = a.type.label,
-            amount = Money.format(balances[a.id] ?: 0),
-            showDivider = i < accounts.lastIndex, chevron = true,
-            modifier = Modifier.clickable { onOpenAccount(a.id) },
-        )
+private fun WorthTile(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, onClick: () -> Unit) {
+    Row(
+        modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconBadge(icon, size = 30)
+        Column(Modifier.padding(start = 10.dp)) {
+            Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
+            Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+        }
     }
 }
 
+/** Every card payment and bill in the next 30 days, by date. */
 @Composable
-private fun UpcomingBills(ledger: Ledger) {
-    val bills = ledger.assist.recurring.mapNotNull { r -> dev.krishnagurram.kassa.domain.RecurringRules.upcoming(r, ledger.today, 7)?.let { r to it } }
-    if (bills.isEmpty()) return
-    SectionHeader("Upcoming bills", "Next 7 days")
-    bills.forEachIndexed { i, (r, d) ->
-        val est = dev.krishnagurram.kassa.domain.RecurringRules.estimate(r, ledger.recent, d, ledger.zone)
-        val days = ChronoUnit.DAYS.between(ledger.today, d)
-        EntryRow(
-            badge = { DateBlock(d, soon = days <= 2) },
-            title = r.name,
-            subtitle = "Recurring, ${inDays(days)}",
-            amount = est?.let { Money.format(it) } ?: "",
-            note = if (r.fixedAmount == null && est != null) "estimate" else null,
-            showDivider = i < bills.lastIndex,
-        )
+fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCard: (Long) -> Unit) {
+    val items = upcoming(ledger, 30)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+        PageTop("Next 30 days", onBack)
+        RaisedPanel {
+            Text("Total due", style = KassaType.tiny, color = Kassa.colors.ink2)
+            BigMoney(items.sumOf { it.amount ?: 0 }, sizeSp = 34f)
+            Text(plural(items.size, "payment"), style = KassaType.small, color = Kassa.colors.ink2)
+        }
+        Gap(12)
+        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2)
+        items.forEach { UpcomingRow(it, ledger, onOpenCard) }
+        Gap(24)
+    }
+}
+
+/** Everything waiting to be confirmed, on its own page. */
+@Composable
+fun ReviewPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?, needs: NeedsYouActions) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+        PageTop("To confirm", onBack)
+        if (pendingCount(ledger) == 0) Text("Nothing to confirm.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
+        NeedsYou(ledger, needs)
+        Gap(24)
     }
 }
 
