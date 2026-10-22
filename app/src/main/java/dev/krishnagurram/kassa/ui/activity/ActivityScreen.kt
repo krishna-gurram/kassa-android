@@ -79,6 +79,8 @@ data class ActivityUi(
     val days: List<Pair<LocalDate, List<Transaction>>>,
     val spent: Long,
     val income: Long,
+    /** Every entry this month, whatever the filter or search, for the breakdown beside the list. */
+    val monthEntries: List<Transaction>,
     /** Search results across every month, grouped by month. */
     val results: List<Pair<YearMonth, List<Transaction>>>,
     val resultCount: Int,
@@ -128,6 +130,7 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
             days = if (searching) emptyList() else shown.groupBy { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }.toList(),
             spent = list.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
             income = list.filter { it.kind == TxKind.INCOME }.sumOf { it.amount },
+            monthEntries = list,
             results = hits.groupBy { YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) }.toList(),
             resultCount = hits.size,
             resultSpent = hits.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
@@ -332,11 +335,11 @@ fun Chevron(left: Boolean): ImageVector = ImageVector.Builder("chevron", 24.dp, 
 fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, vm: ActivityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
-    val rows = s.days.flatMap { it.second }.filter { it.kind == TxKind.EXPENSE }
+    val rows = s.monthEntries.filter { it.kind == TxKind.EXPENSE }
         .groupBy { dev.krishnagurram.kassa.domain.Spending.topOf(it.categoryId, s.categories) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
     Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
-        dev.krishnagurram.kassa.ui.common.SectionHeader("Where it went", "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}${if (s.query.isNotBlank()) ", matching search" else ""}")
+        dev.krishnagurram.kassa.ui.common.SectionHeader("Where it went", s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
         if (rows.isEmpty()) Text("No expenses this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 16.dp))
         dev.krishnagurram.kassa.ui.common.CategoryBreakdown(rows)
     }
