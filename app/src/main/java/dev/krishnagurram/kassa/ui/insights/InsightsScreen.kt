@@ -163,10 +163,10 @@ private fun WhereItWent(ledger: Ledger, actions: InsightActions) {
         .map { Triple(it, spent[it.id] ?: 0L, Budgets.amountFor(it.id, p.yearMonth, ledger.budgets) ?: 0L) }
         .filter { it.second > 0 || it.third > 0 }
     val (daily, bills) = rows.partition { it.first.countsTowardDaily }
-    SectionHeader("Where it went", "Line marks even pace")
+    SectionHeader("Where it went", "Line: even pace")
     daily.sortedByDescending { it.second }.forEach { (c, s, b) -> BudgetBar(c, s, b, progress) { actions.openCategory(c) } }
     if (bills.isNotEmpty()) {
-        SectionHeader("Bills", "Not in today's number")
+        SectionHeader("Bills")
         bills.sortedByDescending { it.second }.forEach { (c, s, b) -> BudgetBar(c, s, b, progress) { actions.openCategory(c) } }
     }
 }
@@ -231,8 +231,8 @@ private fun Trend(ledger: Ledger) {
         }
     }
     Text(
-        "Dashed outline: where this month lands at the current pace. Dashed line: this month's budget, ${Money.format(budget, wholeDollars = true)}.",
-        style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 6.dp),
+        "Outline: projected" + if (budget > 0) ".  Line: budget ${Money.format(budget, wholeDollars = true)}" else "",
+        style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(top = 6.dp),
     )
 }
 
@@ -254,14 +254,6 @@ private fun Weekdays(ledger: Ledger) {
                 Text(d.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(3), style = KassaType.tiny, color = Kassa.colors.ink2)
             }
         }
-    }
-    if (top != null && top.second > 0) {
-        val weekday = avg.take(4).map { it.second }.average()
-        Text(
-            "${top.first.getDisplayName(TextStyle.FULL, Locale.getDefault())}s average ${Money.format(top.second, wholeDollars = true)}" +
-                if (weekday > 0) ", about ${"%.1f".format(top.second / weekday)} times a Monday to Thursday." else ".",
-            style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 6.dp),
-        )
     }
 }
 
@@ -288,15 +280,15 @@ private fun WeekView(ledger: Ledger) {
     val w = Insights.week(ledger.recent, ledger.categories, ledger.today, ledger.zone)
     Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(1f)) {
-            Text("Since Monday", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text("This week", style = KassaType.tiny, color = Kassa.colors.ink2)
             Text(Money.format(w.soFar, wholeDollars = true), style = KassaType.stat.copy(fontSize = 28.sp), color = Kassa.colors.ink)
         }
         Column(Modifier.weight(1f)) {
-            Text("A typical week by now", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text("Usual by today", style = KassaType.tiny, color = Kassa.colors.ink2)
             Text(Money.format(w.typical, wholeDollars = true), style = KassaType.stat.copy(fontSize = 28.sp), color = Kassa.colors.ink2)
         }
     }
-    SectionHeader("This week by category", "Line marks a typical week so far")
+    SectionHeader("By category", "Line: usual by today")
     val max = (w.byCategory.maxOfOrNull { maxOf(it.second, it.third) } ?: 1L).coerceAtLeast(1)
     w.byCategory.forEach { (c, now, typ) ->
         val color = Color(c.color); val track = Kassa.colors.track; val ink = Kassa.colors.ink

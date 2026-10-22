@@ -203,10 +203,10 @@ private fun PeopleSection(ledger: Ledger, balances: Map<Long, Long>, receivable:
         EntryRow(
             badge = { GlyphBadge(p.name.take(1).uppercase()) },
             title = p.name,
-            subtitle = when { b > 0 -> "Receivable, owes you"; b < 0 -> "Payable, you owe"; else -> "Settled" },
+            subtitle = when { b > 0 -> "Receivable"; b < 0 -> "Payable"; else -> "Settled" },
             amount = Money.format(Math.abs(b)),
             amountColor = when { b > 0 -> Kassa.colors.positive; b < 0 -> Kassa.colors.attention; else -> Kassa.colors.ink2 },
-            showDivider = i < people.lastIndex,
+            showDivider = i < people.lastIndex, chevron = true,
             modifier = Modifier.clickable { onOpen(p.id) },
         )
     }
@@ -225,11 +225,11 @@ private fun AccountRow(a: Account, balance: Long, ledger: Ledger, selected: Bool
         if (a.archived && group != null) add(group)
     }.joinToString(", ")
     EntryRow(
-        badge = { GlyphBadge(a.name.take(1).uppercase()) },
+        badge = { dev.krishnagurram.kassa.ui.common.IconBadge(dev.krishnagurram.kassa.ui.common.accountIcon(a.type)) },
         title = a.name, subtitle = detail,
         amount = Money.format(balance),
         amountColor = if (balance < 0) Kassa.colors.ink2 else Kassa.colors.ink,
-        showDivider = !last,
+        showDivider = !last, chevron = true,
         modifier = Modifier.then(if (selected) Modifier.background(Kassa.colors.chip) else Modifier).clickable(onClick = onClick),
     )
 }

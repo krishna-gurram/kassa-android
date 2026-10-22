@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
@@ -150,7 +151,7 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, sho
     val (status, tone) = dueStatus(c, today)
     Column(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected) Kassa.colors.chip else androidx.compose.ui.graphics.Color.Transparent).clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = if (selected) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlyphBadge(c.account.name.take(1).uppercase())
+            dev.krishnagurram.kassa.ui.common.IconBadge(androidx.compose.material.icons.Icons.Outlined.CreditCard)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
                 Text(if (s.outstanding > 0) "+ ${Money.format(s.outstanding)} outstanding" else "No outstanding charges", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
@@ -160,6 +161,7 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, sho
                 Gap(3)
                 StatusChip(status, tone)
             }
+            androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 6.dp))
         }
         if (showDivider && !selected) HorizontalDivider(color = Kassa.colors.line)
     }

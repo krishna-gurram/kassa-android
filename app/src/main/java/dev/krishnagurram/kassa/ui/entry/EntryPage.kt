@@ -213,10 +213,10 @@ fun EntryPage(
                         CategoryRow(ledger, catKind, ranked, topCat, cat, onPick = ::pickCategory, onClear = { categoryId = null }, onOpenAll = { picking = "category" }, onOpenSubs = { picking = "sub" })
                     }
                     RowLabel(when (kind) { TxKind.INCOME -> "Into"; TxKind.TRANSFER -> "From"; else -> "Paid with" })
-                    AccountRow(rankedAccounts, accountId, ledger.accounts.balances, onPick = { accountId = it.id; accountTouched = true; error = null }, onOpenAll = { picking = "from" })
+                    AccountRow(rankedAccounts, ledger.accounts.accounts, accountId, ledger.accounts.balances, onPick = { accountId = it.id; accountTouched = true; error = null }, onClear = { accountId = null; accountTouched = true }, onOpenAll = { picking = "from" })
                     if (kind == TxKind.TRANSFER) {
                         RowLabel("To")
-                        AccountRow(rankedTo.filter { it.id != accountId }, toAccountId, ledger.accounts.balances, onPick = { toAccountId = it.id; error = null }, onOpenAll = { picking = "to" })
+                        AccountRow(rankedTo.filter { it.id != accountId }, ledger.accounts.accounts, toAccountId, ledger.accounts.balances, onPick = { toAccountId = it.id; error = null }, onClear = { toAccountId = null }, onOpenAll = { picking = "to" })
                     }
                     RowLabel("Date and note")
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,16 +355,24 @@ private fun CategoryRow(
     }
 }
 
-/** One line of accounts, the picked one first, then the most used, then "All accounts" for the rest. */
+/**
+ * Accounts work like categories: one line of the most used, then, once one is picked, only that one
+ * with its balance. Tap it to choose again.
+ */
 @Composable
-private fun AccountRow(ranked: List<Account>, selectedId: Long?, balances: Map<Long, Long>, onPick: (Account) -> Unit, onOpenAll: () -> Unit) {
-    val selected = ranked.firstOrNull { it.id == selectedId }
-    val shown = (listOfNotNull(selected) + ranked.filter { it.id != selectedId }).take(6)
+private fun AccountRow(ranked: List<Account>, all: List<Account>, selectedId: Long?, balances: Map<Long, Long>, onPick: (Account) -> Unit, onClear: () -> Unit, onOpenAll: () -> Unit) {
+    val selected = all.firstOrNull { it.id == selectedId }
+    if (selected != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Chip("${selected.name}  \u2715", selected = true, onClick = onClear)
+            Text(Money.format(balances[selected.id] ?: 0), style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        return
+    }
     LazyRow {
-        items(shown, key = { it.id }) { a -> Chip(a.name, selected = a.id == selectedId) { onPick(a) } }
+        items(ranked.take(6), key = { it.id }) { a -> Chip(a.name, selected = false) { onPick(a) } }
         item { Chip("All accounts", selected = false, dashed = true, onClick = onOpenAll) }
     }
-    if (selected != null) Text("Balance ${Money.format(balances[selected.id] ?: 0)}", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(start = 4.dp))
 }
 
 @Composable

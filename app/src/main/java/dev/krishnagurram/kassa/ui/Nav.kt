@@ -23,7 +23,8 @@ sealed interface Page {
     data class AccountDetail(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
     data class CategoryDetail(val categoryId: Long) : Page
-    data object Week : Page
+    /** Where the spending went: this week, or this budget month. */
+    data class Spending(val month: Boolean) : Page
     data object Import : Page { override val besideList: Boolean get() = false }
 }
 

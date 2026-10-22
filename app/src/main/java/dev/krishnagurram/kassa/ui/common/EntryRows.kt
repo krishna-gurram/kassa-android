@@ -3,6 +3,9 @@ package dev.krishnagurram.kassa.ui.common
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.TrendingDown
+import androidx.compose.material.icons.outlined.TrendingUp
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
@@ -27,7 +30,7 @@ fun TransactionRow(
         TxKind.TRANSFER -> {
             val to = ledger.accountById[t.toAccountId]
             EntryRow(
-                badge = { GlyphBadge("⇄") },
+                badge = { IconBadge(androidx.compose.material.icons.Icons.Outlined.SwapHoriz) },
                 title = "To ${to?.name ?: "an account"}",
                 subtitle = "From ${acct ?: "an account"}",
                 amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
@@ -36,7 +39,7 @@ fun TransactionRow(
             )
         }
         TxKind.BUY, TxKind.SELL -> EntryRow(
-            badge = { GlyphBadge(if (t.kind == TxKind.BUY) "\u2197" else "\u2198") },
+            badge = { IconBadge(if (t.kind == TxKind.BUY) androidx.compose.material.icons.Icons.Outlined.TrendingUp else androidx.compose.material.icons.Icons.Outlined.TrendingDown) },
             title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
             subtitle = acct ?: "",
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,

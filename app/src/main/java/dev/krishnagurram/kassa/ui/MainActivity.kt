@@ -41,6 +41,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -250,7 +257,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
-                Page.Week -> dev.krishnagurram.kassa.ui.today.WeekPage(lg, padding, onBack, onEdit = editFromPage)
+                is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
                 Page.Import -> Box(Modifier.padding(padding)) {
                     ImportScreen(firstRun = false, onFinished = { nav.select(Tab.TODAY) }, onCancel = back)
                 }
@@ -264,7 +271,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     lg, padding, onEdit = editFromList,
                     onOpenCard = { openFromList(Page.CardDetail(it)) },
                     onOpenAccount = { openFromList(Page.AccountDetail(it)) },
-                    onWeek = { openFromList(Page.Week) },
+                    onSpending = { openFromList(Page.Spending(it)) },
                     onSeeAll = { nav.select(Tab.ACTIVITY) },
                     needs = needs,
                 )
@@ -313,16 +320,14 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() })
             }
-            // Cover screen, or a page that takes the whole screen: the page replaces the tabs, with a back button.
-            top != null && (!wide || !top.besideList) -> Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                PageHost(top, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = 24.dp), onBack = nav::pop)
-            }
             else -> Shell(nav.tab, onTab = nav::select, onAdd = { openFromList(Page.Entry(EntryStart())) }) { padding ->
                 // Unfolded: a list on the left and the page it opened on the right. Cards shows the first card by
                 // default; Activity waits for a tap.
                 val default: Page? = if (nav.tab == Tab.CARDS) dev.krishnagurram.kassa.ui.cards.cardsByDueDate(l).firstOrNull()?.let { Page.CardDetail(it.account.id) } else null
-                val shown = top ?: default
-                if (split && (top != null || nav.tab == Tab.CARDS || nav.tab == Tab.ACTIVITY)) {
+                // The page beside the list is the newest one that opens there; Add/Edit lies over everything.
+                val paneTop = nav.stack.lastOrNull { it.besideList }
+                val shown = paneTop ?: default
+                if (split && (paneTop != null || nav.tab == Tab.CARDS || nav.tab == Tab.ACTIVITY)) {
                     Row(Modifier.fillMaxSize()) {
                         Box(Modifier.weight(1f)) {
                             TabContent(l, PaddingValues(start = 24.dp, end = 20.dp, top = 16.dp, bottom = 32.dp), shown)
@@ -330,15 +335,39 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         androidx.compose.material3.VerticalDivider(color = Kassa.colors.line)
                         Box(Modifier.weight(1f)) {
                             val pad = PaddingValues(start = 16.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)
-                            if (shown != null) PageHost(shown, l, pad, onBack = if (top != null) nav::pop else null)
+                            if (shown != null) PageHost(shown, l, pad, onBack = if (paneTop != null) nav::pop else null)
                             else if (nav.tab == Tab.ACTIVITY) dev.krishnagurram.kassa.ui.activity.MonthBreakdown(l, pad)
                             else dev.krishnagurram.kassa.ui.common.PanePlaceholder("Pick something on the left.")
                         }
                     }
-                } else if (top != null) {
-                    PageHost(top, l, padding, onBack = nav::pop)
+                } else if (paneTop != null && wide) {
+                    PageHost(paneTop, l, padding, onBack = nav::pop)
                 } else {
                     TabContent(l, padding, null)
+                }
+            }
+        }
+
+        // Cover screen, or a page that takes the whole screen: the page slides in over the tabs, which stay
+        // composed underneath so going back returns to the same scroll position.
+        val fullPage = top?.takeIf { !wide || !it.besideList }
+        var lastFull by remember { mutableStateOf<Page?>(null) }
+        if (fullPage != null) lastFull = fullPage
+        androidx.compose.animation.AnimatedVisibility(
+            visible = fullPage != null && l != null,
+            enter = androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(240)) { it / 5 } +
+                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(200)) { it / 5 } +
+                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
+        ) {
+            val pg = lastFull
+            if (pg != null && l != null) Box(
+                Modifier.fillMaxSize().background(Kassa.colors.ground)
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
+                    .windowInsetsPadding(WindowInsets.safeDrawing),
+            ) {
+                androidx.compose.runtime.key(pg) {
+                    PageHost(pg, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = 24.dp), onBack = nav::pop)
                 }
             }
         }
@@ -440,28 +469,12 @@ private fun line(name: String, build: androidx.compose.ui.graphics.vector.PathBu
 private fun plusIcon() = line("plus") { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
 
 private fun iconFor(t: Tab): ImageVector = when (t) {
-    Tab.TODAY -> line("today") {
-        moveTo(7f, 5f); lineTo(17f, 5f); quadTo(20f, 5f, 20f, 8f); lineTo(20f, 17f); quadTo(20f, 20f, 17f, 20f)
-        lineTo(7f, 20f); quadTo(4f, 20f, 4f, 17f); lineTo(4f, 8f); quadTo(4f, 5f, 7f, 5f)
-        moveTo(4f, 10f); lineTo(20f, 10f); moveTo(9f, 3f); lineTo(9f, 7f); moveTo(15f, 3f); lineTo(15f, 7f)
-    }
-    Tab.ACTIVITY -> line("activity") { moveTo(5f, 7f); lineTo(19f, 7f); moveTo(5f, 12f); lineTo(19f, 12f); moveTo(5f, 17f); lineTo(14f, 17f) }
-    Tab.CARDS -> line("cards") {
-        moveTo(5.5f, 6f); lineTo(18.5f, 6f); quadTo(21f, 6f, 21f, 8.5f); lineTo(21f, 16.5f); quadTo(21f, 19f, 18.5f, 19f)
-        lineTo(5.5f, 19f); quadTo(3f, 19f, 3f, 16.5f); lineTo(3f, 8.5f); quadTo(3f, 6f, 5.5f, 6f)
-        moveTo(3f, 10.5f); lineTo(21f, 10.5f); moveTo(7f, 15f); lineTo(11f, 15f)
-    }
-    Tab.INSIGHTS -> line("insights") { moveTo(5f, 20f); lineTo(5f, 12f); moveTo(12f, 20f); lineTo(12f, 5f); moveTo(19f, 20f); lineTo(19f, 13f) }
-    Tab.SETTINGS -> line("settings") {
-        moveTo(4f, 7f); lineTo(20f, 7f); moveTo(9f, 4.5f); lineTo(9f, 9.5f)
-        moveTo(4f, 12f); lineTo(20f, 12f); moveTo(15f, 9.5f); lineTo(15f, 14.5f)
-        moveTo(4f, 17f); lineTo(20f, 17f); moveTo(7f, 14.5f); lineTo(7f, 19.5f)
-    }
-    Tab.ACCOUNTS -> line("accounts") {
-        moveTo(4f, 9.5f); lineTo(12f, 5f); lineTo(20f, 9.5f)
-        moveTo(6f, 11f); lineTo(6f, 18f); moveTo(10f, 11f); lineTo(10f, 18f)
-        moveTo(14f, 11f); lineTo(14f, 18f); moveTo(18f, 11f); lineTo(18f, 18f); moveTo(4f, 20f); lineTo(20f, 20f)
-    }
+    Tab.TODAY -> androidx.compose.material.icons.Icons.Outlined.Today
+    Tab.ACTIVITY -> androidx.compose.material.icons.Icons.Outlined.ReceiptLong
+    Tab.CARDS -> androidx.compose.material.icons.Icons.Outlined.CreditCard
+    Tab.INSIGHTS -> androidx.compose.material.icons.Icons.Outlined.Insights
+    Tab.ACCOUNTS -> androidx.compose.material.icons.Icons.Outlined.AccountBalance
+    Tab.SETTINGS -> androidx.compose.material.icons.Icons.Outlined.Settings
 }
 
 private fun settingsActions(vm: LedgerViewModel, context: android.content.Context, onImport: () -> Unit) = object : SettingsActions {

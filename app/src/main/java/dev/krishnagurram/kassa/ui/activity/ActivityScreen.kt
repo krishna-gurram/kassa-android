@@ -125,7 +125,7 @@ fun ActivityScreen(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
         item {
             Column(Modifier.widthIn(max = 720.dp)) {
-                Text("${s.month.atDay(1).format(DateTimeFormatter.ofPattern("MMM d"))} to ${s.month.atEndOfMonth().format(DateTimeFormatter.ofPattern("MMM d"))}", style = KassaType.small, color = Kassa.colors.ink2)
+                Text("${s.days.sumOf { it.second.size }} entries", style = KassaType.small, color = Kassa.colors.ink2)
                 Text("Activity", style = KassaType.title, color = Kassa.colors.ink)
                 Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { vm.shift(-1) }) { Icon(Chevron(left = true), "Previous month", tint = Kassa.colors.ink) }
@@ -138,10 +138,12 @@ fun ActivityScreen(
                         Icon(Chevron(left = false), "Next month", tint = if (s.isCurrentMonth) Kassa.colors.ink3 else Kassa.colors.ink)
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Expenses", Money.format(s.spent, wholeDollars = true), modifier = Modifier.weight(1f))
-                    Stat("Income", Money.format(s.income, wholeDollars = true), Kassa.colors.positive, Modifier.weight(1f))
-                    Stat("Net", Money.format(s.income - s.spent, wholeDollars = true, showPlus = true), modifier = Modifier.weight(1f))
+                dev.krishnagurram.kassa.ui.common.RaisedPanel(Modifier.padding(vertical = 8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Stat("Expenses", Money.format(s.spent, wholeDollars = true), modifier = Modifier.weight(1f))
+                        Stat("Income", Money.format(s.income, wholeDollars = true), Kassa.colors.positive, Modifier.weight(1f))
+                        Stat("Net", Money.format(s.income - s.spent, wholeDollars = true, showPlus = true), modifier = Modifier.weight(1f))
+                    }
                 }
                 TextField(
                     value = s.query, onValueChange = vm::search, singleLine = true,

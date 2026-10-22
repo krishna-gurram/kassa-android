@@ -1,6 +1,7 @@
 package dev.krishnagurram.kassa.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -96,3 +97,16 @@ fun PanePlaceholder(text: String) {
 }
 
 fun plural(n: Int, one: String, many: String = one + "s") = if (n == 1) "1 $one" else "$n $many"
+
+/** A label and a value on one line, like Settings rows. With [onClick] it shows a chevron and opens a page. */
+@Composable
+fun ValueRow(label: String, value: String, color: androidx.compose.ui.graphics.Color = Kassa.colors.ink, onClick: (() -> Unit)? = null, last: Boolean = false) {
+    Column(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+            Text(value, style = KassaType.bodyStrong, color = color)
+            if (onClick != null) Icon(Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 6.dp))
+        }
+        if (!last) androidx.compose.material3.HorizontalDivider(color = Kassa.colors.line)
+    }
+}

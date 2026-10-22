@@ -72,6 +72,9 @@ fun EntryRow(
     note: String? = null,
     showDivider: Boolean = true,
     modifier: Modifier = Modifier,
+    /** Shows a chevron when the row opens a page. */
+    chevron: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -83,7 +86,12 @@ fun EntryRow(
             Column(horizontalAlignment = Alignment.End) {
                 Text(amount, style = KassaType.bodyStrong, color = amountColor, maxLines = 1)
                 if (note != null) Text(note, style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1)
+                trailing?.invoke()
             }
+            if (chevron) androidx.compose.material3.Icon(
+                dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3,
+                modifier = Modifier.padding(start = 6.dp).size(20.dp),
+            )
         }
         if (showDivider) HorizontalDivider(color = Kassa.colors.line, thickness = 1.dp)
     }
