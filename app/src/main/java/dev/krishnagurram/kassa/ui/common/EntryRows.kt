@@ -33,6 +33,13 @@ fun TransactionRow(
                 showDivider = showDivider, modifier = m,
             )
         }
+        TxKind.BUY, TxKind.SELL -> EntryRow(
+            badge = { GlyphBadge(if (t.kind == TxKind.BUY) "\u2197" else "\u2198") },
+            title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
+            subtitle = acct ?: "",
+            amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
+            note = "Investing", showDivider = showDivider, modifier = m,
+        )
         TxKind.PERSON_IN, TxKind.PERSON_OUT -> EntryRow(
             badge = { GlyphBadge(person?.take(1) ?: "?") },
             title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) "${person ?: "Someone"} paid you" else "You paid ${person ?: "someone"}" },

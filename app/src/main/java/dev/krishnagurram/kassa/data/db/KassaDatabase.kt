@@ -43,7 +43,7 @@ interface AccountDao {
         """
         SELECT a.id AS id,
           a.openingBalance
-          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN') THEN t.amount ELSE -t.amount END)
+          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL') THEN t.amount ELSE -t.amount END)
                       FROM transactions t WHERE t.accountId = a.id), 0)
           + COALESCE((SELECT SUM(t.amount) FROM transactions t
                       WHERE t.kind = 'TRANSFER' AND t.toAccountId = a.id), 0) AS balance
@@ -113,6 +113,9 @@ interface TransactionDao {
     @Query("SELECT note FROM transactions WHERE kind = :kind AND note != '' GROUP BY note ORDER BY COUNT(*) DESC LIMIT 400")
     suspend fun frequentNotes(kind: String): List<String>
 
+    @Query("SELECT categoryId FROM transactions WHERE note = :note COLLATE NOCASE AND kind = 'EXPENSE' AND categoryId IS NOT NULL ORDER BY epochMillis DESC LIMIT 1")
+    suspend fun lastCategoryForNote(note: String): Long?
+
     @Insert
     suspend fun insert(tx: TransactionEntity): Long
 
@@ -157,6 +160,69 @@ interface LoanDao {
 }
 
 @Dao
+interface RecurringDao {
+    @Query("SELECT * FROM recurring ORDER BY dayOfMonth, name")
+    fun observeAll(): Flow<List<RecurringEntity>>
+
+    @Insert
+    suspend fun insert(r: RecurringEntity): Long
+
+    @Update
+    suspend fun update(r: RecurringEntity)
+
+    @Query("DELETE FROM recurring WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface PendingDao {
+    @Query("SELECT * FROM pending_items ORDER BY epochMillis DESC")
+    fun observeAll(): Flow<List<PendingEntity>>
+
+    @Query("SELECT COUNT(*) FROM pending_items WHERE type = 'ALERT' AND amount = :amount AND source = :source AND epochMillis > :since")
+    suspend fun recentDuplicates(amount: Long, source: String, since: Long): Int
+
+    @Insert
+    suspend fun insert(p: PendingEntity): Long
+
+    @Query("DELETE FROM pending_items WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface HoldingDao {
+    @Query("SELECT * FROM holdings ORDER BY ticker")
+    fun observeAll(): Flow<List<HoldingEntity>>
+
+    @Query("SELECT * FROM holdings WHERE accountId = :accountId AND ticker = :ticker")
+    suspend fun find(accountId: Long, ticker: String): HoldingEntity?
+
+    @Insert
+    suspend fun insert(h: HoldingEntity): Long
+
+    @Update
+    suspend fun update(h: HoldingEntity)
+
+    @Query("DELETE FROM holdings WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface AlertRuleDao {
+    @Query("SELECT * FROM alert_rules")
+    fun observeAll(): Flow<List<AlertRuleEntity>>
+
+    @Query("SELECT * FROM alert_rules")
+    suspend fun all(): List<AlertRuleEntity>
+
+    @Insert
+    suspend fun insert(r: AlertRuleEntity): Long
+
+    @Query("DELETE FROM alert_rules WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface BudgetDao {
     @Query("SELECT * FROM budgets")
     fun observeAll(): Flow<List<BudgetEntity>>
@@ -178,8 +244,9 @@ interface BudgetDao {
     entities = [
         GroupEntity::class, AccountEntity::class, CategoryEntity::class, TransactionEntity::class, BudgetEntity::class,
         PersonEntity::class, LoanEntryEntity::class,
+        RecurringEntity::class, PendingEntity::class, HoldingEntity::class, AlertRuleEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class KassaDatabase : RoomDatabase() {
@@ -190,6 +257,10 @@ abstract class KassaDatabase : RoomDatabase() {
     abstract fun budgets(): BudgetDao
     abstract fun people(): PersonDao
     abstract fun loans(): LoanDao
+    abstract fun recurring(): RecurringDao
+    abstract fun pending(): PendingDao
+    abstract fun holdings(): HoldingDao
+    abstract fun alertRules(): AlertRuleDao
 
     companion object {
         /** Encrypted with SQLCipher. The key lives in the Android Keystore, see [DatabaseKey]. */
@@ -198,7 +269,7 @@ abstract class KassaDatabase : RoomDatabase() {
             val factory = SupportOpenHelperFactory(DatabaseKey.get(context))
             return Room.databaseBuilder(context, KassaDatabase::class.java, "kassa.db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         }
     }
@@ -232,5 +303,30 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_loan_entries_personId` ON `loan_entries` (`personId`)")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_loan_entries_txId` ON `loan_entries` (`txId`)")
+    }
+}
+
+/** v2 to v3: recurring bills, pending items, holdings and alert rules. New tables only; nothing existing changes. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `recurring` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                "`categoryId` INTEGER NOT NULL, `accountId` INTEGER NOT NULL, `dayOfMonth` INTEGER NOT NULL, `fixedAmount` INTEGER, " +
+                "`active` INTEGER NOT NULL, `handledMonth` INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `pending_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, " +
+                "`amount` INTEGER NOT NULL, `merchant` TEXT, `accountId` INTEGER, `categoryId` INTEGER, `epochMillis` INTEGER NOT NULL, " +
+                "`source` TEXT, `isCredit` INTEGER NOT NULL, `txId` INTEGER)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `holdings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `accountId` INTEGER NOT NULL, " +
+                "`ticker` TEXT NOT NULL, `microShares` INTEGER NOT NULL, `price` INTEGER NOT NULL, `priceMillis` INTEGER NOT NULL)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_holdings_accountId` ON `holdings` (`accountId`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `alert_rules` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, " +
+                "`last4` TEXT, `accountId` INTEGER NOT NULL)"
+        )
     }
 }

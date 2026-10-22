@@ -60,6 +60,14 @@ interface SettingsActions {
     fun setMonthStartDay(day: Int)
     fun importAgain()
     suspend fun savePhoto(uri: android.net.Uri): String?
+    fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring)
+    fun deleteRecurring(id: Long)
+    fun setAlertApp(pkg: String, on: Boolean)
+    fun addRule(pkg: String, last4: String?, accountId: Long)
+    fun deleteRule(id: Long)
+    fun openNotificationAccess()
+    fun hasNotificationAccess(): Boolean
+    fun appLabel(pkg: String): String
 }
 
 private sealed interface Page {
@@ -67,15 +75,17 @@ private sealed interface Page {
     data class Categories(val kind: CategoryKind) : Page
     data class Edit(val category: Category, val back: Page) : Page
     data object Splitwise : Page
+    data object Recurring : Page
+    data object Alerts : Page
 }
 
 @Composable
-fun SettingsScreen(ledger: Ledger, actions: SettingsActions, onClose: () -> Unit) {
+fun SettingsScreen(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>, seenApps: Set<String>, onClose: () -> Unit) {
     var page by remember { mutableStateOf<Page>(Page.Main) }
     val back: () -> Unit = {
         page = when (val p = page) {
             Page.Main -> { onClose(); Page.Main }
-            is Page.Categories, Page.Splitwise -> Page.Main
+            is Page.Categories, Page.Splitwise, Page.Recurring, Page.Alerts -> Page.Main
             is Page.Edit -> p.back
         }
     }
@@ -92,6 +102,8 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, onClose: () -> Unit
                                 is Page.Categories -> if (p.kind == CategoryKind.EXPENSE) "Expense categories" else "Income categories"
                                 is Page.Edit -> if (p.category.id == 0L) "New category" else "Edit category"
                                 Page.Splitwise -> "Splitwise cleanup"
+                                Page.Recurring -> "Recurring bills"
+                                Page.Alerts -> "Bank notifications"
                             },
                             style = KassaType.section, color = Kassa.colors.ink,
                         )
@@ -111,6 +123,8 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, onClose: () -> Unit
                             savePhoto = actions::savePhoto,
                         )
                         Page.Splitwise -> SplitwiseCleanup(ledger, actions)
+                        Page.Recurring -> RecurringPage(ledger, actions)
+                        Page.Alerts -> AlertsPage(ledger, actions, alertApps, seenApps)
                     }
                 }
             }
@@ -142,6 +156,10 @@ private fun Main(ledger: Ledger, actions: SettingsActions, open: (Page) -> Unit)
     SectionHeader("Categories and budgets")
     NavRow("Expense categories", "$expenses, with budgets") { open(Page.Categories(CategoryKind.EXPENSE)) }
     NavRow("Income categories", "$incomes") { open(Page.Categories(CategoryKind.INCOME)) }
+
+    SectionHeader("Assist")
+    NavRow("Recurring bills", "${ledger.assist.recurring.size} set up. Each asks before it's added.") { open(Page.Recurring) }
+    NavRow("Bank notifications", if (actions.hasNotificationAccess()) "${alertApps.size} apps turned on" else "Off. Turn on to capture purchases as you make them.") { open(Page.Alerts) }
 
     SectionHeader("Budget month")
     Text("Your month starts on day ${ledger.monthStartDay}. Pick payday if you budget from one paycheck to the next.", style = KassaType.small, color = Kassa.colors.ink2)

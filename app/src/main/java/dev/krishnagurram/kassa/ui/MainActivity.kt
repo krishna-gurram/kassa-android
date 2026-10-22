@@ -87,6 +87,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
     var selectedCard by rememberSaveable { mutableStateOf<Long?>(null) }
     var entry by remember { mutableStateOf<EntryStart?>(null) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -96,6 +98,32 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
 
     val edit: (Transaction) -> Unit = { t ->
         scope.launch { vm.loadForEdit(t.id)?.let { (tx, split) -> entry = EntryStart(editing = tx, splitWith = split) } }
+    }
+
+    val needs = object : dev.krishnagurram.kassa.ui.today.NeedsYouActions {
+        fun draftFrom(p: dev.krishnagurram.kassa.data.db.PendingEntity) = dev.krishnagurram.kassa.data.EntryDraft(
+            id = null, kind = if (p.isCredit) dev.krishnagurram.kassa.domain.TxKind.INCOME else dev.krishnagurram.kassa.domain.TxKind.EXPENSE,
+            amount = p.amount, accountId = p.accountId, toAccountId = null, categoryId = if (p.isCredit) null else p.categoryId, personId = null,
+            epochMillis = p.epochMillis, note = p.merchant ?: "", splitWith = emptyList(),
+        )
+        override fun addAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) {
+            if (p.isCredit) { editAlert(p); return }
+            vm.save(draftFrom(p)) { vm.dismissPending(p.id) }
+        }
+        override fun editAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) { entry = EntryStart(prefill = draftFrom(p), afterSave = { vm.dismissPending(p.id) }) }
+        override fun dismissAlert(p: dev.krishnagurram.kassa.data.db.PendingEntity) { vm.dismissPending(p.id, "Dismissed. Nothing was added.") }
+        override fun approve(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) { vm.approveRecurring(r, amount) }
+        override fun editRecurring(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) {
+            val l = ledger ?: return
+            val due = dev.krishnagurram.kassa.domain.RecurringRules.dueDate(r, java.time.YearMonth.from(l.today))
+            entry = EntryStart(
+                prefill = dev.krishnagurram.kassa.data.EntryDraft(null, dev.krishnagurram.kassa.domain.TxKind.EXPENSE, amount, r.accountId, null, r.categoryId, null,
+                    due.atTime(9, 0).atZone(l.zone).toInstant().toEpochMilli(), r.name, emptyList()),
+                afterSave = { vm.markHandled(r) },
+            )
+        }
+        override fun skip(r: dev.krishnagurram.kassa.domain.Recurring) { vm.skipRecurring(r) }
+        override fun allocate(p: dev.krishnagurram.kassa.data.db.PendingEntity) { allocating = p }
     }
 
     Box(Modifier.fillMaxSize().background(Kassa.colors.ground)) {
@@ -111,7 +139,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             }
             else -> Shell(tab, onTab = { tab = it; if (it != Tab.CARDS) selectedCard = null }, onAdd = { entry = EntryStart() }, snackbar = snackbar) { padding ->
                 when (tab) {
-                    Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY }, onSettings = { settingsOpen = true })
+                    Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY }, onSettings = { settingsOpen = true }, needs = needs)
                     Tab.ACTIVITY -> ActivityScreen(l, padding, onEdit = edit)
                     Tab.CARDS -> CardsScreen(l, padding, selectedCard, onSelect = { selectedCard = it }, onEdit = edit, onPay = { vm.save(it) })
                     Tab.ACCOUNTS -> AccountsScreen(
@@ -121,19 +149,31 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         onArchive = { a, archived -> vm.setArchived(a, archived) },
                         onAddPerson = { vm.addPerson(it) },
                         onSave = { vm.save(it) },
+                        onSaveHolding = { vm.saveHolding(it) },
+                        onDeleteHolding = { vm.deleteHolding(it.id) },
                     )
                 }
             }
         }
         if (settingsOpen && l != null) {
-            SettingsScreen(l, remember(vm) { settingsActions(vm) { settingsOpen = false; importing = true } }, onClose = { settingsOpen = false })
+            val alertApps by vm.alertApps.collectAsState()
+            val seenApps by vm.seenApps.collectAsState()
+            SettingsScreen(l, remember(vm) { settingsActions(vm, context) { settingsOpen = false; importing = true } }, alertApps, seenApps, onClose = { settingsOpen = false })
+        }
+        allocating?.let { p ->
+            if (l != null) dev.krishnagurram.kassa.ui.invest.AllocateSheet(
+                p, l,
+                onCash = { vm.dismissPending(p.id, "Counted as cash in the investment account."); allocating = null },
+                onBuy = { t, sh, pr -> p.accountId?.let { vm.buy(it, t, sh, pr, p.id) }; allocating = null },
+                onDismiss = { allocating = null },
+            )
         }
         val start = entry
         if (start != null && l != null) {
             EntrySheet(
                 ledger = l, start = start,
                 loadNotes = { vm.notes(it) },
-                onSave = { vm.save(it); entry = null },
+                onSave = { vm.save(it, start.afterSave); entry = null },
                 onDelete = { vm.delete(it); entry = null },
                 onAddPerson = { name, then -> vm.addPerson(name, then) },
                 onDismiss = { entry = null },
@@ -226,7 +266,7 @@ private fun iconFor(t: Tab): ImageVector = when (t) {
     }
 }
 
-private fun settingsActions(vm: LedgerViewModel, onImport: () -> Unit) = object : SettingsActions {
+private fun settingsActions(vm: LedgerViewModel, context: android.content.Context, onImport: () -> Unit) = object : SettingsActions {
     override fun saveCategory(category: dev.krishnagurram.kassa.domain.Category, budget: Long?, then: (Long) -> Unit) { vm.saveCategory(category, budget, then) }
     override fun setMonthBudget(categoryId: Long, amount: Long?) {
         val l = vm.ledger.value ?: return
@@ -237,4 +277,17 @@ private fun settingsActions(vm: LedgerViewModel, onImport: () -> Unit) = object 
     override fun setMonthStartDay(day: Int) = vm.setMonthStartDay(day)
     override fun importAgain() = onImport()
     override suspend fun savePhoto(uri: android.net.Uri): String? = vm.saveIconImage(uri)
+    override fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring) { vm.saveRecurring(r) }
+    override fun deleteRecurring(id: Long) { vm.deleteRecurring(id) }
+    override fun setAlertApp(pkg: String, on: Boolean) = vm.setAlertApp(pkg, on)
+    override fun addRule(pkg: String, last4: String?, accountId: Long) { vm.addRule(pkg, last4, accountId) }
+    override fun deleteRule(id: Long) { vm.deleteRule(id) }
+    override fun openNotificationAccess() {
+        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+    override fun hasNotificationAccess(): Boolean =
+        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    override fun appLabel(pkg: String): String = runCatching {
+        context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
+    }.getOrDefault(pkg)
 }

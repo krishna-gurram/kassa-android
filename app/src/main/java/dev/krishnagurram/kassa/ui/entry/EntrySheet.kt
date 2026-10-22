@@ -74,6 +74,8 @@ data class EntryStart(
     val editing: Transaction? = null,
     val splitWith: List<Long> = emptyList(),
     val prefill: EntryDraft? = null,
+    /** Runs after a successful save, for example to clear the alert or bill that opened the sheet. */
+    val afterSave: (() -> Unit)? = null,
 )
 
 private const val MAX_DIGITS = 8

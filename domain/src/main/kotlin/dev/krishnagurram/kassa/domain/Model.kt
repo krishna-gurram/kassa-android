@@ -103,6 +103,10 @@ enum class TxKind {
     PERSON_OUT,
     /** Money from a person into your account: being paid back, or borrowing. */
     PERSON_IN,
+    /** Cash in an investment account spent on shares. The note holds the ticker. */
+    BUY,
+    /** Shares sold back to cash in an investment account. */
+    SELL,
 }
 
 /** Someone you split costs with or lend to. Their balance lives in [LoanEntry] rows and person transactions. */
@@ -167,8 +171,8 @@ data class Budget(
 val PERSON_KINDS = setOf(TxKind.PERSON_OUT, TxKind.PERSON_IN)
 
 fun Transaction.effectOn(accountId: Long): Long = when (kind) {
-    TxKind.EXPENSE, TxKind.PERSON_OUT -> if (this.accountId == accountId) -amount else 0
-    TxKind.INCOME, TxKind.PERSON_IN -> if (this.accountId == accountId) amount else 0
+    TxKind.EXPENSE, TxKind.PERSON_OUT, TxKind.BUY -> if (this.accountId == accountId) -amount else 0
+    TxKind.INCOME, TxKind.PERSON_IN, TxKind.SELL -> if (this.accountId == accountId) amount else 0
     TxKind.TRANSFER -> when (accountId) {
         this.accountId -> -amount
         toAccountId -> amount

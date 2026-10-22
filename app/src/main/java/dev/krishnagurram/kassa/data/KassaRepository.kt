@@ -112,6 +112,11 @@ class KassaRepository(private val db: KassaDatabase) {
         db.transactions().delete(id)
     }
 
+    /** Category of the most recent entry with this note, for prefilling captured alerts. */
+    suspend fun lastCategoryFor(note: String): Long? = db.transactions().lastCategoryForNote(note)
+
+    suspend fun saveRaw(t: Transaction): Long = db.transactions().insert(t.toEntity())
+
     suspend fun addPerson(name: String): Long = db.people().insert(Person(name = name.trim()).toEntity())
 
     /** Replaces everything with an import. Runs in one database transaction: all of it lands, or none of it. */
@@ -175,4 +180,81 @@ class KassaRepository(private val db: KassaDatabase) {
         db.accounts().update(account.copy(archived = true).toEntity())
         pid
     }
+}
+
+/* ---------- Milestone 3: assist ---------- */
+
+data class AssistState(
+    val recurring: List<dev.krishnagurram.kassa.domain.Recurring>,
+    val pending: List<dev.krishnagurram.kassa.data.db.PendingEntity>,
+    val holdings: List<dev.krishnagurram.kassa.domain.Holding>,
+    val rules: List<dev.krishnagurram.kassa.data.db.AlertRuleEntity>,
+)
+
+class AssistRepository(private val db: KassaDatabase, private val main: KassaRepository) {
+
+    val state: Flow<AssistState> = combine(
+        db.recurring().observeAll(), db.pending().observeAll(), db.holdings().observeAll(), db.alertRules().observeAll(),
+    ) { r, p, h, a -> AssistState(r.map { it.toDomain() }, p, h.map { it.toDomain() }, a) }
+
+    suspend fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring) {
+        if (r.id == 0L) db.recurring().insert(r.toEntity()) else db.recurring().update(r.toEntity())
+    }
+
+    suspend fun deleteRecurring(id: Long) = db.recurring().delete(id)
+
+    suspend fun markHandled(r: dev.krishnagurram.kassa.domain.Recurring, month: Int) =
+        db.recurring().update(r.copy(handledMonth = month).toEntity())
+
+    suspend fun dismiss(pendingId: Long) = db.pending().delete(pendingId)
+
+    /**
+     * Stores a parsed bank alert as a pending item. The account comes from the alert rules (app plus last four
+     * digits); the category comes from the last entry with the same merchant. Repeats within two minutes are
+     * dropped, since some banks post the same alert twice.
+     */
+    suspend fun capture(alert: dev.krishnagurram.kassa.domain.ParsedAlert, source: String, at: Long): Boolean = db.withTransaction {
+        if (db.pending().recentDuplicates(alert.amount, source, at - 120_000) > 0) return@withTransaction false
+        val rules = db.alertRules().all().filter { it.packageName == source }
+        val account = rules.firstOrNull { it.last4 != null && it.last4 == alert.last4 }?.accountId ?: rules.firstOrNull { it.last4 == null }?.accountId
+        val category = alert.merchant?.let { m -> main.lastCategoryFor(m) }
+        db.pending().insert(
+            dev.krishnagurram.kassa.data.db.PendingEntity(
+                type = "ALERT", amount = alert.amount, merchant = alert.merchant, accountId = account, categoryId = category,
+                epochMillis = at, source = source, isCredit = alert.isCredit, txId = null,
+            )
+        )
+        true
+    }
+
+    suspend fun addAllocation(txId: Long, amount: Long, accountId: Long, at: Long) {
+        db.pending().insert(
+            dev.krishnagurram.kassa.data.db.PendingEntity(
+                type = "ALLOCATE", amount = amount, merchant = null, accountId = accountId, categoryId = null,
+                epochMillis = at, source = null, isCredit = false, txId = txId,
+            )
+        )
+    }
+
+    /** Records a purchase of shares: cash leaves the investment account and the holding grows. */
+    suspend fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, pendingId: Long?) = db.withTransaction {
+        val t = ticker.trim().uppercase()
+        val cost = Math.round(microShares / 1_000_000.0 * price)
+        main.saveRaw(Transaction(kind = TxKind.BUY, amount = cost, accountId = accountId, epochMillis = at, note = t))
+        val existing = db.holdings().find(accountId, t)
+        if (existing == null) db.holdings().insert(dev.krishnagurram.kassa.data.db.HoldingEntity(accountId = accountId, ticker = t, microShares = microShares, price = price, priceMillis = at))
+        else db.holdings().update(existing.copy(microShares = existing.microShares + microShares, price = price, priceMillis = at))
+        pendingId?.let { db.pending().delete(it) }
+    }
+
+    suspend fun saveHolding(h: dev.krishnagurram.kassa.domain.Holding) {
+        if (h.id == 0L) db.holdings().insert(h.toEntity()) else db.holdings().update(h.toEntity())
+    }
+
+    suspend fun deleteHolding(id: Long) = db.holdings().delete(id)
+
+    suspend fun addRule(packageName: String, last4: String?, accountId: Long) =
+        db.alertRules().insert(dev.krishnagurram.kassa.data.db.AlertRuleEntity(packageName = packageName, last4 = last4?.takeIf { it.isNotBlank() }, accountId = accountId))
+
+    suspend fun deleteRule(id: Long) = db.alertRules().delete(id)
 }

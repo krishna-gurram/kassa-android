@@ -11,7 +11,9 @@ import dev.krishnagurram.kassa.domain.Budget
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
 import dev.krishnagurram.kassa.domain.CategoryKind
+import dev.krishnagurram.kassa.domain.Holding
 import dev.krishnagurram.kassa.domain.LoanEntry
+import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.Person
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
@@ -98,6 +100,53 @@ data class LoanEntryEntity(
     val txId: Long?,
 )
 
+@Entity(tableName = "recurring")
+data class RecurringEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val categoryId: Long,
+    val accountId: Long,
+    val dayOfMonth: Int,
+    val fixedAmount: Long?,
+    val active: Boolean,
+    val handledMonth: Int,
+)
+
+/** Something waiting for the user on Today: a captured bank alert, or an investment transfer to allocate. */
+@Entity(tableName = "pending_items")
+data class PendingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** ALERT or ALLOCATE. */
+    val type: String,
+    val amount: Long,
+    val merchant: String?,
+    val accountId: Long?,
+    val categoryId: Long?,
+    val epochMillis: Long,
+    val source: String?,
+    val isCredit: Boolean,
+    val txId: Long?,
+)
+
+@Entity(tableName = "holdings", indices = [Index("accountId")])
+data class HoldingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val accountId: Long,
+    val ticker: String,
+    val microShares: Long,
+    val price: Long,
+    val priceMillis: Long,
+)
+
+/** Which account a notification belongs to: by app, and optionally by the card's last four digits. */
+@Entity(tableName = "alert_rules")
+data class AlertRuleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val packageName: String,
+    val last4: String?,
+    val accountId: Long,
+)
+
 /** Result row for the balance query. */
 data class AccountBalance(
     @ColumnInfo(name = "id") val id: Long,
@@ -139,3 +188,8 @@ fun PersonEntity.toDomain() = Person(id, name, archived)
 fun Person.toEntity() = PersonEntity(id, name, archived)
 fun LoanEntryEntity.toDomain() = LoanEntry(id, personId, amount, epochMillis, note, txId)
 fun LoanEntry.toEntity() = LoanEntryEntity(id, personId, amount, epochMillis, note, transactionId)
+
+fun RecurringEntity.toDomain() = Recurring(id, name, categoryId, accountId, dayOfMonth, fixedAmount, active, handledMonth)
+fun Recurring.toEntity() = RecurringEntity(id, name, categoryId, accountId, dayOfMonth, fixedAmount, active, handledMonth)
+fun HoldingEntity.toDomain() = Holding(id, accountId, ticker, microShares, price, priceMillis)
+fun Holding.toEntity() = HoldingEntity(id, accountId, ticker, microShares, price, priceMillis)

@@ -42,7 +42,13 @@ data class Ledger(
     val monthStartDay: Int,
     val today: LocalDate,
     val zone: ZoneId,
+    val assist: dev.krishnagurram.kassa.data.AssistState = dev.krishnagurram.kassa.data.AssistState(emptyList(), emptyList(), emptyList(), emptyList()),
 ) {
+    /** Recurring bills waiting for approval today. */
+    fun dueRecurring() = assist.recurring.filter { dev.krishnagurram.kassa.domain.RecurringRules.isDue(it, recent, today, zone) }
+
+    fun holdingsValue(accountId: Long): Long = assist.holdings.filter { it.accountId == accountId }.sumOf { it.value }
+
     val categoryById: Map<Long, Category> = categories.associateBy { it.id }
     val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }
     val period: Period get() = Period.containing(today, monthStartDay)
@@ -81,21 +87,34 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         Long.MAX_VALUE,
     )
 
+    private val assist = (app as KassaApplication).assist
+
     val ledger: StateFlow<Ledger?> = combine(
         combine(repo.categories, repo.accounts, repo.budgets) { c, a, b -> Triple(c, a, b) },
         repo.people,
         recent,
         settings.monthStartDay,
-    ) { (c, a, b), p, r, ms ->
-        Ledger(c, a, b, p, r, ms, LocalDate.now(zone), zone)
+        assist.state,
+    ) { (c, a, b), p, r, ms, x ->
+        Ledger(c, a, b, p, r, ms, LocalDate.now(zone), zone, x)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
-    fun save(draft: EntryDraft) = viewModelScope.launch {
+    val alertApps = settings.alertApps
+    val seenApps = settings.seenApps
+
+    fun save(draft: EntryDraft, afterSave: (() -> Unit)? = null) = viewModelScope.launch {
         val saved = repo.save(draft)
+        afterSave?.invoke()
         val l = ledger.value
+        val to = saved.toAccountId?.let { l?.accountById?.get(it) }
+        if (draft.id == null && saved.kind == TxKind.TRANSFER && to?.type == dev.krishnagurram.kassa.domain.AccountType.INVESTMENT) {
+            assist.addAllocation(saved.id, saved.amount, to.id, saved.epochMillis)
+            _messages.tryEmit("Moved ${Money.format(saved.amount)} to ${to.name}. Say where it went on Today.")
+            return@launch
+        }
         val msg = when (saved.kind) {
             TxKind.EXPENSE -> {
                 // The ledger updates a moment later; add this entry so the numbers include it.
@@ -108,6 +127,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
                 if (to?.type?.hasStatement == true) "Paid ${Money.format(saved.amount)} to ${to.name}." else "Moved ${Money.format(saved.amount)} to ${to?.name ?: "the account"}."
             }
             TxKind.PERSON_IN, TxKind.PERSON_OUT -> "Payment recorded."
+            TxKind.BUY, TxKind.SELL -> "Saved."
         }
         _messages.tryEmit(if (draft.id != null) "Saved. $msg" else msg)
     }
@@ -152,6 +172,42 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun saveIconImage(uri: android.net.Uri): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         runCatching { dev.krishnagurram.kassa.data.IconImages.save(getApplication(), uri) }.getOrNull()
     }
+
+    /* ---------- assist ---------- */
+    fun approveRecurring(r: dev.krishnagurram.kassa.domain.Recurring, amount: Long) = viewModelScope.launch {
+        val l = ledger.value ?: return@launch
+        val due = dev.krishnagurram.kassa.domain.RecurringRules.dueDate(r, java.time.YearMonth.from(l.today))
+        repo.save(EntryDraft(null, TxKind.EXPENSE, amount, r.accountId, null, r.categoryId, null,
+            due.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), r.name, emptyList()))
+        assist.markHandled(r, Budgets.key(java.time.YearMonth.from(l.today)))
+        _messages.tryEmit("${r.name} added for ${Money.format(amount)}.")
+    }
+
+    fun skipRecurring(r: dev.krishnagurram.kassa.domain.Recurring) = viewModelScope.launch {
+        val l = ledger.value ?: return@launch
+        assist.markHandled(r, Budgets.key(java.time.YearMonth.from(l.today)))
+        _messages.tryEmit("Skipped ${r.name} this month.")
+    }
+
+    fun markHandled(r: dev.krishnagurram.kassa.domain.Recurring) = viewModelScope.launch {
+        assist.markHandled(r, Budgets.key(java.time.YearMonth.from(LocalDate.now(zone))))
+    }
+
+    fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring) = viewModelScope.launch { assist.saveRecurring(r); _messages.tryEmit("${r.name} saved.") }
+    fun deleteRecurring(id: Long) = viewModelScope.launch { assist.deleteRecurring(id) }
+
+    fun dismissPending(id: Long, message: String? = null) = viewModelScope.launch { assist.dismiss(id); message?.let { _messages.tryEmit(it) } }
+
+    fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, pendingId: Long?) = viewModelScope.launch {
+        assist.buy(accountId, ticker, microShares, price, System.currentTimeMillis(), pendingId)
+        _messages.tryEmit("Added ${ticker.uppercase()} to holdings.")
+    }
+
+    fun saveHolding(h: dev.krishnagurram.kassa.domain.Holding) = viewModelScope.launch { assist.saveHolding(h) }
+    fun deleteHolding(id: Long) = viewModelScope.launch { assist.deleteHolding(id) }
+    fun addRule(pkg: String, last4: String?, accountId: Long) = viewModelScope.launch { assist.addRule(pkg, last4, accountId) }
+    fun deleteRule(id: Long) = viewModelScope.launch { assist.deleteRule(id) }
+    fun setAlertApp(pkg: String, on: Boolean) = settings.setAlertApp(pkg, on)
 
     suspend fun loadForEdit(id: Long): Pair<Transaction, List<Long>>? {
         val t = repo.transaction(id) ?: return null

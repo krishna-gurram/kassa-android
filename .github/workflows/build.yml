@@ -44,7 +44,7 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/kassa.jks"
             echo "KASSA_KEYSTORE=$RUNNER_TEMP/kassa.jks" >> "$GITHUB_ENV"
-          elif [ "${{ github.event_name }}" = "push" ]; then
+          elif [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "::error::KASSA_KEYSTORE_BASE64 secret is missing. Releases must be signed with the Kassa key or they can't update the installed app."
             exit 1
           else
@@ -61,7 +61,7 @@ jobs:
           ./gradlew --no-daemon :app:assembleRelease --stacktrace 2>&1 | tee ci-output/build.log
 
       - name: Check the release is signed with the Kassa key
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
           CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256 digest" | head -1 | awk '{print $NF}')
@@ -109,6 +109,14 @@ jobs:
         with:
           name: kassa-apk
 
+      - name: Fetch the last published release to test upgrading over it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list -R "${{ github.repository }}" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName' || true)
+          if [ -n "$TAG" ]; then gh release download "$TAG" -R "${{ github.repository }}" -p "*.apk" -O previous.apk || true; fi
+          ls -la
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -135,7 +143,7 @@ jobs:
 
   publish:
     needs: [build, smoke]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

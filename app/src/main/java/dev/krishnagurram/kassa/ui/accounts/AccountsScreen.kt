@@ -59,6 +59,8 @@ fun AccountsScreen(
     onArchive: (Account, Boolean) -> Unit,
     onAddPerson: (String) -> Unit,
     onSave: (EntryDraft) -> Unit,
+    onSaveHolding: (dev.krishnagurram.kassa.domain.Holding) -> Unit = {},
+    onDeleteHolding: (dev.krishnagurram.kassa.domain.Holding) -> Unit = {},
 ) {
     val state = ledger.accounts
     var adding by remember { mutableStateOf(false) }
@@ -70,7 +72,10 @@ fun AccountsScreen(
     val owedToYou = personBalances.values.filter { it > 0 }.sum()
     val youOwe = -personBalances.values.filter { it < 0 }.sum()
     val accountsTotal = active.sumOf { state.balances[it.id] ?: 0 }
-    val netWorth = accountsTotal + owedToYou - youOwe
+    val holdings = ledger.assist.holdings.filter { h -> active.any { it.id == h.accountId } }
+    val holdingsTotal = holdings.sumOf { it.value }
+    val netWorth = accountsTotal + holdingsTotal + owedToYou - youOwe
+    var holdingOpen by remember { mutableStateOf<dev.krishnagurram.kassa.domain.Holding?>(null) }
     val sections: List<Pair<String, List<Account>>> = buildList {
         state.groups.forEach { g -> active.filter { it.groupId == g.id }.takeIf { it.isNotEmpty() }?.let { add(g.name to it) } }
         active.filter { a -> a.groupId == null || state.groups.none { it.id == a.groupId } }.takeIf { it.isNotEmpty() }?.let { add("Other" to it) }
@@ -87,6 +92,7 @@ fun AccountsScreen(
             Text(Money.format(netWorth, wholeDollars = true), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.8f), color = Kassa.colors.ink)
             Gap(8)
             Kv("Accounts", Money.format(accountsTotal, wholeDollars = true))
+            if (holdingsTotal > 0) Kv("Holdings", Money.format(holdingsTotal, wholeDollars = true))
             Kv("Owed to you", Money.format(owedToYou, wholeDollars = true))
             Kv("You owe people", Money.format(-youOwe, wholeDollars = true))
             Gap(14)
@@ -104,6 +110,31 @@ fun AccountsScreen(
                 if (showArchived) archived.forEachIndexed { i, a -> AccountRow(a, state.balances[a.id] ?: 0, last = i == archived.lastIndex, archiveLabel = "Restore") { onArchive(a, false) } }
             }
         }
+        val investList: @Composable () -> Unit = {
+            val investAccounts = active.filter { it.type == AccountType.INVESTMENT }
+            if (investAccounts.isNotEmpty()) {
+                SectionHeader("Holdings", if (holdings.isEmpty()) "Prices you enter" else Money.format(holdingsTotal, wholeDollars = true))
+                val oldest = holdings.minOfOrNull { it.priceMillis }
+                if (oldest != null) {
+                    val days = java.time.temporal.ChronoUnit.DAYS.between(Instant.ofEpochMilli(oldest).atZone(ledger.zone).toLocalDate(), ledger.today)
+                    if (days > 14) Text("Some prices are $days days old. Tap a holding to update it.", style = KassaType.small, color = Kassa.colors.attention)
+                }
+                holdings.forEachIndexed { i, h ->
+                    EntryRow(
+                        badge = { GlyphBadge(h.ticker.take(2)) },
+                        title = h.ticker,
+                        subtitle = "${java.math.BigDecimal.valueOf(h.microShares).movePointLeft(6).stripTrailingZeros().toPlainString()} shares at ${Money.format(h.price)}",
+                        amount = Money.format(h.value),
+                        note = "Priced " + Instant.ofEpochMilli(h.priceMillis).atZone(ledger.zone).format(DateTimeFormatter.ofPattern("MMM d")),
+                        showDivider = i < holdings.lastIndex,
+                        modifier = Modifier.clickable { holdingOpen = h },
+                    )
+                }
+                TextButton(onClick = { holdingOpen = dev.krishnagurram.kassa.domain.Holding(accountId = investAccounts.first().id, ticker = "", microShares = 0, price = 0, priceMillis = 0) }) {
+                    Text("Add a holding", color = Kassa.colors.ink)
+                }
+            }
+        }
         val peopleList: @Composable () -> Unit = {
             PeopleSection(ledger, personBalances, onOpen = { personOpen = it }, onAddPerson = onAddPerson)
             Gap(24)
@@ -112,11 +143,11 @@ fun AccountsScreen(
         if (wide) {
             Row(Modifier.fillMaxSize().padding(contentPadding), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { summary(); accountList() }
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { peopleList() }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { investList(); peopleList() }
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-                summary(); accountList(); peopleList()
+                summary(); accountList(); investList(); peopleList()
             }
         }
     }
@@ -127,6 +158,9 @@ fun AccountsScreen(
         onDismiss = { adding = false },
         onSave = { account, newGroup -> onAddAccount(account, newGroup); adding = false },
     )
+    holdingOpen?.let { h ->
+        dev.krishnagurram.kassa.ui.invest.HoldingSheet(h, onSave = { onSaveHolding(it); holdingOpen = null }, onDelete = { onDeleteHolding(it); holdingOpen = null }, onDismiss = { holdingOpen = null })
+    }
     personOpen?.let { id ->
         ledger.people.people.firstOrNull { it.id == id }?.let { p ->
             PersonSheet(p, personBalances[p.id] ?: 0, ledger, onDismiss = { personOpen = null }, onSave = { personOpen = null; onSave(it) })

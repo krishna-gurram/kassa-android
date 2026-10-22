@@ -56,6 +56,7 @@ fun TodayScreen(
     onOpenCard: (Long) -> Unit,
     onSeeAll: () -> Unit,
     onSettings: () -> Unit,
+    needs: NeedsYouActions,
 ) {
     val plan = TodayPlan.compute(ledger.recent, ledger.categories, ledger.budgets, ledger.today, ledger.monthStartDay, ledger.zone)
     val dueSoon = ledger.cards()
@@ -66,9 +67,21 @@ fun TodayScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
         val hero: @Composable () -> Unit = { Hero(plan, ledger) }
+        val bills = ledger.assist.recurring.mapNotNull { r -> dev.krishnagurram.kassa.domain.RecurringRules.upcoming(r, ledger.today, 7)?.let { r to it } }
         val due: @Composable () -> Unit = {
-            if (dueSoon.isNotEmpty()) {
+            NeedsYou(ledger, needs)
+            if (dueSoon.isNotEmpty() || bills.isNotEmpty()) {
                 SectionHeader("Coming up", "Next 7 days")
+                bills.forEachIndexed { i, (r, d) ->
+                    val est = dev.krishnagurram.kassa.domain.RecurringRules.estimate(r, ledger.recent, d, ledger.zone)
+                    EntryRow(
+                        badge = { DateBlock(d, soon = java.time.temporal.ChronoUnit.DAYS.between(ledger.today, d) <= 2) },
+                        title = r.name,
+                        subtitle = "Recurring bill, ${inDays(java.time.temporal.ChronoUnit.DAYS.between(ledger.today, d))}",
+                        amount = est?.let { Money.format(it) } ?: "",
+                        showDivider = i < bills.lastIndex || dueSoon.isNotEmpty(),
+                    )
+                }
                 dueSoon.forEachIndexed { i, c ->
                     val days = c.snapshot.daysUntilDue(ledger.today)
                     EntryRow(

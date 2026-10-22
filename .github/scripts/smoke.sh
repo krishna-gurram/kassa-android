@@ -5,6 +5,13 @@ set -u
 PKG=dev.krishnagurram.kassa
 mkdir -p ci-output
 adb logcat -c
+# Upgrade path: start from the last published release so its database exists, then install this build over it.
+if [ -f previous.apk ]; then
+  adb install previous.apk > ci-output/install-previous.txt 2>&1 && \
+    adb shell am start -W -n $PKG/.ui.MainActivity > /dev/null 2>&1 && sleep 10 && \
+    adb exec-out screencap -p > ci-output/previous.png
+  adb shell am force-stop $PKG
+fi
 adb install -r kassa.apk > ci-output/install.txt 2>&1 || { cat ci-output/install.txt; exit 1; }
 adb shell am start -W -n $PKG/.ui.MainActivity > ci-output/start.txt 2>&1
 sleep 15
