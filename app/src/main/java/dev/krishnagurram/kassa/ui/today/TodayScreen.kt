@@ -228,32 +228,18 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
         Switch2(listOf(false to "This week", true to monthName), month, setMonth)
     }
     BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
-    if (roomy) {
-        Column(Modifier.padding(top = 14.dp)) {
-            if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
-            top.forEach { (c, amt) ->
-                HorizontalDivider(color = Kassa.colors.line)
-                Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CategoryBadge(c, size = 30)
-                    Text(c?.name ?: "Uncategorized", style = KassaType.body, color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
-                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                }
-            }
-        }
-        Box(Modifier.padding(top = 6.dp)) { LinkText(if (income) "Where it came from" else "Where it went", onOpen) }
-        return
-    }
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        top.forEach { (c, amt) ->
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen).padding(10.dp)) {
+    // Tiles in rows of three: one row on the cover screen, two on the taller inner screen.
+    if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
+    top.chunked(3).forEach { rowItems -> Row(Modifier.fillMaxWidth().padding(top = if (roomy) 12.dp else 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        rowItems.forEach { (c, amt) ->
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen).padding(if (roomy) 14.dp else 10.dp)) {
                 CategoryBadge(c, size = 26)
                 Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
                 Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
             }
         }
-        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
-        else repeat(3 - top.size) { Box(Modifier.weight(1f)) }
-    }
+        repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
+    } }
     Box(Modifier.padding(top = 6.dp)) { LinkText(if (income) "Where it came from" else "Where it went", onOpen) }
 }
 
