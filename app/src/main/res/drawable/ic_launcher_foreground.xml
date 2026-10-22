@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A till drawer seen from the front: a coin slot over a K. 108dp canvas, art inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="@color/launcher_accent" android:pathData="M38,33h32a3,3 0,0 1,0 6h-32a3,3 0,0 1,0 -6z" />
+    <path android:fillColor="@color/launcher_fg" android:pathData="M40,45h7v30h-7z" />
+    <path android:fillColor="@color/launcher_fg" android:pathData="M47,60.5L61.5,45h9L54.5,62 71,75h-9.5L47,63.5z" />
+</vector>
