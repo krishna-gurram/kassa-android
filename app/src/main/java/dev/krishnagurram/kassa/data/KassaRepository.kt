@@ -71,6 +71,14 @@ class KassaRepository(private val db: KassaDatabase) {
     fun transactionsBetween(fromMillis: Long, toMillis: Long): Flow<List<Transaction>> =
         db.transactions().observeBetween(fromMillis, toMillis).map { list -> list.map { it.toDomain() } }
 
+    /** Searches every transaction ever recorded, not just one month. Matches names and exact amounts. */
+    fun search(text: String): Flow<List<Transaction>> {
+        val t = text.trim()
+        val like = "%$t%"
+        val cents = dev.krishnagurram.kassa.domain.Money.parseCents(t)?.takeIf { it > 0 } ?: -1L
+        return db.transactions().search(like, cents).map { list -> list.map { it.toDomain() } }
+    }
+
     /** Every entry that moved money in or out of one account, newest first. */
     fun accountHistory(accountId: Long): Flow<List<Transaction>> =
         db.transactions().observeForAccount(accountId).map { list -> list.map { it.toDomain() } }

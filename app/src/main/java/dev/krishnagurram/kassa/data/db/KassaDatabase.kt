@@ -115,6 +115,26 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE personId = :personId ORDER BY epochMillis DESC")
     fun observeForPerson(personId: Long): Flow<List<TransactionEntity>>
 
+    /**
+     * Every transaction whose note, category, parent category, account, destination account or person
+     * matches [like] (a LIKE pattern), or whose amount equals [cents]. Newest first, capped for speed.
+     */
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        LEFT JOIN categories c ON c.id = t.categoryId
+        LEFT JOIN categories p ON p.id = c.parentId
+        LEFT JOIN accounts a ON a.id = t.accountId
+        LEFT JOIN accounts b ON b.id = t.toAccountId
+        LEFT JOIN people pe ON pe.id = t.personId
+        WHERE t.note LIKE :like OR c.name LIKE :like OR p.name LIKE :like OR a.name LIKE :like
+           OR b.name LIKE :like OR pe.name LIKE :like OR t.amount = :cents
+        ORDER BY t.epochMillis DESC, t.id DESC
+        LIMIT 1000
+        """
+    )
+    fun search(like: String, cents: Long): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions WHERE accountId = :accountId OR toAccountId = :accountId ORDER BY epochMillis DESC, id DESC")
     fun observeForAccount(accountId: Long): Flow<List<TransactionEntity>>
 

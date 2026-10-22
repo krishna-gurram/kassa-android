@@ -2,6 +2,14 @@ package dev.krishnagurram.kassa.ui.activity
 
 import android.app.Application
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
+import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,23 +68,32 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+enum class ActivityFilter { ALL, EXPENSE, INCOME }
+
 data class ActivityUi(
     val month: YearMonth,
     val isCurrentMonth: Boolean,
     val query: String,
+    val filter: ActivityFilter,
+    /** This month's entries by day, after the filter. Empty while searching. */
     val days: List<Pair<LocalDate, List<Transaction>>>,
     val spent: Long,
     val income: Long,
+    /** Search results across every month, grouped by month. */
+    val results: List<Pair<YearMonth, List<Transaction>>>,
+    val resultCount: Int,
+    val resultSpent: Long,
     val categories: Map<Long, Category>,
     val accounts: Map<Long, Account>,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 class ActivityViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = (app as KassaApplication).repository
     private val zone = ZoneId.systemDefault()
     private val month = MutableStateFlow(YearMonth.now(zone))
     private val query = MutableStateFlow("")
+    private val filter = MutableStateFlow(ActivityFilter.ALL)
 
     private val txs = month.flatMapLatest { m ->
         val from = m.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -84,23 +101,36 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
         repo.transactionsBetween(from, to)
     }
 
-    val ui: StateFlow<ActivityUi?> = combine(month, query, txs, repo.categories, repo.accounts) { m, q, list, cats, accts ->
+    /** Searching reads the whole database, not just the month on screen. */
+    private val found = query.debounce(150).flatMapLatest { q ->
+        if (q.isBlank()) kotlinx.coroutines.flow.flowOf(emptyList()) else repo.search(q)
+    }
+
+    val ui: StateFlow<ActivityUi?> = combine(
+        combine(month, query, filter) { m, q, f -> Triple(m, q, f) },
+        txs, found, repo.categories, repo.accounts,
+    ) { (m, q, f), list, hits, cats, accts ->
         val catMap = cats.associateBy { it.id }
         val acctMap = accts.accounts.associateBy { it.id }
-        val needle = q.trim().lowercase()
-        val filtered = if (needle.isEmpty()) list else list.filter { t ->
-            listOfNotNull(
-                t.note, t.categoryId?.let { catMap[it]?.name }, t.categoryId?.let { catMap[it]?.parentId?.let { p -> catMap[p]?.name } },
-                acctMap[t.accountId]?.name, t.toAccountId?.let { acctMap[it]?.name },
-            ).any { it.lowercase().contains(needle) }
+        val shown = list.filter {
+            when (f) {
+                ActivityFilter.ALL -> true
+                ActivityFilter.EXPENSE -> it.kind == TxKind.EXPENSE
+                ActivityFilter.INCOME -> it.kind == TxKind.INCOME
+            }
         }
+        val searching = q.isNotBlank()
         ActivityUi(
             month = m,
             isCurrentMonth = m == YearMonth.now(zone),
             query = q,
-            days = filtered.groupBy { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }.toList(),
+            filter = f,
+            days = if (searching) emptyList() else shown.groupBy { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }.toList(),
             spent = list.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
             income = list.filter { it.kind == TxKind.INCOME }.sumOf { it.amount },
+            results = hits.groupBy { YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) }.toList(),
+            resultCount = hits.size,
+            resultSpent = hits.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
             categories = catMap,
             accounts = acctMap,
         )
@@ -108,8 +138,13 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
 
     fun shift(by: Long) { month.value = month.value.plusMonths(by) }
     fun search(q: String) { query.value = q }
+    fun toggle(f: ActivityFilter) { filter.value = if (filter.value == f) ActivityFilter.ALL else f }
 }
 
+/**
+ * The month's entries under a fixed header: month, spending and income (each also a filter), and a search
+ * that covers every transaction ever recorded. Only the list scrolls.
+ */
 @Composable
 fun ActivityScreen(
     ledger: dev.krishnagurram.kassa.ui.Ledger,
@@ -121,68 +156,160 @@ fun ActivityScreen(
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
     val today = LocalDate.now()
+    val searching = s.query.isNotBlank()
+    val layout = androidx.compose.ui.platform.LocalLayoutDirection.current
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        item {
-            Column(Modifier.widthIn(max = 720.dp)) {
-                Text("${s.days.sumOf { it.second.size }} entries", style = KassaType.small, color = Kassa.colors.ink2)
-                Text("Activity", style = KassaType.title, color = Kassa.colors.ink)
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { vm.shift(-1) }) { Icon(Chevron(left = true), "Previous month", tint = Kassa.colors.ink) }
+    Column(
+        Modifier.fillMaxSize().padding(
+            start = contentPadding.calculateStartPadding(layout), end = contentPadding.calculateEndPadding(layout),
+            top = contentPadding.calculateTopPadding(),
+        ),
+    ) {
+        Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Activity", style = KassaType.title, color = Kassa.colors.ink)
+            if (!searching) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RoundIcon(Chevron(left = true), "Previous month", enabled = true) { vm.shift(-1) }
                     Text(
                         "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}",
                         style = KassaType.bodyStrong, color = Kassa.colors.ink,
                         modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
-                    IconButton(onClick = { vm.shift(1) }, enabled = !s.isCurrentMonth) {
-                        Icon(Chevron(left = false), "Next month", tint = if (s.isCurrentMonth) Kassa.colors.ink3 else Kassa.colors.ink)
-                    }
+                    RoundIcon(Chevron(left = false), "Next month", enabled = !s.isCurrentMonth) { vm.shift(1) }
                 }
-                dev.krishnagurram.kassa.ui.common.RaisedPanel(Modifier.padding(vertical = 8.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Stat("Expenses", Money.format(s.spent, wholeDollars = true), modifier = Modifier.weight(1f))
-                        Stat("Income", Money.format(s.income, wholeDollars = true), Kassa.colors.positive, Modifier.weight(1f))
-                        Stat("Net", Money.format(s.income - s.spent, wholeDollars = true, showPlus = true), modifier = Modifier.weight(1f))
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
+                    FilterTile("Income", Money.format(s.income), Kassa.colors.positive, s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
                 }
-                TextField(
-                    value = s.query, onValueChange = vm::search, singleLine = true,
-                    placeholder = { Text("Search notes, categories, accounts", style = KassaType.body) },
-                    textStyle = KassaType.body,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Kassa.colors.chip, unfocusedContainerColor = Kassa.colors.chip,
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                )
             }
-        }
-        if (s.days.isEmpty()) item {
-            Text(
-                if (s.query.isBlank()) "Nothing logged this month yet." else "Nothing matches “${s.query}” this month.",
-                style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp),
+            SearchField(s.query, vm::search)
+            if (searching) Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    withStyleBold { append(if (s.resultCount == 1) "1 result" else "${s.resultCount} results") }
+                    append(" in all months")
+                    if (s.resultSpent > 0) append(" · ${Money.format(s.resultSpent)} spent")
+                },
+                style = KassaType.small, color = Kassa.colors.ink2,
             )
         }
-        s.days.forEach { (day, entries) ->
-            item(key = "h$day") {
-                val spent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-                Column(Modifier.widthIn(max = 720.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(dayLabel(day, today), style = KassaType.tiny, color = Kassa.colors.ink2)
-                        if (spent > 0) Text("${Money.format(spent)} spent", style = KassaType.tiny, color = Kassa.colors.ink2)
+
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
+            if (searching) {
+                if (s.resultCount == 0) item {
+                    Text("No transactions match “${s.query.trim()}”.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
+                }
+                s.results.forEach { (m, entries) ->
+                    item(key = "m$m") {
+                        DayHeader("${m.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${m.year}", "${entries.size}")
                     }
-                    HorizontalDivider(color = Kassa.colors.line)
+                    items(entries, key = { "r${it.id}" }) { t ->
+                        dev.krishnagurram.kassa.ui.common.TransactionRow(
+                            t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp),
+                            noteOverride = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                            onClick = onEdit,
+                        )
+                    }
+                }
+            } else {
+                if (s.filter != ActivityFilter.ALL) item {
+                    Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (s.filter == ActivityFilter.EXPENSE) "Spending only" else "Income only", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+                        Text("Show all", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink,
+                            modifier = Modifier.clickable { vm.toggle(s.filter) }.padding(4.dp))
+                    }
+                }
+                if (s.days.isEmpty()) item {
+                    Text("No transactions this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
+                }
+                s.days.forEach { (day, entries) ->
+                    item(key = "h$day") {
+                        val spent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
+                        DayHeader(dayLabel(day, today), if (spent > 0) Money.format(spent) else "")
+                    }
+                    items(entries, key = { it.id }) { t ->
+                        val sel = t.id == selectedId
+                        dev.krishnagurram.kassa.ui.common.TransactionRow(
+                            t, ledger, showDivider = t !== entries.last() && !sel,
+                            modifier = Modifier.widthIn(max = 720.dp).then(if (sel) Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(horizontal = 8.dp) else Modifier),
+                            onClick = onEdit,
+                        )
+                    }
                 }
             }
-            items(entries, key = { it.id }) { t ->
-                val sel = t.id == selectedId
-                dev.krishnagurram.kassa.ui.common.TransactionRow(
-                    t, ledger, showDivider = t !== entries.last() && !sel,
-                    modifier = Modifier.widthIn(max = 720.dp).then(if (sel) Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(horizontal = 8.dp) else Modifier),
-                    onClick = onEdit,
-                )
-            }
         }
+    }
+}
+
+private inline fun androidx.compose.ui.text.AnnotatedString.Builder.withStyleBold(block: androidx.compose.ui.text.AnnotatedString.Builder.() -> Unit) {
+    val i = pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+    block()
+    pop(i)
+}
+
+@Composable
+private fun DayHeader(left: String, right: String) {
+    Column(Modifier.widthIn(max = 720.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(left, style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(right, style = KassaType.tiny, color = Kassa.colors.ink2)
+        }
+        HorizontalDivider(color = Kassa.colors.line)
+    }
+}
+
+@Composable
+private fun RoundIcon(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp)) }
+}
+
+/** A total that doubles as a filter: tap to show only these entries, tap again for all. */
+@Composable
+private fun FilterTile(label: String, value: String, color: Color, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier.clip(shape).background(Kassa.colors.raised)
+            .border(1.5.dp, if (selected) Kassa.colors.ink else Color.Transparent, shape)
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2)
+        Text(value, style = KassaType.stat.copy(fontSize = KassaType.stat.fontSize * 0.9f), color = color, maxLines = 1)
+    }
+}
+
+/** Looks like a search: a rounded field with a magnifier, a placeholder, and a clear button once you type. */
+@Composable
+private fun SearchField(value: String, onChange: (String) -> Unit) {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val shape = RoundedCornerShape(50)
+    val active = value.isNotEmpty()
+    Row(
+        Modifier.fillMaxWidth().height(46.dp).clip(shape).background(Kassa.colors.raised)
+            .border(1.dp, if (active) Kassa.colors.ink else Kassa.colors.line, shape).padding(start = 14.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(androidx.compose.material.icons.Icons.Outlined.Search, null, tint = Kassa.colors.ink2, modifier = Modifier.size(20.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = value, onValueChange = onChange, singleLine = true,
+            textStyle = KassaType.body.copy(color = Kassa.colors.ink),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Kassa.colors.ink),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { focus.clearFocus() }),
+            modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (value.isEmpty()) Text("Search all transactions", style = KassaType.body, color = Kassa.colors.ink3)
+                    inner()
+                }
+            },
+        )
+        if (active) Box(
+            Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip).clickable { onChange(""); focus.clearFocus() },
+            contentAlignment = Alignment.Center,
+        ) { Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink2, modifier = Modifier.size(14.dp)) }
     }
 }
 
