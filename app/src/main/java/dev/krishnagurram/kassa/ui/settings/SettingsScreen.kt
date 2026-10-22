@@ -109,7 +109,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, alertApps: Set<Stri
                         )
                     }
                     when (val p = page) {
-                        Page.Main -> Main(ledger, actions, open = { page = it })
+                        Page.Main -> Main(ledger, actions, alertApps, open = { page = it })
                         is Page.Categories -> CategoryList(ledger, p.kind, open = { page = Page.Edit(it, p) })
                         is Page.Edit -> CategoryEditor(
                             ledger = ledger,
@@ -148,7 +148,7 @@ private fun save(edit: CategoryEdit, actions: SettingsActions, ledger: Ledger) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Main(ledger: Ledger, actions: SettingsActions, open: (Page) -> Unit) {
+private fun Main(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>, open: (Page) -> Unit) {
     val expenses = ledger.categories.count { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.hidden }
     val incomes = ledger.categories.count { it.kind == CategoryKind.INCOME && it.parentId == null && !it.hidden }
     val splitwise = splitwiseAccounts(ledger)
