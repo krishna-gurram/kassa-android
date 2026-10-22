@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -137,8 +139,8 @@ fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Lon
                 }
             }
         }
-        cards.forEachIndexed { i, c ->
-            CardRow(c, ledger.today, selected = c.account.id == selectedCard, showDivider = i < cards.lastIndex) { onOpen(c.account.id) }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedCard) { onOpen(c.account.id) } }
         }
     }
 }
@@ -150,7 +152,7 @@ fun CardTotals(cards: List<CardSnapshotFor>) {
     val outstanding = cards.sumOf { it.snapshot.outstanding }
     RaisedPanel {
         Text("Total card balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-        Text(Money.format(payable + outstanding), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
+        dev.krishnagurram.kassa.ui.today.BigMoney(payable + outstanding, sizeSp = 40f)
         HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
@@ -180,28 +182,67 @@ fun dueStatus(c: CardSnapshotFor, today: LocalDate): Pair<String, Tone> {
     }
 }
 
+/** A calendar-style date: month over day, orange when due within three days, green once paid in full. */
+@Composable
+fun DueTile(date: LocalDate, tone: Tone, large: Boolean = false, caption: String? = null) {
+    val fg = when (tone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink }
+    val bg = when (tone) { Tone.NEUTRAL -> Kassa.colors.ground; else -> fg.copy(alpha = 0.14f) }
+    Column(
+        Modifier.width(if (large) 66.dp else 48.dp).clip(RoundedCornerShape(if (large) 16.dp else 13.dp)).background(bg).padding(vertical = if (large) 8.dp else 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(date.format(DateTimeFormatter.ofPattern("MMM")).uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
+        Text(date.dayOfMonth.toString(), style = KassaType.stat.copy(fontSize = if (large) 26.sp else 19.sp, lineHeight = if (large) 30.sp else 22.sp), color = fg)
+        if (caption != null) Text(caption.uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
+    }
+}
+
+/** Tone for a card's due date: attention when due soon or late, positive when paid in full. */
+fun dueTone(c: CardSnapshotFor, today: LocalDate): Tone {
+    val s = c.snapshot
+    val days = s.daysUntilDue(today)
+    return when {
+        s.statementTotal > 0 && s.payable == 0L -> Tone.POSITIVE
+        s.payable > 0 && days <= 3 -> Tone.ATTENTION
+        else -> Tone.NEUTRAL
+    }
+}
+
 /**
- * One card. The big number is the total balance, so a card with nothing on a statement still shows what's
- * on it. Underneath: what's payable and what's outstanding, and the due state.
+ * One card as a raised row, led by its due date. First line: name with its last 4 digits, and the total
+ * balance. Second line: what's payable (bold) and what's outstanding.
  */
 @Composable
-fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, showDivider: Boolean = true, onClick: () -> Unit) {
+fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, @Suppress("UNUSED_PARAMETER") showDivider: Boolean = true, onClick: () -> Unit) {
     val s = c.snapshot
-    val (status, tone) = dueStatus(c, today)
-    Column(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected) Kassa.colors.chip else androidx.compose.ui.graphics.Color.Transparent).clickable(onClick = onClick)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = if (selected) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            dev.krishnagurram.kassa.ui.common.IconBadge(androidx.compose.material.icons.Icons.Outlined.CreditCard)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(c.account.name + (c.account.last4?.let { "  ··$it" } ?: ""), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
-                Text("${Money.format(s.payable)} payable · ${Money.format(s.outstanding)} outstanding", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Kassa.colors.raised)
+            .border(1.5.dp, if (selected) Kassa.colors.ink else androidx.compose.ui.graphics.Color.Transparent, shape)
+            .clickable(onClick = onClick).padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DueTile(s.due, dueTone(c, today))
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    c.account.last4?.let { Text("  ··$it", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1) }
+                }
+                Text(Money.format(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(Money.format(s.totalBalance), style = KassaType.bodyStrong, color = if (s.totalBalance > 0) Kassa.colors.ink else Kassa.colors.ink3, maxLines = 1)
-                Gap(3)
-                StatusChip(status, tone)
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        append("Payable ")
+                        pushStyle(androidx.compose.ui.text.SpanStyle(color = Kassa.colors.ink, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        append(Money.format(s.payable)); pop()
+                    },
+                    style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1,
+                )
+                Text("Outstanding ${Money.format(s.outstanding)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
             }
         }
-        if (showDivider && !selected) HorizontalDivider(color = Kassa.colors.line)
     }
 }
 
@@ -222,7 +263,6 @@ fun CardPage(
     val s = c.snapshot
     val a = c.account
     val id = a.id
-    val (status, tone) = dueStatus(c, ledger.today)
     val since = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).isAfter(s.lastClose) }.sortedByDescending { it.epochMillis }
     val stmt = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).let { d -> d.isAfter(s.previousClose) && !d.isAfter(s.lastClose) } }.sortedByDescending { it.epochMillis }
     val dateNote: (Transaction) -> String = { t -> dateOf(t, ledger).format(MONTH_DAY) }
@@ -232,12 +272,26 @@ fun CardPage(
             androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
         RaisedPanel {
+            val dueTone = dueTone(c, ledger.today)
+            val days = s.daysUntilDue(ledger.today)
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    Text(Money.format(s.payable), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
+                    dev.krishnagurram.kassa.ui.today.BigMoney(s.payable, sizeSp = 36f)
+                    Text(
+                        when {
+                            dueTone == Tone.POSITIVE -> "Paid in full"
+                            s.payable == 0L -> "Nothing due"
+                            days < 0 -> "${-days} days late"
+                            days == 0L -> "Due today"
+                            days == 1L -> "Due tomorrow"
+                            else -> "Due in $days days"
+                        },
+                        style = KassaType.bodyStrong,
+                        color = when (dueTone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink2 },
+                    )
                 }
-                Box(Modifier.padding(top = 4.dp)) { StatusChip(status, tone) }
+                DueTile(s.due, dueTone, large = true, caption = "Due")
             }
             Gap(12)
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

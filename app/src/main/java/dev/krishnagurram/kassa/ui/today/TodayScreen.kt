@@ -170,7 +170,7 @@ private fun LinkText(text: String, onClick: () -> Unit) {
     }
 }
 
-/** Dollars large, cents small, the way bank apps show a headline figure. */
+/** Dollars large, cents smaller and lighter on the same baseline, the way bank apps show a headline figure. */
 @Composable
 fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) {
     val text = Money.format(cents)
@@ -178,7 +178,8 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
     Text(
         buildAnnotatedString {
             append(text.substring(0, dot))
-            withStyle(SpanStyle(fontSize = (sizeSp * 0.5f).sp, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.8f))) {
+            // Cents sit on the same baseline, smaller and lighter, so the dollars read first.
+            withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = Kassa.colors.ink2, fontWeight = FontWeight.SemiBold)) {
                 append(text.substring(dot))
             }
         },

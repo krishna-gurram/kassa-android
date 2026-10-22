@@ -124,8 +124,8 @@ fun AccountsScreen(
                     dev.krishnagurram.kassa.ui.cards.CardTotals(cards)
                     Gap(6)
                     val sorted = cards.sortedWith(compareBy({ it.snapshot.payable == 0L }, { it.snapshot.due }))
-                    sorted.forEachIndexed { i, c ->
-                        dev.krishnagurram.kassa.ui.cards.CardRow(c, ledger.today, selected = c.account.id == selectedAccount, showDivider = i < sorted.lastIndex) { onOpenAccount(c.account.id) }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        sorted.forEach { c -> dev.krishnagurram.kassa.ui.cards.CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }
                     }
                 } else {
                     SectionHeader(name, Money.format(accounts.sumOf { state.balances[it.id] ?: 0 }))
@@ -246,12 +246,11 @@ fun AccountPage(
     contentPadding: PaddingValues,
     onBack: (() -> Unit)?,
     onEditEntry: (Transaction) -> Unit,
-    onSaveAccount: (Account, String?) -> Unit,
+    onEditAccount: () -> Unit,
     onArchive: (Boolean) -> Unit,
 ) {
     val balance = ledger.accounts.balances[account.id] ?: 0
     val holdingsValue = if (account.type == AccountType.INVESTMENT) ledger.holdingsValue(account.id) else 0L
-    var editing by remember { mutableStateOf(false) }
     var confirmArchive by remember { mutableStateOf(false) }
     // Balance right after each entry: walk back from today's balance.
     val after = remember(history, balance) {
@@ -271,8 +270,8 @@ fun AccountPage(
                             Text("\u22EF", style = KassaType.section, color = Kassa.colors.ink2)
                         }
                         androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Edit account") }, onClick = { menu = false; editing = true })
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Adjust balance") }, onClick = { menu = false; editing = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Edit account") }, onClick = { menu = false; onEditAccount() })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Adjust balance") }, onClick = { menu = false; onEditAccount() })
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text(if (account.archived) "Restore account" else "Archive account") },
                                 onClick = { menu = false; if (account.archived) onArchive(false) else confirmArchive = true },
@@ -302,7 +301,7 @@ fun AccountPage(
                         Text(Money.format(-balance), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
                         HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
                         Text("Add the statement day and due day to split this into balance payable and outstanding.", style = KassaType.small, color = Kassa.colors.ink2)
-                        TextButton(onClick = { editing = true }) { Text("Add statement days", color = Kassa.colors.ink) }
+                        TextButton(onClick = onEditAccount) { Text("Add statement days", color = Kassa.colors.ink) }
                     } else {
                         Text(if (account.type.isDebt) "Balance owed" else "Balance", style = KassaType.tiny, color = Kassa.colors.ink2)
                         Text(Money.format(if (account.type.isDebt) -balance else balance), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
@@ -326,13 +325,6 @@ fun AccountPage(
         }
     }
 
-    if (editing) AddAccountSheet(
-        groups = ledger.accounts.groups,
-        payFromOptions = ledger.accounts.accounts.filter { !it.archived && it.id != account.id && it.type in listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) },
-        onDismiss = { editing = false },
-        onSave = { a, g -> onSaveAccount(a, g); editing = false },
-        editing = account, currentBalance = balance,
-    )
     if (confirmArchive) ConfirmDialog(
         title = "Archive ${account.name}?",
         body = "It leaves your lists and totals. Its entries stay in your history, and you can restore it from Accounts.",

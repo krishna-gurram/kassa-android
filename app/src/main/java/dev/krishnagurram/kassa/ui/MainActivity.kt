@@ -151,7 +151,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
     var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
     var paying by remember { mutableStateOf<Long?>(null) }
-    var editingAccount by remember { mutableStateOf<Long?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
@@ -230,23 +229,34 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 is Page.CardDetail -> {
                     val c = lg.cards().firstOrNull { it.account.id == page.accountId }
                     if (c == null) Gone(padding, onBack)
-                    else dev.krishnagurram.kassa.ui.cards.CardPage(c, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = c.account.id }, onEditCard = { editingAccount = c.account.id })
+                    else dev.krishnagurram.kassa.ui.cards.CardPage(c, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = c.account.id }, onEditCard = { nav.push(Page.EditAccount(c.account.id)) })
                 }
                 is Page.AccountDetail -> {
                     val a = lg.accountById[page.accountId]
                     val card = lg.cards().firstOrNull { it.account.id == page.accountId }
                     when {
                         a == null -> Gone(padding, onBack)
-                        card != null && !a.archived -> dev.krishnagurram.kassa.ui.cards.CardPage(card, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = card.account.id }, onEditCard = { editingAccount = card.account.id })
+                        card != null && !a.archived -> dev.krishnagurram.kassa.ui.cards.CardPage(card, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = card.account.id }, onEditCard = { nav.push(Page.EditAccount(card.account.id)) })
                         else -> {
                             val history by remember(a.id) { vm.accountHistory(a.id) }.collectAsState(initial = emptyList())
                             dev.krishnagurram.kassa.ui.accounts.AccountPage(
                                 lg, a, history, padding, onBack,
                                 onEditEntry = editFromPage,
-                                onSaveAccount = { acct, group -> vm.updateAccount(acct, group) },
+                                onEditAccount = { nav.push(Page.EditAccount(a.id)) },
                                 onArchive = { vm.setArchived(a, it) },
                             )
                         }
+                    }
+                }
+                is Page.EditAccount -> {
+                    val a = lg.accountById[page.accountId]
+                    if (a == null) Gone(padding, onBack)
+                    else androidx.compose.runtime.key(a.id) {
+                        dev.krishnagurram.kassa.ui.accounts.EditAccountPage(
+                            lg, a, padding, onBack = back,
+                            onSave = { acct, group -> vm.updateAccount(acct, group); nav.pop() },
+                            onArchive = { vm.setArchived(a, it); nav.pop(); if (it && nav.top is Page.CardDetail) nav.pop() },
+                        )
                     }
                 }
                 is Page.PersonDetail -> {
@@ -390,16 +400,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 onCash = { vm.dismissPending(p.id, "Kept as uninvested cash in the brokerage account."); allocating = null },
                 onBuy = { t, sh, pr -> p.accountId?.let { vm.buy(it, t, sh, pr, p.id) }; allocating = null },
                 onDismiss = { allocating = null },
-            )
-        }
-        editingAccount?.let { id ->
-            val acct = l?.accountById?.get(id)
-            if (l != null && acct != null) dev.krishnagurram.kassa.ui.accounts.AddAccountSheet(
-                groups = l.accounts.groups,
-                payFromOptions = l.accounts.accounts.filter { !it.archived && it.id != id && it.type in listOf(dev.krishnagurram.kassa.domain.AccountType.CHECKING, dev.krishnagurram.kassa.domain.AccountType.SAVINGS, dev.krishnagurram.kassa.domain.AccountType.CASH) },
-                onDismiss = { editingAccount = null },
-                onSave = { a, g -> vm.updateAccount(a, g); editingAccount = null },
-                editing = acct, currentBalance = l.accounts.balances[id] ?: 0,
             )
         }
         paying?.let { id ->

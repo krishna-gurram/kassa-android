@@ -21,6 +21,8 @@ sealed interface Page {
     data class Entry(val start: EntryStart) : Page { override val besideList: Boolean get() = false }
     data class CardDetail(val accountId: Long) : Page
     data class AccountDetail(val accountId: Long) : Page
+    /** Edit an account or card: name, last 4 digits, statement days, balance and details. */
+    data class EditAccount(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
     data class CategoryDetail(val categoryId: Long) : Page
     /** Where the spending went, or the income came from: this week, or this budget month. */
