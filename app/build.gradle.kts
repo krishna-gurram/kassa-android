@@ -33,7 +33,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 strips the thousands of unused icons and shrinks the APK; see proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // CI signs with the stable release key so updates install over each other.
             // A local build without the key falls back to the debug key.
             signingConfig = signingConfigs.getByName(if (keystorePath != null) "release" else "debug")
@@ -47,6 +50,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -74,6 +78,7 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    implementation(libs.compose.icons.extended)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 

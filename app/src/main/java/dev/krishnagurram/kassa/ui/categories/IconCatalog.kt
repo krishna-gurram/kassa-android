@@ -1,0 +1,171 @@
+package dev.krishnagurram.kassa.ui.categories
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.ui.graphics.vector.ImageVector
+
+/**
+ * Built-in category icons, bundled with the app so they work offline. Stored by name, so renaming an entry
+ * here would break saved categories: add new ones, don't rename. Each has search words beyond its name.
+ */
+data class CatalogIcon(val name: String, val vector: ImageVector, val words: String)
+
+object IconCatalog {
+    val all: List<CatalogIcon> = listOf(
+        CatalogIcon("cart", Icons.Outlined.ShoppingCart, "groceries shopping cart supermarket"),
+        CatalogIcon("grocery", Icons.Outlined.LocalGroceryStore, "groceries store food"),
+        CatalogIcon("restaurant", Icons.Outlined.Restaurant, "dining food eat out"),
+        CatalogIcon("cafe", Icons.Outlined.LocalCafe, "coffee tea cafe"),
+        CatalogIcon("coffee", Icons.Outlined.Coffee, "coffee"),
+        CatalogIcon("fastfood", Icons.Outlined.Fastfood, "fast food burger takeout"),
+        CatalogIcon("pizza", Icons.Outlined.LocalPizza, "pizza food"),
+        CatalogIcon("lunch", Icons.Outlined.LunchDining, "lunch food sandwich"),
+        CatalogIcon("bakery", Icons.Outlined.BakeryDining, "bakery bread snacks"),
+        CatalogIcon("icecream", Icons.Outlined.Icecream, "dessert ice cream sweets"),
+        CatalogIcon("cake", Icons.Outlined.Cake, "birthday cake party"),
+        CatalogIcon("drink", Icons.Outlined.EmojiFoodBeverage, "drinks tea beverage"),
+        CatalogIcon("bar", Icons.Outlined.LocalBar, "bar drinks alcohol"),
+        CatalogIcon("liquor", Icons.Outlined.Liquor, "liquor wine alcohol"),
+        CatalogIcon("home", Icons.Outlined.Home, "home house rent mortgage"),
+        CatalogIcon("house", Icons.Outlined.House, "house home"),
+        CatalogIcon("apartment", Icons.Outlined.Apartment, "apartment rent building hoa"),
+        CatalogIcon("bed", Icons.Outlined.Bed, "bed furniture hotel"),
+        CatalogIcon("chair", Icons.Outlined.Chair, "furniture chair home shopping"),
+        CatalogIcon("sofa", Icons.Outlined.Weekend, "sofa furniture weekend"),
+        CatalogIcon("kitchen", Icons.Outlined.Kitchen, "kitchen appliances fridge"),
+        CatalogIcon("light", Icons.Outlined.Lightbulb, "light bulb utilities"),
+        CatalogIcon("electricity", Icons.Outlined.Bolt, "electricity power utilities bill"),
+        CatalogIcon("water", Icons.Outlined.WaterDrop, "water utilities bill"),
+        CatalogIcon("gas", Icons.Outlined.LocalFireDepartment, "gas heating utilities fire"),
+        CatalogIcon("wifi", Icons.Outlined.Wifi, "internet wifi broadband"),
+        CatalogIcon("phone", Icons.Outlined.Phone, "phone bill call"),
+        CatalogIcon("smartphone", Icons.Outlined.Smartphone, "mobile phone plan"),
+        CatalogIcon("tv", Icons.Outlined.Tv, "tv streaming television"),
+        CatalogIcon("laptop", Icons.Outlined.Laptop, "laptop computer electronics"),
+        CatalogIcon("computer", Icons.Outlined.Computer, "computer electronics"),
+        CatalogIcon("headphones", Icons.Outlined.Headphones, "music audio headphones electronics"),
+        CatalogIcon("watch", Icons.Outlined.Watch, "watch accessories"),
+        CatalogIcon("camera", Icons.Outlined.CameraAlt, "camera photo"),
+        CatalogIcon("car", Icons.Outlined.DirectionsCar, "car auto vehicle"),
+        CatalogIcon("fuel", Icons.Outlined.LocalGasStation, "fuel gas petrol car"),
+        CatalogIcon("charging", Icons.Outlined.EvStation, "ev charging electric car tesla supercharger"),
+        CatalogIcon("parking", Icons.Outlined.LocalParking, "parking car"),
+        CatalogIcon("carrepair", Icons.Outlined.CarRepair, "car repair service maintenance"),
+        CatalogIcon("bus", Icons.Outlined.DirectionsBus, "bus transit commute"),
+        CatalogIcon("train", Icons.Outlined.Train, "train transit commute"),
+        CatalogIcon("taxi", Icons.Outlined.LocalTaxi, "taxi uber lyft ride"),
+        CatalogIcon("bike", Icons.Outlined.DirectionsBike, "bike cycling"),
+        CatalogIcon("flight", Icons.Outlined.Flight, "flight travel airline plane"),
+        CatalogIcon("hotel", Icons.Outlined.Hotel, "hotel airbnb stay travel"),
+        CatalogIcon("luggage", Icons.Outlined.Luggage, "luggage travel trip"),
+        CatalogIcon("beach", Icons.Outlined.BeachAccess, "beach vacation holiday"),
+        CatalogIcon("map", Icons.Outlined.Map, "map travel trip"),
+        CatalogIcon("movie", Icons.Outlined.Movie, "movies cinema film"),
+        CatalogIcon("theater", Icons.Outlined.Theaters, "theater movies tickets"),
+        CatalogIcon("music", Icons.Outlined.MusicNote, "music concert spotify"),
+        CatalogIcon("games", Icons.Outlined.SportsEsports, "games gaming entertainment"),
+        CatalogIcon("tennis", Icons.Outlined.SportsTennis, "tennis badminton sports"),
+        CatalogIcon("soccer", Icons.Outlined.SportsSoccer, "soccer football sports"),
+        CatalogIcon("cricket", Icons.Outlined.SportsCricket, "cricket sports"),
+        CatalogIcon("basketball", Icons.Outlined.SportsBasketball, "basketball sports"),
+        CatalogIcon("gym", Icons.Outlined.FitnessCenter, "gym fitness workout"),
+        CatalogIcon("pool", Icons.Outlined.Pool, "pool swimming"),
+        CatalogIcon("hiking", Icons.Outlined.Hiking, "hiking outdoors"),
+        CatalogIcon("park", Icons.Outlined.Park, "park outdoors nature"),
+        CatalogIcon("spa", Icons.Outlined.Spa, "spa beauty wellness"),
+        CatalogIcon("yoga", Icons.Outlined.SelfImprovement, "yoga meditation wellness"),
+        CatalogIcon("hospital", Icons.Outlined.LocalHospital, "hospital health medical"),
+        CatalogIcon("medical", Icons.Outlined.MedicalServices, "doctor medical health"),
+        CatalogIcon("medicine", Icons.Outlined.Medication, "medicine pharmacy pills"),
+        CatalogIcon("vaccine", Icons.Outlined.Vaccines, "vaccine health"),
+        CatalogIcon("therapy", Icons.Outlined.Psychology, "therapy mental health"),
+        CatalogIcon("baby", Icons.Outlined.ChildCare, "baby child kids"),
+        CatalogIcon("stroller", Icons.Outlined.ChildFriendly, "baby stroller kids"),
+        CatalogIcon("toys", Icons.Outlined.Toys, "toys kids"),
+        CatalogIcon("school", Icons.Outlined.School, "school education tuition"),
+        CatalogIcon("book", Icons.Outlined.MenuBook, "books reading"),
+        CatalogIcon("stories", Icons.Outlined.AutoStories, "books kindle reading"),
+        CatalogIcon("work", Icons.Outlined.Work, "work job interviews"),
+        CatalogIcon("business", Icons.Outlined.BusinessCenter, "business work"),
+        CatalogIcon("pets", Icons.Outlined.Pets, "pets dog cat vet"),
+        CatalogIcon("clothes", Icons.Outlined.Checkroom, "clothes apparel fashion"),
+        CatalogIcon("jewelry", Icons.Outlined.Diamond, "jewelry gold diamond"),
+        CatalogIcon("haircut", Icons.Outlined.ContentCut, "haircut salon barber"),
+        CatalogIcon("beauty", Icons.Outlined.Face, "beauty cosmetics makeup"),
+        CatalogIcon("art", Icons.Outlined.Palette, "art hobby"),
+        CatalogIcon("brush", Icons.Outlined.Brush, "painting art"),
+        CatalogIcon("tools", Icons.Outlined.Build, "tools repair"),
+        CatalogIcon("handyman", Icons.Outlined.Handyman, "handyman repair home"),
+        CatalogIcon("plumbing", Icons.Outlined.Plumbing, "plumbing repair"),
+        CatalogIcon("garden", Icons.Outlined.Yard, "garden yard lawn"),
+        CatalogIcon("flowers", Icons.Outlined.LocalFlorist, "flowers florist gift"),
+        CatalogIcon("laundry", Icons.Outlined.LocalLaundryService, "laundry dry cleaning"),
+        CatalogIcon("cleaning", Icons.Outlined.CleaningServices, "cleaning housekeeping"),
+        CatalogIcon("shipping", Icons.Outlined.LocalShipping, "shipping delivery"),
+        CatalogIcon("package", Icons.Outlined.Inventory2, "amazon package delivery orders"),
+        CatalogIcon("store", Icons.Outlined.Store, "store shop"),
+        CatalogIcon("storefront", Icons.Outlined.Storefront, "storefront shop retail"),
+        CatalogIcon("bag", Icons.Outlined.ShoppingBag, "shopping bag"),
+        CatalogIcon("mall", Icons.Outlined.LocalMall, "mall shopping"),
+        CatalogIcon("gift", Icons.Outlined.CardGiftcard, "gift present"),
+        CatalogIcon("redeem", Icons.Outlined.Redeem, "gift card rewards"),
+        CatalogIcon("party", Icons.Outlined.Celebration, "party celebration festival"),
+        CatalogIcon("charity", Icons.Outlined.VolunteerActivism, "charity donation giving"),
+        CatalogIcon("heart", Icons.Outlined.Favorite, "love family"),
+        CatalogIcon("temple", Icons.Outlined.TempleHindu, "temple puja hindu donation"),
+        CatalogIcon("mosque", Icons.Outlined.Mosque, "mosque"),
+        CatalogIcon("church", Icons.Outlined.Church, "church"),
+        CatalogIcon("subscriptions", Icons.Outlined.Subscriptions, "subscriptions streaming netflix"),
+        CatalogIcon("receipt", Icons.Outlined.Receipt, "bill receipt"),
+        CatalogIcon("bills", Icons.Outlined.ReceiptLong, "bills invoice"),
+        CatalogIcon("card", Icons.Outlined.CreditCard, "credit card fee"),
+        CatalogIcon("bank", Icons.Outlined.AccountBalance, "bank interest loan"),
+        CatalogIcon("wallet", Icons.Outlined.AccountBalanceWallet, "wallet cash"),
+        CatalogIcon("savings", Icons.Outlined.Savings, "savings piggy bank"),
+        CatalogIcon("payments", Icons.Outlined.Payments, "payments cash money salary"),
+        CatalogIcon("money", Icons.Outlined.AttachMoney, "money dollar income"),
+        CatalogIcon("exchange", Icons.Outlined.CurrencyExchange, "currency exchange remittance india"),
+        CatalogIcon("trending", Icons.Outlined.TrendingUp, "investments stocks growth"),
+        CatalogIcon("chart", Icons.Outlined.ShowChart, "stocks chart investments"),
+        CatalogIcon("insurance", Icons.Outlined.Shield, "insurance protection"),
+        CatalogIcon("legal", Icons.Outlined.Gavel, "legal lawyer fees"),
+        CatalogIcon("policy", Icons.Outlined.Policy, "policy taxes"),
+        CatalogIcon("elderly", Icons.Outlined.Elderly, "parents elderly family"),
+        CatalogIcon("family", Icons.Outlined.FamilyRestroom, "family"),
+        CatalogIcon("people", Icons.Outlined.People, "friends people split"),
+        CatalogIcon("person", Icons.Outlined.Person, "personal"),
+        CatalogIcon("cloud", Icons.Outlined.Cloud, "cloud storage icloud"),
+        CatalogIcon("lock", Icons.Outlined.Lock, "security"),
+        CatalogIcon("event", Icons.Outlined.Event, "events tickets calendar"),
+        CatalogIcon("smoking", Icons.Outlined.SmokingRooms, "smoking"),
+        CatalogIcon("sell", Icons.Outlined.Sell, "sale discount tag"),
+        CatalogIcon("loyalty", Icons.Outlined.Loyalty, "loyalty rewards"),
+    )
+
+    private val byName = all.associateBy { it.name }
+
+    fun vector(name: String): ImageVector? = byName[name]?.vector
+
+    fun search(q: String): List<CatalogIcon> {
+        val n = q.trim().lowercase()
+        return if (n.isEmpty()) all else all.filter { it.name.contains(n) || it.words.contains(n) }
+    }
+
+    /** Emoji grouped loosely by spending area, for the emoji tab. Any emoji can also be typed. */
+    val emoji: List<String> = listOf(
+        "🛒", "🥦", "🍎", "🥛", "🍞", "🍽️", "🍕", "🍔", "🌮", "🍜", "🍛", "☕", "🧋", "🍰", "🍦", "🍺", "🍷",
+        "🏡", "🏠", "🏢", "🛋️", "🛏️", "🪑", "🔌", "💡", "⚡", "💧", "🔥", "📶", "☎️", "📱", "💻", "📺", "🎧",
+        "🚗", "⛽", "🔋", "🅿️", "🔧", "🚌", "🚆", "🚕", "🚲", "✈️", "🏨", "🧳", "🏖️", "🗺️",
+        "🎬", "🎟️", "🎵", "🎮", "🎳", "🏸", "⚽", "🏏", "🏀", "🏋️", "🧘", "🏊", "🥾",
+        "🏥", "💊", "🩺", "💉", "🦷", "👓", "🧠",
+        "🍼", "👶", "🧸", "🎒", "📚", "🎓", "💼", "🧑‍💼", "🐶", "🐱",
+        "👕", "👗", "👟", "💄", "💅", "💇", "💍", "💰", "🪙", "💳", "🏦", "💵", "📈", "📉", "🧾", "🛡️",
+        "🎁", "🎉", "🪔", "🛕", "🙏", "❤️", "👪", "👵", "🤝", "📦", "🛍️", "🧺", "🧹", "🌱", "💐", "📮", "🔁", "🏷️",
+    )
+
+    /** The same palette the importer uses, readable on light and dark backgrounds. */
+    val colors: List<Int> = listOf(
+        0xFF3F9A5E, 0xFF2B8A99, 0xFF4570D6, 0xFFC98A1E, 0xFFC4487F, 0xFF7A5BD4, 0xFFE07B53,
+        0xFF9C6B3F, 0xFF3D8FC7, 0xFF2E9C8A, 0xFFA0527A, 0xFF8A9F35, 0xFFC2453F, 0xFF6F7C8F,
+    ).map { it.toInt() }
+}

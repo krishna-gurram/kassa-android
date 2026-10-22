@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,11 +36,7 @@ fun CategoryBadge(category: Category?, size: Int = 40) {
         Modifier.size(size.dp).clip(CircleShape).background(tint.copy(alpha = 0.17f)),
         contentAlignment = Alignment.Center,
     ) {
-        when (val icon = category?.icon) {
-            is CategoryIcon.Emoji -> Text(icon.value, fontSize = (size * 0.46).sp)
-            // Symbol and picture icons arrive with the category editor in milestone 2.
-            else -> Text(category?.name?.take(1) ?: "?", style = KassaType.bodyStrong, color = tint)
-        }
+        CategoryIconView(category?.icon, tint, size, fallback = category?.name?.take(1) ?: "?")
     }
 }
 
@@ -115,3 +112,26 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
 
 @Composable
 fun Gap(h: Int) = androidx.compose.foundation.layout.Spacer(Modifier.height(h.dp))
+
+/** Draws any category icon: an emoji, a bundled symbol tinted with the category color, or the user's picture. */
+@Composable
+fun CategoryIconView(icon: CategoryIcon?, tint: Color, size: Int, fallback: String = "?") {
+    when (icon) {
+        is CategoryIcon.Emoji -> Text(icon.value, fontSize = (size * 0.46).sp)
+        is CategoryIcon.Symbol -> {
+            val v = dev.krishnagurram.kassa.ui.categories.IconCatalog.vector(icon.name)
+            if (v != null) androidx.compose.material3.Icon(v, null, tint = tint, modifier = Modifier.size((size * 0.55).dp))
+            else Text(fallback, style = KassaType.bodyStrong, color = tint)
+        }
+        is CategoryIcon.Image -> {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val bmp = androidx.compose.runtime.remember(icon.fileName) { dev.krishnagurram.kassa.data.IconImages.load(context, icon.fileName) }
+            if (bmp != null) androidx.compose.foundation.Image(
+                bmp.asImageBitmap(), null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(size.dp).clip(CircleShape),
+            ) else Text(fallback, style = KassaType.bodyStrong, color = tint)
+        }
+        null -> Text(fallback, style = KassaType.bodyStrong, color = tint)
+    }
+}

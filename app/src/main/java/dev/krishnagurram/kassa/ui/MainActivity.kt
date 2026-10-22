@@ -59,6 +59,8 @@ import dev.krishnagurram.kassa.ui.importer.ImportScreen
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaTheme
 import dev.krishnagurram.kassa.ui.today.TodayScreen
+import dev.krishnagurram.kassa.ui.settings.SettingsActions
+import dev.krishnagurram.kassa.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -84,6 +86,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
     var selectedCard by rememberSaveable { mutableStateOf<Long?>(null) }
     var entry by remember { mutableStateOf<EntryStart?>(null) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -108,7 +111,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             }
             else -> Shell(tab, onTab = { tab = it; if (it != Tab.CARDS) selectedCard = null }, onAdd = { entry = EntryStart() }, snackbar = snackbar) { padding ->
                 when (tab) {
-                    Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY })
+                    Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY }, onSettings = { settingsOpen = true })
                     Tab.ACTIVITY -> ActivityScreen(l, padding, onEdit = edit)
                     Tab.CARDS -> CardsScreen(l, padding, selectedCard, onSelect = { selectedCard = it }, onEdit = edit, onPay = { vm.save(it) })
                     Tab.ACCOUNTS -> AccountsScreen(
@@ -121,6 +124,9 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     )
                 }
             }
+        }
+        if (settingsOpen && l != null) {
+            SettingsScreen(l, remember(vm) { settingsActions(vm) { settingsOpen = false; importing = true } }, onClose = { settingsOpen = false })
         }
         val start = entry
         if (start != null && l != null) {
@@ -218,4 +224,17 @@ private fun iconFor(t: Tab): ImageVector = when (t) {
         moveTo(6f, 11f); lineTo(6f, 18f); moveTo(10f, 11f); lineTo(10f, 18f)
         moveTo(14f, 11f); lineTo(14f, 18f); moveTo(18f, 11f); lineTo(18f, 18f); moveTo(4f, 20f); lineTo(20f, 20f)
     }
+}
+
+private fun settingsActions(vm: LedgerViewModel, onImport: () -> Unit) = object : SettingsActions {
+    override fun saveCategory(category: dev.krishnagurram.kassa.domain.Category, budget: Long?, then: (Long) -> Unit) { vm.saveCategory(category, budget, then) }
+    override fun setMonthBudget(categoryId: Long, amount: Long?) {
+        val l = vm.ledger.value ?: return
+        vm.setMonthBudget(categoryId, l.period.yearMonth, amount)
+    }
+    override fun mergeCategory(from: dev.krishnagurram.kassa.domain.Category, into: dev.krishnagurram.kassa.domain.Category) { vm.mergeCategory(from, into) }
+    override fun convertToPerson(account: dev.krishnagurram.kassa.domain.Account, balance: Long, name: String) { vm.convertToPerson(account, balance, name) }
+    override fun setMonthStartDay(day: Int) = vm.setMonthStartDay(day)
+    override fun importAgain() = onImport()
+    override suspend fun savePhoto(uri: android.net.Uri): String? = vm.saveIconImage(uri)
 }

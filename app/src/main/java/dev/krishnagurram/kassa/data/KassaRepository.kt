@@ -140,4 +140,39 @@ class KassaRepository(private val db: KassaDatabase) {
     }
 
     suspend fun updateAccount(account: Account) = db.accounts().update(account.toEntity())
+
+    /** Creates or updates a category. Subcategories always follow their parent's kind. */
+    suspend fun saveCategory(category: Category): Long = db.withTransaction {
+        if (category.id == 0L) {
+            db.categories().insert(category.copy(sortOrder = db.categories().maxSortOrder() + 1).toEntity())
+        } else {
+            db.categories().update(category.toEntity()); category.id
+        }
+    }
+
+    /** Sets the default monthly budget ([month] 0) or a one-month override. Null removes it. */
+    suspend fun setBudget(categoryId: Long, month: Int, amount: Long?) {
+        if (amount == null) db.budgets().delete(categoryId, month)
+        else db.budgets().upsert(Budget(categoryId, month, amount).toEntity())
+    }
+
+    /** Merges one category into another: every entry moves, then the old category is hidden. */
+    suspend fun mergeCategory(from: Category, into: Long) = db.withTransaction {
+        db.categories().moveEntries(from.id, into)
+        db.categories().update(from.copy(hidden = true).toEntity())
+    }
+
+    /**
+     * Turns an account that was standing in for "money between me and others" (like a Splitwise account) into a
+     * person. The person starts with the account's balance (positive: they owe you), the account is archived,
+     * and its history stays as it was, so past months don't change.
+     */
+    suspend fun convertAccountToPerson(account: Account, balance: Long, personName: String): Long = db.withTransaction {
+        val pid = db.people().insert(Person(name = personName.trim()).toEntity())
+        if (balance != 0L) db.loans().insertAll(listOf(
+            LoanEntry(personId = pid, amount = balance, epochMillis = System.currentTimeMillis(), note = "Balance from ${account.name}").toEntity()
+        ))
+        db.accounts().update(account.copy(archived = true).toEntity())
+        pid
+    }
 }

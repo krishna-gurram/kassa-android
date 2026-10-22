@@ -32,7 +32,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests
-        run: ./gradlew :domain:test :importer:test --stacktrace
+        run: |
+          set -o pipefail
+          mkdir -p ci-output
+          ./gradlew :domain:test :importer:test --stacktrace 2>&1 | tee ci-output/tests.log
 
       - name: Prepare signing key
         env:
@@ -53,7 +56,9 @@ jobs:
           KASSA_KEYSTORE_PASSWORD: ${{ secrets.KASSA_KEYSTORE_PASSWORD }}
           KASSA_KEY_ALIAS: ${{ secrets.KASSA_KEY_ALIAS }}
           KASSA_KEY_PASSWORD: ${{ secrets.KASSA_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon :app:assembleRelease --stacktrace 2>&1 | tee ci-output/build.log
 
       - name: Check the release is signed with the Kassa key
         if: github.event_name == 'push'
@@ -61,7 +66,7 @@ jobs:
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
           CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256 digest" | head -1 | awk '{print $NF}')
           echo "Signed with $CERT"
-          if [ "$CERT" != "${{ env.KASSA_CERT_SHA256 }}" ]; then
+          if [ "$CERT" != "$KASSA_CERT_SHA256" ]; then
             echo "::error::APK is signed with $CERT, expected the Kassa release key."
             exit 1
           fi
@@ -76,21 +81,73 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: room-schemas
-          path: app/schemas
-
-      - uses: actions/upload-artifact@v4
-        with:
           name: kassa-apk
           path: app/build/outputs/apk/release/app-release.apk
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas
+          path: app/schemas
+
+      # Build logs aren't readable from outside GitHub, so failures are attached to a draft release.
+      - name: Save diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "diag-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
+            --draft --title "Build diagnostics ${{ github.run_number }}" --notes "Failed build logs." || true
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: kassa-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Launch on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: mv app-release.apk kassa.apk && bash .github/scripts/smoke.sh
+
+      - name: Save screenshots and logs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d ci-output ] || exit 0
+          gh release create "ci-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
+            --draft --title "Emulator check ${{ github.run_number }}" --notes "Screenshots and logcat from the emulator." || true
+
+  publish:
+    needs: [build, smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kassa-apk
+
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v0.1.${{ github.run_number }}"
-          cp app/build/outputs/apk/release/app-release.apk "kassa-$VERSION.apk"
-          gh release create "$VERSION" "kassa-$VERSION.apk" \
+          mv app-release.apk "kassa-$VERSION.apk"
+          gh release create "$VERSION" "kassa-$VERSION.apk" -R "${{ github.repository }}" \
             --title "Kassa $VERSION" \
             --notes "Built from ${GITHUB_SHA::7}. Install over the previous version; your data stays."

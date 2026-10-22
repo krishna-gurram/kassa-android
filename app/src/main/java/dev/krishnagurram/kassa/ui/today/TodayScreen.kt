@@ -55,6 +55,7 @@ fun TodayScreen(
     onEdit: (Transaction) -> Unit,
     onOpenCard: (Long) -> Unit,
     onSeeAll: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val plan = TodayPlan.compute(ledger.recent, ledger.categories, ledger.budgets, ledger.today, ledger.monthStartDay, ledger.zone)
     val dueSoon = ledger.cards()
@@ -91,8 +92,13 @@ fun TodayScreen(
         }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
-            Text(ledger.today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), style = KassaType.small, color = Kassa.colors.ink2)
-            Text("Today", style = KassaType.title, color = Kassa.colors.ink)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text(ledger.today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), style = KassaType.small, color = Kassa.colors.ink2)
+                    Text("Today", style = KassaType.title, color = Kassa.colors.ink)
+                }
+                Text("Settings", style = KassaType.bodyStrong, color = Kassa.colors.ink2, modifier = Modifier.clickable(onClick = onSettings).padding(8.dp))
+            }
             Gap(18)
             if (wide) {
                 Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
@@ -113,7 +119,7 @@ private fun Hero(r: TodayPlan.Result, ledger: Ledger) {
     if (p.budget <= 0) {
         Text("Set budgets to see today's number", style = KassaType.section, color = Kassa.colors.ink)
         Text(
-            "Kassa spreads what's left of your monthly budget over the days left. Budgets for everyday categories come with the category editor in the next update.",
+            "Kassa spreads what's left of your monthly budget over the days left. Add budgets to everyday categories in Settings.",
             style = KassaType.body, color = Kassa.colors.ink2,
         )
         return

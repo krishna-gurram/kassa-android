@@ -125,6 +125,34 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         _messages.tryEmit(if (archived) "${account.name} archived. Its history stays." else "${account.name} restored.")
     }
 
+    fun saveCategory(category: Category, budget: Long?, then: (Long) -> Unit = {}) = viewModelScope.launch {
+        val id = repo.saveCategory(category)
+        if (category.parentId == null && category.kind == dev.krishnagurram.kassa.domain.CategoryKind.EXPENSE) repo.setBudget(id, 0, budget)
+        then(id)
+        _messages.tryEmit("${category.name} saved.")
+    }
+
+    fun setMonthBudget(categoryId: Long, month: java.time.YearMonth, amount: Long?) = viewModelScope.launch {
+        repo.setBudget(categoryId, Budgets.key(month), amount)
+    }
+
+    fun mergeCategory(from: Category, into: Category) = viewModelScope.launch {
+        repo.mergeCategory(from, into.id)
+        _messages.tryEmit("Moved everything from ${from.name} into ${into.name}.")
+    }
+
+    fun convertToPerson(account: Account, balance: Long, name: String) = viewModelScope.launch {
+        repo.convertAccountToPerson(account, balance, name)
+        _messages.tryEmit("${account.name} is now ${name.trim()} under People. The account is archived with its history.")
+    }
+
+    fun setMonthStartDay(day: Int) { settings.setMonthStartDay(day) }
+
+    /** Copies a picked photo into private storage and returns its file name. Runs off the main thread. */
+    suspend fun saveIconImage(uri: android.net.Uri): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { dev.krishnagurram.kassa.data.IconImages.save(getApplication(), uri) }.getOrNull()
+    }
+
     suspend fun loadForEdit(id: Long): Pair<Transaction, List<Long>>? {
         val t = repo.transaction(id) ?: return null
         return t to repo.splitPeopleFor(id)

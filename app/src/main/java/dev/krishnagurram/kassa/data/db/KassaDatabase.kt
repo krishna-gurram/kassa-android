@@ -76,6 +76,18 @@ interface CategoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(categories: List<CategoryEntity>)
 
+    @Insert
+    suspend fun insert(category: CategoryEntity): Long
+
+    @Update
+    suspend fun update(category: CategoryEntity)
+
+    @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
+    suspend fun maxSortOrder(): Int
+
+    @Query("UPDATE transactions SET categoryId = :to WHERE categoryId = :from")
+    suspend fun moveEntries(from: Long, to: Long)
+
     @Query("DELETE FROM categories")
     suspend fun deleteAll()
 }
@@ -151,6 +163,12 @@ interface BudgetDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(budgets: List<BudgetEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(budget: BudgetEntity)
+
+    @Query("DELETE FROM budgets WHERE categoryId = :categoryId AND month = :month")
+    suspend fun delete(categoryId: Long, month: Int)
 
     @Query("DELETE FROM budgets")
     suspend fun deleteAll()

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Installs the release APK on the emulator, launches it, and fails if the app crashes or isn't running.
+# Saves screenshots and logcat to ci-output/ for the diagnostics release.
+set -u
+PKG=dev.krishnagurram.kassa
+mkdir -p ci-output
+adb logcat -c
+adb install -r kassa.apk > ci-output/install.txt 2>&1 || { cat ci-output/install.txt; exit 1; }
+adb shell am start -W -n $PKG/.ui.MainActivity > ci-output/start.txt 2>&1
+sleep 15
+adb exec-out screencap -p > ci-output/phone.png
+# Approximate the Fold's inner screen and look again.
+adb shell wm size 1812x2176
+adb shell wm density 420
+sleep 6
+adb exec-out screencap -p > ci-output/unfolded.png
+adb shell wm size reset
+adb shell wm density reset
+sleep 3
+adb logcat -d > ci-output/logcat.txt
+PID=$(adb shell pidof $PKG | tr -d '\r')
+if grep -q "FATAL EXCEPTION" ci-output/logcat.txt || [ -z "$PID" ]; then
+  echo "Kassa crashed or is not running"
+  grep -A 40 "FATAL EXCEPTION" ci-output/logcat.txt | head -80
+  exit 1
+fi
+echo "Kassa is running as pid $PID"
