@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # SHA-256 of the Kassa release certificate. Every published APK must match, so updates always install in place.
+  KASSA_CERT_SHA256: 6bcfac9641a5b727b9f24a2dfb7efa4dd59724130a026c82b79131567af0714f
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -37,8 +41,11 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/kassa.jks"
             echo "KASSA_KEYSTORE=$RUNNER_TEMP/kassa.jks" >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "::error::KASSA_KEYSTORE_BASE64 secret is missing. Releases must be signed with the Kassa key or they can't update the installed app."
+            exit 1
           else
-            echo "No signing key secret; the APK will be signed with a throwaway debug key."
+            echo "No signing key on this pull request build; using a throwaway debug key."
           fi
 
       - name: Build APK
@@ -46,7 +53,18 @@ jobs:
           KASSA_KEYSTORE_PASSWORD: ${{ secrets.KASSA_KEYSTORE_PASSWORD }}
           KASSA_KEY_ALIAS: ${{ secrets.KASSA_KEY_ALIAS }}
           KASSA_KEY_PASSWORD: ${{ secrets.KASSA_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
+
+      - name: Check the release is signed with the Kassa key
+        if: github.event_name == 'push'
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256 digest" | head -1 | awk '{print $NF}')
+          echo "Signed with $CERT"
+          if [ "$CERT" != "${{ env.KASSA_CERT_SHA256 }}" ]; then
+            echo "::error::APK is signed with $CERT, expected the Kassa release key."
+            exit 1
+          fi
 
       - name: Check the app cannot use the network
         run: |
