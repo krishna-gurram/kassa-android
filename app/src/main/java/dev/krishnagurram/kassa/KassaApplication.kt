@@ -2,6 +2,7 @@ package dev.krishnagurram.kassa
 
 import android.app.Application
 import dev.krishnagurram.kassa.data.AssistRepository
+import dev.krishnagurram.kassa.data.Backup
 import dev.krishnagurram.kassa.data.KassaRepository
 import dev.krishnagurram.kassa.data.Settings
 import dev.krishnagurram.kassa.data.db.KassaDatabase
@@ -12,4 +13,5 @@ class KassaApplication : Application() {
     val repository: KassaRepository by lazy { KassaRepository(database) }
     val assist: AssistRepository by lazy { AssistRepository(database, repository) }
     val settings: Settings by lazy { Settings(this) }
+    val backup: Backup by lazy { Backup(this, database, settings) }
 }

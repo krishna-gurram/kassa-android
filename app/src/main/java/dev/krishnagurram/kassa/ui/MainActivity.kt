@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,21 +64,74 @@ import dev.krishnagurram.kassa.ui.settings.SettingsActions
 import dev.krishnagurram.kassa.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
+    private val locked = mutableStateOf(false)
+    private var hiddenAt = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as KassaApplication
+        if (app.settings.lockEnabled.value) locked.value = true
         setContent {
             KassaTheme {
                 val count by app.repository.entryCount.collectAsState(initial = -1)
-                KassaRoot(entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true })
+                val lockOn by app.settings.lockEnabled.collectAsState()
+                LaunchedEffect(lockOn) { if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn) }
+                if (locked.value && lockOn) {
+                    LockScreen(onUnlock = ::unlock)
+                    LaunchedEffect(Unit) { unlock() }
+                } else {
+                    KassaRoot(entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true })
+                }
             }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        hiddenAt = System.currentTimeMillis()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val app = application as KassaApplication
+        // Lock again after a minute away.
+        if (app.settings.lockEnabled.value && hiddenAt > 0 && System.currentTimeMillis() - hiddenAt > 60_000) locked.value = true
+    }
+
+    private fun unlock() {
+        val auth = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        val info = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock Kassa")
+            .apply {
+                if (android.os.Build.VERSION.SDK_INT >= 30) setAllowedAuthenticators(auth)
+                else @Suppress("DEPRECATION") setDeviceCredentialAllowed(true)
+            }
+            .build()
+        val prompt = androidx.biometric.BiometricPrompt(this, androidx.core.content.ContextCompat.getMainExecutor(this),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) { locked.value = false }
+                override fun onAuthenticationError(code: Int, msg: CharSequence) {
+                    // No screen lock set up at all: don't trap the user out of their own data.
+                    if (code == androidx.biometric.BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL || code == androidx.biometric.BiometricPrompt.ERROR_HW_NOT_PRESENT) locked.value = false
+                }
+            })
+        prompt.authenticate(info)
+    }
+}
+
+@Composable
+private fun LockScreen(onUnlock: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Kassa.colors.ground), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Text("Kassa is locked", style = dev.krishnagurram.kassa.ui.theme.KassaType.section, color = Kassa.colors.ink)
+            androidx.compose.material3.TextButton(onClick = onUnlock) { Text("Unlock", color = Kassa.colors.ink) }
         }
     }
 }
 
-private enum class Tab(val label: String) { TODAY("Today"), ACTIVITY("Activity"), CARDS("Cards"), ACCOUNTS("Accounts") }
+private enum class Tab(val label: String) { TODAY("Today"), ACTIVITY("Activity"), CARDS("Cards"), INSIGHTS("Insights"), ACCOUNTS("Accounts") }
 
 @Composable
 private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit) {
@@ -88,6 +142,10 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
     var entry by remember { mutableStateOf<EntryStart?>(null) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
+    var categoryOpen by remember { mutableStateOf<dev.krishnagurram.kassa.domain.Category?>(null) }
+    val sensitivity by vm.sensitivity.collectAsState()
+    val dismissedFlags by vm.dismissedFlags.collectAsState()
+    val lockOn by vm.lockEnabled.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
@@ -141,6 +199,19 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 when (tab) {
                     Tab.TODAY -> TodayScreen(l, padding, onEdit = edit, onOpenCard = { selectedCard = it; tab = Tab.CARDS }, onSeeAll = { tab = Tab.ACTIVITY }, onSettings = { settingsOpen = true }, needs = needs)
                     Tab.ACTIVITY -> ActivityScreen(l, padding, onEdit = edit)
+                    Tab.INSIGHTS -> {
+                        val monthKey = dev.krishnagurram.kassa.domain.Budgets.key(l.period.yearMonth)
+                        dev.krishnagurram.kassa.ui.insights.InsightsScreen(
+                            l, padding,
+                            sensitivity = runCatching { dev.krishnagurram.kassa.domain.Insights.Sensitivity.valueOf(sensitivity) }.getOrDefault(dev.krishnagurram.kassa.domain.Insights.Sensitivity.BALANCED),
+                            dismissed = dismissedFlags.mapNotNull { k -> k.split(':').takeIf { it.size == 2 && it[1] == monthKey.toString() }?.get(0)?.toLongOrNull() }.toSet(),
+                            actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
+                                override fun setCap(category: dev.krishnagurram.kassa.domain.Category, amount: Long) { vm.setCap(category, amount) }
+                                override fun dismissFlag(category: dev.krishnagurram.kassa.domain.Category) = vm.dismissFlag(category)
+                                override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { categoryOpen = category }
+                            },
+                        )
+                    }
                     Tab.CARDS -> CardsScreen(l, padding, selectedCard, onSelect = { selectedCard = it }, onEdit = edit, onPay = { vm.save(it) })
                     Tab.ACCOUNTS -> AccountsScreen(
                         l, padding,
@@ -158,7 +229,14 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
         if (settingsOpen && l != null) {
             val alertApps by vm.alertApps.collectAsState()
             val seenApps by vm.seenApps.collectAsState()
-            SettingsScreen(l, remember(vm) { settingsActions(vm, context) { settingsOpen = false; importing = true } }, alertApps, seenApps, onClose = { settingsOpen = false })
+            SettingsScreen(
+                l, remember(vm) { settingsActions(vm, context) { settingsOpen = false; importing = true } },
+                dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn),
+                onClose = { settingsOpen = false },
+            )
+        }
+        categoryOpen?.let { c ->
+            if (l != null) CategorySheet(l, c, onEdit = { categoryOpen = null; edit(it) }, onDismiss = { categoryOpen = null })
         }
         allocating?.let { p ->
             if (l != null) dev.krishnagurram.kassa.ui.invest.AllocateSheet(
@@ -259,6 +337,7 @@ private fun iconFor(t: Tab): ImageVector = when (t) {
         lineTo(5.5f, 19f); quadTo(3f, 19f, 3f, 16.5f); lineTo(3f, 8.5f); quadTo(3f, 6f, 5.5f, 6f)
         moveTo(3f, 10.5f); lineTo(21f, 10.5f); moveTo(7f, 15f); lineTo(11f, 15f)
     }
+    Tab.INSIGHTS -> line("insights") { moveTo(5f, 20f); lineTo(5f, 12f); moveTo(12f, 20f); lineTo(12f, 5f); moveTo(19f, 20f); lineTo(19f, 13f) }
     Tab.ACCOUNTS -> line("accounts") {
         moveTo(4f, 9.5f); lineTo(12f, 5f); lineTo(20f, 9.5f)
         moveTo(6f, 11f); lineTo(6f, 18f); moveTo(10f, 11f); lineTo(10f, 18f)
@@ -287,7 +366,43 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
     }
     override fun hasNotificationAccess(): Boolean =
         androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    override fun setSensitivity(v: String) = vm.setSensitivity(v)
+    override fun setLock(on: Boolean) = vm.setLock(on)
+    override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = vm.exportTo(uri, passphrase)
+    override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray) = vm.readBackup(uri, passphrase)
+    override fun restore(json: org.json.JSONObject) { vm.restore(json) }
     override fun appLabel(pkg: String): String = runCatching {
         context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 }
+
+/** A category's month: what it went to, by subcategory, and every entry. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun CategorySheet(l: Ledger, c: dev.krishnagurram.kassa.domain.Category, onEdit: (Transaction) -> Unit, onDismiss: () -> Unit) {
+    val p = l.period
+    val ids = l.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
+    val entries = l.recent.filter { t ->
+        t.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && t.categoryId in ids &&
+            java.time.Instant.ofEpochMilli(t.epochMillis).atZone(l.zone).toLocalDate().let { it in p }
+    }.sortedByDescending { it.epochMillis }
+    val bySub = entries.groupBy { t -> l.categoryById[t.categoryId]?.takeIf { it.parentId == c.id }?.name ?: "Other" }
+        .mapValues { (_, v) -> v.sumOf { it.categoryAmount } }.entries.sortedByDescending { it.value }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
+        androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).androidx_verticalScroll()) {
+            Text(c.name, style = dev.krishnagurram.kassa.ui.theme.KassaType.section, color = Kassa.colors.ink)
+            Text("${dev.krishnagurram.kassa.domain.Money.format(entries.sumOf { it.categoryAmount })} this month", style = dev.krishnagurram.kassa.ui.theme.KassaType.body, color = Kassa.colors.ink2)
+            if (bySub.size > 1) bySub.forEach { (name, v) ->
+                androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 6.dp)) {
+                    Text(name, style = dev.krishnagurram.kassa.ui.theme.KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+                    Text(dev.krishnagurram.kassa.domain.Money.format(v), style = dev.krishnagurram.kassa.ui.theme.KassaType.bodyStrong, color = Kassa.colors.ink)
+                }
+            }
+            dev.krishnagurram.kassa.ui.common.SectionHeader("Entries")
+            entries.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, l, showDivider = i < entries.lastIndex, onClick = onEdit) }
+        }
+    }
+}
+
+@Composable
+private fun Modifier.androidx_verticalScroll(): Modifier = this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))

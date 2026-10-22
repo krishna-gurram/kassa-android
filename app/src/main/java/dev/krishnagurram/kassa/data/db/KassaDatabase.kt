@@ -17,6 +17,9 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Dao
 interface GroupDao {
+    @Query("SELECT * FROM account_groups")
+    suspend fun all(): List<GroupEntity>
+
     @Query("SELECT * FROM account_groups ORDER BY sortOrder, id")
     fun observeAll(): Flow<List<GroupEntity>>
 
@@ -32,6 +35,9 @@ interface GroupDao {
 
 @Dao
 interface AccountDao {
+    @Query("SELECT * FROM accounts")
+    suspend fun all(): List<AccountEntity>
+
     @Query("SELECT * FROM accounts ORDER BY sortOrder, id")
     fun observeAll(): Flow<List<AccountEntity>>
 
@@ -70,6 +76,9 @@ interface AccountDao {
 
 @Dao
 interface CategoryDao {
+    @Query("SELECT * FROM categories")
+    suspend fun all(): List<CategoryEntity>
+
     @Query("SELECT * FROM categories ORDER BY sortOrder, id")
     fun observeAll(): Flow<List<CategoryEntity>>
 
@@ -94,6 +103,9 @@ interface CategoryDao {
 
 @Dao
 interface TransactionDao {
+    @Query("SELECT * FROM transactions")
+    suspend fun all(): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE epochMillis BETWEEN :fromMillis AND :toMillis ORDER BY epochMillis DESC, id DESC")
     fun observeBetween(fromMillis: Long, toMillis: Long): Flow<List<TransactionEntity>>
 
@@ -134,6 +146,15 @@ interface TransactionDao {
 
 @Dao
 interface PersonDao {
+    @Query("SELECT * FROM people")
+    suspend fun all(): List<PersonEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(p: List<PersonEntity>)
+
+    @Query("DELETE FROM people")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM people ORDER BY name COLLATE NOCASE")
     fun observeAll(): Flow<List<PersonEntity>>
 
@@ -146,6 +167,12 @@ interface PersonDao {
 
 @Dao
 interface LoanDao {
+    @Query("SELECT * FROM loan_entries")
+    suspend fun all(): List<LoanEntryEntity>
+
+    @Query("DELETE FROM loan_entries")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM loan_entries")
     fun observeAll(): Flow<List<LoanEntryEntity>>
 
@@ -161,6 +188,15 @@ interface LoanDao {
 
 @Dao
 interface RecurringDao {
+    @Query("SELECT * FROM recurring")
+    suspend fun all(): List<RecurringEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(r: List<RecurringEntity>)
+
+    @Query("DELETE FROM recurring")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM recurring ORDER BY dayOfMonth, name")
     fun observeAll(): Flow<List<RecurringEntity>>
 
@@ -176,6 +212,9 @@ interface RecurringDao {
 
 @Dao
 interface PendingDao {
+    @Query("DELETE FROM pending_items")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM pending_items ORDER BY epochMillis DESC")
     fun observeAll(): Flow<List<PendingEntity>>
 
@@ -191,6 +230,15 @@ interface PendingDao {
 
 @Dao
 interface HoldingDao {
+    @Query("SELECT * FROM holdings")
+    suspend fun all(): List<HoldingEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(h: List<HoldingEntity>)
+
+    @Query("DELETE FROM holdings")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM holdings ORDER BY ticker")
     fun observeAll(): Flow<List<HoldingEntity>>
 
@@ -209,6 +257,12 @@ interface HoldingDao {
 
 @Dao
 interface AlertRuleDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(r: List<AlertRuleEntity>)
+
+    @Query("DELETE FROM alert_rules")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM alert_rules")
     fun observeAll(): Flow<List<AlertRuleEntity>>
 
@@ -224,6 +278,9 @@ interface AlertRuleDao {
 
 @Dao
 interface BudgetDao {
+    @Query("SELECT * FROM budgets")
+    suspend fun all(): List<BudgetEntity>
+
     @Query("SELECT * FROM budgets")
     fun observeAll(): Flow<List<BudgetEntity>>
 

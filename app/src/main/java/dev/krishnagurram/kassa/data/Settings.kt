@@ -32,6 +32,19 @@ class Settings(context: Context) {
         _alertApps.value = next
     }
 
+    private val _sensitivity = MutableStateFlow(prefs.getString(SENSITIVITY, "BALANCED")!!)
+    val sensitivity: StateFlow<String> = _sensitivity
+    fun setSensitivity(v: String) { prefs.edit().putString(SENSITIVITY, v).apply(); _sensitivity.value = v }
+
+    /** Flags marked "It's expected", as "categoryId:yyyyMM", so they stay quiet for the rest of that month only. */
+    private val _dismissed = MutableStateFlow(prefs.getStringSet(DISMISSED, emptySet())!!.toSet())
+    val dismissed: StateFlow<Set<String>> = _dismissed
+    fun dismiss(key: String) { val n = _dismissed.value + key; prefs.edit().putStringSet(DISMISSED, n).apply(); _dismissed.value = n }
+
+    private val _lock = MutableStateFlow(prefs.getBoolean(LOCK, false))
+    val lockEnabled: StateFlow<Boolean> = _lock
+    fun setLock(on: Boolean) { prefs.edit().putBoolean(LOCK, on).apply(); _lock.value = on }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -47,5 +60,8 @@ class Settings(context: Context) {
         const val STARTED_FRESH = "started_fresh"
         const val ALERT_APPS = "alert_apps"
         const val SEEN_APPS = "seen_alert_apps"
+        const val SENSITIVITY = "flag_sensitivity"
+        const val DISMISSED = "dismissed_flags"
+        const val LOCK = "app_lock"
     }
 }

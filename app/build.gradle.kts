@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.androidx.sqlite)
 
     implementation(libs.coroutines.android)
+    implementation(libs.androidx.biometric)
 
     testImplementation(libs.junit)
 }

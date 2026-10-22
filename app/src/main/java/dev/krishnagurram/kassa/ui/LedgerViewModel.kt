@@ -209,6 +209,43 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteRule(id: Long) = viewModelScope.launch { assist.deleteRule(id) }
     fun setAlertApp(pkg: String, on: Boolean) = settings.setAlertApp(pkg, on)
 
+    /* ---------- insights, privacy, backup ---------- */
+    val sensitivity = settings.sensitivity
+    val dismissedFlags = settings.dismissed
+    val lockEnabled = settings.lockEnabled
+    fun setSensitivity(v: String) = settings.setSensitivity(v)
+    fun setLock(on: Boolean) = settings.setLock(on)
+    fun dismissFlag(category: Category) {
+        val l = ledger.value ?: return
+        settings.dismiss("${category.id}:${Budgets.key(l.period.yearMonth)}")
+        _messages.tryEmit("Got it. No more flags for ${category.name} this month.")
+    }
+
+    /** Sets the category's monthly budget, which is what a cap is. */
+    fun setCap(category: Category, amount: Long) = viewModelScope.launch {
+        repo.setBudget(category.id, 0, amount)
+        _messages.tryEmit("${category.name} capped at ${Money.format(amount, wholeDollars = true)} a month.")
+    }
+
+    private val backup = (app as KassaApplication).backup
+
+    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { backup.write(it, passphrase) }
+            "Backup saved. Keep the passphrase somewhere safe; without it the file can't be opened."
+        }.getOrElse { "Couldn't save the backup: ${it.message}" }
+    }
+
+    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { getApplication<Application>().contentResolver.openInputStream(uri)!!.use { backup.read(it, passphrase) } }
+    }
+
+    fun restore(json: org.json.JSONObject) = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { backup.restore(json) }
+            .onSuccess { _messages.tryEmit("Backup restored.") }
+            .onFailure { _messages.tryEmit("Nothing was changed. ${it.message}") }
+    }
+
     suspend fun loadForEdit(id: Long): Pair<Transaction, List<Long>>? {
         val t = repo.transaction(id) ?: return null
         return t to repo.splitPeopleFor(id)

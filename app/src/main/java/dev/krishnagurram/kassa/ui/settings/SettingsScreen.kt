@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import dev.krishnagurram.kassa.BuildConfigInfo
 import dev.krishnagurram.kassa.domain.Account
 import dev.krishnagurram.kassa.domain.Budgets
@@ -68,7 +69,15 @@ interface SettingsActions {
     fun openNotificationAccess()
     fun hasNotificationAccess(): Boolean
     fun appLabel(pkg: String): String
+    fun setSensitivity(v: String)
+    fun setLock(on: Boolean)
+    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String
+    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>>
+    fun restore(json: org.json.JSONObject)
 }
+
+/** Current values for settings that live outside the database. */
+data class SettingsValues(val alertApps: Set<String>, val seenApps: Set<String>, val sensitivity: String, val lock: Boolean)
 
 private sealed interface Page {
     data object Main : Page
@@ -77,15 +86,18 @@ private sealed interface Page {
     data object Splitwise : Page
     data object Recurring : Page
     data object Alerts : Page
+    data object Backup : Page
 }
 
 @Composable
-fun SettingsScreen(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>, seenApps: Set<String>, onClose: () -> Unit) {
+fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsValues, onClose: () -> Unit) {
+    val alertApps = values.alertApps
+    val seenApps = values.seenApps
     var page by remember { mutableStateOf<Page>(Page.Main) }
     val back: () -> Unit = {
         page = when (val p = page) {
             Page.Main -> { onClose(); Page.Main }
-            is Page.Categories, Page.Splitwise, Page.Recurring, Page.Alerts -> Page.Main
+            is Page.Categories, Page.Splitwise, Page.Recurring, Page.Alerts, Page.Backup -> Page.Main
             is Page.Edit -> p.back
         }
     }
@@ -104,12 +116,13 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, alertApps: Set<Stri
                                 Page.Splitwise -> "Splitwise cleanup"
                                 Page.Recurring -> "Recurring bills"
                                 Page.Alerts -> "Bank notifications"
+                                Page.Backup -> "Backup and restore"
                             },
                             style = KassaType.section, color = Kassa.colors.ink,
                         )
                     }
                     when (val p = page) {
-                        Page.Main -> Main(ledger, actions, alertApps, open = { page = it })
+                        Page.Main -> Main(ledger, actions, values, open = { page = it })
                         is Page.Categories -> CategoryList(ledger, p.kind, open = { page = Page.Edit(it, p) })
                         is Page.Edit -> CategoryEditor(
                             ledger = ledger,
@@ -125,6 +138,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, alertApps: Set<Stri
                         Page.Splitwise -> SplitwiseCleanup(ledger, actions)
                         Page.Recurring -> RecurringPage(ledger, actions)
                         Page.Alerts -> AlertsPage(ledger, actions, alertApps, seenApps)
+                        Page.Backup -> BackupPage(actions)
                     }
                 }
             }
@@ -148,7 +162,8 @@ private fun save(edit: CategoryEdit, actions: SettingsActions, ledger: Ledger) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Main(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>, open: (Page) -> Unit) {
+private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValues, open: (Page) -> Unit) {
+    val alertApps = values.alertApps
     val expenses = ledger.categories.count { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.hidden }
     val incomes = ledger.categories.count { it.kind == CategoryKind.INCOME && it.parentId == null && !it.hidden }
     val splitwise = splitwiseAccounts(ledger)
@@ -177,7 +192,27 @@ private fun Main(ledger: Ledger, actions: SettingsActions, alertApps: Set<String
         NavRow("Splitwise accounts", "${splitwise.size} to turn into people") { open(Page.Splitwise) }
     }
 
+    SectionHeader("Insights")
+    Text("How far over your usual pace a category goes before Insights flags it.", style = KassaType.small, color = Kassa.colors.ink2)
+    FlowRow(Modifier.padding(top = 8.dp)) {
+        dev.krishnagurram.kassa.domain.Insights.Sensitivity.entries.forEach { s ->
+            Chip("${s.label}, ${Math.round(s.margin * 100)}%", selected = values.sensitivity == s.name) { actions.setSensitivity(s.name) }
+        }
+    }
+
+    SectionHeader("Privacy")
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Lock Kassa", style = KassaType.body, color = Kassa.colors.ink)
+            Text("Fingerprint, face or screen lock when you open it. The app is also hidden in recent apps.", style = KassaType.small, color = Kassa.colors.ink2)
+        }
+        androidx.compose.material3.Switch(values.lock, { actions.setLock(it) },
+            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
+    }
+
     SectionHeader("Data")
+    NavRow("Backup and restore", "An encrypted file you keep, for a new phone or a reset") { open(Page.Backup) }
+    Gap(8)
     SecondaryButton("Import again from Money Manager", actions::importAgain)
     Gap(16)
     Text(
@@ -262,6 +297,55 @@ private fun SplitwiseCleanup(ledger: Ledger, actions: SettingsActions) {
             }
             HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 10.dp))
         }
+    }
+    Gap(24)
+}
+
+/** Save everything to one encrypted file, or bring it back. The passphrase never leaves this screen. */
+@Composable
+private fun BackupPage(actions: SettingsActions) {
+    var pass by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<Pair<org.json.JSONObject, String>?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val stamp = java.time.LocalDate.now().toString()
+    val saver = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri != null) scope.launch { status = actions.exportTo(uri, pass.toCharArray()) }
+    }
+    val opener = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            actions.readBackup(uri, pass.toCharArray())
+                .onSuccess { pending = it; status = null }
+                .onFailure { status = it.message ?: "Couldn't open that file." }
+        }
+    }
+    Text("A backup holds everything in Kassa, encrypted with a passphrase you choose. Save it somewhere you control, like a USB drive or your computer. Kassa can't recover a lost passphrase.",
+        style = KassaType.body, color = Kassa.colors.ink2)
+    OutlinedTextField(pass, { pass = it }, singleLine = true, label = { Text("Passphrase") },
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+    OutlinedTextField(confirm, { confirm = it }, singleLine = true, label = { Text("Repeat it to save a backup") },
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    Gap(12)
+    dev.krishnagurram.kassa.ui.importer.PrimaryButton("Save encrypted backup") {
+        status = when {
+            pass.length < 8 -> "Use at least 8 characters."
+            pass != confirm -> "The two passphrases don't match."
+            else -> { saver.launch("kassa-backup-$stamp.kassa"); null }
+        }
+    }
+    Gap(8)
+    SecondaryButton("Restore from a backup", {
+        if (pass.isEmpty()) status = "Enter the backup's passphrase first." else opener.launch(arrayOf("*/*"))
+    })
+    status?.let { Text(it, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp)) }
+    pending?.let { (json, summary) ->
+        Gap(16)
+        Text(summary, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+        Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
+        Gap(8)
+        dev.krishnagurram.kassa.ui.importer.PrimaryButton("Replace with this backup") { actions.restore(json); pending = null; status = "Restoring..." }
+        TextButton(onClick = { pending = null }) { Text("Cancel", color = Kassa.colors.ink2) }
     }
     Gap(24)
 }
