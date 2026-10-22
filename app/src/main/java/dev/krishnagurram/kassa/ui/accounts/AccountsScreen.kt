@@ -114,9 +114,23 @@ fun AccountsScreen(
             SecondaryButton("Add an account", { adding = true })
         }
         val accountList: @Composable () -> Unit = {
+            val snapshots = ledger.cards().associateBy { it.account.id }
             sections.forEach { (name, accounts) ->
-                SectionHeader(name, Money.format(accounts.sumOf { state.balances[it.id] ?: 0 }))
-                accounts.forEachIndexed { i, a -> AccountRow(a, state.balances[a.id] ?: 0, ledger, selected = a.id == selectedAccount, last = i == accounts.lastIndex) { onOpenAccount(a.id) } }
+                val cards = accounts.mapNotNull { snapshots[it.id] }
+                if (cards.size == accounts.size) {
+                    // A group of cards reads like the Cards tab: balance payable and outstanding, by due date.
+                    SectionHeader(name, "Balance payable")
+                    Gap(6)
+                    dev.krishnagurram.kassa.ui.cards.CardTotals(cards)
+                    Gap(6)
+                    val sorted = cards.sortedWith(compareBy({ it.snapshot.payable == 0L }, { it.snapshot.due }))
+                    sorted.forEachIndexed { i, c ->
+                        dev.krishnagurram.kassa.ui.cards.CardRow(c, ledger.today, selected = c.account.id == selectedAccount, showDivider = i < sorted.lastIndex) { onOpenAccount(c.account.id) }
+                    }
+                } else {
+                    SectionHeader(name, Money.format(accounts.sumOf { state.balances[it.id] ?: 0 }))
+                    accounts.forEachIndexed { i, a -> AccountRow(a, state.balances[a.id] ?: 0, ledger, selected = a.id == selectedAccount, last = i == accounts.lastIndex) { onOpenAccount(a.id) } }
+                }
             }
             if (archived.isNotEmpty()) {
                 TextButton(onClick = { showArchived = !showArchived }) {
@@ -250,7 +264,22 @@ fun AccountPage(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
         item {
             Column(Modifier.widthIn(max = 720.dp)) {
-                PageTop(account.name, onBack)
+                PageTop(account.name, onBack) {
+                    var menu by remember { mutableStateOf(false) }
+                    androidx.compose.foundation.layout.Box {
+                        androidx.compose.material3.IconButton(onClick = { menu = true }) {
+                            Text("\u22EF", style = KassaType.section, color = Kassa.colors.ink2)
+                        }
+                        androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Edit account") }, onClick = { menu = false; editing = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Adjust balance") }, onClick = { menu = false; editing = true })
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(if (account.archived) "Restore account" else "Archive account") },
+                                onClick = { menu = false; if (account.archived) onArchive(false) else confirmArchive = true },
+                            )
+                        }
+                    }
+                }
                 Text(listOfNotNull(account.type.label, group, if (account.archived) "archived" else null).joinToString(", "), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(horizontal = 4.dp))
                 Gap(14)
                 RaisedPanel {
@@ -268,16 +297,15 @@ fun AccountPage(
                                 Text(Money.format(holdingsValue), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
                             }
                         }
+                    } else if (account.type == AccountType.CREDIT_CARD) {
+                        Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
+                        Text(Money.format(-balance), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
+                        HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
+                        Text("Add the statement day and due day to split this into balance payable and outstanding.", style = KassaType.small, color = Kassa.colors.ink2)
+                        TextButton(onClick = { editing = true }) { Text("Add statement days", color = Kassa.colors.ink) }
                     } else {
                         Text(if (account.type.isDebt) "Balance owed" else "Balance", style = KassaType.tiny, color = Kassa.colors.ink2)
                         Text(Money.format(if (account.type.isDebt) -balance else balance), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
-                    }
-                    Gap(14)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Column(Modifier.weight(1f)) { SecondaryButton("Edit or adjust balance", { editing = true }) }
-                    }
-                    TextButton(onClick = { if (account.archived) onArchive(false) else confirmArchive = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (account.archived) "Restore account" else "Archive account", color = Kassa.colors.ink2)
                     }
                 }
                 if (history.isEmpty()) Text("No entries in this account yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
@@ -313,7 +341,7 @@ fun AccountPage(
 }
 
 /** A person's receivable or payable and its history, with a way to record money moving either way. */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PersonPage(p: Person, balance: Long, ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?, onSave: (EntryDraft) -> Unit) {
     // Default direction settles the balance: if they owe you, they're paying you.
@@ -322,6 +350,8 @@ fun PersonPage(p: Person, balance: Long, ledger: Ledger, contentPadding: Padding
     val banks = ledger.accounts.accounts.filter { !it.archived && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID) }
     var account by remember { mutableStateOf(banks.firstOrNull()?.id) }
     var error by remember { mutableStateOf<String?>(null) }
+    var date by remember { mutableStateOf(ledger.today) }
+    var pickDate by remember { mutableStateOf(false) }
     val history = (
         ledger.people.loans.filter { it.personId == p.id }.map { Triple(it.epochMillis, it.note.ifBlank { "Split" }, it.amount) } +
             ledger.people.payments.filter { it.personId == p.id }.map { t ->
@@ -346,6 +376,13 @@ fun PersonPage(p: Person, balance: Long, ledger: Ledger, contentPadding: Padding
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
         Text(if (direction == TxKind.PERSON_IN) "Into" else "From", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
         FlowRow { banks.forEach { a -> Chip(a.name, selected = account == a.id) { account = a.id } } }
+        Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+        FlowRow {
+            Chip("Today", selected = date == ledger.today, small = true) { date = ledger.today }
+            Chip("Yesterday", selected = date == ledger.today.minusDays(1), small = true) { date = ledger.today.minusDays(1) }
+            val other = date != ledger.today && date != ledger.today.minusDays(1)
+            Chip(if (other) date.format(DateTimeFormatter.ofPattern("EEE, MMM d")) else "Pick a date", selected = other, small = true, dashed = !other) { pickDate = true }
+        }
         error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
         Gap(12)
         PrimaryButton("Record payment") {
@@ -353,7 +390,8 @@ fun PersonPage(p: Person, balance: Long, ledger: Ledger, contentPadding: Padding
             error = when { c == null || c <= 0 -> "Enter an amount."; account == null -> "Pick an account."; else -> null }
             if (error == null) onSave(EntryDraft(
                 id = null, kind = direction, amount = c!!, accountId = account, toAccountId = null, categoryId = null,
-                personId = p.id, epochMillis = System.currentTimeMillis(),
+                personId = p.id,
+                epochMillis = date.atTime(if (date == ledger.today) java.time.LocalTime.now(ledger.zone) else java.time.LocalTime.NOON).atZone(ledger.zone).toInstant().toEpochMilli(),
                 note = if (direction == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}", splitWith = emptyList(),
             ))
         }
@@ -370,5 +408,18 @@ fun PersonPage(p: Person, balance: Long, ledger: Ledger, contentPadding: Padding
             HorizontalDivider(color = Kassa.colors.line)
         }
         Gap(24)
+    }
+    if (pickDate) {
+        val state = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli())
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { pickDate = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate() }
+                    pickDate = false
+                }) { Text("Done", color = Kassa.colors.ink) }
+            },
+            dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancel", color = Kassa.colors.ink2) } },
+        ) { androidx.compose.material3.DatePicker(state = state) }
     }
 }

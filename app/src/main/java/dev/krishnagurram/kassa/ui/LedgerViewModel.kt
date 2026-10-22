@@ -215,6 +215,8 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     val lockEnabled = settings.lockEnabled
     fun setSensitivity(v: String) = settings.setSensitivity(v)
     fun setLock(on: Boolean) = settings.setLock(on)
+    val theme = settings.theme
+    fun setTheme(v: String) = settings.setTheme(v)
     fun dismissFlag(category: Category) {
         val l = ledger.value ?: return
         settings.dismiss("${category.id}:${Budgets.key(l.period.yearMonth)}")

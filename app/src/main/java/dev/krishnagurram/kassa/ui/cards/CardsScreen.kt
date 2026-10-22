@@ -103,8 +103,9 @@ fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Lon
     }
 }
 
+/** Total card balance, split into balance payable and outstanding. Used on Cards and in Accounts. */
 @Composable
-private fun CardTotals(cards: List<CardSnapshotFor>) {
+fun CardTotals(cards: List<CardSnapshotFor>) {
     val payable = cards.sumOf { it.snapshot.payable }
     val outstanding = cards.sumOf { it.snapshot.outstanding }
     val statements = cards.count { it.snapshot.payable > 0 }
@@ -255,7 +256,6 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
             Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink)
-            Text("Records the payment in Kassa. Nothing is sent to your bank.", style = KassaType.small, color = Kassa.colors.ink2)
             Text("Amount", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${s.due.format(DAY_MONTH_DAY)}", option == "payable") { option = "payable" }
             if (total > 0) Option(

@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.krishnagurram.kassa.domain.Account
-import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.ui.activity.Chevron
@@ -123,29 +122,45 @@ fun CategoryPickerDialog(
     }
 }
 
-/** Accounts grouped by type, with balances, for "Paid with", "From" and "To". */
+/**
+ * Every account, searchable. Most used first, then your own groups (as in Accounts), each with its balance.
+ * With a dozen cards and banks, typing two letters is faster than scanning.
+ */
 @Composable
 fun AccountPickerDialog(
     title: String,
     accounts: List<Account>,
+    groups: List<dev.krishnagurram.kassa.domain.AccountGroup>,
     balances: Map<Long, Long>,
+    mostUsed: List<Account>,
     selected: Long?,
     onPick: (Account) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val order = listOf(AccountType.CREDIT_CARD, AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH,
-        AccountType.INVESTMENT, AccountType.PREPAID, AccountType.LOAN, AccountType.OTHER_ASSET, AccountType.OTHER_DEBT)
-    val grouped = accounts.filter { !it.archived }.groupBy { it.type }
+    var q by remember { mutableStateOf("") }
+    val active = accounts.filter { !it.archived }
+    val needle = q.trim().lowercase()
+    val sections: List<Pair<String, List<Account>>> = if (needle.isNotEmpty()) {
+        listOf("Matches" to active.filter { it.name.lowercase().contains(needle) || it.type.label.lowercase().contains(needle) })
+    } else buildList {
+        add("Most used" to mostUsed.filter { !it.archived }.take(4))
+        groups.forEach { g -> active.filter { it.groupId == g.id }.takeIf { it.isNotEmpty() }?.let { add(g.name to it) } }
+        active.filter { a -> a.groupId == null || groups.none { it.id == a.groupId } }.takeIf { it.isNotEmpty() }?.let { add("Other" to it) }
+    }
     PickerFrame(title, onDismiss) {
+        SearchBox(q, { q = it }, "Search accounts")
+        if (needle.isNotEmpty() && sections.first().second.isEmpty()) Text("No account matches \u201c$q\u201d.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(24.dp))
         LazyColumn(Modifier.fillMaxSize()) {
-            order.forEach { type ->
-                val list = grouped[type].orEmpty()
+            sections.forEach { (name, list) ->
                 if (list.isNotEmpty()) {
-                    item(key = "h-$type") { Text(type.label, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp)) }
-                    items(list, key = { it.id }) { a ->
+                    item(key = "h-$name") { Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp)) }
+                    items(list, key = { "$name-${it.id}" }) { a ->
                         Column(Modifier.clickable { onPick(a) }) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(a.name, style = if (a.id == selected) KassaType.bodyStrong else KassaType.body, color = Kassa.colors.ink)
+                                Column(Modifier.weight(1f)) {
+                                    Text(a.name, style = if (a.id == selected) KassaType.bodyStrong else KassaType.body, color = Kassa.colors.ink)
+                                    Text(a.type.label, style = KassaType.tiny, color = Kassa.colors.ink3)
+                                }
                                 Text(Money.format(balances[a.id] ?: 0), style = KassaType.body, color = Kassa.colors.ink2)
                             }
                             HorizontalDivider(color = Kassa.colors.line)

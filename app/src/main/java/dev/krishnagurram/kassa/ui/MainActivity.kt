@@ -73,7 +73,14 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         val app = application as KassaApplication
         if (app.settings.lockEnabled.value) locked.value = true
         setContent {
-            KassaTheme {
+            val theme by app.settings.theme.collectAsState()
+            val dark = when (theme) { "DARK" -> true; "LIGHT" -> false; else -> androidx.compose.foundation.isSystemInDarkTheme() }
+            LaunchedEffect(dark) {
+                val t = android.graphics.Color.TRANSPARENT
+                val style = if (dark) androidx.activity.SystemBarStyle.dark(t) else androidx.activity.SystemBarStyle.light(t, t)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+            KassaTheme(dark = dark) {
                 val count by app.repository.entryCount.collectAsState(initial = -1)
                 val lockOn by app.settings.lockEnabled.collectAsState()
                 LaunchedEffect(lockOn) { if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn) }
@@ -244,17 +251,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
                 Page.Week -> dev.krishnagurram.kassa.ui.today.WeekPage(lg, padding, onBack, onEdit = editFromPage)
-                Page.Settings -> {
-                    val alertApps by vm.alertApps.collectAsState()
-                    val seenApps by vm.seenApps.collectAsState()
-                    Box(Modifier.padding(padding)) {
-                        SettingsScreen(
-                            lg, remember(vm) { settingsActions(vm, context) { nav.push(Page.Import) } },
-                            dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn),
-                            onClose = back,
-                        )
-                    }
-                }
                 Page.Import -> Box(Modifier.padding(padding)) {
                     ImportScreen(firstRun = false, onFinished = { nav.select(Tab.TODAY) }, onCancel = back)
                 }
@@ -270,7 +266,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onOpenAccount = { openFromList(Page.AccountDetail(it)) },
                     onWeek = { openFromList(Page.Week) },
                     onSeeAll = { nav.select(Tab.ACTIVITY) },
-                    onSettings = { nav.push(Page.Settings) },
                     needs = needs,
                 )
                 Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
@@ -288,6 +283,16 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     )
                 }
                 Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })
+                Tab.SETTINGS -> {
+                    val alertApps by vm.alertApps.collectAsState()
+                    val seenApps by vm.seenApps.collectAsState()
+                    val theme by vm.theme.collectAsState()
+                    SettingsScreen(
+                        lg, remember(vm) { settingsActions(vm, context) { nav.push(Page.Import) } },
+                        dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn, theme),
+                        padding,
+                    )
+                }
                 Tab.ACCOUNTS -> AccountsScreen(
                     lg, padding,
                     selectedAccount = (selected as? Page.AccountDetail)?.accountId,
@@ -326,7 +331,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         Box(Modifier.weight(1f)) {
                             val pad = PaddingValues(start = 16.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)
                             if (shown != null) PageHost(shown, l, pad, onBack = if (top != null) nav::pop else null)
-                            else dev.krishnagurram.kassa.ui.common.PanePlaceholder("Tap an entry to see or edit it here.")
+                            else if (nav.tab == Tab.ACTIVITY) dev.krishnagurram.kassa.ui.activity.MonthBreakdown(l, pad)
+                            else dev.krishnagurram.kassa.ui.common.PanePlaceholder("Pick something on the left.")
                         }
                     }
                 } else if (top != null) {
@@ -446,6 +452,11 @@ private fun iconFor(t: Tab): ImageVector = when (t) {
         moveTo(3f, 10.5f); lineTo(21f, 10.5f); moveTo(7f, 15f); lineTo(11f, 15f)
     }
     Tab.INSIGHTS -> line("insights") { moveTo(5f, 20f); lineTo(5f, 12f); moveTo(12f, 20f); lineTo(12f, 5f); moveTo(19f, 20f); lineTo(19f, 13f) }
+    Tab.SETTINGS -> line("settings") {
+        moveTo(4f, 7f); lineTo(20f, 7f); moveTo(9f, 4.5f); lineTo(9f, 9.5f)
+        moveTo(4f, 12f); lineTo(20f, 12f); moveTo(15f, 9.5f); lineTo(15f, 14.5f)
+        moveTo(4f, 17f); lineTo(20f, 17f); moveTo(7f, 14.5f); lineTo(7f, 19.5f)
+    }
     Tab.ACCOUNTS -> line("accounts") {
         moveTo(4f, 9.5f); lineTo(12f, 5f); lineTo(20f, 9.5f)
         moveTo(6f, 11f); lineTo(6f, 18f); moveTo(10f, 11f); lineTo(10f, 18f)
@@ -476,6 +487,7 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
         androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
     override fun setSensitivity(v: String) = vm.setSensitivity(v)
     override fun setLock(on: Boolean) = vm.setLock(on)
+    override fun setTheme(v: String) = vm.setTheme(v)
     override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = vm.exportTo(uri, passphrase)
     override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray) = vm.readBackup(uri, passphrase)
     override fun restore(json: org.json.JSONObject) { vm.restore(json) }

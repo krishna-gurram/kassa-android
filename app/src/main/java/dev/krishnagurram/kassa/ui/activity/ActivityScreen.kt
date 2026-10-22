@@ -2,6 +2,7 @@ package dev.krishnagurram.kassa.ui.activity
 
 import android.app.Application
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -196,3 +197,21 @@ fun Chevron(left: Boolean): ImageVector = ImageVector.Builder("chevron", 24.dp, 
 ) {
     if (left) { moveTo(15f, 6f); lineTo(9f, 12f); lineTo(15f, 18f) } else { moveTo(9f, 6f); lineTo(15f, 12f); lineTo(9f, 18f) }
 }.build()
+
+/** Unfolded, beside the list: where this month's spending went, by category. */
+@Composable
+fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, vm: ActivityViewModel = viewModel()) {
+    val ui by vm.ui.collectAsState()
+    val s = ui ?: return
+    val rows = s.days.flatMap { it.second }.filter { it.kind == TxKind.EXPENSE }
+        .groupBy { dev.krishnagurram.kassa.domain.Spending.topOf(it.categoryId, s.categories) }
+        .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
+    Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
+        dev.krishnagurram.kassa.ui.common.SectionHeader("Where it went", "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}${if (s.query.isNotBlank()) ", matching search" else ""}")
+        if (rows.isEmpty()) Text("No expenses this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 16.dp))
+        dev.krishnagurram.kassa.ui.common.CategoryBreakdown(rows)
+    }
+}
+
+@Composable
+private fun Modifier.androidx_scroll(): Modifier = this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))

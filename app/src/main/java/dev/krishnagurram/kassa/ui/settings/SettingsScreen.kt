@@ -1,6 +1,7 @@
 package dev.krishnagurram.kassa.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import dev.krishnagurram.kassa.BuildConfigInfo
@@ -68,13 +70,14 @@ interface SettingsActions {
     fun appLabel(pkg: String): String
     fun setSensitivity(v: String)
     fun setLock(on: Boolean)
+    fun setTheme(v: String)
     suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String
     suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>>
     fun restore(json: org.json.JSONObject)
 }
 
 /** Current values for settings that live outside the database. */
-data class SettingsValues(val alertApps: Set<String>, val seenApps: Set<String>, val sensitivity: String, val lock: Boolean)
+data class SettingsValues(val alertApps: Set<String>, val seenApps: Set<String>, val sensitivity: String, val lock: Boolean, val theme: String = "SYSTEM")
 
 private sealed interface Page {
     data object Main : Page
@@ -84,61 +87,61 @@ private sealed interface Page {
     data object Recurring : Page
     data object Alerts : Page
     data object Backup : Page
+    data object BudgetMonth : Page
+    data object Sensitivity : Page
 }
 
+/** Settings as a tab: one list of groups, each row opening its own page. */
 @Composable
-fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsValues, onClose: () -> Unit) {
-    val alertApps = values.alertApps
-    val seenApps = values.seenApps
+fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsValues, contentPadding: androidx.compose.foundation.layout.PaddingValues) {
     var page by remember { mutableStateOf<Page>(Page.Main) }
     val back: () -> Unit = {
         page = when (val p = page) {
-            Page.Main -> { onClose(); Page.Main }
-            is Page.Categories, Page.Splitwise, Page.Recurring, Page.Alerts, Page.Backup -> Page.Main
             is Page.Edit -> p.back
+            else -> Page.Main
         }
     }
-    BackHandler(onBack = back)
-    Surface(Modifier.fillMaxSize(), color = Kassa.colors.ground) {
-        run {
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = back) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
-                        Text(
-                            when (val p = page) {
-                                Page.Main -> "Settings"
-                                is Page.Categories -> if (p.kind == CategoryKind.EXPENSE) "Expense categories" else "Income categories"
-                                is Page.Edit -> if (p.category.id == 0L) "New category" else "Edit category"
-                                Page.Splitwise -> "Splitwise cleanup"
-                                Page.Recurring -> "Recurring bills"
-                                Page.Alerts -> "Bank notifications"
-                                Page.Backup -> "Backup and restore"
-                            },
-                            style = KassaType.section, color = Kassa.colors.ink,
-                        )
-                    }
-                    when (val p = page) {
-                        Page.Main -> Main(ledger, actions, values, open = { page = it })
-                        is Page.Categories -> CategoryList(ledger, p.kind, open = { page = Page.Edit(it, p) })
-                        is Page.Edit -> CategoryEditor(
-                            ledger = ledger,
-                            original = p.category,
-                            onSave = { edit -> save(edit, actions, ledger); page = p.back },
-                            onAddSub = { parent, name ->
-                                actions.saveCategory(Category(name = name, kind = parent.kind, parentId = parent.id, icon = parent.icon, color = parent.color, countsTowardDaily = parent.countsTowardDaily), null)
-                            },
-                            onRenameSub = { sub -> page = Page.Edit(sub, p) },
-                            onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
-                            savePhoto = actions::savePhoto,
-                        )
-                        Page.Splitwise -> SplitwiseCleanup(ledger, actions)
-                        Page.Recurring -> RecurringPage(ledger, actions)
-                        Page.Alerts -> AlertsPage(ledger, actions, alertApps, seenApps)
-                        Page.Backup -> BackupPage(actions)
-                    }
-                }
-            }
+    BackHandler(enabled = page != Page.Main, onBack = back)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+        if (page == Page.Main) {
+            Text("Kassa ${BuildConfigInfo.versionName}", style = KassaType.small, color = Kassa.colors.ink2)
+            Text("Settings", style = KassaType.title, color = Kassa.colors.ink)
+        } else {
+            dev.krishnagurram.kassa.ui.common.PageTop(
+                when (val p = page) {
+                    Page.Main -> "Settings"
+                    is Page.Categories -> if (p.kind == CategoryKind.EXPENSE) "Expense categories" else "Income categories"
+                    is Page.Edit -> if (p.category.id == 0L) "New category" else "Edit category"
+                    Page.Splitwise -> "Splitwise accounts"
+                    Page.Recurring -> "Recurring bills"
+                    Page.Alerts -> "Bank notifications"
+                    Page.Backup -> "Backup and restore"
+                    Page.BudgetMonth -> "Budget month"
+                    Page.Sensitivity -> "Flag sensitivity"
+                },
+                onBack = back,
+            )
+        }
+        when (val p = page) {
+            Page.Main -> Main(ledger, actions, values, open = { page = it })
+            is Page.Categories -> CategoryList(ledger, p.kind, open = { page = Page.Edit(it, p) })
+            is Page.Edit -> CategoryEditor(
+                ledger = ledger,
+                original = p.category,
+                onSave = { edit -> save(edit, actions, ledger); page = p.back },
+                onAddSub = { parent, name ->
+                    actions.saveCategory(Category(name = name, kind = parent.kind, parentId = parent.id, icon = parent.icon, color = parent.color, countsTowardDaily = parent.countsTowardDaily), null)
+                },
+                onRenameSub = { sub -> page = Page.Edit(sub, p) },
+                onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
+                savePhoto = actions::savePhoto,
+            )
+            Page.Splitwise -> SplitwiseCleanup(ledger, actions)
+            Page.Recurring -> RecurringPage(ledger, actions)
+            Page.Alerts -> AlertsPage(ledger, actions, values.alertApps, values.seenApps)
+            Page.Backup -> BackupPage(actions)
+            Page.BudgetMonth -> BudgetMonthPage(ledger, actions)
+            Page.Sensitivity -> SensitivityPage(values, actions)
         }
     }
 }
@@ -157,25 +160,85 @@ private fun save(edit: CategoryEdit, actions: SettingsActions, ledger: Ledger) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValues, open: (Page) -> Unit) {
-    val alertApps = values.alertApps
     val expenses = ledger.categories.count { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.hidden }
     val incomes = ledger.categories.count { it.kind == CategoryKind.INCOME && it.parentId == null && !it.hidden }
     val splitwise = splitwiseAccounts(ledger)
+    val sensitivity = dev.krishnagurram.kassa.domain.Insights.Sensitivity.entries.firstOrNull { it.name == values.sensitivity }
 
-    SectionHeader("Categories and budgets")
-    NavRow("Expense categories", "$expenses, with budgets") { open(Page.Categories(CategoryKind.EXPENSE)) }
+    SectionHeader("Appearance")
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Theme", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        Choice(listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark"), values.theme, actions::setTheme)
+    }
+    HorizontalDivider(color = Kassa.colors.line)
+
+    SectionHeader("Budgeting")
+    NavRow("Expense categories", "$expenses") { open(Page.Categories(CategoryKind.EXPENSE)) }
     NavRow("Income categories", "$incomes") { open(Page.Categories(CategoryKind.INCOME)) }
+    NavRow("Budget month", "Starts on day ${ledger.monthStartDay}") { open(Page.BudgetMonth) }
+    NavRow("Flag sensitivity", sensitivity?.let { "${it.label}, ${Math.round(it.margin * 100)}%" } ?: "") { open(Page.Sensitivity) }
 
-    SectionHeader("Assist")
-    NavRow("Recurring bills", "${ledger.assist.recurring.size} set up. Each asks before it's added.") { open(Page.Recurring) }
-    NavRow("Bank notifications", if (actions.hasNotificationAccess()) "${alertApps.size} apps turned on" else "Off. Turn on to capture purchases as you make them.") { open(Page.Alerts) }
+    SectionHeader("Automation")
+    NavRow("Recurring bills", "${ledger.assist.recurring.size}") { open(Page.Recurring) }
+    NavRow("Bank notifications", if (actions.hasNotificationAccess()) "${values.alertApps.size} apps" else "Off") { open(Page.Alerts) }
 
-    SectionHeader("Budget month")
-    Text("Your month starts on day ${ledger.monthStartDay}. Pick payday if you budget from one paycheck to the next.", style = KassaType.small, color = Kassa.colors.ink2)
-    FlowRow(Modifier.padding(top = 8.dp)) {
+    SectionHeader("Security")
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("App lock", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text("Fingerprint, face or screen lock", style = KassaType.small, color = Kassa.colors.ink2)
+        }
+        androidx.compose.material3.Switch(values.lock, { actions.setLock(it) },
+            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
+    }
+    HorizontalDivider(color = Kassa.colors.line)
+
+    SectionHeader("Data")
+    NavRow("Backup and restore", "Encrypted file") { open(Page.Backup) }
+    NavRow("Import from Money Manager", "Replaces data") { actions.importAgain() }
+    if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(Page.Splitwise) }
+
+    Gap(20)
+    Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)
+    Gap(24)
+}
+
+/** A small segmented choice for settings with two to four options. */
+@Composable
+private fun Choice(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).background(Kassa.colors.chip).padding(3.dp)) {
+        options.forEach { (key, label) ->
+            val on = key == selected
+            Text(
+                label, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                color = if (on) Kassa.colors.ink else Kassa.colors.ink2,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(if (on) Kassa.colors.raised else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onSelect(key) }.padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavRow(title: String, value: String, onClick: () -> Unit) {
+    Column(Modifier.clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+            Text(value, style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 6.dp))
+            Icon(Chevron(left = false), null, tint = Kassa.colors.ink3)
+        }
+        HorizontalDivider(color = Kassa.colors.line)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BudgetMonthPage(ledger: Ledger, actions: SettingsActions) {
+    Text("The day your budget month starts. Pick payday to budget from one paycheck to the next.", style = KassaType.small, color = Kassa.colors.ink2)
+    FlowRow(Modifier.padding(top = 12.dp)) {
         listOf(1, 5, 10, 15, 20, 25).forEach { d -> Chip("Day $d", selected = ledger.monthStartDay == d) { actions.setMonthStartDay(d) } }
     }
     var custom by remember { mutableStateOf("") }
@@ -183,53 +246,16 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
         OutlinedTextField(custom, { custom = it.filter(Char::isDigit).take(2) }, singleLine = true, label = { Text("Another day, 1 to 28") }, modifier = Modifier.weight(1f))
         TextButton(onClick = { custom.toIntOrNull()?.takeIf { it in 1..28 }?.let { actions.setMonthStartDay(it); custom = "" } }) { Text("Set", color = Kassa.colors.ink) }
     }
+}
 
-    if (splitwise.isNotEmpty()) {
-        SectionHeader("Cleanup")
-        NavRow("Splitwise accounts", "${splitwise.size} to turn into people") { open(Page.Splitwise) }
-    }
-
-    SectionHeader("Insights")
-    Text("How far over your usual pace a category goes before Insights flags it.", style = KassaType.small, color = Kassa.colors.ink2)
-    FlowRow(Modifier.padding(top = 8.dp)) {
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SensitivityPage(values: SettingsValues, actions: SettingsActions) {
+    Text("How far above its 3-month average a category goes before Insights flags it.", style = KassaType.small, color = Kassa.colors.ink2)
+    FlowRow(Modifier.padding(top = 12.dp)) {
         dev.krishnagurram.kassa.domain.Insights.Sensitivity.entries.forEach { s ->
             Chip("${s.label}, ${Math.round(s.margin * 100)}%", selected = values.sensitivity == s.name) { actions.setSensitivity(s.name) }
         }
-    }
-
-    SectionHeader("Privacy")
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("Lock Kassa", style = KassaType.body, color = Kassa.colors.ink)
-            Text("Fingerprint, face or screen lock when you open it. The app is also hidden in recent apps.", style = KassaType.small, color = Kassa.colors.ink2)
-        }
-        androidx.compose.material3.Switch(values.lock, { actions.setLock(it) },
-            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
-    }
-
-    SectionHeader("Data")
-    NavRow("Backup and restore", "An encrypted file you keep, for a new phone or a reset") { open(Page.Backup) }
-    Gap(8)
-    SecondaryButton("Import again from Money Manager", actions::importAgain)
-    Gap(16)
-    Text(
-        "Kassa has no internet permission, so it can't send anything anywhere. Your data is in an encrypted database on this phone, excluded from Google backups. Version ${BuildConfigInfo.versionName}.",
-        style = KassaType.small, color = Kassa.colors.ink2,
-    )
-    Gap(24)
-}
-
-@Composable
-private fun NavRow(title: String, sub: String, onClick: () -> Unit) {
-    Column(Modifier.clickable(onClick = onClick)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                Text(sub, style = KassaType.small, color = Kassa.colors.ink2)
-            }
-            Icon(Chevron(left = false), null, tint = Kassa.colors.ink3)
-        }
-        HorizontalDivider(color = Kassa.colors.line)
     }
 }
 

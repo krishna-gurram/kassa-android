@@ -45,6 +45,11 @@ class Settings(context: Context) {
     val lockEnabled: StateFlow<Boolean> = _lock
     fun setLock(on: Boolean) { prefs.edit().putBoolean(LOCK, on).apply(); _lock.value = on }
 
+    private val _theme = MutableStateFlow(prefs.getString(THEME, "SYSTEM")!!)
+    /** SYSTEM follows the phone; LIGHT or DARK fix it. */
+    val theme: StateFlow<String> = _theme
+    fun setTheme(v: String) { prefs.edit().putString(THEME, v).apply(); _theme.value = v }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -63,5 +68,6 @@ class Settings(context: Context) {
         const val SENSITIVITY = "flag_sensitivity"
         const val DISMISSED = "dismissed_flags"
         const val LOCK = "app_lock"
+        const val THEME = "theme"
     }
 }

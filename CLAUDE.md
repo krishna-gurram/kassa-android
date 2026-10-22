@@ -29,9 +29,9 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
-Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week,
-settings). Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
-the tabs; at 720dp+ it opens beside the list it came from. Anything that removes or replaces data asks first
+Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
+Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
 ## Wording
@@ -40,5 +40,5 @@ statement date, **Total balance** is both. Accounts show Assets, Liabilities and
 Payable.
 
 ## Style
-Plain, specific UI copy in sentence case. Color is only for categories and state; primary actions are ink on ground.
+Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
 Every screen works on the Fold's cover screen and switches to two panes at 600dp+ (720dp for list-detail).

@@ -39,7 +39,7 @@ import dev.krishnagurram.kassa.domain.WeekPace
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.cards.CardRow
 import dev.krishnagurram.kassa.ui.cards.cardsByDueDate
-import dev.krishnagurram.kassa.ui.common.CategoryBadge
+import dev.krishnagurram.kassa.ui.common.CategoryBreakdown
 import dev.krishnagurram.kassa.ui.common.EntryRow
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.common.GlyphBadge
@@ -76,7 +76,6 @@ fun TodayScreen(
     onOpenAccount: (Long) -> Unit,
     onWeek: () -> Unit,
     onSeeAll: () -> Unit,
-    onSettings: () -> Unit,
     needs: NeedsYouActions,
 ) {
     val recent = ledger.recent.sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id }).take(5)
@@ -98,13 +97,8 @@ fun TodayScreen(
         }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Column(Modifier.weight(1f)) {
-                    Text(ledger.today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), style = KassaType.small, color = Kassa.colors.ink2)
-                    Text("Today", style = KassaType.title, color = Kassa.colors.ink)
-                }
-                Text("Settings", style = KassaType.bodyStrong, color = Kassa.colors.ink2, modifier = Modifier.clickable(onClick = onSettings).padding(8.dp))
-            }
+            Text(ledger.today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), style = KassaType.small, color = Kassa.colors.ink2)
+            Text("Today", style = KassaType.title, color = Kassa.colors.ink)
             Gap(16)
             if (wide) {
                 Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
@@ -119,56 +113,55 @@ fun TodayScreen(
     }
 }
 
-/** Spent this week against a usual week by the same weekday, then month to date. No bar: this isn't a goal to fill. */
+/** Spent this week next to a usual week by the same weekday, then month to date. Figures only, no bar. */
 @Composable
 private fun SpendingPanel(ledger: Ledger, onWeek: () -> Unit) {
     val w = weekPace(ledger)
     val p = ledger.period
     val monthToDate = ledger.recent.filter { it.kind == TxKind.EXPENSE && dateOf(it, ledger).let { d -> !d.isBefore(p.start) && !d.isAfter(ledger.today) } }.sumOf { it.categoryAmount }
-    val dayName = ledger.today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
     val firstName = w.start.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     val todayName = ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     RaisedPanel(Modifier.clickable(onClick = onWeek)) {
-        Text("Spent this week", style = KassaType.tiny, color = Kassa.colors.ink2)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("Spent this week", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+            Text(if (w.start == ledger.today) todayName else "$firstName to $todayName", style = KassaType.tiny, color = Kassa.colors.ink3)
+        }
         Text(Money.format(w.spent), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.8f), color = Kassa.colors.ink)
-        val range = if (w.start == ledger.today) "Today so far." else "$firstName to $todayName."
         val usual = w.usualByNow
-        val line = buildAnnotatedString {
-            append("$range ")
-            if (usual == null) {
-                append("A comparison with your usual week appears after a full week of entries.")
-            } else {
-                val diff = w.spent - usual
-                append("By $dayName you usually spend ${Money.format(usual, wholeDollars = true)}, so you're ")
-                withStyle(SpanStyle(color = Kassa.colors.ink, fontWeight = FontWeight.SemiBold)) {
-                    append(
-                        when {
-                            usual > 0 && Math.abs(diff) * 20 < usual -> "about on par"
-                            diff > 0 -> "${Money.format(diff, wholeDollars = true)} over"
-                            else -> "${Money.format(-diff, wholeDollars = true)} under"
-                        }
-                    )
-                }
-                append(".")
-                w.usualWeek?.let { append(" A usual week ends near ${Money.format(it, wholeDollars = true)}.") }
+        if (usual != null) {
+            val diff = w.spent - usual
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Figure("Usual by $todayName", Money.format(usual, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
+                Figure(
+                    "Difference", Money.format(diff, wholeDollars = true, showPlus = true),
+                    if (diff > 0) Kassa.colors.attention else Kassa.colors.positive, Modifier.weight(1f),
+                )
+                Figure("Usual week", Money.format(w.usualWeek ?: 0, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
             }
         }
-        Text(line, style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
         Text(
             buildAnnotatedString { withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append("See where it went") } },
-            style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.padding(top = 10.dp),
+            style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp),
         )
         HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Month to date", style = KassaType.tiny, color = Kassa.colors.ink2)
                 Text(
-                    "${p.start.format(DateTimeFormatter.ofPattern("MMM d"))} to today, day ${ChronoUnit.DAYS.between(p.start, ledger.today) + 1} of ${ChronoUnit.DAYS.between(p.start, p.endInclusive) + 1}",
+                    "Day ${ChronoUnit.DAYS.between(p.start, ledger.today) + 1} of ${ChronoUnit.DAYS.between(p.start, p.endInclusive) + 1}",
                     style = KassaType.tiny, color = Kassa.colors.ink3,
                 )
             }
             Text(Money.format(monthToDate), style = KassaType.stat, color = Kassa.colors.ink)
         }
+    }
+}
+
+@Composable
+private fun Figure(label: String, value: String, color: Color, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
+        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1)
     }
 }
 
@@ -209,7 +202,7 @@ private fun UpcomingBills(ledger: Ledger) {
         EntryRow(
             badge = { DateBlock(d, soon = days <= 2) },
             title = r.name,
-            subtitle = "Recurring, ${inDays(days)}. Asks before it's added.",
+            subtitle = "Recurring, ${inDays(days)}",
             amount = est?.let { Money.format(it) } ?: "",
             note = if (r.fixedAmount == null && est != null) "estimate" else null,
             showDivider = i < bills.lastIndex,
@@ -225,7 +218,6 @@ fun WeekPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)
         .sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id })
     val byTop = entries.groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
-    val max = byTop.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
     val total = entries.sumOf { it.categoryAmount }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
@@ -241,19 +233,7 @@ fun WeekPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)
             return@Column
         }
         SectionHeader("By category", "Share of the week")
-        byTop.forEach { (c, amt) ->
-            Column(Modifier.padding(vertical = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CategoryBadge(c, size = 28)
-                    Text(c?.name ?: "Uncategorized", style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
-                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                    Text("  ${Math.round(amt * 100.0 / total.coerceAtLeast(1))}%", style = KassaType.tiny, color = Kassa.colors.ink3)
-                }
-                Box(Modifier.padding(start = 38.dp, top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Kassa.colors.track)) {
-                    Box(Modifier.fillMaxWidth(amt.toFloat() / max).height(6.dp).clip(RoundedCornerShape(3.dp)).background(c?.let { Color(it.color) } ?: Kassa.colors.ink3))
-                }
-            }
-        }
+        CategoryBreakdown(byTop)
         entries.groupBy { dateOf(it, ledger) }.forEach { (day, list) ->
             SectionHeader(
                 when (day) { ledger.today -> "Today"; ledger.today.minusDays(1) -> "Yesterday"; else -> day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")) },

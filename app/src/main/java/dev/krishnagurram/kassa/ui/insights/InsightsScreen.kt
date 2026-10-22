@@ -133,16 +133,17 @@ private fun FlagsBlock(flags: List<Insights.Flag>, ledger: Ledger, actions: Insi
         Column(Modifier.padding(vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CategoryBadge(f.category, size = 30)
-                Text("  ${f.category.name}: above your 3-month average", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Text("  ${f.category.name}", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
-            val month = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
-            val budgetLine = f.budget?.takeIf { it > 0 && f.soFar > it }?.let { " That's already ${Money.format(f.soFar - it, wholeDollars = true)} over its ${Money.format(it, wholeDollars = true)} budget." } ?: ""
-            Text(
-                "${Money.format(f.soFar, wholeDollars = true)} month to date. At this pace $month ends near ${Money.format(f.projected, wholeDollars = true)}, " +
-                    "against a 3-month average of ${Money.format(f.usual, wholeDollars = true)}: a variance of ${Money.format(maxOf(0, f.extra), wholeDollars = true)}. " +
-                    "Holding to the average saves that much.$budgetLine",
-                style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
-            )
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FlagFigure("Month to date", Money.format(f.soFar, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
+                FlagFigure("On pace for", Money.format(f.projected, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
+                FlagFigure("3-month avg", Money.format(f.usual, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
+                FlagFigure("Variance", Money.format(maxOf(0, f.extra), wholeDollars = true, showPlus = true), Kassa.colors.attention, Modifier.weight(1f))
+            }
+            f.budget?.takeIf { it > 0 && f.soFar > it }?.let {
+                Text("Over budget by ${Money.format(f.soFar - it, wholeDollars = true)}", style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 4.dp))
+            }
             FlowRow(Modifier.padding(top = 8.dp)) {
                 Chip("Cap at ${Money.format(f.suggestedCap, wholeDollars = true)}", selected = true) { actions.setCap(f.category, f.suggestedCap) }
                 Chip("See where", selected = false) { actions.openCategory(f.category) }
@@ -351,5 +352,13 @@ private fun Recap(ledger: Ledger, flags: List<Insights.Flag>, onCap: (Category, 
             s.cap?.let { f -> PrimaryButton("Set the cap") { onCap(f.category, f.suggestedCap); onClose() }; Gap(8) }
             SecondaryButton(if (i < slides.lastIndex) "Next" else "Done", { if (i < slides.lastIndex) i++ else onClose() })
         }
+    }
+}
+
+@Composable
+private fun FlagFigure(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
+        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1)
     }
 }
