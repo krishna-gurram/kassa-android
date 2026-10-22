@@ -258,7 +258,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
-                is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
+                is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
                 Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
                 Page.Review -> dev.krishnagurram.kassa.ui.today.ReviewPage(lg, padding, onBack, needs)
                 Page.Import -> Box(Modifier.padding(padding)) {
@@ -273,7 +273,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 Tab.TODAY -> TodayScreen(
                     lg, padding,
                     onOpenCard = { openFromList(Page.CardDetail(it)) },
-                    onSpending = { openFromList(Page.Spending(it)) },
+                    onSpending = { m, inc -> openFromList(Page.Spending(m, inc)) },
                     onUpcoming = { openFromList(Page.Upcoming) },
                     onReview = { openFromList(Page.Review) },
                     onAccounts = { nav.select(Tab.ACCOUNTS) },

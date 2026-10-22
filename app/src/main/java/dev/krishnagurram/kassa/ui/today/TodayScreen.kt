@@ -98,13 +98,14 @@ fun TodayScreen(
     ledger: Ledger,
     contentPadding: PaddingValues,
     onOpenCard: (Long) -> Unit,
-    onSpending: (month: Boolean) -> Unit,
+    onSpending: (month: Boolean, income: Boolean) -> Unit,
     onUpcoming: () -> Unit,
     onReview: () -> Unit,
     onAccounts: () -> Unit,
     onCards: () -> Unit,
 ) {
     var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var income by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
         val pending = pendingCount(ledger)
@@ -124,8 +125,8 @@ fun TodayScreen(
                 androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
             }
         }
-        val spending: @Composable () -> Unit = { SpendingSection(ledger, month, { month = it }, wide, onOpen = { onSpending(month) }) }
-        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 2, onOpenCard, onUpcoming) }
+        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, onOpen = { onSpending(month, income) }) }
+        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
         val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
@@ -183,55 +184,59 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
     )
 }
 
+/** A small two-way switch. [dark] uses the filled style for the period; the other style reads as a title. */
 @Composable
-private fun SpendingSection(ledger: Ledger, month: Boolean, setMonth: (Boolean) -> Unit, wide: Boolean, onOpen: () -> Unit) {
-    val from = if (month) ledger.period.start else weekPace(ledger).start
-    val inRange = ledger.recent.filter { dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
-    val total = inRange.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-    val income = inRange.filter { it.kind == TxKind.INCOME }.sumOf { it.amount }
-    val days = ChronoUnit.DAYS.between(from, ledger.today) + 1
-    val top = spendingByCategory(ledger, from).take(3)
-    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
-
-    SectionTop("Spending") {
-        Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
-            listOf(false to "This week", true to monthName).forEach { (m, label) ->
-                val on = m == month
-                Text(
-                    label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
-                        .clickable { setMonth(m) }.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
+private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
+        options.forEach { (v, label) ->
+            val on = v == value
+            Text(
+                label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold),
+                color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
+                    .clickable { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
     }
-    BigMoney(total)
-    if (top.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+}
+
+/**
+ * Spending or income, this week or this month, in the same layout: the total and the top three categories.
+ * The title itself switches between spending and income.
+ */
+@Composable
+private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, onOpen: () -> Unit) {
+    val from = if (month) ledger.period.start else weekPace(ledger).start
+    val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
+    val rows = spendingByCategory(ledger, from, kind)
+    val total = rows.sumOf { it.second }
+    val top = rows.take(3)
+    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+
+    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(false to "Spending", true to "Income").forEach { (v, label) ->
+            Text(
+                label, style = KassaType.section,
+                color = if (v == income) Kassa.colors.ink else Kassa.colors.ink3,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { setIncome(v) }.padding(end = 14.dp, top = 2.dp, bottom = 2.dp),
+            )
+        }
+        Box(Modifier.weight(1f))
+        Switch2(listOf(false to "This week", true to monthName), month, setMonth)
+    }
+    BigMoney(total, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         top.forEach { (c, amt) ->
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised)
-                    .then(if (c != null) Modifier.clickable(onClick = onOpen) else Modifier).padding(10.dp),
-            ) {
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen).padding(10.dp)) {
                 CategoryBadge(c, size = 26)
                 Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
                 Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
             }
         }
-        repeat(3 - top.size) { Box(Modifier.weight(1f)) }
+        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
+        else repeat(3 - top.size) { Box(Modifier.weight(1f)) }
     }
-    HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-    Row {
-        Column(Modifier.weight(1f)) {
-            Text("Income", style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(Money.format(income), style = KassaType.bodyStrong, color = if (income > 0) Kassa.colors.positive else Kassa.colors.ink)
-        }
-        Column(Modifier.weight(1f)) {
-            Text("Daily average", style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(Money.format(total / days), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-        }
-    }
-    Box(Modifier.padding(top = 6.dp)) { LinkText("Where it went", onOpen) }
+    Box(Modifier.padding(top = 6.dp)) { LinkText(if (income) "Where it came from" else "Where it went", onOpen) }
 }
 
 @Composable
@@ -341,8 +346,8 @@ fun ReviewPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Uni
 }
 
 /** Expenses from [from] through today, by top category, largest first. */
-private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate): List<Pair<dev.krishnagurram.kassa.domain.Category?, Long>> =
-    ledger.recent.filter { it.kind == TxKind.EXPENSE && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
+private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: TxKind = TxKind.EXPENSE): List<Pair<dev.krishnagurram.kassa.domain.Category?, Long>> =
+    ledger.recent.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
         .groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
 
@@ -351,35 +356,38 @@ private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate): List<
 fun SpendingPage(
     ledger: Ledger,
     month: Boolean,
+    income: Boolean,
     contentPadding: PaddingValues,
     onBack: (() -> Unit)?,
     onEdit: (Transaction) -> Unit,
     onOpenCategory: (Long) -> Unit,
 ) {
     val from = if (month) ledger.period.start else weekPace(ledger).start
-    val entries = ledger.recent.filter { it.kind == TxKind.EXPENSE && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
+    val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
+    val entries = ledger.recent.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
         .sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id })
-    val byTop = spendingByCategory(ledger, from)
+    val byTop = spendingByCategory(ledger, from, kind)
     val total = entries.sumOf { it.categoryAmount }
-    val title = if (month) ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " spending" else "This week's spending"
+    val what = if (income) "income" else "spending"
+    val title = if (month) ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " " + what else "This week's $what"
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(title, onBack)
         RaisedPanel {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+                Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
                 Text("${from.format(DateTimeFormatter.ofPattern("MMM d"))} to today", style = KassaType.tiny, color = Kassa.colors.ink3)
             }
             Text(Money.format(total), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
-            Text(plural(entries.size, "expense"), style = KassaType.small, color = Kassa.colors.ink2)
+            Text(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"), style = KassaType.small, color = Kassa.colors.ink2)
         }
         if (entries.isEmpty()) {
             Gap(16)
-            Text("No spending yet.", style = KassaType.body, color = Kassa.colors.ink2)
+            Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2)
             return@Column
         }
         SectionHeader("By category", "Share")
-        CategoryBreakdown(byTop, onOpen = if (month) ({ c: dev.krishnagurram.kassa.domain.Category -> onOpenCategory(c.id) }) else null)
+        CategoryBreakdown(byTop, onOpen = if (month && !income) ({ c: dev.krishnagurram.kassa.domain.Category -> onOpenCategory(c.id) }) else null)
         entries.groupBy { dateOf(it, ledger) }.forEach { (day, list) ->
             SectionHeader(
                 when (day) { ledger.today -> "Today"; ledger.today.minusDays(1) -> "Yesterday"; else -> day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")) },

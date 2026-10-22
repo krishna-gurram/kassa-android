@@ -23,8 +23,8 @@ sealed interface Page {
     data class AccountDetail(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
     data class CategoryDetail(val categoryId: Long) : Page
-    /** Where the spending went: this week, or this budget month. */
-    data class Spending(val month: Boolean) : Page
+    /** Where the spending went, or the income came from: this week, or this budget month. */
+    data class Spending(val month: Boolean, val income: Boolean = false) : Page
     /** Card payments and bills in the next 30 days. */
     data object Upcoming : Page
     /** Bank alerts, bills and investment transfers waiting to be confirmed. */
