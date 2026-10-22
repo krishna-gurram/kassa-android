@@ -110,7 +110,7 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-fun ActivityScreen(contentPadding: PaddingValues, vm: ActivityViewModel = viewModel()) {
+fun ActivityScreen(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, onEdit: (Transaction) -> Unit, vm: ActivityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
     val today = LocalDate.now()
@@ -165,34 +165,7 @@ fun ActivityScreen(contentPadding: PaddingValues, vm: ActivityViewModel = viewMo
                     HorizontalDivider(color = Kassa.colors.line)
                 }
             }
-            items(entries, key = { it.id }) { t -> TxRow(t, s, Modifier.widthIn(max = 720.dp), last = t === entries.last()) }
-        }
-    }
-}
-
-@Composable
-private fun TxRow(t: Transaction, s: ActivityUi, modifier: Modifier, last: Boolean) {
-    val acct = s.accounts[t.accountId]?.name ?: "Unknown account"
-    when (t.kind) {
-        TxKind.TRANSFER -> EntryRow(
-            badge = { GlyphBadge("⇄") },
-            title = "To ${s.accounts[t.toAccountId]?.name ?: "Unknown account"}",
-            subtitle = "From $acct",
-            amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
-            note = if (s.accounts[t.toAccountId]?.type?.hasStatement == true) "Card payment" else "Transfer",
-            showDivider = !last, modifier = modifier,
-        )
-        else -> {
-            val cat = t.categoryId?.let { s.categories[it] }
-            val parent = cat?.parentId?.let { s.categories[it] }
-            EntryRow(
-                badge = { CategoryBadge(parent ?: cat) },
-                title = t.note.ifBlank { cat?.name ?: "Uncategorized" },
-                subtitle = listOfNotNull(cat?.name ?: "Uncategorized", t.myShare?.takeIf { it != t.amount }?.let { "your share ${Money.format(it)}" }).joinToString(", "),
-                amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
-                amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
-                note = acct, showDivider = !last, modifier = modifier,
-            )
+            items(entries, key = { it.id }) { t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp), onClick = onEdit) }
         }
     }
 }

@@ -11,6 +11,8 @@ import dev.krishnagurram.kassa.domain.Budget
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
 import dev.krishnagurram.kassa.domain.CategoryKind
+import dev.krishnagurram.kassa.domain.LoanEntry
+import dev.krishnagurram.kassa.domain.Person
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 
@@ -55,15 +57,16 @@ data class CategoryEntity(
 
 @Entity(
     tableName = "transactions",
-    indices = [Index("epochMillis"), Index("accountId"), Index("toAccountId"), Index("categoryId")],
+    indices = [Index("epochMillis"), Index("accountId"), Index("toAccountId"), Index("categoryId"), Index("personId")],
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val kind: String,
     val amount: Long,
-    val accountId: Long,
+    val accountId: Long?,
     val toAccountId: Long?,
     val categoryId: Long?,
+    val personId: Long?,
     val epochMillis: Long,
     val note: String,
     val myShare: Long?,
@@ -76,6 +79,23 @@ data class BudgetEntity(
     /** yyyyMM, or 0 for the default amount. */
     val month: Int,
     val amount: Long,
+)
+
+@Entity(tableName = "people")
+data class PersonEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val archived: Boolean,
+)
+
+@Entity(tableName = "loan_entries", indices = [Index("personId"), Index("txId")])
+data class LoanEntryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val personId: Long,
+    val amount: Long,
+    val epochMillis: Long,
+    val note: String,
+    val txId: Long?,
 )
 
 /** Result row for the balance query. */
@@ -106,11 +126,16 @@ fun Category.toEntity() = CategoryEntity(
 
 fun TransactionEntity.toDomain() = Transaction(
     id = id, kind = TxKind.valueOf(kind), amount = amount, accountId = accountId, toAccountId = toAccountId,
-    categoryId = categoryId, epochMillis = epochMillis, note = note, myShare = myShare, externalId = externalId,
+    categoryId = categoryId, personId = personId, epochMillis = epochMillis, note = note, myShare = myShare, externalId = externalId,
 )
 fun Transaction.toEntity() = TransactionEntity(
-    id, kind.name, amount, accountId, toAccountId, categoryId, epochMillis, note, myShare, externalId,
+    id, kind.name, amount, accountId, toAccountId, categoryId, personId, epochMillis, note, myShare, externalId,
 )
 
 fun Budget.toEntity() = BudgetEntity(categoryId, month, amount)
 fun BudgetEntity.toDomain() = Budget(categoryId, month, amount)
+
+fun PersonEntity.toDomain() = Person(id, name, archived)
+fun Person.toEntity() = PersonEntity(id, name, archived)
+fun LoanEntryEntity.toDomain() = LoanEntry(id, personId, amount, epochMillis, note, txId)
+fun LoanEntry.toEntity() = LoanEntryEntity(id, personId, amount, epochMillis, note, transactionId)

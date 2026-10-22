@@ -1,0 +1,134 @@
+package dev.krishnagurram.kassa.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import dev.krishnagurram.kassa.KassaApplication
+import dev.krishnagurram.kassa.data.AccountsState
+import dev.krishnagurram.kassa.data.EntryDraft
+import dev.krishnagurram.kassa.data.PeopleState
+import dev.krishnagurram.kassa.domain.Account
+import dev.krishnagurram.kassa.domain.Budget
+import dev.krishnagurram.kassa.domain.Budgets
+import dev.krishnagurram.kassa.domain.CardCycle
+import dev.krishnagurram.kassa.domain.CardSnapshot
+import dev.krishnagurram.kassa.domain.Category
+import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.domain.Period
+import dev.krishnagurram.kassa.domain.Spending
+import dev.krishnagurram.kassa.domain.Transaction
+import dev.krishnagurram.kassa.domain.TxKind
+import dev.krishnagurram.kassa.domain.personBalance
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
+
+/**
+ * One snapshot of what the main screens need: categories, accounts, budgets, people and roughly the last
+ * four months of entries (enough for card statements and three months of baselines).
+ */
+data class Ledger(
+    val categories: List<Category>,
+    val accounts: AccountsState,
+    val budgets: List<Budget>,
+    val people: PeopleState,
+    val recent: List<Transaction>,
+    val monthStartDay: Int,
+    val today: LocalDate,
+    val zone: ZoneId,
+) {
+    val categoryById: Map<Long, Category> = categories.associateBy { it.id }
+    val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }
+    val period: Period get() = Period.containing(today, monthStartDay)
+
+    fun cards(): List<CardSnapshotFor> = accounts.accounts
+        .filter { it.type.hasStatement && !it.archived && it.statementDay != null }
+        .map { CardSnapshotFor(it, CardCycle.snapshot(it, recent, today, zone)) }
+
+    fun personBalances(): Map<Long, Long> = people.people.associate { it.id to personBalance(it.id, people.loans, people.payments) }
+
+    /** "Groceries: $412 of $600, 8% ahead of an even pace." Shown right after logging an expense. */
+    fun feedbackFor(categoryId: Long?): String? {
+        val top = Spending.topOf(categoryId, categoryById) ?: return null
+        val spent = Spending.byTopCategory(recent, categoryById, period.start, period.endInclusive, zone)[top.id] ?: 0
+        val budget = Budgets.amountFor(top.id, period.yearMonth, budgets)
+        if (budget == null || budget == 0L) return "${top.name}: ${Money.format(spent, wholeDollars = true)} this month."
+        val pace = budget * period.progress(today)
+        val tail = when {
+            spent > budget -> "${Money.format(spent - budget, wholeDollars = true)} over budget."
+            spent > pace * 1.05 -> "${Math.round((spent / pace - 1) * 100)}% ahead of an even pace."
+            else -> "On pace."
+        }
+        return "${top.name}: ${Money.format(spent, wholeDollars = true)} of ${Money.format(budget, wholeDollars = true)}. $tail"
+    }
+}
+
+data class CardSnapshotFor(val account: Account, val snapshot: CardSnapshot)
+
+class LedgerViewModel(app: Application) : AndroidViewModel(app) {
+    private val repo = (app as KassaApplication).repository
+    private val settings = (app as KassaApplication).settings
+    private val zone = ZoneId.systemDefault()
+
+    private val recent = repo.transactionsBetween(
+        LocalDate.now(zone).minusDays(130).atStartOfDay(zone).toInstant().toEpochMilli(),
+        Long.MAX_VALUE,
+    )
+
+    val ledger: StateFlow<Ledger?> = combine(
+        combine(repo.categories, repo.accounts, repo.budgets) { c, a, b -> Triple(c, a, b) },
+        repo.people,
+        recent,
+        settings.monthStartDay,
+    ) { (c, a, b), p, r, ms ->
+        Ledger(c, a, b, p, r, ms, LocalDate.now(zone), zone)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages
+
+    fun save(draft: EntryDraft) = viewModelScope.launch {
+        val saved = repo.save(draft)
+        val l = ledger.value
+        val msg = when (saved.kind) {
+            TxKind.EXPENSE -> {
+                // The ledger updates a moment later; add this entry so the numbers include it.
+                val withThis = l?.copy(recent = l.recent.filter { it.id != saved.id } + saved)
+                withThis?.feedbackFor(saved.categoryId) ?: "Expense saved."
+            }
+            TxKind.INCOME -> "${Money.format(saved.amount)} added to ${l?.accountById?.get(saved.accountId)?.name ?: "the account"}."
+            TxKind.TRANSFER -> {
+                val to = l?.accountById?.get(saved.toAccountId)
+                if (to?.type?.hasStatement == true) "Paid ${Money.format(saved.amount)} to ${to.name}." else "Moved ${Money.format(saved.amount)} to ${to?.name ?: "the account"}."
+            }
+            TxKind.PERSON_IN, TxKind.PERSON_OUT -> "Payment recorded."
+        }
+        _messages.tryEmit(if (draft.id != null) "Saved. $msg" else msg)
+    }
+
+    fun delete(id: Long) = viewModelScope.launch { repo.delete(id); _messages.tryEmit("Entry deleted.") }
+
+    fun addPerson(name: String, then: (Long) -> Unit = {}) = viewModelScope.launch { then(repo.addPerson(name)) }
+
+    fun addAccount(account: Account, newGroupName: String?) = viewModelScope.launch {
+        repo.addAccount(account, newGroupName); _messages.tryEmit("${account.name} added.")
+    }
+
+    fun setArchived(account: Account, archived: Boolean) = viewModelScope.launch {
+        repo.updateAccount(account.copy(archived = archived))
+        _messages.tryEmit(if (archived) "${account.name} archived. Its history stays." else "${account.name} restored.")
+    }
+
+    suspend fun loadForEdit(id: Long): Pair<Transaction, List<Long>>? {
+        val t = repo.transaction(id) ?: return null
+        return t to repo.splitPeopleFor(id)
+    }
+
+    suspend fun notes(kind: TxKind): List<String> = repo.frequentNotes(kind)
+}

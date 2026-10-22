@@ -95,20 +95,52 @@ data class Category(
     val externalId: String? = null,
 )
 
-enum class TxKind { EXPENSE, INCOME, TRANSFER }
+enum class TxKind {
+    EXPENSE,
+    INCOME,
+    TRANSFER,
+    /** Money from your account to a person: lending, or paying back what you owe. */
+    PERSON_OUT,
+    /** Money from a person into your account: being paid back, or borrowing. */
+    PERSON_IN,
+}
+
+/** Someone you split costs with or lend to. Their balance lives in [LoanEntry] rows and person transactions. */
+data class Person(
+    val id: Long = 0,
+    val name: String,
+    val archived: Boolean = false,
+)
+
+/**
+ * A change to what a person owes, not tied to money moving through your accounts.
+ * Positive: they owe you more (their share of something you paid). Negative: you owe them (they paid for you).
+ */
+data class LoanEntry(
+    val id: Long = 0,
+    val personId: Long,
+    val amount: Long,
+    val epochMillis: Long,
+    val note: String = "",
+    /** The expense this came from, when it came from a split. */
+    val transactionId: Long? = null,
+)
 
 data class Transaction(
     val id: Long = 0,
     val kind: TxKind,
     /** Always positive. Direction comes from [kind]. */
     val amount: Long,
-    val accountId: Long,
+    /** Null only for an expense someone else paid for you ([personId] says who). */
+    val accountId: Long?,
     /** Only for transfers. */
     val toAccountId: Long? = null,
     /** Expense and income only. A subcategory id when one was picked. */
     val categoryId: Long? = null,
     val epochMillis: Long,
     val note: String = "",
+    /** For person transactions, who the money went to or came from. For an expense, who paid when you didn't. */
+    val personId: Long? = null,
     /** When an expense was split, the part that is yours. Category totals use this. */
     val myShare: Long? = null,
     val externalId: String? = null,
@@ -116,6 +148,8 @@ data class Transaction(
     init {
         require(amount >= 0) { "Amounts are stored positive, got $amount" }
         require(kind != TxKind.TRANSFER || toAccountId != null) { "A transfer needs a destination account" }
+        require(kind !in PERSON_KINDS || personId != null) { "A person payment needs a person" }
+        require(accountId != null || (kind == TxKind.EXPENSE && personId != null)) { "Only an expense someone else paid can skip the account" }
     }
 
     /** What this entry adds to category spending or income. */
@@ -130,9 +164,11 @@ data class Budget(
 )
 
 /** Applies one transaction to an account's running balance. */
+val PERSON_KINDS = setOf(TxKind.PERSON_OUT, TxKind.PERSON_IN)
+
 fun Transaction.effectOn(accountId: Long): Long = when (kind) {
-    TxKind.EXPENSE -> if (this.accountId == accountId) -amount else 0
-    TxKind.INCOME -> if (this.accountId == accountId) amount else 0
+    TxKind.EXPENSE, TxKind.PERSON_OUT -> if (this.accountId == accountId) -amount else 0
+    TxKind.INCOME, TxKind.PERSON_IN -> if (this.accountId == accountId) amount else 0
     TxKind.TRANSFER -> when (accountId) {
         this.accountId -> -amount
         toAccountId -> amount
@@ -142,3 +178,17 @@ fun Transaction.effectOn(accountId: Long): Long = when (kind) {
 
 fun balanceOf(account: Account, transactions: Iterable<Transaction>): Long =
     account.openingBalance + transactions.sumOf { it.effectOn(account.id) }
+
+/**
+ * What [personId] owes you (positive) or you owe them (negative): split shares and debts from [loans],
+ * plus money you sent them, minus money they sent you.
+ */
+fun personBalance(personId: Long, loans: Iterable<LoanEntry>, transactions: Iterable<Transaction>): Long =
+    loans.filter { it.personId == personId }.sumOf { it.amount } +
+        transactions.filter { it.personId == personId }.sumOf {
+            when (it.kind) {
+                TxKind.PERSON_OUT -> it.amount
+                TxKind.PERSON_IN -> -it.amount
+                else -> 0L
+            }
+        }
