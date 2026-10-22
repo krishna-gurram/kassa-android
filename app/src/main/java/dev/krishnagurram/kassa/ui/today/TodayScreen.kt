@@ -108,6 +108,9 @@ fun TodayScreen(
     var income by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
+        // The unfolded inner screen is both wide and tall: a list of categories fills the height that
+        // tiles would leave empty. The cover screen in landscape is wide but short, so it keeps tiles.
+        val roomy = wide && maxHeight >= 560.dp
         val pending = pendingCount(ledger)
         val banner: @Composable () -> Unit = {
             if (pending > 0) Row(
@@ -125,7 +128,7 @@ fun TodayScreen(
                 androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
             }
         }
-        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, onOpen = { onSpending(month, income) }) }
+        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }) }
         val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
         val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
 
@@ -133,10 +136,10 @@ fun TodayScreen(
             Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
             if (wide) {
                 banner()
-                Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     Column(Modifier.weight(1f)) { spending() }
-                    androidx.compose.material3.VerticalDivider(color = Kassa.colors.line, modifier = Modifier.height(420.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) { coming(); worth() }
+                    androidx.compose.material3.VerticalDivider(color = Kassa.colors.line)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) { coming(); worth() }
                 }
             } else {
                 Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -205,12 +208,12 @@ private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChan
  * The title itself switches between spending and income.
  */
 @Composable
-private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, onOpen: () -> Unit) {
+private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, roomy: Boolean, onOpen: () -> Unit) {
     val from = if (month) ledger.period.start else weekPace(ledger).start
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
     val rows = spendingByCategory(ledger, from, kind)
     val total = rows.sumOf { it.second }
-    val top = rows.take(3)
+    val top = rows.take(if (roomy) 6 else 3)
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -224,7 +227,22 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
         Box(Modifier.weight(1f))
         Switch2(listOf(false to "This week", true to monthName), month, setMonth)
     }
-    BigMoney(total, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
+    BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
+    if (roomy) {
+        Column(Modifier.padding(top = 14.dp)) {
+            if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
+            top.forEach { (c, amt) ->
+                HorizontalDivider(color = Kassa.colors.line)
+                Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CategoryBadge(c, size = 30)
+                    Text(c?.name ?: "Uncategorized", style = KassaType.body, color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                }
+            }
+        }
+        Box(Modifier.padding(top = 6.dp)) { LinkText(if (income) "Where it came from" else "Where it went", onOpen) }
+        return
+    }
     Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         top.forEach { (c, amt) ->
             Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen).padding(10.dp)) {
