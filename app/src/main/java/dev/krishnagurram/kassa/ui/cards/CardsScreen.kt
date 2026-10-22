@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -84,20 +90,53 @@ fun cardsByDueDate(ledger: Ledger): List<CardSnapshotFor> {
         cards.filter { it.snapshot.payable == 0L }.sortedBy { it.snapshot.nextClose }
 }
 
-/** Every card by due date, under one total split into balance payable and outstanding. */
+/** How the cards list is ordered. */
+enum class CardSort(val label: String) {
+    DUE("Due date"), NAME("Name"), PAYABLE("Balance payable"), TOTAL("Total balance"), OUTSTANDING("Outstanding");
+}
+
+fun sortCards(ledger: Ledger, by: CardSort): List<CardSnapshotFor> = when (by) {
+    CardSort.DUE -> cardsByDueDate(ledger)
+    CardSort.NAME -> ledger.cards().sortedBy { it.account.name.lowercase() }
+    CardSort.PAYABLE -> ledger.cards().sortedByDescending { it.snapshot.payable }
+    CardSort.TOTAL -> ledger.cards().sortedByDescending { it.snapshot.totalBalance }
+    CardSort.OUTSTANDING -> ledger.cards().sortedByDescending { it.snapshot.outstanding }
+}
+
+/** Every card under one total split into balance payable and outstanding, sorted the way you pick. */
 @Composable
 fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Long?, onOpen: (Long) -> Unit) {
-    val cards = cardsByDueDate(ledger)
+    var sort by rememberSaveable { mutableStateOf(CardSort.DUE) }
+    var menu by remember { mutableStateOf(false) }
+    val cards = sortCards(ledger, sort)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        Text(plural(cards.size, "card"), style = KassaType.small, color = Kassa.colors.ink2)
         Text("Cards", style = KassaType.title, color = Kassa.colors.ink)
-        Gap(16)
+        Gap(14)
         if (cards.isEmpty()) {
             Text("No cards yet. Add a credit card in Accounts with its statement day and due day.", style = KassaType.body, color = Kassa.colors.ink2)
             return@Column
         }
         CardTotals(cards)
-        SectionHeader("By due date", "Balance payable")
+        Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${cards.size} cards", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+            androidx.compose.foundation.layout.Box {
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).clickable { menu = true }.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Sort: ${sort.label}", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.ExpandMore, null, tint = Kassa.colors.ink2, modifier = Modifier.padding(start = 2.dp).size(18.dp))
+                }
+                androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
+                    CardSort.entries.forEach { o ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(o.label, style = if (o == sort) KassaType.bodyStrong else KassaType.body, color = Kassa.colors.ink) },
+                            onClick = { sort = o; menu = false },
+                        )
+                    }
+                }
+            }
+        }
         cards.forEachIndexed { i, c ->
             CardRow(c, ledger.today, selected = c.account.id == selectedCard, showDivider = i < cards.lastIndex) { onOpen(c.account.id) }
         }
@@ -109,7 +148,6 @@ fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Lon
 fun CardTotals(cards: List<CardSnapshotFor>) {
     val payable = cards.sumOf { it.snapshot.payable }
     val outstanding = cards.sumOf { it.snapshot.outstanding }
-    val statements = cards.count { it.snapshot.payable > 0 }
     RaisedPanel {
         Text("Total card balance", style = KassaType.tiny, color = Kassa.colors.ink2)
         Text(Money.format(payable + outstanding), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
@@ -118,12 +156,10 @@ fun CardTotals(cards: List<CardSnapshotFor>) {
             Column(Modifier.weight(1f)) {
                 Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
                 Text(Money.format(payable), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
-                Text(if (statements == 0) "Every statement is paid" else "Due on ${plural(statements, "statement")}", style = KassaType.tiny, color = Kassa.colors.ink2)
             }
             Column(Modifier.weight(1f)) {
                 Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
-                Text(Money.format(outstanding), style = KassaType.stat, color = Kassa.colors.ink2, maxLines = 1)
-                Text("Goes on next statements", style = KassaType.tiny, color = Kassa.colors.ink2)
+                Text(Money.format(outstanding), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
             }
         }
     }
@@ -144,7 +180,10 @@ fun dueStatus(c: CardSnapshotFor, today: LocalDate): Pair<String, Tone> {
     }
 }
 
-/** One card: name and what's outstanding on the left, balance payable and its due state on the right. */
+/**
+ * One card. The big number is the total balance, so a card with nothing on a statement still shows what's
+ * on it. Underneath: what's payable and what's outstanding, and the due state.
+ */
 @Composable
 fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, showDivider: Boolean = true, onClick: () -> Unit) {
     val s = c.snapshot
@@ -153,21 +192,23 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, sho
         Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = if (selected) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
             dev.krishnagurram.kassa.ui.common.IconBadge(androidx.compose.material.icons.Icons.Outlined.CreditCard)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
-                Text(if (s.outstanding > 0) "+ ${Money.format(s.outstanding)} outstanding" else "No outstanding charges", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+                Text(c.account.name + (c.account.last4?.let { "  ··$it" } ?: ""), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+                Text("${Money.format(s.payable)} payable · ${Money.format(s.outstanding)} outstanding", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(Money.format(s.payable), style = KassaType.bodyStrong, color = if (s.payable > 0) Kassa.colors.ink else Kassa.colors.ink3, maxLines = 1)
+                Text(Money.format(s.totalBalance), style = KassaType.bodyStrong, color = if (s.totalBalance > 0) Kassa.colors.ink else Kassa.colors.ink3, maxLines = 1)
                 Gap(3)
                 StatusChip(status, tone)
             }
-            androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 6.dp))
         }
         if (showDivider && !selected) HorizontalDivider(color = Kassa.colors.line)
     }
 }
 
-/** One card: what's payable and by when, what's outstanding for the next statement, and the entries behind both. */
+/**
+ * One card. First what you owe and when, then the total and what's outstanding, side by side in equal boxes,
+ * then the entries behind each. Edit opens the card's details: name, last 4 digits, days, limit, balance.
+ */
 @Composable
 fun CardPage(
     c: CardSnapshotFor,
@@ -176,55 +217,48 @@ fun CardPage(
     onBack: (() -> Unit)?,
     onEdit: (Transaction) -> Unit,
     onPay: () -> Unit,
+    onEditCard: () -> Unit,
 ) {
     val s = c.snapshot
     val a = c.account
     val id = a.id
-    val nextDue = a.statementDay?.let { CardCycle.dueFor(it, a.dueDay ?: it, s.nextClose) }
     val (status, tone) = dueStatus(c, ledger.today)
     val since = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).isAfter(s.lastClose) }.sortedByDescending { it.epochMillis }
     val stmt = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).let { d -> d.isAfter(s.previousClose) && !d.isAfter(s.lastClose) } }.sortedByDescending { it.epochMillis }
+    val dateNote: (Transaction) -> String = { t -> dateOf(t, ledger).format(MONTH_DAY) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(a.name, onBack)
-        Text(
-            a.creditLimit?.takeIf { it > 0 }?.let { "Available credit ${Money.format(it - s.totalBalance)} of ${Money.format(it)} limit" }
-                ?: "Statement date ${a.statementDay}, payment due on day ${a.dueDay ?: a.statementDay}",
-            style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(horizontal = 4.dp),
-        )
-        Gap(14)
+        PageTop(a.name + (a.last4?.let { "  ··$it" } ?: ""), onBack) {
+            androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
+        }
         RaisedPanel {
-            Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(Money.format(s.totalBalance), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
-            Gap(12)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box2(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
                     Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    Text(Money.format(s.payable), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
-                    Text("Statement balance ${Money.format(s.statementTotal)}", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    if (s.paidSinceClose > 0) Text("Payments ${Money.format(s.paidSinceClose)}", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    Gap(6)
-                    StatusChip(status, tone)
+                    Text(Money.format(s.payable), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
                 }
-                Box2(Modifier.weight(1f)) {
+                Box(Modifier.padding(top = 4.dp)) { StatusChip(status, tone) }
+            }
+            Gap(12)
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box2(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
+                    Text(Money.format(s.totalBalance), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
+                }
+                Box2(Modifier.weight(1f).fillMaxHeight()) {
                     Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
                     Text(Money.format(s.outstanding), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
-                    Text("Posted since ${s.lastClose.format(MONTH_DAY)}", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    Text(
-                        "Closing date ${s.nextClose.format(MONTH_DAY)}" + (nextDue?.let { ", due ${it.format(MONTH_DAY)}" } ?: ""),
-                        style = KassaType.tiny, color = Kassa.colors.ink2,
-                    )
                 }
             }
             Gap(14)
             PrimaryButton(if (s.payable > 0) "Pay ${Money.format(s.payable)}" else "Record a payment", onPay)
         }
-        SectionHeader("Outstanding", "Posts to the ${s.nextClose.format(MONTH_DAY)} statement")
+        SectionHeader("Outstanding", "Next statement ${s.nextClose.format(MONTH_DAY)}")
         if (since.isEmpty()) Text("No charges since the statement date.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        since.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < since.lastIndex, onClick = onEdit) }
-        SectionHeader("${s.lastClose.format(MONTH_DAY)} statement", "Statement balance ${Money.format(s.statementTotal)}")
+        since.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < since.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
+        SectionHeader("${s.lastClose.format(MONTH_DAY)} statement", Money.format(s.statementTotal))
         if (stmt.isEmpty()) Text("No charges on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        stmt.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < stmt.lastIndex, onClick = onEdit) }
+        stmt.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < stmt.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
         Gap(24)
     }
 }

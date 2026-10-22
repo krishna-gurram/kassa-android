@@ -53,6 +53,7 @@ fun AddAccountSheet(
     fun input(c: Long?) = c?.let { java.math.BigDecimal.valueOf(kotlin.math.abs(it)).movePointLeft(2).toPlainString() } ?: ""
     var type by remember { mutableStateOf(editing?.type ?: AccountType.CHECKING) }
     var name by remember { mutableStateOf(editing?.name ?: "") }
+    var last4 by remember { mutableStateOf(editing?.last4 ?: "") }
     var balance by remember {
         mutableStateOf(
             when {
@@ -92,6 +93,7 @@ fun AddAccountSheet(
                 AccountType.LOAN -> "Car loan"
                 else -> "Chase checking"
             })
+            Field(last4, { last4 = it.filter(Char::isDigit).take(4) }, "Last 4 digits (optional)", KeyboardType.Number, "1234")
             Field(
                 balance, { balance = it },
                 label = if (type.isDebt) "Amount owed today" else "Balance today",
@@ -135,6 +137,7 @@ fun AddAccountSheet(
                 val du = dueDay.toIntOrNull()
                 error = when {
                     name.isBlank() -> "Give the account a name."
+                    last4.isNotEmpty() && last4.length != 4 -> "Last 4 digits needs four numbers."
                     cents == null -> "The balance isn't a number."
                     type == AccountType.CREDIT_CARD && ((st ?: 0) !in 1..31 || (du ?: 0) !in 1..31) -> "Statement and due day need to be 1 to 31."
                     limit.isNotBlank() && Money.parseCents(limit) == null -> "The credit limit isn't a number."
@@ -148,6 +151,7 @@ fun AddAccountSheet(
                     onSave(
                         (editing ?: Account(name = "", type = type)).copy(
                             name = name.trim(), type = type, groupId = groupId, openingBalance = opening,
+                            last4 = last4.takeIf { it.length == 4 },
                             statementDay = if (type.hasStatement) st else null,
                             dueDay = if (type.hasStatement) du else null,
                             payFromId = if (type.hasStatement) payFrom else null,

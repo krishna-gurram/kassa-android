@@ -50,7 +50,7 @@ class Backup(private val context: Context, private val db: KassaDatabase, privat
             .put("accounts", arr(db.accounts().all()) { o, e ->
                 o.put("id", e.id).put("name", e.name).put("type", e.type).putOpt("groupId", e.groupId).put("openingBalance", e.openingBalance)
                     .putOpt("statementDay", e.statementDay).putOpt("dueDay", e.dueDay).putOpt("payFromId", e.payFromId).putOpt("creditLimit", e.creditLimit)
-                    .put("archived", e.archived).put("sortOrder", e.sortOrder).putOpt("externalId", e.externalId)
+                    .put("archived", e.archived).put("sortOrder", e.sortOrder).putOpt("externalId", e.externalId).putOpt("last4", e.last4)
             })
             .put("categories", arr(db.categories().all()) { o, e ->
                 o.put("id", e.id).put("name", e.name).put("kind", e.kind).putOpt("parentId", e.parentId).put("icon", e.icon).put("color", e.color)
@@ -108,7 +108,7 @@ class Backup(private val context: Context, private val db: KassaDatabase, privat
             db.accounts().insertAll(list(json, "accounts") {
                 AccountEntity(it.getLong("id"), it.getString("name"), it.getString("type"), it.optLongOrNull("groupId"), it.getLong("openingBalance"),
                     it.optIntOrNull("statementDay"), it.optIntOrNull("dueDay"), it.optLongOrNull("payFromId"), it.optLongOrNull("creditLimit"),
-                    it.getBoolean("archived"), it.getInt("sortOrder"), it.optStringOrNull("externalId"))
+                    it.getBoolean("archived"), it.getInt("sortOrder"), it.optStringOrNull("externalId"), it.optStringOrNull("last4"))
             })
             db.categories().insertAll(list(json, "categories") {
                 CategoryEntity(it.getLong("id"), it.getString("name"), it.getString("kind"), it.optLongOrNull("parentId"), it.getString("icon"), it.getInt("color"),

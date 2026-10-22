@@ -41,6 +41,7 @@ data class AccountEntity(
     val archived: Boolean,
     val sortOrder: Int,
     val externalId: String?,
+    val last4: String? = null,
 )
 
 @Entity(tableName = "categories", indices = [Index("parentId")])
@@ -159,10 +160,10 @@ fun AccountGroup.toEntity() = GroupEntity(id, name, sortOrder)
 fun AccountEntity.toDomain() = Account(
     id = id, name = name, type = AccountType.valueOf(type), groupId = groupId, openingBalance = openingBalance,
     statementDay = statementDay, dueDay = dueDay, payFromId = payFromId, creditLimit = creditLimit,
-    archived = archived, sortOrder = sortOrder, externalId = externalId,
+    archived = archived, sortOrder = sortOrder, externalId = externalId, last4 = last4,
 )
 fun Account.toEntity() = AccountEntity(
-    id, name, type.name, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId,
+    id, name, type.name, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4,
 )
 
 fun CategoryEntity.toDomain() = Category(

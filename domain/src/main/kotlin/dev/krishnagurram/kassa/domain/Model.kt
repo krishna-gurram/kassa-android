@@ -42,6 +42,8 @@ data class Account(
     val sortOrder: Int = 0,
     /** Id in the system this came from (Money Manager uid), so a re-import never duplicates. */
     val externalId: String? = null,
+    /** Last four digits of the card or account number, to tell similar accounts apart. */
+    val last4: String? = null,
 )
 
 enum class CategoryKind { EXPENSE, INCOME }

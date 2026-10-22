@@ -326,7 +326,7 @@ interface BudgetDao {
         PersonEntity::class, LoanEntryEntity::class,
         RecurringEntity::class, PendingEntity::class, HoldingEntity::class, AlertRuleEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class KassaDatabase : RoomDatabase() {
@@ -349,7 +349,7 @@ abstract class KassaDatabase : RoomDatabase() {
             val factory = SupportOpenHelperFactory(DatabaseKey.get(context))
             return Room.databaseBuilder(context, KassaDatabase::class.java, "kassa.db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
         }
     }
@@ -408,5 +408,12 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
             "CREATE TABLE IF NOT EXISTS `alert_rules` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, " +
                 "`last4` TEXT, `accountId` INTEGER NOT NULL)"
         )
+    }
+}
+
+/** v4: accounts can carry the last four digits of their number. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `accounts` ADD COLUMN `last4` TEXT")
     }
 }
