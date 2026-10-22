@@ -143,12 +143,12 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
     var categoryOpen by remember { mutableStateOf<dev.krishnagurram.kassa.domain.Category?>(null) }
-    val sensitivity by vm.sensitivity.collectAsState()
-    val dismissedFlags by vm.dismissedFlags.collectAsState()
-    val lockOn by vm.lockEnabled.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: LedgerViewModel = viewModel()
     val ledger by vm.ledger.collectAsState()
+    val sensitivity by vm.sensitivity.collectAsState()
+    val dismissedFlags by vm.dismissedFlags.collectAsState()
+    val lockOn by vm.lockEnabled.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

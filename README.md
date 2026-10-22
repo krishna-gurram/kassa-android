@@ -44,11 +44,14 @@ backup's own rows and from what will be saved, so the review screen can show the
 
 Real backups never go in this repo. Tests use a synthetic source shaped like the real schema.
 
-## Roadmap
+## What's in it
 
-1. Data, encryption, import, Activity and Accounts (this release)
-2. Today, Cards, add/edit flow, categories with icon picker, budgets, splits and loans, Fold layouts
-3. Notification capture, recurring approvals, investment transfer prompt
-4. Insights, weekly recap, app lock, encrypted export
+- Today: safe-to-spend from your budgets, spending bar with an even-pace line, things to confirm, what's due
+- Entries: number pad, top categories that collapse once picked, all-categories grid with search, splits
+- Cards: statement balance vs not billed yet, by due date; pay statement, current balance or any amount
+- Insights: red flags against your usual months, caps, trend, weekday pattern, repeating charges, weekly recap
+- Accounts: unlimited accounts and groups, holdings at prices you enter, people you split with or lend to
+- Assist: bank notification capture, recurring bills that ask first, investment transfer prompts
+- Settings: categories with emoji, built-in icons or your own photo, budgets, month start day, app lock, encrypted backup
 
 Fonts: Hanken Grotesk, SIL Open Font License, see `third_party/`.
