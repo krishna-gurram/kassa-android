@@ -22,8 +22,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      build_number: ${{ steps.number.outputs.n }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build number
+        id: number
+        run: |
+          N=$(git rev-list --count HEAD)
+          echo "KASSA_BUILD=$N" >> "$GITHUB_ENV"
+          echo "n=$N" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -155,11 +166,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A manual run and a late push run can both build the same commit; publish it once.
+          # Late runs for older commits must never publish over newer code.
+          HEAD_SHA=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$HEAD_SHA" != "$GITHUB_SHA" ]; then echo "Not the newest commit on main; skipping."; exit 0; fi
+          # A manual run and a push run can both build the same commit; publish it once.
           if gh api "repos/${{ github.repository }}/releases?per_page=30" --jq '.[] | select(.draft | not) | .body' | grep -q "${GITHUB_SHA::7}"; then
             echo "Already published ${GITHUB_SHA::7}"; exit 0
           fi
-          VERSION="v0.1.${{ github.run_number }}"
+          VERSION="v0.2.${{ needs.build.outputs.build_number }}"
           mv app-release.apk "kassa-$VERSION.apk"
           gh release create "$VERSION" "kassa-$VERSION.apk" -R "${{ github.repository }}" \
             --title "Kassa $VERSION" \

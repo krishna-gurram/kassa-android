@@ -5,7 +5,8 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+// Commit count on main: always increases with history, so a newer build can always update an older one.
+val buildNumber = System.getenv("KASSA_BUILD")?.toIntOrNull() ?: 1
 val keystorePath: String? = System.getenv("KASSA_KEYSTORE")
 
 android {
@@ -16,8 +17,8 @@ android {
         applicationId = "dev.krishnagurram.kassa"
         minSdk = 29
         targetSdk = 35
-        versionCode = runNumber
-        versionName = "0.1.$runNumber"
+        versionCode = 100 + buildNumber
+        versionName = "0.2.$buildNumber"
     }
 
     signingConfigs {
