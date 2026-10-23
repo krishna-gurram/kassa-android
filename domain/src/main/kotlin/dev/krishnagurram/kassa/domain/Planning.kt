@@ -79,47 +79,6 @@ object Split {
 }
 
 /**
- * Everything the Today screen needs, computed from plain data.
- * "Daily" categories are top-level expense categories that count toward the daily number and have a budget.
- */
-object TodayPlan {
-    data class Slice(val category: Category, val spent: Long, val budget: Long)
-
-    data class Result(
-        val period: Period,
-        val plan: DailyPlan.Result,
-        val slices: List<Slice>,
-    )
-
-    fun compute(
-        transactions: List<Transaction>,
-        categories: List<Category>,
-        budgets: List<Budget>,
-        today: LocalDate,
-        monthStartDay: Int,
-        zone: ZoneId,
-    ): Result {
-        val period = Period.containing(today, monthStartDay)
-        val byId = categories.associateBy { it.id }
-        val daily = categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE && it.countsTowardDaily && !it.hidden }
-        val spentBefore = if (today.isAfter(period.start)) Spending.byTopCategory(transactions, byId, period.start, today.minusDays(1), zone) else emptyMap()
-        val spentToday = Spending.byTopCategory(transactions, byId, today, today, zone)
-        val slices = daily.map { c ->
-            Slice(c, (spentBefore[c.id] ?: 0) + (spentToday[c.id] ?: 0), Budgets.amountFor(c.id, period.yearMonth, budgets) ?: 0)
-        }
-        val budget = slices.sumOf { it.budget }
-        val plan = DailyPlan.compute(
-            budget = budget,
-            spentBeforeToday = daily.sumOf { spentBefore[it.id] ?: 0 },
-            spentToday = daily.sumOf { spentToday[it.id] ?: 0 },
-            period = period,
-            today = today,
-        )
-        return Result(period, plan, slices.filter { it.spent > 0 || it.budget > 0 }.sortedByDescending { it.spent })
-    }
-}
-
-/**
  * Spending this week so far, next to what a usual week looks like by the same weekday.
  * "Usual" is the average of up to [weeks] previous weeks, counting only weeks that start on or after the first
  * entry, so a new ledger isn't compared against empty weeks. Spending is expenses at your share.

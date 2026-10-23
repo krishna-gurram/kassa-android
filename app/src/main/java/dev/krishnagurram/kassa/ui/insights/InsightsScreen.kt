@@ -330,7 +330,7 @@ private fun Compare(label: String, amount: Long) {
 @Composable
 internal fun Head(title: String, link: String? = null, onLink: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
         if (link != null) Text("$link  ›", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onLink).padding(horizontal = 4.dp, vertical = 4.dp))
     }

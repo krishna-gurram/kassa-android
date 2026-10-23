@@ -29,8 +29,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.krishnagurram.kassa.domain.Category
+import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
@@ -49,7 +51,8 @@ import java.time.Instant
 fun SubcategoryList(
     ledger: Ledger,
     parent: Category,
-    onSave: (Category) -> Unit,
+    /** Saves a subcategory; the flag is true for quiet changes (reordering). */
+    onSave: (Category, Boolean) -> Unit,
     onAdd: (String) -> Unit,
     onMerge: (from: Category, into: Category) -> Unit,
 ) {
@@ -73,21 +76,22 @@ fun SubcategoryList(
         val (a, n) = figures[id] ?: (0L to 0)
         figures[id] = (a + t.categoryAmount) to (n + 1)
     }
-    fun taken(name: String, except: Long?) = all.any { it.id != except && it.name.equals(name.trim(), ignoreCase = true) }
+    fun problem(name: String, except: Long?) = InputRules.nameProblem(name, "subcategory", InputRules.CATEGORY_NAME_MAX,
+        taken = { n -> all.any { it.id != except && it.name.equals(n, ignoreCase = true) } })
 
     SectionHeader("Subcategories", "${active.size}")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).padding(horizontal = 12.dp)) {
         active.forEachIndexed { i, s ->
             if (renaming == s.id) {
-                NameField(s.name, "Name", button = "Save", keepOpen = false, error = { n -> if (taken(n, s.id)) "$n is already here." else null },
-                    onDone = { n -> if (n != null && n != s.name) onSave(s.copy(name = n)); renaming = null })
+                NameField(s.name, "Name", button = "Save", keepOpen = false, error = { n -> problem(n, s.id) },
+                    onDone = { n -> if (n != null && n != s.name) onSave(s.copy(name = n), false); renaming = null })
             } else {
                 var menu by remember(s.id) { mutableStateOf(false) }
                 var moveMenu by remember(s.id) { mutableStateOf(false) }
                 var mergeMenu by remember(s.id) { mutableStateOf(false) }
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink,
+                        s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { renaming = s.id; adding = false }.padding(vertical = 10.dp),
                     )
                     val (amt, n) = figures[s.id] ?: (0L to 0)
@@ -109,18 +113,18 @@ fun SubcategoryList(
                         DropdownMenu(moveMenu, { moveMenu = false }) {
                             ledger.categories.filter { it.parentId == null && it.kind == parent.kind && !it.hidden && it.id != parent.id }
                                 .sortedBy { it.name.lowercase() }
-                                .forEach { top -> DropdownMenuItem({ Text(top.name) }, { moveMenu = false; onSave(s.copy(parentId = top.id, color = top.color)) }) }
+                                .forEach { top -> DropdownMenuItem({ Text(top.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { moveMenu = false; onSave(s.copy(parentId = top.id, color = top.color), false) }) }
                         }
                         DropdownMenu(mergeMenu, { mergeMenu = false }) {
                             DropdownMenuItem({ Text("${parent.name}, no subcategory") }, { mergeMenu = false; merging = s to parent })
-                            active.filter { it.id != s.id }.forEach { o -> DropdownMenuItem({ Text(o.name) }, { mergeMenu = false; merging = s to o }) }
+                            active.filter { it.id != s.id }.forEach { o -> DropdownMenuItem({ Text(o.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { mergeMenu = false; merging = s to o }) }
                         }
                     }
                 }
             }
             HorizontalDivider(color = Kassa.colors.line)
         }
-        if (adding) NameField("", "New subcategory", button = "Add", keepOpen = true, error = { n -> if (taken(n, null)) "$n is already here." else null },
+        if (adding) NameField("", "New subcategory", button = "Add", keepOpen = true, error = { n -> problem(n, null) },
             onDone = { n -> if (n == null) adding = false else onAdd(n) })
         else Text(
             "+ Add subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2,
@@ -133,8 +137,8 @@ fun SubcategoryList(
         }
         if (showArchived) archived.forEach { s ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(s.name, style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onSave(s.copy(hidden = false)) }) { Text("Restore", color = Kassa.colors.ink) }
+                Text(s.name, style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onSave(s.copy(hidden = false), false) }) { Text("Restore", color = Kassa.colors.ink) }
             }
         }
     }
@@ -142,7 +146,7 @@ fun SubcategoryList(
     confirmArchive?.let { s ->
         ConfirmDialog(
             title = "Archive ${s.name}?", body = "It leaves the pickers. Past entries keep it, and you can restore it here.",
-            confirm = "Archive", onConfirm = { onSave(s.copy(hidden = true)); confirmArchive = null }, onDismiss = { confirmArchive = null },
+            confirm = "Archive", onConfirm = { onSave(s.copy(hidden = true), false); confirmArchive = null }, onDismiss = { confirmArchive = null },
         )
     }
     merging?.let { (from, into) ->
@@ -155,10 +159,10 @@ fun SubcategoryList(
 }
 
 /** Swaps two neighbours' order, renumbering the list so the order is stable even when old values tie. */
-private fun swap(list: List<Category>, a: Int, b: Int, onSave: (Category) -> Unit) {
+private fun swap(list: List<Category>, a: Int, b: Int, onSave: (Category, Boolean) -> Unit) {
     val order = list.toMutableList()
     val x = order[a]; order[a] = order[b]; order[b] = x
-    order.forEachIndexed { i, c -> if (c.sortOrder != i) onSave(c.copy(sortOrder = i)) }
+    order.forEachIndexed { i, c -> if (c.sortOrder != i) onSave(c.copy(sortOrder = i), true) }
 }
 
 /** An inline name field. Enter or the button submits; with [keepOpen] it clears for the next one. Null means cancel. */
@@ -169,7 +173,7 @@ private fun NameField(initial: String, label: String, button: String, keepOpen: 
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val submit: () -> Unit = {
-        val n = text.trim()
+        val n = InputRules.clean(text)
         problem = if (n.isEmpty()) null else error(n)
         if (n.isEmpty()) onDone(null)
         else if (problem == null) { onDone(n); if (keepOpen) text = "" }
@@ -177,7 +181,7 @@ private fun NameField(initial: String, label: String, button: String, keepOpen: 
     Column(Modifier.padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
-                text, { text = it; problem = null }, singleLine = true, label = { Text(label) },
+                text, { text = InputRules.typed(it, InputRules.CATEGORY_NAME_MAX); problem = null }, singleLine = true, label = { Text(label) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
                 modifier = Modifier.weight(1f).focusRequester(focus),

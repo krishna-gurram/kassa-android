@@ -19,7 +19,11 @@ android {
         targetSdk = 35
         versionCode = 100 + buildNumber
         versionName = "0.2.$buildNumber"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    // Migration tests build old databases from these exported schemas.
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
     signingConfigs {
         create("release") {
@@ -33,6 +37,10 @@ android {
     }
 
     buildTypes {
+        // A debug build installs beside the real app, so tests on a phone or emulator never touch its data.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             // R8 strips the thousands of unused icons and shrinks the APK; see proguard-rules.pro.
             isMinifyEnabled = true
@@ -94,4 +102,11 @@ dependencies {
     implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.org.json)
+
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.kotlin.test)
 }

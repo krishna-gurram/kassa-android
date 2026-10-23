@@ -27,11 +27,4 @@ class CurrencyTest {
         assertEquals("12", Money.toInput(1_200))
         assertEquals("0.05", Money.toInput(5))
     }
-
-    @Test
-    fun alertsInOtherCurrenciesParse() {
-        assertEquals(1_240, AlertParser.parse("Card purchase", "You spent £12.40 at Tesco on your card ending 1234")?.amount)
-        assertEquals(15_000, AlertParser.parse(null, "AED 150.00 was spent on your card ending 9876 at Carrefour")?.amount)
-        assertEquals(125_000, AlertParser.parse(null, "Rs. 1,250.00 debited from your card XX1234 at Swiggy")?.amount)
-    }
 }

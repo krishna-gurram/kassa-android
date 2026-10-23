@@ -47,7 +47,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ci-output
-          ./gradlew :domain:test :importer:test --stacktrace 2>&1 | tee ci-output/tests.log
+          ./gradlew :domain:test :importer:test :app:testDebugUnitTest --stacktrace 2>&1 | tee ci-output/tests.log
 
       - name: Prepare signing key
         env:
@@ -113,9 +113,17 @@ jobs:
   smoke:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
+
+      # The device tests compile a debug build on this machine.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
 
       - uses: actions/download-artifact@v4
         with:
@@ -142,7 +150,9 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: mv app-release.apk kassa.apk && bash .github/scripts/smoke.sh
+          script: |
+            mv app-release.apk kassa.apk && bash .github/scripts/smoke.sh
+            bash .github/scripts/device-tests.sh
 
       - name: Save screenshots and logs
         if: always()

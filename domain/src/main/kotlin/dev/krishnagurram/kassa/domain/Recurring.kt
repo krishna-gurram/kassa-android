@@ -59,17 +59,3 @@ object RecurringRules {
         return d.takeIf { it.isAfter(today) && !it.isAfter(today.plusDays(days)) && r.handledMonth < Budgets.key(YearMonth.from(today)) }
     }
 }
-
-/** A stock or fund in an investment account, valued at the last price the user entered. */
-data class Holding(
-    val id: Long = 0,
-    val accountId: Long,
-    val ticker: String,
-    /** Shares in millionths, so fractional shares stay exact. */
-    val microShares: Long,
-    val price: Long,
-    val priceMillis: Long,
-) {
-    val value: Long get() = Math.round(microShares / 1_000_000.0 * price)
-    val shares: Double get() = microShares / 1_000_000.0
-}

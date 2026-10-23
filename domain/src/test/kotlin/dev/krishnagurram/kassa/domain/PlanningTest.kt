@@ -33,23 +33,6 @@ class PlanningTest {
     }
 
     @Test
-    fun todayRollsSubcategoriesUpAndSkipsBills() {
-        val txs = listOf(
-            Transaction(kind = TxKind.EXPENSE, amount = 20_000, accountId = 1, categoryId = 2, epochMillis = at("2026-10-05")),
-            Transaction(kind = TxKind.EXPENSE, amount = 10_000, accountId = 1, categoryId = 1, epochMillis = at("2026-10-22"), myShare = 5_000),
-            Transaction(kind = TxKind.EXPENSE, amount = 241_000, accountId = 1, categoryId = 3, epochMillis = at("2026-10-01")),
-        )
-        val r = TodayPlan.compute(txs, listOf(groceries, costco, home), listOf(Budget(1, 0, 85_000), Budget(3, 0, 300_000)),
-            LocalDate.parse("2026-10-22"), 1, zone)
-        assertEquals(85_000, r.plan.budget)
-        assertEquals(20_000, r.plan.spentBeforeToday)
-        assertEquals(5_000, r.plan.spentToday)
-        // (85,000 - 20,000) / 10 days - 5,000 today
-        assertEquals(1_500, r.plan.safeToday)
-        assertEquals(listOf(1L), r.slices.map { it.category.id })
-    }
-
-    @Test
     fun personBalanceCombinesSplitsAndPayments() {
         val loans = listOf(LoanEntry(personId = 7, amount = 14_230, epochMillis = 0), LoanEntry(personId = 7, amount = -6_000, epochMillis = 0))
         val txs = listOf(

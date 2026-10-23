@@ -81,7 +81,7 @@ fun ConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Kassa.colors.raised,
-        title = { Text(title, style = KassaType.section, color = Kassa.colors.ink) },
+        title = { Text(title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = { Text(body, style = KassaType.body, color = Kassa.colors.ink2) },
         confirmButton = {
             TextButton(onClick = { onDismiss(); onConfirm() }) {

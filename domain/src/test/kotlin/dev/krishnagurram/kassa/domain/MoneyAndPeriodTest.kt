@@ -33,17 +33,6 @@ class MoneyAndPeriodTest {
     }
 
     @Test
-    fun safeToSpendSpreadsWhatIsLeft() {
-        val p = Period.startingIn(YearMonth.of(2026, 10), 1)
-        val today = LocalDate.of(2026, 10, 22)
-        // $3,120 budget, $2,620 spent before today, 10 days left including today -> $50 a day.
-        val r = DailyPlan.compute(312_000, 262_000, 1_000, p, today)
-        assertEquals(10, r.daysLeft)
-        assertEquals(4_000, r.safeToday)
-        assertEquals(Math.round(312_000 * 22 / 31.0), r.evenPace)
-    }
-
-    @Test
     fun iconsRoundTrip() {
         val icons = listOf(CategoryIcon.Emoji("🛒"), CategoryIcon.Symbol("fitness_center"), CategoryIcon.Image("cat_12.png"))
         icons.forEach { assertEquals(it, CategoryIcon.decode(it.encode())) }

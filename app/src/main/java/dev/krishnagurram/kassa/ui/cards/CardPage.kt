@@ -24,14 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -46,10 +44,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import dev.krishnagurram.kassa.data.EntryDraft
+import dev.krishnagurram.kassa.data.repo.EntryDraft
+import androidx.compose.ui.text.style.TextOverflow
 import dev.krishnagurram.kassa.domain.AccountType
+import dev.krishnagurram.kassa.domain.InputRules
+import dev.krishnagurram.kassa.ui.common.AmountField
 import dev.krishnagurram.kassa.domain.CardCycle
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Transaction
@@ -93,59 +93,6 @@ fun cardsByDueDate(ledger: Ledger): List<CardSnapshotFor> {
         cards.filter { it.snapshot.payable == 0L }.sortedBy { it.snapshot.nextClose }
 }
 
-/** How the cards list is ordered. */
-enum class CardSort(val label: String) {
-    DUE("Due date"), NAME("Name"), PAYABLE("Balance payable"), TOTAL("Total balance"), OUTSTANDING("Outstanding");
-}
-
-fun sortCards(ledger: Ledger, by: CardSort): List<CardSnapshotFor> = when (by) {
-    CardSort.DUE -> cardsByDueDate(ledger)
-    CardSort.NAME -> ledger.cards().sortedBy { it.account.name.lowercase() }
-    CardSort.PAYABLE -> ledger.cards().sortedByDescending { it.snapshot.payable }
-    CardSort.TOTAL -> ledger.cards().sortedByDescending { it.snapshot.totalBalance }
-    CardSort.OUTSTANDING -> ledger.cards().sortedByDescending { it.snapshot.outstanding }
-}
-
-/** Every card under one total split into balance payable and outstanding, sorted the way you pick. */
-@Composable
-fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Long?, onOpen: (Long) -> Unit) {
-    var sort by rememberSaveable { mutableStateOf(CardSort.DUE) }
-    var menu by remember { mutableStateOf(false) }
-    val cards = sortCards(ledger, sort)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        Text("Cards", style = KassaType.title, color = Kassa.colors.ink)
-        Gap(14)
-        if (cards.isEmpty()) {
-            Text("No cards yet. Add a credit card in Accounts with its statement day and due day.", style = KassaType.body, color = Kassa.colors.ink2)
-            return@Column
-        }
-        CardTotals(cards)
-        Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("${cards.size} cards", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-            androidx.compose.foundation.layout.Box {
-                Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).clickable { menu = true }.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Sort: ${sort.label}", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.ExpandMore, null, tint = Kassa.colors.ink2, modifier = Modifier.padding(start = 2.dp).size(18.dp))
-                }
-                androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
-                    CardSort.entries.forEach { o ->
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text(o.label, style = if (o == sort) KassaType.bodyStrong else KassaType.body, color = Kassa.colors.ink) },
-                            onClick = { sort = o; menu = false },
-                        )
-                    }
-                }
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedCard) { onOpen(c.account.id) } }
-        }
-    }
-}
-
 /**
  * A card figure as shown everywhere: what's owed in ink, a credit (paid past zero) as a green +amount.
  * Nothing is clamped, so 159 paid on 100 payable shows +59 and the total drops by it.
@@ -154,43 +101,6 @@ fun cardMoney(v: Long): String = if (v < 0) Money.format(-v, showPlus = true) el
 
 @Composable
 fun cardTint(v: Long, owed: androidx.compose.ui.graphics.Color = Kassa.colors.ink): androidx.compose.ui.graphics.Color = if (v < 0) Kassa.colors.positive else owed
-
-/** Total card balance, split into balance payable and outstanding. Used on Cards and in Accounts. */
-@Composable
-fun CardTotals(cards: List<CardSnapshotFor>) {
-    val payable = cards.sumOf { it.snapshot.balancePayable }
-    val outstanding = cards.sumOf { it.snapshot.outstanding }
-    RaisedPanel {
-        Text("Total card balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-        dev.krishnagurram.kassa.ui.today.BigMoney(Math.abs(payable + outstanding), sizeSp = 40f, color = cardTint(payable + outstanding))
-        HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                Text(cardMoney(payable), style = KassaType.stat, color = cardTint(payable), maxLines = 1)
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
-                Text(Money.format(outstanding), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
-            }
-        }
-    }
-}
-
-/** Due state in a few words: paid in full, past due, due soon or the due date. */
-fun dueStatus(c: CardSnapshotFor, today: LocalDate): Pair<String, Tone> {
-    val s = c.snapshot
-    val days = s.daysUntilDue(today)
-    return when {
-        s.statementTotal <= 0 && s.payable == 0L -> "No statement balance" to Tone.NEUTRAL
-        s.payable == 0L -> "Paid in full" to Tone.POSITIVE
-        days < 0 -> "Past due ${-days}d" to Tone.ATTENTION
-        days == 0L -> "Due today" to Tone.ATTENTION
-        days == 1L -> "Due tomorrow" to Tone.ATTENTION
-        days <= 3 -> "Due in $days days" to Tone.ATTENTION
-        else -> "Due ${s.due.format(MONTH_DAY)}" to Tone.NEUTRAL
-    }
-}
 
 /** A calendar-style date: month over day, orange when due within three days, green once paid in full. */
 @Composable
@@ -223,7 +133,7 @@ fun dueTone(c: CardSnapshotFor, today: LocalDate): Tone {
  * balance. Second line: what's payable (bold) and what's outstanding.
  */
 @Composable
-fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, @Suppress("UNUSED_PARAMETER") showDivider: Boolean = true, onClick: () -> Unit) {
+fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, onClick: () -> Unit) {
     val s = c.snapshot
     val shape = RoundedCornerShape(18.dp)
     Row(
@@ -368,8 +278,9 @@ private fun Box2(modifier: Modifier, content: @Composable () -> Unit) {
 
 private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
 
+/** The card's own default payment account, if you set one and it's still open. Nothing else is guessed. */
 private fun defaultPayFrom(c: CardSnapshotFor, ledger: Ledger): Long? =
-    c.account.payFromId ?: ledger.accounts.accounts.firstOrNull { it.type == AccountType.CHECKING && !it.archived }?.id
+    c.account.payFromId?.takeIf { id -> ledger.accounts.accounts.any { it.id == id && !it.archived } }
 
 /** Record a card payment: balance payable, total balance or another amount, from any account, on any date. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -384,11 +295,12 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     var pickDate by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
+    var amountProblem by remember { mutableStateOf<String?>(null) }
     val sources = ledger.accounts.accounts.filter { !it.archived && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
-            Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink)
+            Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Amount", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${s.due.format(DAY_MONTH_DAY)}", option == "payable") { option = "payable" }
             if (total > 0) Option(
@@ -397,10 +309,8 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
                 option == "total",
             ) { option = "total" }
             Option("Other amount", "A partial or extra payment", option == "other") { option = "other" }
-            if (option == "other") OutlinedTextField(
-                other, { other = it; error = null }, singleLine = true, label = { Text("Amount") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                textStyle = KassaType.body, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            if (option == "other") AmountField(
+                other, { other = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth().padding(top = 8.dp), problem = amountProblem,
             )
             Text("From", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             FlowRow { sources.forEach { a -> Chip(a.name, selected = from == a.id) { from = a.id; error = null } } }
@@ -411,8 +321,9 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Gap(12)
             PrimaryButton(if (amount > 0) "Record ${Money.format(amount)} payment" else "Enter an amount") {
-                error = when { amount <= 0 -> "Enter an amount."; from == null -> "Pick the account it's paid from."; else -> null }
-                if (error == null) onPay(
+                amountProblem = InputRules.amountProblem(amount)
+                error = if (from == null) "Pick the account it's paid from." else null
+                if (amountProblem == null && error == null) onPay(
                     EntryDraft(
                         id = null, kind = TxKind.TRANSFER, amount = amount, accountId = from, toAccountId = c.account.id,
                         categoryId = null, personId = null,

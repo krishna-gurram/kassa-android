@@ -7,6 +7,7 @@ import dev.krishnagurram.kassa.domain.Budget
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
 import dev.krishnagurram.kassa.domain.CategoryKind
+import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
@@ -76,19 +77,21 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         val groups = mmGroups.mapIndexed { i, g ->
             val id = (i + 1).toLong()
             groupIds[g.uid] = id
-            AccountGroup(id = id, name = g.name.trim(), sortOrder = i)
+            AccountGroup(id = id, name = fit(g.name, InputRules.NAME_MAX), sortOrder = i)
         }
         val groupType = mmGroups.associate { it.uid to it.type }
 
         // Accounts
         val accountIds = HashMap<String, Long>()
+        // Kassa needs every account name to be unique, so a repeated Money Manager name gets " 2", " 3" and so on.
+        val accountNames = uniqueNames(source.assets().sortedBy { it.order }.map { fit(it.name, InputRules.NAME_MAX - 3) })
         val accounts = source.assets().sortedBy { it.order }.mapIndexed { i, a ->
             val id = (i + 1).toLong()
             accountIds[a.uid] = id
             val type = accountTypeFor(groupType[a.groupUid], a.name)
             Account(
                 id = id,
-                name = a.name.trim(),
+                name = accountNames[i],
                 type = type,
                 groupId = a.groupUid?.let { groupIds[it] },
                 openingBalance = a.startingAmount?.let { Money.parseCents(it) } ?: 0L,
@@ -166,7 +169,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
             val accountId = accountIds[r.assetUid]
             if (amount == null || accountId == null) { badRows++; continue }
             if (amount == 0L) zero++
-            val note = r.note?.trim().orEmpty()
+            val note = fit(r.note.orEmpty(), InputRules.NOTE_MAX)
             val tx = when (r.doType) {
                 0, 1 -> {
                     val cat = r.categoryUid?.let { catIds[it] }
@@ -306,9 +309,30 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
             else -> if (accountName.contains("card", true)) AccountType.CREDIT_CARD else AccountType.OTHER_ASSET
         }
 
-        /** "🛒Groceries " becomes (Emoji("🛒"), "Groceries"). Names without a leading symbol keep the default icon. */
+        /** A name or note as Kassa stores it: tidied by [InputRules.clean] and cut to [max] characters. */
+        fun fit(raw: String, max: Int): String = InputRules.clean(raw).take(max).trim()
+
+        /** [names] with repeats (ignoring case) numbered: "Cash", "Cash 2", "Cash 3". */
+        fun uniqueNames(names: List<String>): List<String> {
+            val used = HashSet<String>()
+            return names.map { name ->
+                var candidate = name
+                var n = 2
+                while (!used.add(candidate.lowercase())) candidate = "$name ${n++}"
+                candidate
+            }
+        }
+
+        /**
+         * "🛒Groceries " becomes (Emoji("🛒"), "Groceries"). Names without a leading symbol keep the default icon.
+         * The name is cut to [InputRules.CATEGORY_NAME_MAX].
+         */
         fun splitEmoji(raw: String): Pair<CategoryIcon, String> {
-            val text = raw.trim()
+            val (icon, name) = splitLeadingSymbol(raw.trim())
+            return icon to fit(name, InputRules.CATEGORY_NAME_MAX)
+        }
+
+        private fun splitLeadingSymbol(text: String): Pair<CategoryIcon, String> {
             var i = 0
             while (i < text.length) {
                 val cp = text.codePointAt(i)

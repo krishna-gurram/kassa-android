@@ -1,36 +1,52 @@
 package dev.krishnagurram.kassa
 
 import android.app.Application
-import dev.krishnagurram.kassa.data.AssistRepository
-import dev.krishnagurram.kassa.data.Backup
-import dev.krishnagurram.kassa.data.KassaRepository
 import dev.krishnagurram.kassa.data.Settings
+import dev.krishnagurram.kassa.data.backup.BackupRepository
 import dev.krishnagurram.kassa.data.db.KassaDatabase
+import dev.krishnagurram.kassa.data.jobs.DailyJobs
+import dev.krishnagurram.kassa.data.repo.AccountRepository
+import dev.krishnagurram.kassa.data.repo.BillRepository
+import dev.krishnagurram.kassa.data.repo.CategoryRepository
+import dev.krishnagurram.kassa.data.repo.EntryRepository
+import dev.krishnagurram.kassa.data.repo.ImportRepository
+import dev.krishnagurram.kassa.data.repo.InvestmentRepository
+import dev.krishnagurram.kassa.data.repo.PeopleRepository
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.time.LocalDateTime
 
-/** Hand-wired dependencies. Small enough that a DI framework would cost more than it saves. */
+/** The app's single instances, wired by hand: few enough that a DI framework would cost more than it saves. */
 class KassaApplication : Application() {
-    private val database: KassaDatabase by lazy { KassaDatabase.open(this) }
-    val repository: KassaRepository by lazy { KassaRepository(database) }
-    val assist: AssistRepository by lazy { AssistRepository(database, repository) }
-    val settings: Settings by lazy { Settings(this) }
-    val backup: Backup by lazy { Backup(this, database, settings) }
+    private val database by lazy { KassaDatabase.open(this) }
+
+    val settings by lazy { Settings(this) }
+    val entries by lazy { EntryRepository(database) }
+    val accounts by lazy { AccountRepository(database) }
+    val categories by lazy { CategoryRepository(database) }
+    val people by lazy { PeopleRepository(database) }
+    val bills by lazy { BillRepository(database) }
+    val investments by lazy { InvestmentRepository(database, entries) }
+    val imports by lazy { ImportRepository(database) }
+    val backups by lazy { BackupRepository(this, database, settings) }
+
+    /** The last crash, kept on the phone for Settings to copy. Nothing is sent anywhere. */
+    val crashFile: File get() = File(filesDir, "last-crash.txt")
 
     override fun onCreate() {
         super.onCreate()
-        // Keep the last crash on the phone so it can be copied from Settings; nothing is sent anywhere.
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, e ->
             runCatching {
-                val trace = java.io.StringWriter().also { e.printStackTrace(java.io.PrintWriter(it)) }.toString()
-                crashFile().writeText("${java.time.LocalDateTime.now()} ${BuildConfigInfo.versionName}\n$trace")
+                val trace = StringWriter().also { e.printStackTrace(PrintWriter(it)) }
+                crashFile.writeText("${LocalDateTime.now()} ${BuildConfigInfo.versionName}\n$trace")
             }
             previous?.uncaughtException(thread, e)
         }
-        // Reading the settings sets the currency before anything formats an amount, including bank alerts.
+        // Loading settings sets the currency before anything formats an amount.
         settings.currency
-        // Keep the daily backup and reminder booked; cheap, and fixes anything a restart or update dropped.
-        runCatching { dev.krishnagurram.kassa.data.jobs.DailyJobs.refresh(this) }
+        // Re-book the daily backup and reminder in case an update or restart dropped them.
+        runCatching { DailyJobs.refresh(this) }
     }
-
-    fun crashFile(): java.io.File = java.io.File(filesDir, "last-crash.txt")
 }

@@ -100,7 +100,7 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, o
     Gap(12)
     if (firstRun) {
         // The currency this phone shows; it can change later in Settings.
-        val settings = (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings
+        val settings = dev.krishnagurram.kassa.ui.LocalSettings.current
         val code by settings.currency.collectAsState()
         Text("Currency", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

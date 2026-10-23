@@ -12,6 +12,7 @@ import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
 import dev.krishnagurram.kassa.domain.CategoryKind
 import dev.krishnagurram.kassa.domain.Holding
+import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.LoanEntry
 import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.Person
@@ -113,20 +114,14 @@ data class RecurringEntity(
     val handledMonth: Int,
 )
 
-/** Something waiting for the user on Today: a captured bank alert, or an investment transfer to allocate. */
-@Entity(tableName = "pending_items")
-data class PendingEntity(
+/** An [InvestmentTransfer]: money moved into an investment account, waiting to be explained. */
+@Entity(tableName = "investment_transfers", indices = [Index("accountId")])
+data class InvestmentTransferEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    /** ALERT or ALLOCATE. */
-    val type: String,
+    val transactionId: Long,
+    val accountId: Long,
     val amount: Long,
-    val merchant: String?,
-    val accountId: Long?,
-    val categoryId: Long?,
     val epochMillis: Long,
-    val source: String?,
-    val isCredit: Boolean,
-    val txId: Long?,
 )
 
 @Entity(tableName = "holdings", indices = [Index("accountId")])
@@ -137,15 +132,6 @@ data class HoldingEntity(
     val microShares: Long,
     val price: Long,
     val priceMillis: Long,
-)
-
-/** Which account a notification belongs to: by app, and optionally by the card's last four digits. */
-@Entity(tableName = "alert_rules")
-data class AlertRuleEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val packageName: String,
-    val last4: String?,
-    val accountId: Long,
 )
 
 /** Result row for the balance query. */
@@ -194,3 +180,5 @@ fun RecurringEntity.toDomain() = Recurring(id, name, categoryId, accountId, dayO
 fun Recurring.toEntity() = RecurringEntity(id, name, categoryId, accountId, dayOfMonth, fixedAmount, active, handledMonth)
 fun HoldingEntity.toDomain() = Holding(id, accountId, ticker, microShares, price, priceMillis)
 fun Holding.toEntity() = HoldingEntity(id, accountId, ticker, microShares, price, priceMillis)
+fun InvestmentTransferEntity.toDomain() = InvestmentTransfer(id, transactionId, accountId, amount, epochMillis)
+fun InvestmentTransfer.toEntity() = InvestmentTransferEntity(id, transactionId, accountId, amount, epochMillis)

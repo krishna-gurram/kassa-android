@@ -25,7 +25,7 @@ sealed interface ImportState {
 }
 
 class ImportViewModel(app: Application) : AndroidViewModel(app) {
-    private val repository = (app as KassaApplication).repository
+    private val imports = (app as KassaApplication).imports
     private val _state = MutableStateFlow<ImportState>(ImportState.Idle)
     val state: StateFlow<ImportState> = _state
 
@@ -55,7 +55,7 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = ImportState.Saving
         viewModelScope.launch {
             _state.value = try {
-                withContext(Dispatchers.IO) { repository.replaceWith(plan) }
+                withContext(Dispatchers.IO) { imports.replaceWith(plan) }
                 ImportState.Done(plan.transactions.size)
             } catch (e: Exception) {
                 ImportState.Failed("Nothing was saved. ${e.message ?: e.javaClass.simpleName}")

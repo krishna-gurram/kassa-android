@@ -15,8 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.krishnagurram.kassa.data.db.PendingEntity
+import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.RecurringRules
@@ -31,45 +32,24 @@ import java.time.Instant
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
-/** Callbacks for the things that wait on Today. */
+/** What the review list can do. Nothing here posts by itself: each choice is the user's. */
 interface NeedsYouActions {
-    fun addAlert(p: PendingEntity)
-    fun editAlert(p: PendingEntity)
-    fun dismissAlert(p: PendingEntity)
     fun approve(r: Recurring, amount: Long)
     fun editRecurring(r: Recurring, amount: Long)
     fun skip(r: Recurring)
-    fun allocate(p: PendingEntity)
+    fun allocate(t: InvestmentTransfer)
 }
 
-/** Bank alerts to confirm, recurring bills to approve, investment transfers to explain. Nothing posts on its own. */
+/** Bills due today and investment transfers waiting to be explained. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
-    val alerts = ledger.assist.pending.filter { it.type == "ALERT" }
-    val allocs = ledger.assist.pending.filter { it.type == "ALLOCATE" }
-    val due = ledger.dueRecurring()
-    val count = alerts.size + allocs.size + due.size
+    val transfers = ledger.transfers
+    val due = ledger.dueBills()
+    val count = transfers.size + due.size
     if (count == 0) return
     SectionHeader("Pending review", "$count to confirm")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
-        alerts.forEach { p ->
-            val cat = p.categoryId?.let { ledger.categoryById[it] }
-            val top = cat?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-            val acct = p.accountId?.let { ledger.accountById[it] }
-            val time = Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone)
-            Card(
-                kicker = "From a bank alert, ${time.format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))}",
-                badge = { CategoryBadge(top) },
-                title = p.merchant ?: if (p.isCredit) "Refund" else "Card purchase",
-                subtitle = listOfNotNull(cat?.name ?: "Pick a category", acct?.name ?: "pick an account").joinToString(" on "),
-                amount = (if (p.isCredit) "+" else "") + Money.format(p.amount),
-            ) {
-                if (cat != null && acct != null) Chip("Add it", selected = true) { actions.addAlert(p) }
-                Chip(if (cat != null && acct != null) "Edit" else "Finish it", selected = cat == null || acct == null) { actions.editAlert(p) }
-                Chip("Dismiss", selected = false, outlined = true) { actions.dismissAlert(p) }
-            }
-        }
         due.forEach { r ->
             val est = RecurringRules.estimate(r, ledger.recent, ledger.today.plusDays(1), ledger.zone)
             val last = RecurringRules.recent(r, ledger.recent)
@@ -89,8 +69,8 @@ fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
                 Chip("Skip this month", selected = false, outlined = true) { actions.skip(r) }
             }
         }
-        allocs.forEach { p ->
-            val acct = p.accountId?.let { ledger.accountById[it] }
+        transfers.forEach { p ->
+            val acct = ledger.accountById[p.accountId]
             Card(
                 kicker = "Investment transfer on ${Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).format(DateTimeFormatter.ofPattern("MMM d"))}",
                 badge = { GlyphBadge("↗") },
@@ -120,8 +100,8 @@ private fun Card(
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             badge()
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                Text(subtitle, style = KassaType.small, color = Kassa.colors.ink2)
+                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text(amount, style = KassaType.bodyStrong, color = Kassa.colors.ink)
         }

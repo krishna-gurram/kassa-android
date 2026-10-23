@@ -32,21 +32,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krishnagurram.kassa.domain.Budgets
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
 import dev.krishnagurram.kassa.domain.CategoryKind
+import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.CategoryBadge
+import dev.krishnagurram.kassa.ui.common.ConfirmDialog
 import dev.krishnagurram.kassa.ui.common.CategoryIconView
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.common.SectionHeader
 import dev.krishnagurram.kassa.ui.entry.Chip
-import dev.krishnagurram.kassa.ui.entry.SearchBox
+import dev.krishnagurram.kassa.ui.common.SearchBox
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
+import dev.krishnagurram.kassa.ui.importer.SecondaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 
@@ -64,7 +68,8 @@ fun CategoryEditor(
     original: Category,
     onSave: (CategoryEdit) -> Unit,
     onAddSub: (Category, String) -> Unit,
-    onSaveSub: (Category) -> Unit,
+    /** Saves a subcategory; quiet when it's just reordering. */
+    onSaveSub: (Category, Boolean) -> Unit,
     onMergeSub: (Category, Category) -> Unit,
     onMerge: (Category, Category) -> Unit,
 ) {
@@ -88,17 +93,24 @@ fun CategoryEditor(
     var mergeInto by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val preview = original.copy(name = name.ifBlank { "Category" }, icon = icon, color = color)
-    val subs = ledger.categories.filter { it.parentId == original.id && original.id != 0L }
+    // Names are unique among siblings: other top-level categories of the kind, or other subcategories of the parent.
+    val siblings = ledger.categories.filter { it.id != original.id && it.parentId == original.parentId && it.kind == original.kind }
+    val nameProblem = InputRules.nameProblem(name, if (isTop) "category" else "subcategory", InputRules.CATEGORY_NAME_MAX,
+        taken = { n -> siblings.any { it.name.equals(n, ignoreCase = true) } })
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryBadge(preview, size = 56)
             Column(Modifier.padding(start = 14.dp)) {
-                Text(name.ifBlank { "New category" }, style = KassaType.section, color = Kassa.colors.ink)
+                Text(name.ifBlank { "New category" }, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(if (original.kind == CategoryKind.INCOME) "Income" else if (isTop) "Expense category" else "Subcategory", style = KassaType.small, color = Kassa.colors.ink2)
             }
         }
-        OutlinedTextField(name, { name = it; error = null }, singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+        OutlinedTextField(
+            name, { name = InputRules.typed(it, InputRules.CATEGORY_NAME_MAX); error = null }, singleLine = true, label = { Text("Name") },
+            supportingText = { Text("${name.length}/${InputRules.CATEGORY_NAME_MAX}") },
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+        )
 
         SectionHeader("Icon")
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(3.dp)) {
@@ -114,7 +126,7 @@ fun CategoryEditor(
         when (iconTab) {
             0 -> {
                 OutlinedTextField(
-                    typedEmoji, { v -> typedEmoji = v; val t = v.trim(); if (t.isNotEmpty()) icon = CategoryIcon.Emoji(t) },
+                    typedEmoji, { v -> typedEmoji = InputRules.typedEmoji(v); if (typedEmoji.isNotEmpty()) icon = CategoryIcon.Emoji(typedEmoji) },
                     singleLine = true, label = { Text("Type or paste any emoji") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 FlowRow(Modifier.padding(top = 8.dp)) {
@@ -160,9 +172,9 @@ fun CategoryEditor(
 
         if (isTop && original.kind == CategoryKind.EXPENSE) {
             SectionHeader("Budget")
-            OutlinedTextField(budget, { budget = it }, singleLine = true, label = { Text("Every month") }, placeholder = { Text("No budget") },
+            OutlinedTextField(budget, { budget = InputRules.typedAmount(it); error = null }, singleLine = true, label = { Text("Every month") }, placeholder = { Text("No budget") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-            if (!isNew) OutlinedTextField(thisMonth, { thisMonth = it }, singleLine = true,
+            if (!isNew) OutlinedTextField(thisMonth, { thisMonth = InputRules.typedAmount(it); error = null }, singleLine = true,
                 label = { Text("Just for ${month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())}") },
                 placeholder = { Text("Same as every month") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
@@ -185,7 +197,7 @@ fun CategoryEditor(
                 FlowRow(Modifier.padding(top = 6.dp)) { targets.forEach { t -> Chip(t.name, selected = false) { mergeInto = t } } }
             }
             mergeInto?.let { t ->
-                dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+                ConfirmDialog(
                     title = "Move everything into ${t.name}?",
                     body = "Every ${original.name} entry moves to ${t.name}, then ${original.name} is archived. This can't be undone.",
                     confirm = "Move entries", onConfirm = { onMerge(original, t) }, onDismiss = { mergeInto = null },
@@ -199,15 +211,12 @@ fun CategoryEditor(
         fun submit(archive: Boolean) {
             val b = budget.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
             val m = thisMonth.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
-            error = when {
-                name.isBlank() -> "Give it a name."
-                budget.isNotBlank() && b == null -> "The budget isn't a number."
-                thisMonth.isNotBlank() && m == null -> "This month's budget isn't a number."
-                else -> null
-            }
+            error = nameProblem
+                ?: b?.let { InputRules.amountProblem(it) }?.let { "Budget: $it" }
+                ?: m?.let { InputRules.amountProblem(it) }?.let { "This month's budget: $it" }
             if (error == null) onSave(
                 CategoryEdit(
-                    original.copy(name = name.trim(), icon = icon, color = color, countsTowardDaily = counts, hidden = archive),
+                    original.copy(name = InputRules.clean(name), icon = icon, color = color, countsTowardDaily = counts, hidden = archive),
                     budget = b, thisMonthBudget = m, clearThisMonth = thisMonth.isBlank() && monthBudget != null,
                 )
             )
@@ -215,9 +224,9 @@ fun CategoryEditor(
         PrimaryButton(if (isNew) "Add category" else if (hidden) "Restore" else "Save") { submit(archive = false) }
         if (!isNew && !hidden) {
             Gap(8)
-            dev.krishnagurram.kassa.ui.importer.SecondaryButton("Archive", { confirmArchive = true })
+            SecondaryButton("Archive", { confirmArchive = true })
         }
-        if (confirmArchive) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+        if (confirmArchive) ConfirmDialog(
             title = "Archive ${original.name}?",
             body = "It leaves the pickers, budgets and category lists. Past entries keep it, and you can restore it from Archived.",
             confirm = "Archive", onConfirm = { confirmArchive = false; submit(archive = true) }, onDismiss = { confirmArchive = false },

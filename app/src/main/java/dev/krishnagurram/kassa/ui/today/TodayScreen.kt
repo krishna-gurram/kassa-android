@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.today
 
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -71,7 +72,7 @@ fun weekPace(ledger: Ledger): WeekPace.Result =
     WeekPace.compute(ledger.recent, ledger.today, ledger.firstDayOfWeek, ledger.zone)
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
-fun pendingCount(ledger: Ledger): Int = ledger.assist.pending.size + ledger.dueRecurring().size
+fun pendingCount(ledger: Ledger): Int = ledger.transfers.size + ledger.dueBills().size
 
 /** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
 data class Upcoming(val date: java.time.LocalDate, val name: String, val kind: String, val amount: Long?, val accountId: Long?)
@@ -80,7 +81,7 @@ fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
     val until = ledger.today.plusDays(days)
     val cards = ledger.cards().filter { it.snapshot.payable > 0 && !it.snapshot.due.isAfter(until) }
         .map { Upcoming(it.snapshot.due, it.account.name, "Card payment", it.snapshot.payable, it.account.id) }
-    val bills = ledger.assist.recurring.mapNotNull { r ->
+    val bills = ledger.bills.mapNotNull { r ->
         dev.krishnagurram.kassa.domain.RecurringRules.upcoming(r, ledger.today, days)?.let { d ->
             val est = dev.krishnagurram.kassa.domain.RecurringRules.estimate(r, ledger.recent, d, ledger.zone)
             Upcoming(d, r.name, if (r.fixedAmount == null) "Bill, estimated" else "Bill", est, null)
@@ -165,7 +166,7 @@ fun TodayScreen(
 @Composable
 private fun SectionTop(title: String, link: String? = null, onLink: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = KassaType.section, color = Kassa.colors.ink)
+        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.section, color = Kassa.colors.ink)
         Box(Modifier.weight(1f))
         trailing()
         if (link != null && onLink != null) LinkText(link, onLink)
@@ -300,7 +301,7 @@ private fun NetWorthSection(ledger: Ledger, onAccounts: () -> Unit, onCards: () 
     val people = ledger.personBalances().values
     val receivable = people.filter { it > 0 }.sum()
     val payable = -people.filter { it < 0 }.sum()
-    val holdings = ledger.assist.holdings.filter { h -> active.any { it.id == h.accountId } }.sumOf { it.value }
+    val holdings = ledger.holdings.filter { h -> active.any { it.id == h.accountId } }.sumOf { it.value }
     val worth = active.sumOf { bal[it.id] ?: 0 } + holdings + receivable - payable
 
     Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -415,22 +416,3 @@ fun SpendingPage(
 
 private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
 
-@Composable
-fun DateBlock(date: java.time.LocalDate, soon: Boolean) {
-    val bg = if (soon) Kassa.colors.attention.copy(alpha = 0.15f) else Kassa.colors.chip
-    val fg = if (soon) Kassa.colors.attention else Kassa.colors.ink
-    Column(
-        Modifier.size(40.dp, 44.dp).clip(RoundedCornerShape(11.dp)).background(bg),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-    ) {
-        Text(date.format(DateTimeFormatter.ofPattern("MMM")), style = KassaType.tiny, color = if (soon) fg else Kassa.colors.ink2)
-        Text(date.dayOfMonth.toString(), style = KassaType.bodyStrong, color = fg)
-    }
-}
-
-fun inDays(n: Long): String = when {
-    n == 0L -> "today"
-    n == 1L -> "tomorrow"
-    n < 0 -> "${-n} days ago"
-    else -> "in $n days"
-}
