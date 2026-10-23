@@ -101,6 +101,11 @@ jobs:
           name: room-schemas
           path: app/schemas
 
+      - name: Attach schemas to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "schemas-${{ github.run_id }}" $(find app/schemas -name '*.json') --draft --title "Room schemas" --notes "One-off export." || true
+
       # Build logs aren't readable from outside GitHub, so failures are attached to a draft release.
       - name: Save diagnostics
         if: failure()
