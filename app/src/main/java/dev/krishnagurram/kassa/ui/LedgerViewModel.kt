@@ -53,6 +53,10 @@ data class Ledger(
     val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }
     val period: Period get() = Period.containing(today, monthStartDay)
 
+    /** The phone's first day of the week (Sunday in the US). Every "this week" in the app starts here. */
+    val firstDayOfWeek: java.time.DayOfWeek get() = java.time.temporal.WeekFields.of(java.util.Locale.getDefault()).firstDayOfWeek
+    val weekStart: LocalDate get() = dev.krishnagurram.kassa.domain.WeekPace.startOf(today, firstDayOfWeek)
+
     fun cards(): List<CardSnapshotFor> = accounts.accounts
         .filter { it.type.hasStatement && !it.archived && it.statementDay != null }
         .map { CardSnapshotFor(it, CardCycle.snapshot(it, recent, today, zone)) }

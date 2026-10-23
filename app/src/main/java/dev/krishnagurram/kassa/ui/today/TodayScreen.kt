@@ -43,7 +43,6 @@ import dev.krishnagurram.kassa.domain.WeekPace
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.cards.CardRow
 import dev.krishnagurram.kassa.ui.cards.cardsByDueDate
-import dev.krishnagurram.kassa.ui.common.CategoryBreakdown
 import dev.krishnagurram.kassa.ui.common.EntryRow
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.common.IconBadge
@@ -68,7 +67,7 @@ import java.util.Locale
 val CASH_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID)
 
 fun weekPace(ledger: Ledger): WeekPace.Result =
-    WeekPace.compute(ledger.recent, ledger.today, WeekFields.of(Locale.getDefault()).firstDayOfWeek, ledger.zone)
+    WeekPace.compute(ledger.recent, ledger.today, ledger.firstDayOfWeek, ledger.zone)
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
 fun pendingCount(ledger: Ledger): Int = ledger.assist.pending.size + ledger.dueRecurring().size
@@ -360,7 +359,10 @@ private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: 
         .groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
 
-/** Where the week's or the month's spending went: by category, then every entry by day. */
+/**
+ * The one page for "this week" or "this month": the total, every category (the same lines Insights uses), then every
+ * entry by day. Overview's "Where it went" and Insights' "All" open this same page.
+ */
 @Composable
 fun SpendingPage(
     ledger: Ledger,
@@ -370,12 +372,17 @@ fun SpendingPage(
     onBack: (() -> Unit)?,
     onEdit: (Transaction) -> Unit,
     onOpenCategory: (Long) -> Unit,
+    onOpenDay: (java.time.LocalDate) -> Unit,
 ) {
-    val from = if (month) ledger.period.start else weekPace(ledger).start
+    val from = if (month) ledger.period.start else ledger.weekStart
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
     val entries = ledger.recent.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
         .sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id })
-    val byTop = spendingByCategory(ledger, from, kind)
+    val lines = when {
+        income -> dev.krishnagurram.kassa.ui.common.incomeLines(ledger, from, ledger.today)
+        month -> dev.krishnagurram.kassa.ui.common.monthLines(ledger)
+        else -> dev.krishnagurram.kassa.ui.common.weekLines(ledger)
+    }
     val total = entries.sumOf { it.categoryAmount }
     val what = if (income) "income" else "spending"
     val title = if (month) ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " " + what else "This week's $what"
@@ -387,20 +394,16 @@ fun SpendingPage(
                 Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
                 Text("${from.format(DateTimeFormatter.ofPattern("MMM d"))} to today", style = KassaType.tiny, color = Kassa.colors.ink3)
             }
-            Text(Money.format(total), style = KassaType.hero.copy(fontSize = KassaType.hero.fontSize * 0.75f), color = Kassa.colors.ink)
+            BigMoney(total, sizeSp = 34f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
             Text(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"), style = KassaType.small, color = Kassa.colors.ink2)
         }
-        if (entries.isEmpty()) {
-            Gap(16)
-            Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2)
-            return@Column
-        }
-        SectionHeader("By category", "Share")
-        CategoryBreakdown(byTop, onOpen = { c: dev.krishnagurram.kassa.domain.Category -> onOpenCategory(c.id) })
+        SectionHeader("By category")
+        dev.krishnagurram.kassa.ui.common.CategoryLinesAll(lines, if (income) "Nothing received yet" else "No spending yet") { onOpenCategory(it.id) }
         entries.groupBy { dateOf(it, ledger) }.forEach { (day, list) ->
             SectionHeader(
                 when (day) { ledger.today -> "Today"; ledger.today.minusDays(1) -> "Yesterday"; else -> day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")) },
-                Money.format(list.sumOf { it.categoryAmount }),
+                Money.format(list.sumOf { it.categoryAmount }) + "  \u203a",
+                modifier = Modifier.clickable { onOpenDay(day) },
             )
             list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
         }

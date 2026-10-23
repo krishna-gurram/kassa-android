@@ -34,6 +34,12 @@ Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings,
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
+## One page per thing
+Every category opens `CategoryPage`, every entry opens the entry page (`TransactionRow` onClick), every card `CardPage`,
+every day `DayPage`, every store `InsightStorePage`, and "this week"/"this month" opens `SpendingPage`. Category lists
+everywhere use `CategoryLines` in `ui/common/Breakdown.kt`. Reuse these; don't build a second version. "This week" starts on
+the phone's first day of the week (`Ledger.weekStart`).
+
 ## Wording
 Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the
 statement date, **Total balance** is both. Accounts show Assets, Liabilities and Net worth; people are Receivable or

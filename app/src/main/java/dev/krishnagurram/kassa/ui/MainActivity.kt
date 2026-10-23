@@ -270,10 +270,10 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage, load = vm::between)
                 }
-                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) }, onOpenStore = { nav.push(Page.InsightStore(it)) }, onEdit = editFromPage)
-                is Page.InsightStore -> dev.krishnagurram.kassa.ui.insights.InsightStorePage(lg, page.name, padding, onBack, onEdit = editFromPage)
-                is Page.InsightDay -> dev.krishnagurram.kassa.ui.insights.InsightDayPage(lg, java.time.LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = editFromPage)
-                is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
+                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) }, onOpenStore = { nav.push(Page.Store(it)) }, onEdit = editFromPage)
+                is Page.Store -> dev.krishnagurram.kassa.ui.insights.InsightStorePage(lg, page.name, padding, onBack, onEdit = editFromPage)
+                is Page.Day -> dev.krishnagurram.kassa.ui.insights.DayPage(lg, java.time.LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = editFromPage, load = vm::between)
+                is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) }, onOpenDay = { nav.push(Page.Day(it.toEpochDay())) })
                 Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
                 Page.Review -> dev.krishnagurram.kassa.ui.today.ReviewPage(lg, padding, onBack, needs)
                 Page.Import -> Box(Modifier.padding(padding)) {
@@ -295,14 +295,15 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onAccounts = { nav.select(Tab.ACCOUNTS) },
                     onCards = { nav.select(Tab.CARDS) },
                 )
-                Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
+                Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, onOpenDay = { openFromList(Page.Day(it.toEpochDay())) }, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
                 Tab.INSIGHTS -> dev.krishnagurram.kassa.ui.insights.InsightsScreen(
                     lg, padding,
                     actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
                         override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { openFromList(Page.CategoryDetail(category.id)) }
                         override fun open(page: dev.krishnagurram.kassa.ui.insights.InsightPage) { openFromList(Page.Insight(page)) }
                         override fun edit(t: Transaction) { editFromList(t) }
-                        override fun openDay(date: java.time.LocalDate) { openFromList(Page.InsightDay(date.toEpochDay())) }
+                        override fun openDay(date: java.time.LocalDate) { openFromList(Page.Day(date.toEpochDay())) }
+                        override fun openSpending(month: Boolean) { openFromList(Page.Spending(month)) }
                     },
                 )
                 Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })

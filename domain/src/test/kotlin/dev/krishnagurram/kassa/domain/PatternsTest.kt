@@ -34,9 +34,17 @@ class PatternsTest {
     @Test
     fun daysThisWeekLeavesFutureDaysEmpty() {
         val days = Patterns.daysThisWeek(listOf(spend("2026-10-19", 1_000), spend("2026-10-22", 500), spend("2026-10-18", 9_999)), today, zone)
-        assertEquals(DayOfWeek.MONDAY to 1_000L, days[0])
+        assertEquals(LocalDate.of(2026, 10, 19) to 1_000L, days[0])
+        assertEquals(DayOfWeek.MONDAY, days[0].first.dayOfWeek)
         assertEquals(500L, days[3].second)
         assertNull(days[4].second)
+    }
+
+    @Test
+    fun weekCanStartOnSunday() {
+        val days = Patterns.daysThisWeek(listOf(spend("2026-10-18", 700)), today, zone, DayOfWeek.SUNDAY)
+        assertEquals(LocalDate.of(2026, 10, 18) to 700L, days[0])
+        assertNull(days[5].second)
     }
 
     @Test

@@ -21,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,22 +58,8 @@ fun InsightDetailPage(
 ) {
     val p = ledger.period
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PageTop(if (page == InsightPage.BUDGETS) "${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} by category" else page.title, onBack)
+        PageTop(page.title, onBack)
         when (page) {
-            InsightPage.BUDGETS -> {
-                val (spent, none) = monthLines(ledger).partition { it.spent > 0 }
-                Column {
-                    CategoryLines(spent, onOpenCategory)
-                    if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
-                }
-            }
-            InsightPage.WEEK_CATEGORIES -> {
-                val (spent, none) = weekLines(ledger).partition { it.spent > 0 }
-                Column {
-                    CategoryLines(spent, onOpenCategory)
-                    if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
-                }
-            }
             InsightPage.BIG_WEEK, InsightPage.BIG_MONTH -> {
                 val list = bigPurchases(ledger, week = page == InsightPage.BIG_WEEK)
                 if (list.isEmpty()) Empty("No purchases yet.")
@@ -252,16 +240,24 @@ private fun ListRow(title: String, middle: String, value: String, showDivider: B
     if (showDivider) HorizontalDivider(color = Kassa.colors.line)
 }
 
-/** Everything spent on one day, from a tap on the week strip. */
+/** One day: what was spent and every entry that day. Opened from a day anywhere in the app (week strip, Activity, spending page). */
 @Composable
-fun InsightDayPage(ledger: Ledger, date: java.time.LocalDate, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit) {
-    val list = ledger.recent.filter { java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() == date && it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE }
-        .sortedByDescending { it.epochMillis }
+fun DayPage(
+    ledger: Ledger, date: java.time.LocalDate, contentPadding: PaddingValues, onBack: (() -> Unit)?,
+    onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit,
+    load: (Long, Long) -> kotlinx.coroutines.flow.Flow<List<dev.krishnagurram.kassa.domain.Transaction>>,
+) {
+    val loaded by androidx.compose.runtime.remember(date) {
+        load(date.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+    }.collectAsState(initial = null)
+    val list = (loaded ?: ledger.recent.filter { dateOf(it, ledger) == date })
+        .sortedWith(compareByDescending<dev.krishnagurram.kassa.domain.Transaction> { it.epochMillis }.thenByDescending { it.id })
+    val spent = list.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE }.sumOf { it.categoryAmount }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()), onBack)
-        Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())), style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
-        dev.krishnagurram.kassa.ui.today.BigMoney(list.sumOf { it.categoryAmount }, sizeSp = 34f)
-        if (list.isEmpty()) Empty("Nothing spent this day.")
+        PageTop(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())), onBack)
+        Text("Spent", style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        dev.krishnagurram.kassa.ui.today.BigMoney(spent, sizeSp = 34f)
+        if (list.isEmpty()) Empty("Nothing recorded this day.")
         Column(Modifier.padding(top = 8.dp)) {
             list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
         }

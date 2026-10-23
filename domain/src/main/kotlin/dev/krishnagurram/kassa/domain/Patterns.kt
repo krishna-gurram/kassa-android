@@ -47,20 +47,20 @@ object Patterns {
         return previousStart to end
     }
 
-    /** Monday of the week [date] falls in. */
-    fun weekStart(date: LocalDate): LocalDate = date.minusDays((date.dayOfWeek.value - 1).toLong())
+    /** First day of the week [date] falls in, on the week start the phone uses (Monday unless given). */
+    fun weekStart(date: LocalDate, firstDay: DayOfWeek = DayOfWeek.MONDAY): LocalDate = WeekPace.startOf(date, firstDay)
 
-    /** Expenses per day this week so far, Monday first. Days after today are null. */
-    fun daysThisWeek(transactions: Iterable<Transaction>, today: LocalDate, zone: ZoneId): List<Pair<DayOfWeek, Long?>> {
-        val monday = weekStart(today)
+    /** Expenses per day this week so far, from the first day of the week. Days after today are null. */
+    fun daysThisWeek(transactions: Iterable<Transaction>, today: LocalDate, zone: ZoneId, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<Pair<LocalDate, Long?>> {
+        val start = weekStart(today, firstDay)
         val sums = LongArray(7)
         for (t in transactions) {
             if (t.kind != TxKind.EXPENSE) continue
             val d = dateOf(t, zone)
-            if (d.isBefore(monday) || d.isAfter(today)) continue
-            sums[d.dayOfWeek.value - 1] += t.categoryAmount
+            if (d.isBefore(start) || d.isAfter(today)) continue
+            sums[ChronoUnit.DAYS.between(start, d).toInt()] += t.categoryAmount
         }
-        return DayOfWeek.entries.map { day -> day to (if (monday.plusDays((day.value - 1).toLong()).isAfter(today)) null else sums[day.value - 1]) }
+        return (0 until 7).map { i -> start.plusDays(i.toLong()).let { d -> d to (if (d.isAfter(today)) null else sums[i]) } }
     }
 
     /** Income against spending for the last [count] budget months; the current one runs to today. */
@@ -134,9 +134,9 @@ object Patterns {
     }
 
     /** This week so far against the same days last week, per top category. */
-    fun weekChanges(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, zone: ZoneId): List<CategoryChange> {
+    fun weekChanges(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, zone: ZoneId, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<CategoryChange> {
         val byId = categories.associateBy { it.id }
-        val monday = weekStart(today)
+        val monday = weekStart(today, firstDay)
         val (from, to) = samePointBefore(monday, today, monday.minusWeeks(1))
         val now = Spending.byTopCategory(transactions, byId, monday, today, zone)
         val before = Spending.byTopCategory(transactions, byId, from, to, zone)

@@ -27,10 +27,10 @@ sealed interface Page {
     data class CategoryDetail(val categoryId: Long) : Page
     /** The full view behind an Insights tile or "All" link. */
     data class Insight(val page: dev.krishnagurram.kassa.ui.insights.InsightPage) : Page
-    /** One day's spending, from the week strip on Insights. */
-    data class InsightDay(val epochDay: Long) : Page
+    /** One day's entries, from any day in the app: the week strip, Activity's day headers, the spending page. */
+    data class Day(val epochDay: Long) : Page
     /** Every entry at one store (the entry's note), from Top stores or Repeating. */
-    data class InsightStore(val name: String) : Page
+    data class Store(val name: String) : Page
     /** Where the spending went, or the income came from: this week, or this budget month. */
     data class Spending(val month: Boolean, val income: Boolean = false) : Page
     /** Card payments and bills in the next 30 days. */

@@ -155,6 +155,7 @@ fun ActivityScreen(
     ledger: dev.krishnagurram.kassa.ui.Ledger,
     contentPadding: PaddingValues,
     onEdit: (Transaction) -> Unit,
+    onOpenDay: (LocalDate) -> Unit,
     selectedId: Long? = null,
     vm: ActivityViewModel = viewModel(),
 ) {
@@ -229,7 +230,7 @@ fun ActivityScreen(
                 s.days.forEach { (day, entries) ->
                     item(key = "h$day") {
                         val spent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-                        DayHeader(dayLabel(day, today), if (spent > 0) Money.format(spent) else "")
+                        DayHeader(dayLabel(day, today), (if (spent > 0) Money.format(spent) else "") + "  \u203a") { onOpenDay(day) }
                     }
                     items(entries, key = { it.id }) { t ->
                         val sel = t.id == selectedId
@@ -252,8 +253,8 @@ private inline fun androidx.compose.ui.text.AnnotatedString.Builder.withStyleBol
 }
 
 @Composable
-private fun DayHeader(left: String, right: String) {
-    Column(Modifier.widthIn(max = 720.dp)) {
+private fun DayHeader(left: String, right: String, onClick: (() -> Unit)? = null) {
+    Column(Modifier.widthIn(max = 720.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
         Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(left, style = KassaType.tiny, color = Kassa.colors.ink2)
             Text(right, style = KassaType.tiny, color = Kassa.colors.ink2)
@@ -332,18 +333,16 @@ fun Chevron(left: Boolean): ImageVector = ImageVector.Builder("chevron", 24.dp, 
     if (left) { moveTo(15f, 6f); lineTo(9f, 12f); lineTo(15f, 18f) } else { moveTo(9f, 6f); lineTo(15f, 12f); lineTo(9f, 18f) }
 }.build()
 
-/** Unfolded, beside the list: where this month's spending went, by category. */
+/** Unfolded, beside the list: where the shown month's spending went, with the same category lines as everywhere else. */
 @Composable
 fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, onOpenCategory: (dev.krishnagurram.kassa.domain.Category) -> Unit, vm: ActivityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
-    val rows = s.monthEntries.filter { it.kind == TxKind.EXPENSE }
-        .groupBy { dev.krishnagurram.kassa.domain.Spending.topOf(it.categoryId, s.categories) }
-        .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
+    val period = dev.krishnagurram.kassa.domain.Period.startingIn(s.month, ledger.monthStartDay)
+    val lines = dev.krishnagurram.kassa.ui.common.monthLines(ledger, period, s.monthEntries)
     Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
         dev.krishnagurram.kassa.ui.common.SectionHeader("Where it went", s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
-        if (rows.isEmpty()) Text("No expenses this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 16.dp))
-        dev.krishnagurram.kassa.ui.common.CategoryBreakdown(rows, onOpen = onOpenCategory)
+        dev.krishnagurram.kassa.ui.common.CategoryLinesAll(lines, "No spending", onOpenCategory)
     }
 }
 
