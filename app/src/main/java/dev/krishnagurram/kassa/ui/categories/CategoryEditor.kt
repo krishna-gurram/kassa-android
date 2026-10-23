@@ -1,8 +1,5 @@
 package dev.krishnagurram.kassa.ui.categories
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,13 +49,12 @@ import dev.krishnagurram.kassa.ui.entry.SearchBox
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
-import kotlinx.coroutines.launch
 
 /** Everything the editor can change, handed back on save. [budget] is the default monthly amount, null for none. */
 data class CategoryEdit(val category: Category, val budget: Long?, val thisMonthBudget: Long?, val clearThisMonth: Boolean)
 
 /**
- * Create or edit a category: name, icon (emoji, built-in symbol, or a photo), color, monthly budget,
+ * Create or edit a category: name, icon (an emoji or a built-in symbol), color, monthly budget,
  * whether it counts toward today's number, subcategories, and hiding or merging it away.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -71,7 +66,6 @@ fun CategoryEditor(
     onAddSub: (Category, String) -> Unit,
     onRenameSub: (Category) -> Unit,
     onMerge: (Category, Category) -> Unit,
-    savePhoto: suspend (android.net.Uri) -> String?,
 ) {
     val isNew = original.id == 0L
     val isTop = original.parentId == null
@@ -85,17 +79,13 @@ fun CategoryEditor(
     val monthBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == Budgets.key(month) }?.amount
     var budget by remember { mutableStateOf(defaultBudget?.let { Money.toInput(it) } ?: "") }
     var thisMonth by remember { mutableStateOf(monthBudget?.let { Money.toInput(it) } ?: "") }
-    var iconTab by remember { mutableStateOf(when (original.icon) { is CategoryIcon.Symbol -> 1; is CategoryIcon.Image -> 2; else -> 0 }) }
+    var iconTab by remember { mutableStateOf(if (original.icon is CategoryIcon.Symbol) 1 else 0) }
     var iconQuery by remember { mutableStateOf("") }
     var typedEmoji by remember { mutableStateOf("") }
     var newSub by remember { mutableStateOf("") }
     var mergeOpen by remember { mutableStateOf(false) }
     var mergeInto by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch { savePhoto(uri)?.let { icon = CategoryIcon.Image(it) } ?: run { error = "Couldn't read that picture." } }
-    }
     val preview = original.copy(name = name.ifBlank { "Category" }, icon = icon, color = color)
     val subs = ledger.categories.filter { it.parentId == original.id && original.id != 0L }
 
@@ -111,7 +101,7 @@ fun CategoryEditor(
 
         SectionHeader("Icon")
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(3.dp)) {
-            listOf("Emoji", "Icons", "Photo").forEachIndexed { i, label ->
+            listOf("Emoji", "Icons").forEachIndexed { i, label ->
                 val on = iconTab == i
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
@@ -137,7 +127,7 @@ fun CategoryEditor(
                     }
                 }
             }
-            1 -> {
+            else -> {
                 SearchBox(iconQuery, { iconQuery = it }, "Search icons, like fuel, baby or temple")
                 FlowRow {
                     IconCatalog.search(iconQuery).forEach { ci ->
@@ -148,15 +138,6 @@ fun CategoryEditor(
                                 .clickable { icon = CategoryIcon.Symbol(ci.name) },
                             contentAlignment = Alignment.Center,
                         ) { Icon(ci.vector, ci.name, tint = if (on) Color(color) else Kassa.colors.ink2) }
-                    }
-                }
-            }
-            else -> {
-                Text("Pick a photo or logo from your phone. It's cropped to a circle and stored only in Kassa.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
-                    if (icon is CategoryIcon.Image) Box(Modifier.padding(end = 12.dp)) { CategoryIconView(icon, Color(color), 56) }
-                    TextButton(onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                        Text(if (icon is CategoryIcon.Image) "Choose a different photo" else "Choose a photo", color = Kassa.colors.ink)
                     }
                 }
             }

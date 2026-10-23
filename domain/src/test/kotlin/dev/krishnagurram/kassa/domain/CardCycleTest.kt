@@ -58,11 +58,12 @@ class CardCycleTest {
             payment("2026-10-12", 5_000),
         )
         val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
-        assertEquals(25_000, s.statementTotal)
+        // The September 5 charge was never paid, so it carries into this statement.
+        assertEquals(35_000, s.statementTotal)
         assertEquals(5_000, s.paidSinceClose)
-        assertEquals(20_000, s.payable)
+        assertEquals(30_000, s.payable)
         assertEquals(7_500, s.outstanding)
-        assertEquals(27_500, s.totalBalance)
+        assertEquals(37_500, s.totalBalance)
         assertEquals(7_500, s.notYetBilled)
         assertEquals(CardSnapshot.Status.PARTLY_PAID, s.status)
         assertEquals(LocalDate.of(2026, 11, 4), s.due)
@@ -93,5 +94,45 @@ class CardCycleTest {
         assertEquals(0, s.payable)
         assertEquals(5_000, s.outstanding)
         assertEquals(5_000, s.totalBalance)
+    }
+
+    @Test
+    fun unpaidBalanceCarriesForwardMonthAfterMonth() {
+        // A 0% APR card: 14,000 owed from before (opening balance), nothing paid for months, new purchases each month.
+        val c = card(9, 4).copy(openingBalance = -1_400_000)
+        val txs = listOf(
+            charge("2026-07-15", 20_000),
+            charge("2026-08-15", 30_000),
+            payment("2026-08-30", 10_000),
+            charge("2026-09-15", 40_000),
+            charge("2026-10-15", 5_000),
+        )
+        val s = CardCycle.snapshot(c, txs, today, zone)
+        assertEquals(1_480_000, s.statementTotal)
+        assertEquals(1_480_000, s.payable)
+        assertEquals(5_000, s.outstanding)
+        assertEquals(1_485_000, s.totalBalance)
+        assertEquals(CardSnapshot.Status.UNPAID, s.status)
+    }
+
+    @Test
+    fun givenBalanceOnlyNeedsEntriesSinceTheStatement() {
+        // The app passes the card's real balance and only the months it has loaded.
+        val recent = listOf(charge("2026-10-15", 5_000), payment("2026-10-16", 1_000_000))
+        val s = CardCycle.snapshot(card(9, 4), recent, today, zone, balance = -1_400_000)
+        assertEquals(2_395_000, s.statementTotal)
+        assertEquals(1_395_000, s.payable)
+        assertEquals(5_000, s.outstanding)
+    }
+
+    @Test
+    fun cashWithdrawalsAndFeesCountAsCharges() {
+        val txs = listOf(
+            Transaction(kind = TxKind.TRANSFER, amount = 30_000, accountId = 10, toAccountId = 1, epochMillis = millis("2026-10-12")),
+            charge("2026-10-13", 1_500),
+        )
+        val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
+        assertEquals(0, s.payable)
+        assertEquals(31_500, s.outstanding)
     }
 }

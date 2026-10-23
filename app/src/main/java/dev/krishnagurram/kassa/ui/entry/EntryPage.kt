@@ -425,7 +425,7 @@ fun EntryPage(
 /* ---------- the top half ---------- */
 
 @Composable
-private fun AmountHero(amount: String, focused: Boolean, income: Boolean, large: Boolean, onClick: () -> Unit) {
+internal fun AmountHero(amount: String, focused: Boolean, income: Boolean, large: Boolean, onClick: () -> Unit) {
     val size = if (large) 60f else 52f
     val color = when { amount.isEmpty() -> Kassa.colors.ink3; income -> Kassa.colors.positive; else -> Kassa.colors.ink }
     val ink2 = Kassa.colors.ink2
@@ -442,7 +442,7 @@ private fun AmountHero(amount: String, focused: Boolean, income: Boolean, large:
 }
 
 @Composable
-private fun Tile(label: String, on: Boolean, empty: Boolean, modifier: Modifier, onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun Tile(label: String, on: Boolean, empty: Boolean, modifier: Modifier, onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier.fillMaxHeight().heightIn(min = 88.dp).clip(shape).background(Kassa.colors.raised)
@@ -459,7 +459,7 @@ private fun Tile(label: String, on: Boolean, empty: Boolean, modifier: Modifier,
 }
 
 @Composable
-private fun CategoryTile(top: Category?, sub: Category?, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun CategoryTile(top: Category?, sub: Category?, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Tile("Category", on, empty = top == null, modifier = modifier, onClick = onClick) {
         if (top != null) {
             CategoryIconView(top.icon, Color(top.color), 28, fallback = top.name.take(1))
@@ -470,7 +470,7 @@ private fun CategoryTile(top: Category?, sub: Category?, on: Boolean, modifier: 
 }
 
 @Composable
-private fun AccountTile(label: String, a: Account?, cards: Map<Long, dev.krishnagurram.kassa.domain.CardSnapshot>, showDue: Boolean, twoLines: Boolean, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun AccountTile(label: String, a: Account?, cards: Map<Long, dev.krishnagurram.kassa.domain.CardSnapshot>, showDue: Boolean, twoLines: Boolean, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Tile(label, on, empty = a == null, modifier = modifier, onClick = onClick) {
         if (a != null) {
             Icon(accountIcon(a.type), null, tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
@@ -495,7 +495,7 @@ private fun DateTile(date: LocalDate, on: Boolean, modifier: Modifier, onClick: 
 }
 
 @Composable
-private fun NoteRow(value: String, onChange: (String) -> Unit, focused: Boolean, hint: String, requester: FocusRequester, onFocused: () -> Unit, onDone: () -> Unit) {
+internal fun NoteRow(value: String, onChange: (String) -> Unit, focused: Boolean, hint: String, requester: FocusRequester, onFocused: () -> Unit, onDone: () -> Unit) {
     BasicTextField(
         value = value, onValueChange = onChange, singleLine = true,
         textStyle = KassaType.body.copy(color = Kassa.colors.ink),
@@ -518,7 +518,7 @@ private fun NoteRow(value: String, onChange: (String) -> Unit, focused: Boolean,
 /* ---------- the panel ---------- */
 
 @Composable
-private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier.clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp))
             .background(Kassa.colors.raised).padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
@@ -528,7 +528,7 @@ private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Uni
 }
 
 @Composable
-private fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -> Unit)?) {
+internal fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -> Unit)?) {
     Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
         if (back != null) Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink, modifier = Modifier.clip(CircleShape).clickable(onClick = back).padding(horizontal = 8.dp))
         Text(title, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.weight(1f).padding(start = 4.dp))
@@ -537,7 +537,7 @@ private fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() ->
 }
 
 @Composable
-private fun PickTile(on: Boolean, minHeight: Dp = 54.dp, onClick: () -> Unit, content: @Composable () -> Unit) {
+internal fun PickTile(on: Boolean, minHeight: Dp = 54.dp, onClick: () -> Unit, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Box(
         Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(Kassa.colors.ground)
@@ -548,7 +548,7 @@ private fun PickTile(on: Boolean, minHeight: Dp = 54.dp, onClick: () -> Unit, co
 }
 
 @Composable
-private fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier.height(44.dp).clip(shape).background(Kassa.colors.ground)
@@ -638,7 +638,7 @@ private fun Segmented(options: List<Pair<TxKind, String>>, selected: TxKind, onS
 
 /** Keys that fill whatever height the panel has, so the pad is as big as the screen allows. */
 @Composable
-private fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
+internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
     val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del")
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.chunked(3).forEach { row ->
@@ -657,7 +657,7 @@ private fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
 
 /* ---------- helpers ---------- */
 
-private fun applyKey(current: String, k: String): String = when (k) {
+internal fun applyKey(current: String, k: String): String = when (k) {
     "del" -> current.dropLast(1)
     "." -> if (current.contains('.')) current else (current.ifEmpty { "0" }) + "."
     else -> when {
@@ -675,7 +675,7 @@ private fun displayAmount(s: String): String {
     return if (s.contains('.')) grouped + "." + s.substringAfter('.') else grouped
 }
 
-private fun centsToInput(c: Long): String {
+internal fun centsToInput(c: Long): String {
     val s = java.math.BigDecimal.valueOf(c).movePointLeft(2).toPlainString()
     return s.removeSuffix(".00")
 }
@@ -693,7 +693,7 @@ private fun millisFor(date: LocalDate, original: Long?, ledger: Ledger): Long {
 }
 
 /** Top-level categories ranked by how often they're used, weighted toward entries logged near this hour. */
-private fun rankTop(ledger: Ledger, kind: CategoryKind): List<Category> {
+internal fun rankTop(ledger: Ledger, kind: CategoryKind): List<Category> {
     val hour = LocalTime.now(ledger.zone).hour
     val score = HashMap<Long, Double>()
     val wanted = if (kind == CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE

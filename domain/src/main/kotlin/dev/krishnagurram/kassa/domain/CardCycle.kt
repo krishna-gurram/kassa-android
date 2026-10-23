@@ -8,7 +8,8 @@ import java.time.ZoneId
  * Statement math for a credit card.
  *
  * Wording follows Money Manager and card issuers:
- * - [payable] ("Balance payable") is what the last statement billed and is still unpaid. The due date applies to it.
+ * - [payable] ("Balance payable") is the last statement's balance (including anything carried from before) still
+ *   unpaid. The due date applies to it.
  * - [outstanding] ("Outstanding") is what was charged after the statement date, less any payment beyond the
  *   statement balance. It goes on the next statement.
  * - [totalBalance] is the two together: what paying the card off today would take.
@@ -67,48 +68,53 @@ object CardCycle {
     }
 
     /**
-     * Builds the snapshot for [card] as of [today]. Charges are expenses on the card minus income (refunds)
-     * to it. Payments are transfers into the card.
+     * Builds the snapshot for [card] as of [today] from what's owed, so an unpaid balance carries forward the way
+     * it does on a real statement (0% APR balances, partial payments, anything left over).
+     *
+     * - The statement balance is what was owed on the closing day: everything before it, including any balance
+     *   carried from earlier months and the card's opening balance.
+     * - Payments and credits since then (payments in, refunds) come off it first; what's left is balance payable.
+     * - New charges since the closing day (purchases, cash withdrawals, fees, money sent from the card) are outstanding.
+     *
+     * [balance] is the card's current balance (negative while you owe). When it isn't given it's worked out from
+     * [transactions], which then must be the card's whole history. Otherwise they only need to cover the time since
+     * the last statement closed.
      */
     fun snapshot(
         card: Account,
         transactions: Iterable<Transaction>,
         today: LocalDate,
         zone: ZoneId,
+        balance: Long? = null,
     ): CardSnapshot {
         val statementDay = requireNotNull(card.statementDay) { "${card.name} has no statement day" }
         val dueDay = card.dueDay ?: statementDay
         val last = lastClose(statementDay, today)
         val prev = previousClose(statementDay, last)
+        val now = balance ?: balanceOf(card, transactions)
 
-        var statement = 0L
-        var paid = 0L
-        var notBilled = 0L
+        var charges = 0L
+        var credits = 0L
+        var afterClose = 0L
         for (t in transactions) {
+            val effect = t.effectOn(card.id)
+            if (effect == 0L) continue
             val date = java.time.Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
-            val charge = when {
-                t.kind == TxKind.EXPENSE && t.accountId == card.id -> t.amount
-                t.kind == TxKind.INCOME && t.accountId == card.id -> -t.amount
-                else -> 0L
-            }
-            if (charge != 0L) {
-                when {
-                    date.isAfter(prev) && !date.isAfter(last) -> statement += charge
-                    date.isAfter(last) && !date.isAfter(today) -> notBilled += charge
-                }
-            }
-            if (t.kind == TxKind.TRANSFER && t.toAccountId == card.id && date.isAfter(last) && !date.isAfter(today)) {
-                paid += t.amount
-            }
+            if (!date.isAfter(last)) continue
+            afterClose += effect
+            if (date.isAfter(today)) continue
+            if (effect < 0) charges += -effect else credits += effect
         }
+        // Owed on the closing day: today's balance with everything since taken back out.
+        val owedAtClose = -(now - afterClose)
         return CardSnapshot(
             lastClose = last,
             previousClose = prev,
             nextClose = nextClose(statementDay, last),
             due = dueFor(statementDay, dueDay, last),
-            statementTotal = statement,
-            paidSinceClose = paid,
-            notYetBilled = notBilled,
+            statementTotal = owedAtClose,
+            paidSinceClose = credits,
+            notYetBilled = charges,
         )
     }
 }

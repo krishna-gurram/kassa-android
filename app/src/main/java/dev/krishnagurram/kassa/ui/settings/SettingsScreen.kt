@@ -59,15 +59,10 @@ interface SettingsActions {
     fun convertToPerson(account: Account, balance: Long, name: String)
     fun setMonthStartDay(day: Int)
     fun importAgain()
-    suspend fun savePhoto(uri: android.net.Uri): String?
     fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring)
     fun deleteRecurring(id: Long)
-    fun setAlertApp(pkg: String, on: Boolean)
-    fun addRule(pkg: String, last4: String?, accountId: Long)
-    fun deleteRule(id: Long)
-    fun openNotificationAccess()
-    fun hasNotificationAccess(): Boolean
-    fun appLabel(pkg: String): String
+    /** Opens the full-screen bill page; null adds a new bill. */
+    fun openBill(r: dev.krishnagurram.kassa.domain.Recurring?)
     fun setSensitivity(v: String)
     fun setLock(on: Boolean)
     fun setTheme(v: String)
@@ -86,7 +81,6 @@ private sealed interface Page {
     data class Edit(val category: Category, val back: Page) : Page
     data object Splitwise : Page
     data object Recurring : Page
-    data object Alerts : Page
     data object Backup : Page
     data object BudgetMonth : Page
     data object Currency : Page
@@ -115,7 +109,6 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                     is Page.Edit -> if (p.category.id == 0L) "New category" else "Edit category"
                     Page.Splitwise -> "Splitwise accounts"
                     Page.Recurring -> "Recurring bills"
-                    Page.Alerts -> "Bank notifications"
                     Page.Backup -> "Backup and restore"
                     Page.BudgetMonth -> "Budget month"
                     Page.Currency -> "Currency"
@@ -135,11 +128,9 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                 },
                 onRenameSub = { sub -> page = Page.Edit(sub, p) },
                 onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
-                savePhoto = actions::savePhoto,
             ) }
             Page.Splitwise -> SplitwiseCleanup(ledger, actions)
             Page.Recurring -> RecurringPage(ledger, actions)
-            Page.Alerts -> AlertsPage(ledger, actions, values.alertApps, values.seenApps)
             Page.Backup -> BackupPage(actions)
             Page.BudgetMonth -> BudgetMonthPage(ledger, actions)
             Page.Currency -> CurrencyPage(ledger, values.currency, actions)
@@ -181,9 +172,8 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     NavRow("Income categories", "$incomes") { open(Page.Categories(CategoryKind.INCOME)) }
     NavRow("Budget month", "Starts on day ${ledger.monthStartDay}") { open(Page.BudgetMonth) }
 
-    SectionHeader("Automation")
+    SectionHeader("Bills")
     NavRow("Recurring bills", "${ledger.assist.recurring.size}") { open(Page.Recurring) }
-    NavRow("Bank notifications", if (actions.hasNotificationAccess()) "${values.alertApps.size} apps" else "Off") { open(Page.Alerts) }
 
     SectionHeader("Security")
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

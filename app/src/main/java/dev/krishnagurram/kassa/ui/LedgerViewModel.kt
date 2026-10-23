@@ -59,7 +59,7 @@ data class Ledger(
 
     fun cards(): List<CardSnapshotFor> = accounts.accounts
         .filter { it.type.hasStatement && !it.archived && it.statementDay != null }
-        .map { CardSnapshotFor(it, CardCycle.snapshot(it, recent, today, zone)) }
+        .map { CardSnapshotFor(it, CardCycle.snapshot(it, recent, today, zone, balance = accounts.balances[it.id] ?: 0L)) }
 
     fun personBalances(): Map<Long, Long> = people.people.associate { it.id to personBalance(it.id, people.loans, people.payments) }
 

@@ -14,7 +14,7 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 ## Layout
 - `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, alert parsing). Fast JVM tests.
 - `importer/`: Money Manager `.mmbak` mapping and reconcile. JVM tests.
-- `app/`: Room database (`data/db`), repositories, Compose UI (`ui/`), notification listener (`assist/`).
+- `app/`: Room database (`data/db`), repositories, Compose UI (`ui/`).
 
 ## Database changes
 Bump the version in `KassaDatabase` and add a `Migration` next to the others. Columns must match the entity exactly

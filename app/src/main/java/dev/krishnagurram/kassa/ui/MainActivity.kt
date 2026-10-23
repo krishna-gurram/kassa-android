@@ -230,6 +230,12 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onAddPerson = { name, then -> vm.addPerson(name, then) },
                     onBack = back,
                 )
+                is Page.Bill -> dev.krishnagurram.kassa.ui.entry.BillPage(
+                    ledger = lg, bill = page.bill, contentPadding = padding,
+                    onSave = { vm.saveRecurring(it); nav.pop() },
+                    onDelete = { vm.deleteRecurring(it); nav.pop() },
+                    onBack = back,
+                )
                 is Page.CardDetail -> {
                     val c = lg.cards().firstOrNull { it.account.id == page.accountId }
                     if (c == null) Gone(padding, onBack)
@@ -325,7 +331,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     val seenApps by vm.seenApps.collectAsState()
                     val theme by vm.theme.collectAsState()
                     SettingsScreen(
-                        lg, remember(vm) { settingsActions(vm, context) { nav.push(Page.Import) } },
+                        lg, remember(vm) { settingsActions(vm, context, onImport = { nav.push(Page.Import) }, onBill = { nav.push(Page.Bill(it)) }) },
                         dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn, theme, vm.currency.collectAsState().value),
                         padding,
                     )
@@ -509,7 +515,8 @@ private fun iconFor(t: Tab): ImageVector = when (t) {
     Tab.SETTINGS -> androidx.compose.material.icons.Icons.Outlined.Settings
 }
 
-private fun settingsActions(vm: LedgerViewModel, context: android.content.Context, onImport: () -> Unit) = object : SettingsActions {
+private fun settingsActions(vm: LedgerViewModel, context: android.content.Context, onImport: () -> Unit, onBill: (dev.krishnagurram.kassa.domain.Recurring?) -> Unit) = object : SettingsActions {
+    override fun openBill(r: dev.krishnagurram.kassa.domain.Recurring?) = onBill(r)
     override fun saveCategory(category: dev.krishnagurram.kassa.domain.Category, budget: Long?, then: (Long) -> Unit) { vm.saveCategory(category, budget, then) }
     override fun setMonthBudget(categoryId: Long, amount: Long?) {
         val l = vm.ledger.value ?: return
@@ -519,17 +526,8 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
     override fun convertToPerson(account: dev.krishnagurram.kassa.domain.Account, balance: Long, name: String) { vm.convertToPerson(account, balance, name) }
     override fun setMonthStartDay(day: Int) = vm.setMonthStartDay(day)
     override fun importAgain() = onImport()
-    override suspend fun savePhoto(uri: android.net.Uri): String? = vm.saveIconImage(uri)
     override fun saveRecurring(r: dev.krishnagurram.kassa.domain.Recurring) { vm.saveRecurring(r) }
     override fun deleteRecurring(id: Long) { vm.deleteRecurring(id) }
-    override fun setAlertApp(pkg: String, on: Boolean) = vm.setAlertApp(pkg, on)
-    override fun addRule(pkg: String, last4: String?, accountId: Long) { vm.addRule(pkg, last4, accountId) }
-    override fun deleteRule(id: Long) { vm.deleteRule(id) }
-    override fun openNotificationAccess() {
-        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-    override fun hasNotificationAccess(): Boolean =
-        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
     override fun setSensitivity(v: String) = vm.setSensitivity(v)
     override fun setLock(on: Boolean) = vm.setLock(on)
     override fun setTheme(v: String) = vm.setTheme(v)
@@ -537,7 +535,4 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
     override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = vm.exportTo(uri, passphrase)
     override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray) = vm.readBackup(uri, passphrase)
     override fun restore(json: org.json.JSONObject) { vm.restore(json) }
-    override fun appLabel(pkg: String): String = runCatching {
-        context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
-    }.getOrDefault(pkg)
 }
