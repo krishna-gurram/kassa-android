@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -155,5 +156,84 @@ private fun Option(title: String, sub: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 10.dp).clip(shape).border(1.dp, Kassa.colors.line, shape).clickable(onClick = onClick).padding(16.dp)) {
         Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink)
         Text(sub, style = KassaType.small, color = Kassa.colors.ink2)
+    }
+}
+
+/** Every holding's price in one sheet, so one pass brings the account up to date. Kassa never looks prices up. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PricesSheet(holdings: List<Holding>, onSave: (List<Holding>) -> Unit, onDismiss: () -> Unit) {
+    val prices = remember { androidx.compose.runtime.mutableStateMapOf<Long, String>().apply { holdings.forEach { put(it.id, BigDecimal.valueOf(it.price).movePointLeft(2).toPlainString()) } } }
+    var error by remember { mutableStateOf<String?>(null) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
+            Text("Update prices", style = KassaType.section, color = Kassa.colors.ink)
+            holdings.forEach { h ->
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(h.ticker, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                        Text("${BigDecimal.valueOf(h.microShares).movePointLeft(6).stripTrailingZeros().toPlainString()} shares", style = KassaType.small, color = Kassa.colors.ink2)
+                    }
+                    OutlinedTextField(prices[h.id] ?: "", { prices[h.id] = it; error = null }, singleLine = true, label = { Text("Price") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.width(140.dp))
+                }
+            }
+            error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
+            Gap(12)
+            PrimaryButton("Save prices") {
+                val now = System.currentTimeMillis()
+                val updated = holdings.map { h -> h to Money.parseCents(prices[h.id] ?: "") }
+                error = if (updated.any { it.second == null || it.second!! <= 0 }) "Every price needs a number above zero." else null
+                if (error == null) onSave(updated.map { (h, p) -> h.copy(price = p!!, priceMillis = now) })
+            }
+        }
+    }
+}
+
+/** A buy or a sale: cash moves inside the account and the holding grows or shrinks. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun TradeSheet(holdings: List<Holding>, cash: Long, onBuy: (String, Long, Long) -> Unit, onSell: (String, Long, Long) -> Unit, onDismiss: () -> Unit) {
+    var buy by remember { mutableStateOf(true) }
+    var ticker by remember { mutableStateOf(holdings.firstOrNull()?.ticker ?: "") }
+    var shares by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf(holdings.firstOrNull()?.let { BigDecimal.valueOf(it.price).movePointLeft(2).toPlainString() } ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
+            Text("Buy or sell", style = KassaType.section, color = Kassa.colors.ink)
+            FlowRow(Modifier.padding(top = 10.dp)) {
+                Chip("Buy", selected = buy) { buy = true }
+                Chip("Sell", selected = !buy) { buy = false }
+            }
+            if (holdings.isNotEmpty()) FlowRow {
+                holdings.forEach { h -> Chip(h.ticker, selected = ticker.equals(h.ticker, true), small = true) { ticker = h.ticker; price = BigDecimal.valueOf(h.price).movePointLeft(2).toPlainString() } }
+            }
+            if (buy) OutlinedTextField(ticker, { ticker = it.uppercase() }, singleLine = true, label = { Text("Ticker") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(shares, { shares = it; error = null }, singleLine = true, label = { Text("Shares") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                OutlinedTextField(price, { price = it; error = null }, singleLine = true, label = { Text("Price") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+            }
+            val s = parseShares(shares); val pr = Money.parseCents(price)
+            val total = if (s != null && pr != null) Math.round(s / 1_000_000.0 * pr) else 0L
+            Text(if (buy) "Costs ${Money.format(total)} of ${Money.format(cash)} cash" else "Adds ${Money.format(total)} to cash", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp))
+            error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
+            Gap(12)
+            PrimaryButton(if (buy) "Save buy" else "Save sale") {
+                val held = holdings.firstOrNull { it.ticker.equals(ticker.trim(), true) }
+                error = when {
+                    ticker.isBlank() -> "Pick or enter a ticker."
+                    s == null || s <= 0 -> "Enter the shares."
+                    pr == null || pr <= 0 -> "Enter the price."
+                    !buy && held == null -> "You don't hold $ticker here."
+                    !buy && s > held!!.microShares -> "You hold ${BigDecimal.valueOf(held.microShares).movePointLeft(6).stripTrailingZeros().toPlainString()} shares."
+                    else -> null
+                }
+                if (error == null) { if (buy) onBuy(ticker.trim().uppercase(), s!!, pr!!) else onSell(ticker.trim().uppercase(), s!!, pr!!) }
+            }
+        }
     }
 }

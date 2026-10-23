@@ -94,6 +94,20 @@ class KassaRepository(private val db: KassaDatabase) {
      * and one loan entry per person for their part, so editing the split later rewrites those loan entries.
      */
     suspend fun save(draft: EntryDraft): Transaction = db.withTransaction {
+        // Editing an entry whose split is unchanged (same people, same amount) keeps the shares as they were,
+        // including uneven ones from "Split a transaction".
+        val before = draft.id?.let { db.transactions().byId(it)?.toDomain() }
+        val keptLoans = draft.id?.let { db.loans().forTransaction(it) }.orEmpty()
+        val keepSplit = before != null && before.amount == draft.amount && draft.kind == TxKind.EXPENSE &&
+            keptLoans.isNotEmpty() && keptLoans.map { it.personId }.toSet() == draft.splitWith.toSet()
+        if (keepSplit) {
+            val tx = before!!.copy(
+                accountId = draft.accountId, categoryId = draft.categoryId, personId = draft.personId,
+                epochMillis = draft.epochMillis, note = draft.note.trim(),
+            )
+            db.transactions().update(tx.toEntity())
+            return@withTransaction tx
+        }
         val split = if (draft.kind == TxKind.EXPENSE && draft.splitWith.isNotEmpty()) Split.equal(draft.amount, draft.splitWith.size) else null
         val tx = Transaction(
             id = draft.id ?: 0,
@@ -130,6 +144,39 @@ class KassaRepository(private val db: KassaDatabase) {
     suspend fun saveRaw(t: Transaction): Long = db.transactions().insert(t.toEntity())
 
     suspend fun addPerson(name: String): Long = db.people().insert(Person(name = name.trim()).toEntity())
+
+    /** A new person, optionally starting with a balance (positive: they owe you). */
+    suspend fun addPerson(name: String, opening: Long): Long = db.withTransaction {
+        val pid = db.people().insert(Person(name = name.trim()).toEntity())
+        if (opening != 0L) db.loans().insertAll(listOf(
+            LoanEntry(personId = pid, amount = opening, epochMillis = System.currentTimeMillis(), note = "Starting balance").toEntity()
+        ))
+        pid
+    }
+
+    /**
+     * Splits an expense you already recorded: [theirShare] becomes a loan entry for the person (they owe you), and
+     * your share on the expense drops by the same amount. Other people already on the split stay as they were.
+     */
+    suspend fun splitExisting(txId: Long, personId: Long, theirShare: Long) = db.withTransaction {
+        val t = db.transactions().byId(txId)?.toDomain() ?: return@withTransaction
+        val existing = db.loans().forTransaction(txId).filter { it.personId != personId }
+        val others = existing.sumOf { it.amount }
+        require(theirShare in 1..(t.amount - others)) { "Share must be between 1 and what's left of the expense" }
+        db.loans().deleteForTransaction(txId)
+        db.loans().insertAll(existing + LoanEntry(personId = personId, amount = theirShare, epochMillis = t.epochMillis, note = t.note.ifBlank { "Split" }, transactionId = txId).toEntity())
+        db.transactions().update(t.copy(myShare = t.amount - others - theirShare).toEntity())
+    }
+
+    /** Records a sale: cash comes into the investment account and the holding shrinks (removed at zero). */
+    suspend fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) = db.withTransaction {
+        val tk = ticker.trim().uppercase()
+        val proceeds = Math.round(microShares / 1_000_000.0 * price)
+        db.transactions().insert(Transaction(kind = TxKind.SELL, amount = proceeds, accountId = accountId, epochMillis = at, note = tk).toEntity())
+        val h = db.holdings().find(accountId, tk) ?: return@withTransaction
+        val left = h.microShares - microShares
+        if (left <= 0) db.holdings().delete(h.id) else db.holdings().update(h.copy(microShares = left, price = price, priceMillis = at))
+    }
 
     /** Replaces everything with an import. Runs in one database transaction: all of it lands, or none of it. */
     suspend fun replaceWith(plan: ImportPlan) {

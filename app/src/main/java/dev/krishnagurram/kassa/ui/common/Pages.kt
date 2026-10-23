@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -109,4 +111,35 @@ fun ValueRow(label: String, value: String, color: androidx.compose.ui.graphics.C
         }
         if (!last) androidx.compose.material3.HorizontalDivider(color = Kassa.colors.line)
     }
+}
+
+/** ‹ Label › with an optional line under it. Used for months on Activity and accounts, and statements on cards. */
+@Composable
+fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Boolean, onBack: () -> Unit, onForward: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        RoundArrow(left = true, enabled = canBack, onClick = onBack)
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+            if (sub != null) Text(sub, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
+        }
+        RoundArrow(left = false, enabled = canForward, onClick = onForward)
+    }
+}
+
+@Composable
+private fun RoundArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip).clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp)) }
+}
+
+/** Swipe left or right across the content to step [onShift] by -1 (back in time) or +1. */
+fun Modifier.swipeShift(onShift: (Int) -> Unit): Modifier = this.pointerInput(onShift) {
+    var dx = 0f
+    androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+        onDragStart = { dx = 0f },
+        onDragEnd = { if (dx > 120f) onShift(-1) else if (dx < -120f) onShift(1) },
+        onHorizontalDrag = { _, d -> dx += d },
+    )
 }

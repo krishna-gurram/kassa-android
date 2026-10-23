@@ -64,6 +64,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.LocalDate
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -174,15 +175,10 @@ fun ActivityScreen(
         Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Activity", style = KassaType.title, color = Kassa.colors.ink)
             if (!searching) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    RoundIcon(Chevron(left = true), "Previous month", enabled = true) { vm.shift(-1) }
-                    Text(
-                        "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}",
-                        style = KassaType.bodyStrong, color = Kassa.colors.ink,
-                        modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                    RoundIcon(Chevron(left = false), "Next month", enabled = !s.isCurrentMonth) { vm.shift(1) }
-                }
+                dev.krishnagurram.kassa.ui.common.PeriodSwitcher(
+                    "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}", null,
+                    canBack = true, canForward = !s.isCurrentMonth, onBack = { vm.shift(-1) }, onForward = { vm.shift(1) },
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
                     FilterTile("Income", Money.format(s.income), Kassa.colors.positive, s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
@@ -199,7 +195,7 @@ fun ActivityScreen(
             )
         }
 
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
+        LazyColumn(Modifier.fillMaxSize().then(if (searching) Modifier else Modifier.swipeShift { d -> if (d < 0 || !s.isCurrentMonth) vm.shift(d) }), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
             if (searching) {
                 if (s.resultCount == 0) item {
                     Text("No transactions match “${s.query.trim()}”.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))

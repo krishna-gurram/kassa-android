@@ -140,6 +140,17 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addPerson(name: String, then: (Long) -> Unit = {}) = viewModelScope.launch { then(repo.addPerson(name)) }
 
+    fun addPerson(name: String, opening: Long) = viewModelScope.launch { repo.addPerson(name, opening); _messages.tryEmit("$name added.") }
+
+    fun splitExisting(txId: Long, personId: Long, theirShare: Long) = viewModelScope.launch {
+        runCatching { repo.splitExisting(txId, personId, theirShare) }
+            .onSuccess { _messages.tryEmit("Split saved.") }.onFailure { _messages.tryEmit(it.message ?: "Couldn't split that.") }
+    }
+
+    fun sell(accountId: Long, ticker: String, microShares: Long, price: Long) = viewModelScope.launch {
+        repo.sell(accountId, ticker, microShares, price, System.currentTimeMillis())
+    }
+
     fun addAccount(account: Account, newGroupName: String?) = viewModelScope.launch {
         repo.addAccount(account, newGroupName); _messages.tryEmit("${account.name} added.")
     }

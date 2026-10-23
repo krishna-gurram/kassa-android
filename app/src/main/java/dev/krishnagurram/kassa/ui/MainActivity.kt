@@ -229,14 +229,20 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 is Page.CardDetail -> {
                     val c = lg.cards().firstOrNull { it.account.id == page.accountId }
                     if (c == null) Gone(padding, onBack)
-                    else dev.krishnagurram.kassa.ui.cards.CardPage(c, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = c.account.id }, onEditCard = { nav.push(Page.EditAccount(c.account.id)) })
+                    else {
+                        val history by remember(c.account.id) { vm.accountHistory(c.account.id) }.collectAsState(initial = emptyList())
+                        dev.krishnagurram.kassa.ui.cards.CardPage(c, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = c.account.id }, onEditCard = { nav.push(Page.EditAccount(c.account.id)) }, history = history)
+                    }
                 }
                 is Page.AccountDetail -> {
                     val a = lg.accountById[page.accountId]
                     val card = lg.cards().firstOrNull { it.account.id == page.accountId }
                     when {
                         a == null -> Gone(padding, onBack)
-                        card != null && !a.archived -> dev.krishnagurram.kassa.ui.cards.CardPage(card, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = card.account.id }, onEditCard = { nav.push(Page.EditAccount(card.account.id)) })
+                        card != null && !a.archived -> {
+                            val history by remember(a.id) { vm.accountHistory(a.id) }.collectAsState(initial = emptyList())
+                            dev.krishnagurram.kassa.ui.cards.CardPage(card, lg, padding, onBack, onEdit = editFromPage, onPay = { paying = card.account.id }, onEditCard = { nav.push(Page.EditAccount(card.account.id)) }, history = history)
+                        }
                         else -> {
                             val history by remember(a.id) { vm.accountHistory(a.id) }.collectAsState(initial = emptyList())
                             dev.krishnagurram.kassa.ui.accounts.AccountPage(
@@ -245,6 +251,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                                 onEditAccount = { nav.push(Page.EditAccount(a.id)) },
                                 onSaveHolding = { vm.saveHolding(it) },
                                 onDeleteHolding = { vm.deleteHolding(it.id) },
+                                onBuy = { tk, sh, pr -> vm.buy(a.id, tk, sh, pr, null) },
+                                onSell = { tk, sh, pr -> vm.sell(a.id, tk, sh, pr) },
                             )
                         }
                     }
@@ -263,7 +271,9 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 is Page.PersonDetail -> {
                     val p = lg.people.people.firstOrNull { it.id == page.personId }
                     if (p == null) Gone(padding, onBack)
-                    else dev.krishnagurram.kassa.ui.accounts.PersonPage(p, lg.personBalances()[p.id] ?: 0, lg, padding, onBack, onSave = { vm.save(it) })
+                    else dev.krishnagurram.kassa.ui.accounts.PersonPage(p, lg.personBalances()[p.id] ?: 0, lg, padding, onBack, onSave = { vm.save(it) },
+                        onSplit = { tx, share -> vm.splitExisting(tx, p.id, share) },
+                        onOpenEntry = { id -> scope.launch { vm.loadForEdit(id)?.let { (tx, split2) -> nav.push(Page.Entry(EntryStart(editing = tx, splitWith = split2))) } } })
                 }
                 is Page.CategoryDetail -> {
                     val c = lg.categoryById[page.categoryId]
@@ -323,7 +333,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onOpenPerson = { openFromList(Page.PersonDetail(it)) },
                     onImportAgain = { nav.push(Page.Import) },
                     onAddAccount = { a, g -> vm.addAccount(a, g) },
-                    onAddPerson = { vm.addPerson(it) },
+                    onAddPerson = { n, o -> vm.addPerson(n, o) },
                 )
             }
         }

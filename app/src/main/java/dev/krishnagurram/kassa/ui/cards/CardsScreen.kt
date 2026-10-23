@@ -64,6 +64,7 @@ import dev.krishnagurram.kassa.ui.common.SectionHeader
 import dev.krishnagurram.kassa.ui.common.StatusChip
 import dev.krishnagurram.kassa.ui.common.Tone
 import dev.krishnagurram.kassa.ui.common.TransactionRow
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import dev.krishnagurram.kassa.ui.common.plural
 import dev.krishnagurram.kassa.ui.entry.Chip
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
@@ -259,12 +260,12 @@ fun CardPage(
     onEdit: (Transaction) -> Unit,
     onPay: () -> Unit,
     onEditCard: () -> Unit,
+    /** Every entry on this card, newest first, so older statements can be shown. Falls back to the loaded months. */
+    history: List<Transaction> = emptyList(),
 ) {
     val s = c.snapshot
     val a = c.account
     val id = a.id
-    val since = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).isAfter(s.lastClose) }.sortedByDescending { it.epochMillis }
-    val stmt = ledger.recent.filter { (it.accountId == id || it.toAccountId == id) && dateOf(it, ledger).let { d -> d.isAfter(s.previousClose) && !d.isAfter(s.lastClose) } }.sortedByDescending { it.epochMillis }
     val dateNote: (Transaction) -> String = { t -> dateOf(t, ledger).format(MONTH_DAY) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
@@ -307,12 +308,40 @@ fun CardPage(
             Gap(14)
             PrimaryButton(if (s.payable > 0) "Pay ${Money.format(s.payable)}" else "Record a payment", onPay)
         }
-        SectionHeader("Outstanding", "Next statement ${s.nextClose.format(MONTH_DAY)}")
-        if (since.isEmpty()) Text("No charges since the statement date.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        since.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < since.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
-        SectionHeader("${s.lastClose.format(MONTH_DAY)} statement", Money.format(s.statementTotal))
-        if (stmt.isEmpty()) Text("No charges on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        stmt.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < stmt.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
+        // Statement by statement: 0 is what's charged since the last statement, 1 the last statement, and so on back.
+        var back by androidx.compose.runtime.saveable.rememberSaveable(id) { androidx.compose.runtime.mutableIntStateOf(0) }
+        val all = (if (history.isNotEmpty()) history else ledger.recent).filter { it.accountId == id || it.toAccountId == id }
+        val oldest = all.minOfOrNull { it.epochMillis }?.let { Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate() }
+        val statementDay = a.statementDay ?: 1
+        var close = s.lastClose
+        repeat((back - 1).coerceAtLeast(0)) { close = dev.krishnagurram.kassa.domain.CardCycle.previousClose(statementDay, close) }
+        val open = dev.krishnagurram.kassa.domain.CardCycle.previousClose(statementDay, close)
+        val (from, to) = if (back == 0) s.lastClose to ledger.today else open to close
+        val list = all.filter { dateOf(it, ledger).let { d -> d.isAfter(from) && !d.isAfter(to) } }.sortedByDescending { it.epochMillis }
+        val charges = list.filter { it.kind == TxKind.EXPENSE && it.accountId == id }.sumOf { it.amount }
+        val credits = list.filter { it.toAccountId == id || (it.kind == TxKind.INCOME && it.accountId == id) }.sumOf { it.amount }
+        val canBack = oldest != null && from.isAfter(oldest)
+        val shift: (Int) -> Unit = { d -> if (d < 0 && canBack) back++ else if (d > 0 && back > 0) back-- }
+        Gap(18)
+        Column(Modifier.swipeShift(shift)) {
+            dev.krishnagurram.kassa.ui.common.PeriodSwitcher(
+                if (back == 0) "Outstanding" else "${to.format(MONTH_DAY)} statement",
+                when (back) {
+                    0 -> "Since ${s.lastClose.format(MONTH_DAY)} \u00b7 closes ${s.nextClose.format(MONTH_DAY)}"
+                    1 -> "Due ${s.due.format(MONTH_DAY)}"
+                    else -> "${from.plusDays(1).format(MONTH_DAY)} to ${to.format(MONTH_DAY)}"
+                },
+                canBack, back > 0, onBack = { shift(-1) }, onForward = { shift(1) },
+            )
+            Row(Modifier.padding(top = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Charges ${Money.format(charges)}", style = KassaType.small, color = Kassa.colors.ink)
+                if (credits > 0) Text("Payments ${Money.format(credits)}", style = KassaType.small, color = Kassa.colors.ink2)
+                if (back == 1) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else "Paid in full", style = KassaType.small,
+                    color = if (s.payable > 0) Kassa.colors.attention else Kassa.colors.positive)
+            }
+            if (list.isEmpty()) Text(if (back == 0) "No charges since the statement date." else "Nothing on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
+            list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
+        }
         Gap(24)
     }
 }
