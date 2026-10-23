@@ -73,7 +73,8 @@ fun CategoryEditor(
     var icon by remember { mutableStateOf(original.icon) }
     var color by remember { mutableStateOf(original.color) }
     var counts by remember { mutableStateOf(original.countsTowardDaily) }
-    var hidden by remember { mutableStateOf(original.hidden) }
+    val hidden = original.hidden
+    var confirmArchive by remember { mutableStateOf(false) }
     val month = ledger.period.yearMonth
     val defaultBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == 0 }?.amount
     val monthBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == Budgets.key(month) }?.amount
@@ -179,7 +180,7 @@ fun CategoryEditor(
             subs.sortedWith(compareBy({ it.hidden }, { it.sortOrder })).forEach { s ->
                 Row(Modifier.fillMaxWidth().clickable { onRenameSub(s) }.padding(vertical = 12.dp)) {
                     Text(s.name, style = KassaType.body, color = if (s.hidden) Kassa.colors.ink3 else Kassa.colors.ink, modifier = Modifier.weight(1f))
-                    Text(if (s.hidden) "Hidden" else "Edit", style = KassaType.small, color = Kassa.colors.ink2)
+                    Text(if (s.hidden) "Archived" else "Edit", style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 HorizontalDivider(color = Kassa.colors.line)
             }
@@ -198,23 +199,16 @@ fun CategoryEditor(
         }
 
         if (!isNew) {
-            Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Hide", style = KassaType.body, color = Kassa.colors.ink)
-                    Text("Hidden categories leave the pickers. Past entries keep them.", style = KassaType.small, color = Kassa.colors.ink2)
-                }
-                Switch(hidden, { hidden = it }, colors = SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
-            }
             TextButton(onClick = { mergeOpen = !mergeOpen }) { Text("Move all entries into another category", color = Kassa.colors.ink2) }
             if (mergeOpen) {
                 val targets = ledger.categories.filter { it.kind == original.kind && it.id != original.id && !it.hidden && (it.parentId == null) == isTop }
-                Text("Every entry moves, then ${original.name} is hidden. This can't be undone.", style = KassaType.small, color = Kassa.colors.attention)
+                Text("Every entry moves, then ${original.name} is archived. This can't be undone.", style = KassaType.small, color = Kassa.colors.attention)
                 FlowRow(Modifier.padding(top = 6.dp)) { targets.forEach { t -> Chip(t.name, selected = false) { mergeInto = t } } }
             }
             mergeInto?.let { t ->
                 dev.krishnagurram.kassa.ui.common.ConfirmDialog(
                     title = "Move everything into ${t.name}?",
-                    body = "Every ${original.name} entry moves to ${t.name}, then ${original.name} is hidden. This can't be undone.",
+                    body = "Every ${original.name} entry moves to ${t.name}, then ${original.name} is archived. This can't be undone.",
                     confirm = "Move entries", onConfirm = { onMerge(original, t) }, onDismiss = { mergeInto = null },
                 )
             }
@@ -222,7 +216,8 @@ fun CategoryEditor(
 
         error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 10.dp)) }
         Gap(20)
-        PrimaryButton(if (isNew) "Add category" else "Save") {
+        /** Checks the form and saves it, archived or not. */
+        fun submit(archive: Boolean) {
             val b = budget.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
             val m = thisMonth.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
             error = when {
@@ -233,11 +228,21 @@ fun CategoryEditor(
             }
             if (error == null) onSave(
                 CategoryEdit(
-                    original.copy(name = name.trim(), icon = icon, color = color, countsTowardDaily = counts, hidden = hidden),
+                    original.copy(name = name.trim(), icon = icon, color = color, countsTowardDaily = counts, hidden = archive),
                     budget = b, thisMonthBudget = m, clearThisMonth = thisMonth.isBlank() && monthBudget != null,
                 )
             )
         }
+        PrimaryButton(if (isNew) "Add category" else if (hidden) "Restore" else "Save") { submit(archive = false) }
+        if (!isNew && !hidden) {
+            Gap(8)
+            dev.krishnagurram.kassa.ui.importer.SecondaryButton("Archive", { confirmArchive = true })
+        }
+        if (confirmArchive) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+            title = "Archive ${original.name}?",
+            body = "It leaves the pickers, budgets and category lists. Past entries keep it, and you can restore it from Archived.",
+            confirm = "Archive", onConfirm = { confirmArchive = false; submit(archive = true) }, onDismiss = { confirmArchive = false },
+        )
         Gap(24)
     }
 }

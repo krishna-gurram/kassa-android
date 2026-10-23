@@ -17,7 +17,18 @@ class KassaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Keep the last crash on the phone so it can be copied from Settings; nothing is sent anywhere.
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+            runCatching {
+                val trace = java.io.StringWriter().also { e.printStackTrace(java.io.PrintWriter(it)) }.toString()
+                crashFile().writeText("${java.time.LocalDateTime.now()} ${BuildConfigInfo.versionName}\n$trace")
+            }
+            previous?.uncaughtException(thread, e)
+        }
         // Reading the settings sets the currency before anything formats an amount, including bank alerts.
         settings.currency
     }
+
+    fun crashFile(): java.io.File = java.io.File(filesDir, "last-crash.txt")
 }

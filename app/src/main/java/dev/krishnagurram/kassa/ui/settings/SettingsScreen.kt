@@ -190,6 +190,14 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     NavRow("Backup and restore", "Encrypted file") { open(Page.Backup) }
     NavRow("Import from Money Manager", "Replaces data") { actions.importAgain() }
     if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(Page.Splitwise) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val crash = remember { (context.applicationContext as? dev.krishnagurram.kassa.KassaApplication)?.crashFile()?.takeIf { it.exists() } }
+    var crashCopied by remember { mutableStateOf(false) }
+    if (crash != null && !crashCopied) NavRow("Last crash report", "Tap to copy") {
+        clipboard.setText(androidx.compose.ui.text.AnnotatedString(runCatching { crash.readText() }.getOrDefault("")))
+        crash.delete(); crashCopied = true
+    }
 
     Gap(20)
     Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)
@@ -281,23 +289,29 @@ private fun CategoryList(ledger: Ledger, kind: CategoryKind, open: (Category) ->
         open(Category(name = "", kind = kind, color = dev.krishnagurram.kassa.ui.categories.IconCatalog.colors[tops.size % 14]))
     })
     Gap(8)
-    tops.forEachIndexed { i, c ->
+    val (active, archived) = tops.partition { !it.hidden }
+    @Composable
+    fun row(c: Category, last: Boolean) {
         val subs = ledger.categories.count { it.parentId == c.id && !it.hidden }
-        val budget = Budgets.amountFor(c.id, month, ledger.budgets)
+        val budget = Budgets.amountFor(c.id, month, ledger.budgets).takeIf { !c.hidden }
         val detail = listOfNotNull(
             if (subs > 0) "$subs sub" else null,
             if (kind == CategoryKind.EXPENSE && !c.countsTowardDaily) "bill" else null,
-            if (c.hidden) "hidden" else null,
         ).joinToString(", ").ifEmpty { if (kind == CategoryKind.EXPENSE) "everyday" else "" }
         EntryRow(
             badge = { CategoryBadge(c) },
             title = c.name, subtitle = detail,
-            amount = if (kind == CategoryKind.EXPENSE) budget?.let { Money.format(it, wholeDollars = true) } ?: "No budget" else "",
+            amount = if (kind == CategoryKind.EXPENSE && !c.hidden) budget?.let { Money.format(it, wholeDollars = true) } ?: "No budget" else "",
             amountColor = if (budget == null) Kassa.colors.ink3 else Kassa.colors.ink,
             note = if (kind == CategoryKind.EXPENSE && budget != null) "a month" else null,
-            showDivider = i < tops.lastIndex,
+            showDivider = !last,
             modifier = Modifier.clickable { open(c) },
         )
+    }
+    active.forEachIndexed { i, c -> row(c, i == active.lastIndex) }
+    if (archived.isNotEmpty()) {
+        SectionHeader("Archived", "${archived.size}")
+        archived.forEachIndexed { i, c -> row(c, i == archived.lastIndex) }
     }
 }
 

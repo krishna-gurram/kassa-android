@@ -31,6 +31,7 @@ fun TransactionRow(
     } else ""
     val m = if (onClick != null) modifier.clickable { onClick(t) } else modifier
     val acct = t.accountId?.let { ledger.accountById[it]?.name }
+    val intoCard = t.accountId?.let { ledger.accountById[it]?.type?.hasStatement } == true
     val person = t.personId?.let { id -> ledger.people.people.firstOrNull { it.id == id }?.name }
     when (t.kind) {
         TxKind.TRANSFER -> {
@@ -39,7 +40,9 @@ fun TransactionRow(
                 badge = { IconBadge(androidx.compose.material.icons.Icons.Outlined.SwapHoriz) },
                 title = "To ${to?.name ?: "an account"}",
                 subtitle = date + "From ${acct ?: "an account"}",
-                amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
+                // A payment to a card is a credit on it: green, like a refund.
+                amount = Money.format(t.amount, showPlus = to?.type?.hasStatement == true),
+                amountColor = if (to?.type?.hasStatement == true) Kassa.colors.positive else Kassa.colors.ink2,
                 note = noteOverride ?: when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
                 showDivider = showDivider, modifier = m,
             )
@@ -55,7 +58,8 @@ fun TransactionRow(
             badge = { GlyphBadge(person?.take(1) ?: "?") },
             title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) "${person ?: "Someone"} paid you" else "You paid ${person ?: "someone"}" },
             subtitle = date + (acct ?: ""),
-            amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
+            amount = Money.format(t.amount, showPlus = t.kind == TxKind.PERSON_IN && intoCard),
+            amountColor = if (t.kind == TxKind.PERSON_IN && intoCard) Kassa.colors.positive else Kassa.colors.ink2,
             note = noteOverride ?: "Settle up", showDivider = showDivider, modifier = m,
         )
         else -> {

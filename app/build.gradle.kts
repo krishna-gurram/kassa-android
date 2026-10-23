@@ -91,6 +91,7 @@ dependencies {
 
     implementation(libs.coroutines.android)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
 }

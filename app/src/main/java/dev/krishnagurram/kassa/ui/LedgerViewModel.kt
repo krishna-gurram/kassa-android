@@ -140,6 +140,8 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addPerson(name: String, then: (Long) -> Unit = {}) = viewModelScope.launch { then(repo.addPerson(name)) }
 
+    fun updatePerson(p: dev.krishnagurram.kassa.domain.Person) = viewModelScope.launch { repo.updatePerson(p); _messages.tryEmit("${p.name} saved.") }
+
     fun addPerson(name: String, opening: Long) = viewModelScope.launch { repo.addPerson(name, opening); _messages.tryEmit("$name added.") }
 
     fun splitExisting(txId: Long, personId: Long, theirShare: Long) = viewModelScope.launch {

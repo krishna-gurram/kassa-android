@@ -145,6 +145,8 @@ class KassaRepository(private val db: KassaDatabase) {
 
     suspend fun addPerson(name: String): Long = db.people().insert(Person(name = name.trim()).toEntity())
 
+    suspend fun updatePerson(p: Person) = db.people().update(p.toEntity())
+
     /** A new person, optionally starting with a balance (positive: they owe you). */
     suspend fun addPerson(name: String, opening: Long): Long = db.withTransaction {
         val pid = db.people().insert(Person(name = name.trim()).toEntity())

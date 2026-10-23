@@ -283,6 +283,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (p == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.accounts.PersonPage(p, lg.personBalances()[p.id] ?: 0, lg, padding, onBack, onSave = { vm.save(it) },
                         onSplit = { tx, share -> vm.splitExisting(tx, p.id, share) },
+                        onUpdate = { vm.updatePerson(it) },
                         onOpenEntry = { id -> scope.launch { vm.loadForEdit(id)?.let { (tx, split2) -> nav.push(Page.Entry(EntryStart(editing = tx, splitWith = split2))) } } })
                 }
                 is Page.CategoryDetail -> {

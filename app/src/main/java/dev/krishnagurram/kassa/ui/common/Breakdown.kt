@@ -40,7 +40,10 @@ import java.time.LocalDate
 /** One line: what was spent (or received), and what it's measured against (a budget, or last week) when there is one. */
 data class CatLine(val category: Category, val spent: Long, val ref: Long?, val refLabel: String?)
 
-private fun top(ledger: Ledger) = ledger.categories.filter { it.parentId == null && !it.hidden }
+/** Top categories in use. Archived ones are left out unless they have entries in the period being shown. */
+private fun top(ledger: Ledger) = ledger.categories.filter { it.parentId == null }
+
+private fun List<CatLine>.dropIdleArchived() = filter { !it.category.hidden || it.spent > 0 }
 
 /** Every visible expense category in a budget month, largest first, against that month's budget. [txs] defaults to the loaded months. */
 fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transaction> = ledger.recent): List<CatLine> {
@@ -51,6 +54,7 @@ fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transac
             val b = Budgets.amountFor(c.id, period.yearMonth, ledger.budgets)?.takeIf { it > 0 }
             CatLine(c, spent[c.id] ?: 0L, b, b?.let { "of ${Money.format(it, wholeDollars = true)}" })
         }
+        .dropIdleArchived()
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
 }
 
@@ -62,6 +66,7 @@ fun weekLines(ledger: Ledger): List<CatLine> {
     val before = Spending.byTopCategory(ledger.recent, ledger.categoryById, from, to, ledger.zone)
     return top(ledger).filter { it.kind == CategoryKind.EXPENSE }
         .map { c -> val b = before[c.id] ?: 0L; CatLine(c, now[c.id] ?: 0L, b.takeIf { it > 0 }, "last wk ${Money.format(b, wholeDollars = true)}") }
+        .dropIdleArchived()
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
 }
 
@@ -77,6 +82,7 @@ fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate): List<CatLine> {
     }
     return top(ledger).filter { it.kind == CategoryKind.INCOME }
         .map { CatLine(it, got[it.id] ?: 0L, null, null) }
+        .dropIdleArchived()
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
 }
 

@@ -211,6 +211,19 @@ fun PrimaryButton(label: String, onClick: () -> Unit) {
     ) { Text(label, style = KassaType.bodyStrong) }
 }
 
+/** A white (raised) filled button, for actions that add something next to a list. */
+@Composable
+fun RaisedButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().height(50.dp),
+        shape = RoundedCornerShape(15.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Kassa.colors.raised, contentColor = Kassa.colors.ink),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 0.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Kassa.colors.line),
+    ) { Text(label, style = KassaType.bodyStrong) }
+}
+
 @Composable
 fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     OutlinedButton(

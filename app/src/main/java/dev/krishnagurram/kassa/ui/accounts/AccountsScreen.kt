@@ -109,6 +109,7 @@ fun AccountsScreen(
     val loans = active.filter { it.type == AccountType.LOAN || it.type == AccountType.OTHER_DEBT }
     val people = ledger.people.people.filter { !it.archived }
     val archived = state.accounts.filter { it.archived }
+    val archivedPeople = ledger.people.people.filter { it.archived }
 
     val allKeys = listOf("cards", "Bank and cash", "Investments", "Loans", "people")
     val allOpen = allKeys.all { it in open }
@@ -171,15 +172,17 @@ fun AccountsScreen(
     val footer: @Composable () -> Unit = {
         Gap(20)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SecondaryButton("Add an account", { adding = true }, Modifier.weight(1f))
-            SecondaryButton("Add a person", { addingPerson = true }, Modifier.weight(1f))
+            dev.krishnagurram.kassa.ui.importer.RaisedButton("Add an account", { adding = true }, Modifier.weight(1f))
+            dev.krishnagurram.kassa.ui.importer.RaisedButton("Add a person", { addingPerson = true }, Modifier.weight(1f))
         }
-        if (archived.isNotEmpty()) {
+        val archivedCount = archived.size + archivedPeople.size
+        if (archivedCount > 0) {
             TextButton(onClick = { showArchived = !showArchived }) {
-                Text(if (showArchived) "Hide archived (${archived.size})" else "Show archived (${archived.size})", color = Kassa.colors.ink2)
+                Text(if (showArchived) "Hide archived ($archivedCount)" else "Show archived ($archivedCount)", color = Kassa.colors.ink2)
             }
             if (showArchived) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 archived.forEach { a -> OneLineRow(IconTile(accountIcon(a.type)), a.name, a.last4, Money.format(state.balances[a.id] ?: 0), selected = a.id == selectedAccount) { onOpenAccount(a.id) } }
+                archivedPeople.forEach { p -> OneLineRow({ LetterTile(p.name.take(1).uppercase()) }, p.name, null, Money.format(Math.abs(personBalances[p.id] ?: 0))) { onOpenPerson(p.id) } }
             }
         }
         TextButton(onClick = onImportAgain) { Text("Import again from Money Manager", color = Kassa.colors.ink2) }
@@ -209,6 +212,41 @@ fun AccountsScreen(
         onSave = { account, newGroup -> onAddAccount(account, newGroup); adding = false },
     )
     if (addingPerson) AddPersonSheet(onDismiss = { addingPerson = false }) { name, opening -> onAddPerson(name, opening); addingPerson = false }
+}
+
+/** Rename a person, or archive them once you're square. Their history stays either way. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun EditPersonSheet(p: Person, balance: Long, ledger: Ledger, onDismiss: () -> Unit, onSave: (Person) -> Unit) {
+    var name by remember { mutableStateOf(p.name) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var confirmArchive by remember { mutableStateOf(false) }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text("Edit person", style = KassaType.section, color = Kassa.colors.ink)
+            Gap(12)
+            OutlinedTextField(name, { name = it; error = null }, singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+            error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
+            Gap(16)
+            PrimaryButton("Save") {
+                val n = name.trim()
+                error = when {
+                    n.isEmpty() -> "Enter a name."
+                    ledger.people.people.any { it.id != p.id && it.name.equals(n, ignoreCase = true) } -> "$n is already in your people."
+                    else -> null
+                }
+                if (error == null) onSave(p.copy(name = n))
+            }
+            Gap(8)
+            if (p.archived) SecondaryButton("Restore", { onSave(p.copy(name = name.trim().ifEmpty { p.name }, archived = false)) })
+            else SecondaryButton("Archive", { confirmArchive = true })
+        }
+    }
+    if (confirmArchive) ConfirmDialog(
+        title = "Archive ${p.name}?",
+        body = if (balance != 0L) "${Money.format(Math.abs(balance))} is still open between you. ${p.name} leaves the people list and the pickers; the history and balance stay." else "${p.name} leaves the people list and the pickers. The history stays.",
+        confirm = "Archive", onConfirm = { onSave(p.copy(archived = true)) }, onDismiss = { confirmArchive = false },
+    )
 }
 
 /** A new person: their name and, if there's already money between you, who owes whom. */
@@ -490,7 +528,9 @@ private fun InvestmentBody(
 fun PersonPage(
     p: Person, balance: Long, ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?,
     onSave: (EntryDraft) -> Unit, onSplit: (Long, Long) -> Unit, onOpenEntry: (Long) -> Unit,
+    onUpdate: (Person) -> Unit,
 ) {
+    var editing by remember(p.id) { mutableStateOf(false) }
     val history = (
         ledger.people.loans.filter { it.personId == p.id }.map { Quad(it.epochMillis, it.note.ifBlank { "Split" }, it.amount, it.transactionId) } +
             ledger.people.payments.filter { it.personId == p.id }.map { t ->
@@ -507,7 +547,10 @@ fun PersonPage(
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(p.name, onBack)
+        if (editing) EditPersonSheet(p, balance, ledger, onDismiss = { editing = false }) { onUpdate(it); editing = false }
+        PageTop(p.name + if (p.archived) " (archived)" else "", onBack) {
+            TextButton(onClick = { editing = true }) { Text("Edit", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
+        }
         RaisedPanel {
             Text(when { balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" }, style = KassaType.tiny, color = Kassa.colors.ink2)
             dev.krishnagurram.kassa.ui.today.BigMoney(Math.abs(balance), sizeSp = 36f, color = if (balance > 0) Kassa.colors.positive else Kassa.colors.ink)
