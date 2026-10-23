@@ -1,33 +1,27 @@
 package dev.krishnagurram.kassa.ui.insights
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,322 +29,348 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krishnagurram.kassa.domain.Budgets
 import dev.krishnagurram.kassa.domain.Category
+import dev.krishnagurram.kassa.domain.CategoryKind
 import dev.krishnagurram.kassa.domain.Insights
 import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.domain.Patterns
+import dev.krishnagurram.kassa.domain.Period
 import dev.krishnagurram.kassa.domain.Spending
+import dev.krishnagurram.kassa.domain.Transaction
+import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.CategoryBadge
-import dev.krishnagurram.kassa.ui.common.EntryRow
-import dev.krishnagurram.kassa.ui.common.Gap
-import dev.krishnagurram.kassa.ui.common.SectionHeader
-import dev.krishnagurram.kassa.ui.entry.Chip
-import dev.krishnagurram.kassa.ui.importer.PrimaryButton
-import dev.krishnagurram.kassa.ui.importer.SecondaryButton
+import dev.krishnagurram.kassa.ui.common.TransactionRow
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
+import dev.krishnagurram.kassa.ui.today.BigMoney
+import java.time.Instant
+import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-interface InsightActions {
-    fun setCap(category: Category, amount: Long)
-    fun dismissFlag(category: Category)
-    fun openCategory(category: Category)
+/** The pages one tap away from Insights. */
+enum class InsightPage(val title: String) {
+    BUDGETS("Budgets"), WEEK_CATEGORIES("This week by category"), SAVED("Saved"), STORES("Top stores"),
+    SMALL("Under $15"), CREEP("Creeping up"), REPEATING("Repeating"), WEEKDAYS("By weekday"),
 }
 
-/** Red flags, where the money went against budget and pace, trend, weekday pattern and repeating charges. */
+interface InsightActions {
+    fun openCategory(category: Category)
+    fun open(page: InsightPage)
+    fun edit(t: Transaction)
+}
+
+/**
+ * What already happened, with nothing projected: spending this month or week against the same point in the one
+ * before, budgets, and patterns that each open a page. Sized to fit the cover screen without scrolling.
+ */
 @Composable
-fun InsightsScreen(
-    ledger: Ledger,
-    contentPadding: PaddingValues,
-    sensitivity: Insights.Sensitivity,
-    dismissed: Set<Long>,
-    actions: InsightActions,
-) {
+fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: InsightActions) {
     var week by rememberSaveable { mutableStateOf(false) }
-    var recap by remember { mutableStateOf(false) }
-    val period = ledger.period
-    val fixedNotes = remember(ledger.assist.recurring, ledger.recent.size) {
-        (ledger.assist.recurring.map { it.name } + Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone).map { it.note }).map { it.lowercase() }.toSet()
-    }
-    val flags = Insights.flags(ledger.recent, ledger.categories, ledger.budgets, fixedNotes, ledger.today, ledger.monthStartDay, ledger.zone, sensitivity, dismissed)
+    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
         val head: @Composable () -> Unit = {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Column(Modifier.weight(1f)) {
-                    Text("${period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}, day ${java.time.temporal.ChronoUnit.DAYS.between(period.start, ledger.today) + 1} of ${period.days}", style = KassaType.small, color = Kassa.colors.ink2)
-                    Text("Insights", style = KassaType.title, color = Kassa.colors.ink)
-                }
-                Text("Weekly recap", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.clickable { recap = true }.padding(8.dp))
-            }
-            Row(Modifier.padding(top = 14.dp).clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(3.dp)) {
-                listOf(false to "This month", true to "This week").forEach { (w, label) ->
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (week == w) Kassa.colors.raised else Color.Transparent)
-                            .clickable { week = w }.padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(label, style = KassaType.bodyStrong, color = if (week == w) Kassa.colors.ink else Kassa.colors.ink2) }
-                }
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Insights", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+                Toggle(listOf(true to "This week", false to monthName), week) { week = it }
             }
         }
-        val left: @Composable () -> Unit = { if (week) WeekView(ledger) else { FlagsBlock(flags, ledger, actions); WhereItWent(ledger, actions) } }
-        val right: @Composable () -> Unit = { if (!week) { Trend(ledger); Weekdays(ledger); Repeating(ledger) } }
-
         if (wide) {
             Column(Modifier.fillMaxSize().padding(contentPadding)) {
                 head()
-                Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { left() }
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { right() }
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (week) { WeekHero(ledger); WeekCategories(ledger, actions, limit = 6) } else { MonthHero(ledger); BudgetList(ledger, actions, limit = 7) }
+                    }
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Kassa.colors.line))
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (week) { WeekStandouts(ledger); LargestBuys(ledger, actions) } else PatternTiles(ledger, actions)
+                    }
                 }
             }
         } else {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) { head(); left(); right() }
-        }
-    }
-    if (recap) Recap(ledger, flags, onCap = { c, a -> actions.setCap(c, a) }, onClose = { recap = false })
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FlagsBlock(flags: List<Insights.Flag>, ledger: Ledger, actions: InsightActions) {
-    SectionHeader("Worth a look", if (flags.isEmpty()) "All within range" else "${flags.size} above average")
-    if (flags.isEmpty()) Text("Every everyday category is within its 3-month average and budget.", style = KassaType.body, color = Kassa.colors.ink2)
-    flags.take(4).forEach { f ->
-        Column(Modifier.padding(vertical = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CategoryBadge(f.category, size = 30)
-                Text("  ${f.category.name}", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FlagFigure("Month to date", Money.format(f.soFar, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
-                FlagFigure("On pace for", Money.format(f.projected, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
-                FlagFigure("3-month avg", Money.format(f.usual, wholeDollars = true), Kassa.colors.ink, Modifier.weight(1f))
-                FlagFigure("Variance", Money.format(maxOf(0, f.extra), wholeDollars = true, showPlus = true), Kassa.colors.attention, Modifier.weight(1f))
-            }
-            f.budget?.takeIf { it > 0 && f.soFar > it }?.let {
-                Text("Over budget by ${Money.format(f.soFar - it, wholeDollars = true)}", style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 4.dp))
-            }
-            FlowRow(Modifier.padding(top = 8.dp)) {
-                Chip("Cap at ${Money.format(f.suggestedCap, wholeDollars = true)}", selected = true) { actions.setCap(f.category, f.suggestedCap) }
-                Chip("See where", selected = false) { actions.openCategory(f.category) }
-                Chip("It's expected", selected = false, outlined = true) { actions.dismissFlag(f.category) }
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                head()
+                if (week) { WeekHero(ledger); WeekCategories(ledger, actions, limit = 3); WeekStandouts(ledger) }
+                else { MonthHero(ledger); BudgetList(ledger, actions, limit = 4); PatternTiles(ledger, actions) }
             }
         }
-        HorizontalDivider(color = Kassa.colors.line)
     }
 }
 
+/* ---------- month ---------- */
+
+private fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+
 @Composable
-private fun WhereItWent(ledger: Ledger, actions: InsightActions) {
+private fun MonthHero(ledger: Ledger) {
     val p = ledger.period
-    val progress = p.progress(ledger.today).toFloat()
+    val spent = Patterns.spent(ledger.recent, p.start, ledger.today, ledger.zone)
+    val prev = Period.startingIn(p.yearMonth.minusMonths(1), ledger.monthStartDay)
+    val (from, to) = Patterns.samePointBefore(p.start, ledger.today, prev.start)
+    val before = Patterns.spent(ledger.recent, from, to, ledger.zone)
+    val hasBefore = ledger.recent.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
+    Hero("Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}", spent) {
+        if (hasBefore) Compare("${prev.yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} by the ${ordinal(to.dayOfMonth)}", before)
+    }
+}
+
+/** Top-level expense categories with a budget or spending this month: over budget first, then the largest. */
+private fun budgetRows(ledger: Ledger): List<Triple<Category, Long, Long>> {
+    val p = ledger.period
     val spent = Spending.byTopCategory(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
-    val rows = ledger.categories.filter { it.parentId == null && it.kind == dev.krishnagurram.kassa.domain.CategoryKind.EXPENSE && !it.hidden }
+    return ledger.categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden }
         .map { Triple(it, spent[it.id] ?: 0L, Budgets.amountFor(it.id, p.yearMonth, ledger.budgets) ?: 0L) }
         .filter { it.second > 0 || it.third > 0 }
-    val (daily, bills) = rows.partition { it.first.countsTowardDaily }
-    SectionHeader("Where it went", "Line: even pace")
-    daily.sortedByDescending { it.second }.forEach { (c, s, b) -> BudgetBar(c, s, b, progress) { actions.openCategory(c) } }
-    if (bills.isNotEmpty()) {
-        SectionHeader("Bills")
-        bills.sortedByDescending { it.second }.forEach { (c, s, b) -> BudgetBar(c, s, b, progress) { actions.openCategory(c) } }
+        .sortedWith(compareByDescending<Triple<Category, Long, Long>> { it.third > 0 && it.second > it.third }.thenByDescending { it.second })
+}
+
+@Composable
+private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int) {
+    val rows = budgetRows(ledger)
+    Column {
+        Head("Budgets", if (rows.size > limit) "All ${rows.size}" else null) { actions.open(InsightPage.BUDGETS) }
+        if (rows.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
+        val maxNoBudget = rows.filter { it.third == 0L }.maxOfOrNull { it.second } ?: 1L
+        rows.take(limit).forEach { (c, s, b) -> CategoryBar(c, s, if (b > 0) b else maxNoBudget, if (b > 0) "of ${Money.format(b, wholeDollars = true)}" else null, over = b > 0 && s > b) { actions.openCategory(c) } }
     }
 }
 
 @Composable
-private fun BudgetBar(c: Category, spent: Long, budget: Long, progress: Float, onClick: () -> Unit) {
-    val color = Color(c.color)
-    val track = Kassa.colors.track
-    val ink = Kassa.colors.ink
-    val warn = Kassa.colors.attention
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
-            Text("  ${c.name}", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-            Text(Money.format(spent, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            if (budget > 0) Text(" of ${Money.format(budget, wholeDollars = true)}", style = KassaType.small, color = Kassa.colors.ink2)
-        }
-        Canvas(Modifier.fillMaxWidth().padding(top = 8.dp).height(12.dp).semantics { contentDescription = "${c.name}: ${Money.format(spent)} of ${Money.format(budget)}" }) {
-            val barH = 8.dp.toPx(); val top = (size.height - barH) / 2
-            val scale = maxOf(budget, spent).toFloat().coerceAtLeast(1f)
-            drawRoundRect(track, Offset(0f, top), Size(size.width, barH), CornerRadius(barH / 2))
-            val within = minOf(spent, if (budget > 0) budget else spent)
-            drawRoundRect(color, Offset(0f, top), Size(size.width * within / scale, barH), CornerRadius(barH / 2))
-            if (budget in 1 until spent) {
-                val x0 = size.width * budget / scale
-                drawRect(warn, Offset(x0, top), Size(size.width - x0, barH))
+private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
+    val p = ledger.period
+    val saved = remember(ledger) { Patterns.saved(ledger.recent, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val stores = remember(ledger) { Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val small = remember(ledger) { Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val creep = remember(ledger) { Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val repeating = remember(ledger) { Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone) }
+    val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone) }
+    val now = saved.last()
+    val busiest = weekdays.maxByOrNull { it.second }
+    val changed = repeating.count { it.change > 0 }
+
+    Column {
+        Head("Patterns")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PatternTile("Saved so far", Money.format(now.saved, wholeDollars = true), now.rate?.let { "$it% of income" } ?: "No income yet",
+                    valueColor = if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.SAVED) }) {
+                    MiniBars(saved.map { maxOf(0L, it.saved) }, saved.lastIndex, Kassa.colors.positive)
+                }
+                PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
+                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.STORES) }) {
+                    MiniBars(stores.take(5).map { it.total }, 0, stores.firstOrNull()?.category?.let { Color(it.color) } ?: Kassa.colors.ink)
+                }
+                PatternTile("Under $15", Money.format(small.total, wholeDollars = true), "${small.count} buys",
+                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.SMALL) }) {
+                    MiniBars(smallMonths.map { it.second }, smallMonths.lastIndex, Kassa.colors.ink)
+                }
             }
-            if (budget > 0) {
-                val px = size.width * budget * progress / scale
-                drawLine(ink, Offset(px, 0f), Offset(px, size.height), strokeWidth = 2.dp.toPx())
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val top = creep.firstOrNull()
+                PatternTile("Creeping up", top?.category?.name ?: "None", top?.let { "${it.months.size} months" } ?: "Steady",
+                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.CREEP) }) {
+                    MiniBars(top?.months?.map { it.second } ?: listOf(1L, 1L, 1L), (top?.months?.size ?: 3) - 1, if (top != null) Kassa.colors.attention else Kassa.colors.track)
+                }
+                PatternTile("Repeating", Money.format(repeating.sumOf { it.amount }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
+                    subColor = if (changed > 0) Kassa.colors.attention else null, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.REPEATING) }) {
+                    RepeatLines(repeating.take(4).map { it.category?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
+                }
+                PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
+                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.WEEKDAYS) }) {
+                    MiniBars(weekdays.map { it.second }, busiest?.let { weekdays.indexOf(it) } ?: -1, Kassa.colors.ink)
+                }
             }
         }
     }
 }
 
+/* ---------- week ---------- */
+
 @Composable
-private fun Trend(ledger: Ledger) {
-    val totals = Insights.monthTotals(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone)
-    val budget = ledger.categories.filter { it.parentId == null && it.countsTowardDaily && !it.hidden }.sumOf { Budgets.amountFor(it.id, ledger.period.yearMonth, ledger.budgets) ?: 0 }
-    val max = (totals.maxOfOrNull { it.projected ?: it.spent } ?: 1L).coerceAtLeast(budget).coerceAtLeast(1) * 1.1f
-    val ink = Kassa.colors.ink; val track = Kassa.colors.track; val ink3 = Kassa.colors.ink3
-    SectionHeader("Five months", "Everyday spending")
-    Row(Modifier.fillMaxWidth().height(170.dp).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-        totals.forEachIndexed { i, t ->
-            val current = i == totals.lastIndex
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(Money.format(t.projected ?: t.spent, wholeDollars = true), style = KassaType.tiny, color = Kassa.colors.ink, maxLines = 1)
-                Canvas(Modifier.fillMaxWidth().height(120.dp)) {
-                    val h = size.height
-                    val full = h * ((t.projected ?: t.spent) / max)
-                    val actual = h * (t.spent / max)
-                    if (t.projected != null) drawRoundRect(ink3, Offset(0f, h - full), Size(size.width, full - actual), CornerRadius(6.dp.toPx()),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))))
-                    drawRoundRect(if (current) ink else track, Offset(0f, h - actual), Size(size.width, actual), CornerRadius(6.dp.toPx()))
-                    if (budget > 0) {
-                        val y = h - h * (budget / max)
-                        drawLine(ink3, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f)))
+private fun WeekHero(ledger: Ledger) {
+    val monday = Patterns.weekStart(ledger.today)
+    val days = Patterns.daysThisWeek(ledger.recent, ledger.today, ledger.zone)
+    val spent = days.sumOf { it.second ?: 0L }
+    val (from, to) = Patterns.samePointBefore(monday, ledger.today, monday.minusWeeks(1))
+    val before = Patterns.spent(ledger.recent, from, to, ledger.zone)
+    val max = (days.maxOfOrNull { it.second ?: 0L } ?: 0L).coerceAtLeast(1L)
+    Hero("Spent this week", spent) {
+        Compare("Last week by ${ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}", before)
+        Row(Modifier.fillMaxWidth().height(84.dp).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            days.forEach { (d, v) ->
+                val today = d == ledger.today.dayOfWeek
+                Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Kassa.colors.ground.copy(alpha = if (v == null) 0.5f else 1f)), contentAlignment = Alignment.BottomCenter) {
+                        if (v != null && v > 0) Box(Modifier.fillMaxWidth().fillMaxHeight((v.toFloat() / max).coerceAtLeast(0.04f)).clip(RoundedCornerShape(6.dp)).background(Kassa.colors.ink))
                     }
+                    Text(d.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textDecoration = if (today) TextDecoration.Underline else null), color = if (today) Kassa.colors.ink else Kassa.colors.ink2, modifier = Modifier.padding(top = 3.dp))
                 }
-                Text(t.month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = KassaType.tiny, color = Kassa.colors.ink2)
             }
         }
-    }
-    Text(
-        "Outline: projected" + if (budget > 0) ".  Line: budget ${Money.format(budget, wholeDollars = true)}" else "",
-        style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(top = 6.dp),
-    )
-}
-
-@Composable
-private fun Weekdays(ledger: Ledger) {
-    val avg = Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone)
-    val max = (avg.maxOfOrNull { it.second } ?: 1L).coerceAtLeast(1)
-    val top = avg.maxByOrNull { it.second }
-    val ink = Kassa.colors.ink; val track = Kassa.colors.track
-    SectionHeader("When you spend", "Average day, last 13 weeks")
-    Row(Modifier.fillMaxWidth().height(150.dp).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-        avg.forEach { (d, v) ->
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(Money.format(v, wholeDollars = true), style = KassaType.tiny.copy(fontSize = 10.sp), color = Kassa.colors.ink, maxLines = 1)
-                Canvas(Modifier.fillMaxWidth().height(100.dp)) {
-                    val hh = size.height * (v.toFloat() / max)
-                    drawRoundRect(if (d == top?.first) ink else track, Offset(0f, size.height - hh), Size(size.width, hh.coerceAtLeast(2f)), CornerRadius(5.dp.toPx()))
-                }
-                Text(d.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(3), style = KassaType.tiny, color = Kassa.colors.ink2)
-            }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            days.forEach { (_, v) -> Text(v?.let { Money.format(it, wholeDollars = true) } ?: "", style = KassaType.tiny.copy(fontSize = 10.sp), color = Kassa.colors.ink2, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f)) }
         }
     }
 }
 
+private fun weekRows(ledger: Ledger): List<Pair<Category, Long>> {
+    val monday = Patterns.weekStart(ledger.today)
+    return Spending.byTopCategory(ledger.recent, ledger.categoryById, monday, ledger.today, ledger.zone)
+        .mapNotNull { (id, v) -> ledger.categoryById[id]?.let { it to v } }.filter { it.second > 0 }.sortedByDescending { it.second }
+}
+
 @Composable
-private fun Repeating(ledger: Ledger) {
-    val r = Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone).filter { it.category?.countsTowardDaily != false || it.amount < 50_000 }
-    if (r.isEmpty()) return
-    SectionHeader("Repeating charges", "${Money.format(r.sumOf { it.amount })} a month")
-    r.forEachIndexed { i, x ->
-        EntryRow(
-            badge = { CategoryBadge(x.category) },
-            title = x.note,
-            subtitle = if (x.change > 0) "Up ${Money.format(x.change)} in ${x.lastMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}" else "Same amount each month",
-            amount = Money.format(x.amount),
-            amountColor = Kassa.colors.ink,
-            note = "${Money.format(x.amount * 12, wholeDollars = true)} a year",
-            showDivider = i < r.lastIndex,
-        )
+private fun WeekCategories(ledger: Ledger, actions: InsightActions, limit: Int) {
+    val rows = weekRows(ledger)
+    Column {
+        Head("By category", if (rows.size > limit) "All ${rows.size}" else null) { actions.open(InsightPage.WEEK_CATEGORIES) }
+        if (rows.isEmpty()) Text("Nothing spent yet this week.", style = KassaType.body, color = Kassa.colors.ink2)
+        val max = rows.firstOrNull()?.second ?: 1L
+        rows.take(limit).forEach { (c, v) -> CategoryBar(c, v, max, null, over = false) { actions.openCategory(c) } }
     }
 }
 
 @Composable
-private fun WeekView(ledger: Ledger) {
-    val w = Insights.week(ledger.recent, ledger.categories, ledger.today, ledger.zone)
-    Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("This week", style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(Money.format(w.soFar, wholeDollars = true), style = KassaType.stat.copy(fontSize = 28.sp), color = Kassa.colors.ink)
-        }
-        Column(Modifier.weight(1f)) {
-            Text("Usual by today", style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(Money.format(w.typical, wholeDollars = true), style = KassaType.stat.copy(fontSize = 28.sp), color = Kassa.colors.ink2)
-        }
-    }
-    SectionHeader("By category", "Line: usual by today")
-    val max = (w.byCategory.maxOfOrNull { maxOf(it.second, it.third) } ?: 1L).coerceAtLeast(1)
-    w.byCategory.forEach { (c, now, typ) ->
-        val color = Color(c.color); val track = Kassa.colors.track; val ink = Kassa.colors.ink
-        Column(Modifier.padding(vertical = 10.dp)) {
-            Row {
-                Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-                Text("${Money.format(now, wholeDollars = true)} ", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                Text("usually ${Money.format(typ, wholeDollars = true)}", style = KassaType.small, color = Kassa.colors.ink2)
-            }
-            Canvas(Modifier.fillMaxWidth().padding(top = 8.dp).height(12.dp)) {
-                val barH = 8.dp.toPx(); val top = (size.height - barH) / 2
-                drawRoundRect(track, Offset(0f, top), Size(size.width, barH), CornerRadius(barH / 2))
-                drawRoundRect(color, Offset(0f, top), Size(size.width * now / max, barH), CornerRadius(barH / 2))
-                val x = size.width * typ / max
-                drawLine(ink, Offset(x, 0f), Offset(x, size.height), strokeWidth = 2.dp.toPx())
-            }
-        }
-    }
-}
-
-/** A short story you tap through: your week, the biggest leak, one win, and one change to try. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun Recap(ledger: Ledger, flags: List<Insights.Flag>, onCap: (Category, Long) -> Unit, onClose: () -> Unit) {
-    val w = Insights.week(ledger.recent, ledger.categories, ledger.today, ledger.zone)
-    val win = Insights.wins(ledger.recent, ledger.categories, ledger.budgets, ledger.today, ledger.monthStartDay, ledger.zone).firstOrNull()
-    val leak = flags.firstOrNull()
-    val day = ledger.today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-    data class Slide(val kicker: String, val title: String, val body: String, val cap: Insights.Flag? = null)
-    val slides = buildList {
-        add(Slide("Your week", "${Money.format(w.soFar, wholeDollars = true)} on everyday things since Monday.",
-            "A typical week by $day is ${Money.format(w.typical, wholeDollars = true)}. " +
-                if (w.soFar > w.typical) "You're ${Money.format(w.soFar - w.typical, wholeDollars = true)} ahead of that." else "You're ${Money.format(w.typical - w.soFar, wholeDollars = true)} under it."))
-        if (leak != null) add(Slide("Biggest leak", "${leak.category.name} is on track for ${Money.format(leak.projected, wholeDollars = true)}.",
-            "That's ${Money.format(maxOf(0, leak.extra), wholeDollars = true)} more than your usual month of ${Money.format(leak.usual, wholeDollars = true)}."))
-        if (win != null) add(Slide("One win", "${win.category.name} is ${Money.format(win.underPace, wholeDollars = true)} under pace.",
-            "Keep it there and that money stays free for the rest of the month."))
-        if (leak != null) add(Slide("Try this", "Cap ${leak.category.name} at ${Money.format(leak.suggestedCap, wholeDollars = true)} a month.",
-            "Holding to your usual saves about ${Money.format(maxOf(0, leak.extra), wholeDollars = true)} this month.", cap = leak))
-    }
-    var i by remember { mutableIntStateOf(0) }
-    val s = slides[i.coerceAtMost(slides.lastIndex)]
-    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                slides.indices.forEach { j -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (j <= i) Kassa.colors.ink else Kassa.colors.line)) }
-            }
-            Gap(28)
-            Text(s.kicker, style = KassaType.bodyStrong, color = Kassa.colors.ink2)
-            Text(s.title, style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(top = 10.dp))
-            Text(s.body, style = KassaType.body.copy(fontSize = 16.sp), color = Kassa.colors.ink2, modifier = Modifier.padding(top = 12.dp))
-            Gap(40)
-            s.cap?.let { f -> PrimaryButton("Set the cap") { onCap(f.category, f.suggestedCap); onClose() }; Gap(8) }
-            SecondaryButton(if (i < slides.lastIndex) "Next" else "Done", { if (i < slides.lastIndex) i++ else onClose() })
+private fun WeekStandouts(ledger: Ledger) {
+    val changes = Patterns.weekChanges(ledger.recent, ledger.categories, ledger.today, ledger.zone)
+    val up = changes.filter { it.change > 0 }.maxByOrNull { it.change }
+    val down = changes.filter { it.change < 0 }.minByOrNull { it.change }
+    if (up == null && down == null) return
+    Column {
+        Head("vs last week")
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Figure("Up most", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention, Modifier.weight(1f))
+            Figure("Down most", down?.category?.name ?: "None", down?.let { "−" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun FlagFigure(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
-    Column(modifier) {
-        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
-        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1)
+private fun LargestBuys(ledger: Ledger, actions: InsightActions) {
+    val monday = Patterns.weekStart(ledger.today)
+    val list = ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
+        .sortedByDescending { it.categoryAmount }.take(4)
+    if (list.isEmpty()) return
+    Column {
+        Head("Largest buys")
+        list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit) }
     }
+}
+
+/* ---------- pieces ---------- */
+
+@Composable
+private fun Hero(label: String, amount: Long, extra: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Kassa.colors.raised).padding(14.dp)) {
+        Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        BigMoney(amount, sizeSp = 34f)
+        extra()
+    }
+}
+
+@Composable
+private fun Compare(label: String, amount: Long) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = KassaType.small, color = Kassa.colors.ink2)
+        Text("  " + Money.format(amount, wholeDollars = true), style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink)
+    }
+}
+
+@Composable
+internal fun Head(title: String, link: String? = null, onLink: () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        if (link != null) Text("$link  ›", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onLink).padding(horizontal = 4.dp, vertical = 4.dp))
+    }
+}
+
+/** One category: name and amount, then a bar of how much of [ref] is used. Past it, the bar turns orange. */
+@Composable
+internal fun CategoryBar(c: Category, spent: Long, ref: Long, refLabel: String?, over: Boolean, onClick: () -> Unit) {
+    val color = if (over) Kassa.colors.attention else Color(c.color)
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CategoryBadge(c, size = 26)
+            Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
+            Text(Money.format(spent, wholeDollars = true), style = KassaType.bodyStrong, color = if (over) Kassa.colors.attention else Kassa.colors.ink)
+            if (refLabel != null) Text(" $refLabel", style = KassaType.tiny, color = Kassa.colors.ink2)
+        }
+        Box(Modifier.padding(start = 34.dp, top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.track)) {
+            Box(Modifier.fillMaxWidth((spent.toFloat() / ref.coerceAtLeast(1)).coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))
+        }
+    }
+}
+
+@Composable
+private fun PatternTile(
+    label: String, value: String, sub: String, modifier: Modifier, onClick: () -> Unit,
+    valueColor: Color = Kassa.colors.ink, subColor: Color? = null, visual: @Composable () -> Unit,
+) {
+    Column(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Box(Modifier.fillMaxWidth().height(22.dp)) { visual() }
+        Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+        Text(value, style = KassaType.bodyStrong, color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (sub.isNotEmpty()) Text(sub, style = KassaType.tiny, color = subColor ?: Kassa.colors.ink3, maxLines = 2)
+    }
+}
+
+@Composable
+private fun MiniBars(values: List<Long>, highlight: Int, color: Color) {
+    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+        values.forEachIndexed { i, v ->
+            Box(Modifier.weight(1f).fillMaxHeight((v.toFloat() / max).coerceIn(0.2f, 1f)).clip(RoundedCornerShape(3.dp)).background(if (i == highlight) color else Kassa.colors.track))
+        }
+    }
+}
+
+@Composable
+private fun RepeatLines(colors: List<Color>) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
+        listOf(1f, 0.7f, 0.45f, 0.3f).forEachIndexed { i, w ->
+            Box(Modifier.fillMaxWidth(w).height(4.dp).clip(RoundedCornerShape(2.dp)).background(colors.getOrNull(i) ?: Kassa.colors.track))
+        }
+    }
+}
+
+@Composable
+internal fun Figure(label: String, value: String, sub: String?, subColor: Color, modifier: Modifier, valueColor: Color = Kassa.colors.ink) {
+    Column(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        Text(value, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (sub != null) Text(sub, style = KassaType.small, color = subColor)
+    }
+}
+
+@Composable
+private fun Toggle(options: List<Pair<Boolean, String>>, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
+        options.forEach { (v, label) ->
+            val on = v == value
+            Text(
+                label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent).clickable { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+internal fun ordinal(n: Int): String = n.toString() + when {
+    n % 100 in 11..13 -> "th"
+    n % 10 == 1 -> "st"; n % 10 == 2 -> "nd"; n % 10 == 3 -> "rd"
+    else -> "th"
 }

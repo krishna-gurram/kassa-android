@@ -270,6 +270,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
+                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) })
                 is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
                 Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
                 Page.Review -> dev.krishnagurram.kassa.ui.today.ReviewPage(lg, padding, onBack, needs)
@@ -292,19 +293,14 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onCards = { nav.select(Tab.CARDS) },
                 )
                 Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
-                Tab.INSIGHTS -> {
-                    val monthKey = dev.krishnagurram.kassa.domain.Budgets.key(lg.period.yearMonth)
-                    dev.krishnagurram.kassa.ui.insights.InsightsScreen(
-                        lg, padding,
-                        sensitivity = runCatching { dev.krishnagurram.kassa.domain.Insights.Sensitivity.valueOf(sensitivity) }.getOrDefault(dev.krishnagurram.kassa.domain.Insights.Sensitivity.BALANCED),
-                        dismissed = dismissedFlags.mapNotNull { k -> k.split(':').takeIf { it.size == 2 && it[1] == monthKey.toString() }?.get(0)?.toLongOrNull() }.toSet(),
-                        actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
-                            override fun setCap(category: dev.krishnagurram.kassa.domain.Category, amount: Long) { vm.setCap(category, amount) }
-                            override fun dismissFlag(category: dev.krishnagurram.kassa.domain.Category) = vm.dismissFlag(category)
-                            override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { openFromList(Page.CategoryDetail(category.id)) }
-                        },
-                    )
-                }
+                Tab.INSIGHTS -> dev.krishnagurram.kassa.ui.insights.InsightsScreen(
+                    lg, padding,
+                    actions = object : dev.krishnagurram.kassa.ui.insights.InsightActions {
+                        override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { openFromList(Page.CategoryDetail(category.id)) }
+                        override fun open(page: dev.krishnagurram.kassa.ui.insights.InsightPage) { openFromList(Page.Insight(page)) }
+                        override fun edit(t: Transaction) { editFromList(t) }
+                    },
+                )
                 Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })
                 Tab.SETTINGS -> {
                     val alertApps by vm.alertApps.collectAsState()

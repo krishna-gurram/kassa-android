@@ -244,7 +244,7 @@ fun EntryPage(
                     options = listOf(TxKind.EXPENSE to "Expense", TxKind.INCOME to "Income", TxKind.TRANSFER to "Transfer"),
                     selected = kind, onSelect = ::switchKind, modifier = Modifier.fillMaxWidth(),
                 )
-                AmountHero(amount, focused = field == Field.AMOUNT, income = kind == TxKind.INCOME, large = wide) { field = Field.AMOUNT }
+                AmountHero(amount, focused = field == Field.AMOUNT || field == null, income = kind == TxKind.INCOME, large = wide) { field = Field.AMOUNT }
                 if (kind == TxKind.TRANSFER && toAccountId != null) {
                     Text(
                         if (toCard != null) "Card payment" else "Transfer", style = KassaType.tiny, color = Kassa.colors.ink2,
@@ -275,8 +275,9 @@ fun EntryPage(
             val panel: @Composable (Modifier) -> Unit = { m ->
                 Panel(m) {
                     when (field) {
-                        Field.AMOUNT -> {
-                            PanelTitle("Amount") { field = null }
+                        // The pad is the resting state: with nothing else open, it stays up with the save button under it.
+                        Field.AMOUNT, null -> {
+                            PanelTitle("Amount", onDone = null)
                             if (toCard != null) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
                                     QuickButton("Payable ${Money.format(toCard.payable)}", on = cents == toCard.payable, modifier = Modifier.weight(1f)) { amount = centsToInput(toCard.payable); error = null }
@@ -285,14 +286,14 @@ fun EntryPage(
                             }
                             NumberPad(Modifier.weight(1f)) { k -> amount = applyKey(amount, k); error = null }
                             val next = missing()
-                            PrimaryButton(
+                            if (next != null) PrimaryButton(
                                 when (next) {
                                     Field.CATEGORY -> "Next: category"
                                     Field.ACCOUNT -> if (kind == TxKind.TRANSFER) "Next: from" else if (kind == TxKind.INCOME) "Next: into" else "Next: paid with"
-                                    Field.TO -> "Next: to"
-                                    else -> "Done"
+                                    else -> "Next: to"
                                 },
-                            ) { if (next != null) { error = null; field = next } else advance() }
+                            ) { error = null; field = next }
+                            else PrimaryButton(saveLabel, ::save)
                         }
                         Field.CATEGORY -> {
                             PanelTitle("Category") { field = null }
@@ -387,10 +388,6 @@ fun EntryPage(
                                 }
                             }
                             Spacer(Modifier.weight(1f))
-                        }
-                        null -> {
-                            Spacer(Modifier.weight(1f))
-                            PrimaryButton(saveLabel, ::save)
                         }
                     }
                 }
@@ -531,11 +528,11 @@ private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Uni
 }
 
 @Composable
-private fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: () -> Unit) {
+private fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -> Unit)?) {
     Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
         if (back != null) Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink, modifier = Modifier.clip(CircleShape).clickable(onClick = back).padding(horizontal = 8.dp))
         Text(title, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.weight(1f).padding(start = 4.dp))
-        Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onDone).padding(horizontal = 8.dp, vertical = 6.dp))
+        if (onDone != null) Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onDone).padding(horizontal = 8.dp, vertical = 6.dp))
     }
 }
 

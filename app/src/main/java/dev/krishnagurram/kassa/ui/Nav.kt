@@ -25,6 +25,8 @@ sealed interface Page {
     data class EditAccount(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
     data class CategoryDetail(val categoryId: Long) : Page
+    /** The full view behind an Insights tile or "All" link. */
+    data class Insight(val page: dev.krishnagurram.kassa.ui.insights.InsightPage) : Page
     /** Where the spending went, or the income came from: this week, or this budget month. */
     data class Spending(val month: Boolean, val income: Boolean = false) : Page
     /** Card payments and bills in the next 30 days. */

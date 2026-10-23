@@ -173,13 +173,16 @@ private fun LinkText(text: String, onClick: () -> Unit) {
 /** Dollars large, cents smaller and lighter on the same baseline, the way bank apps show a headline figure. */
 @Composable
 fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) {
+    val ink = Kassa.colors.ink
+    val centsColor = if (color == ink) Kassa.colors.ink2 else color
     val text = Money.format(cents)
     val dot = text.lastIndexOf('.')
     Text(
         buildAnnotatedString {
             append(text.substring(0, dot))
-            // Cents sit on the same baseline, smaller and lighter, so the dollars read first.
-            withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = Kassa.colors.ink2, fontWeight = FontWeight.SemiBold)) {
+            // Cents sit on the same baseline and smaller, so the dollars read first. A colored total (income) keeps
+            // its color for the cents too; a plain one shows them a shade lighter.
+            withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = centsColor, fontWeight = FontWeight.SemiBold)) {
                 append(text.substring(dot))
             }
         },
