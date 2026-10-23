@@ -71,13 +71,14 @@ interface SettingsActions {
     fun setSensitivity(v: String)
     fun setLock(on: Boolean)
     fun setTheme(v: String)
+    fun setCurrency(code: String)
     suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String
     suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>>
     fun restore(json: org.json.JSONObject)
 }
 
 /** Current values for settings that live outside the database. */
-data class SettingsValues(val alertApps: Set<String>, val seenApps: Set<String>, val sensitivity: String, val lock: Boolean, val theme: String = "SYSTEM")
+data class SettingsValues(val alertApps: Set<String>, val seenApps: Set<String>, val sensitivity: String, val lock: Boolean, val theme: String = "SYSTEM", val currency: String = "USD")
 
 private sealed interface Page {
     data object Main : Page
@@ -88,6 +89,7 @@ private sealed interface Page {
     data object Alerts : Page
     data object Backup : Page
     data object BudgetMonth : Page
+    data object Currency : Page
 }
 
 /** Settings as a tab: one list of groups, each row opening its own page. */
@@ -116,6 +118,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                     Page.Alerts -> "Bank notifications"
                     Page.Backup -> "Backup and restore"
                     Page.BudgetMonth -> "Budget month"
+                    Page.Currency -> "Currency"
                 },
                 onBack = back,
             )
@@ -139,6 +142,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
             Page.Alerts -> AlertsPage(ledger, actions, values.alertApps, values.seenApps)
             Page.Backup -> BackupPage(actions)
             Page.BudgetMonth -> BudgetMonthPage(ledger, actions)
+            Page.Currency -> CurrencyPage(ledger, values.currency, actions)
         }
     }
 }
@@ -169,6 +173,8 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
         Choice(listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark"), values.theme, actions::setTheme)
     }
     HorizontalDivider(color = Kassa.colors.line)
+    val cur = dev.krishnagurram.kassa.domain.Currencies.byCode(values.currency)
+    NavRow("Currency", "${cur.name}, ${Money.format(123_450, style = cur)}") { open(Page.Currency) }
 
     SectionHeader("Budgeting")
     NavRow("Expense categories", "$expenses") { open(Page.Categories(CategoryKind.EXPENSE)) }
@@ -241,6 +247,38 @@ private fun BudgetMonthPage(ledger: Ledger, actions: SettingsActions) {
         OutlinedTextField(custom, { custom = it.filter(Char::isDigit).take(2) }, singleLine = true, label = { Text("Another day, 1 to 28") }, modifier = Modifier.weight(1f))
         TextButton(onClick = { custom.toIntOrNull()?.takeIf { it in 1..28 }?.let { actions.setMonthStartDay(it); custom = "" } }) { Text("Set", color = Kassa.colors.ink) }
     }
+}
+
+/**
+ * The one currency this phone shows. Changing it relabels what's here without converting anything, so with
+ * entries already in Kassa it asks first.
+ */
+@Composable
+private fun CurrencyPage(ledger: Ledger, selected: String, actions: SettingsActions) {
+    var confirm by remember { mutableStateOf<dev.krishnagurram.kassa.domain.CurrencyStyle?>(null) }
+    val hasData = ledger.recent.isNotEmpty() || ledger.accounts.accounts.isNotEmpty()
+    dev.krishnagurram.kassa.domain.Currencies.all.forEach { c ->
+        Column(Modifier.clickable { if (c.code == selected) Unit else if (hasData) confirm = c else actions.setCurrency(c.code) }) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                    Text(c.code, style = KassaType.small, color = Kassa.colors.ink2)
+                }
+                Text(Money.format(123_450, style = c), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
+                Text(if (c.code == selected) "\u2713" else "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            }
+            HorizontalDivider(color = Kassa.colors.line)
+        }
+    }
+    confirm?.let { c ->
+        dev.krishnagurram.kassa.ui.common.ConfirmDialog(
+            title = "Show amounts in ${c.name}?",
+            body = "Every amount already in Kassa keeps its number and shows as ${c.code}. Nothing is converted.",
+            confirm = "Switch to ${c.code}", destructive = false,
+            onConfirm = { actions.setCurrency(c.code); confirm = null }, onDismiss = { confirm = null },
+        )
+    }
+    Gap(24)
 }
 
 @Composable

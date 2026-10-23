@@ -88,6 +88,9 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 val style = if (dark) androidx.activity.SystemBarStyle.dark(t) else androidx.activity.SystemBarStyle.light(t, t)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
+            val currency by app.settings.currency.collectAsState()
+            // Everything redraws in the new currency when it changes.
+            androidx.compose.runtime.key(currency) {
             KassaTheme(dark = dark) {
                 val count by app.repository.entryCount.collectAsState(initial = -1)
                 val lockOn by app.settings.lockEnabled.collectAsState()
@@ -98,6 +101,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 } else {
                     KassaRoot(entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true })
                 }
+            }
             }
         }
     }
@@ -322,7 +326,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     val theme by vm.theme.collectAsState()
                     SettingsScreen(
                         lg, remember(vm) { settingsActions(vm, context) { nav.push(Page.Import) } },
-                        dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn, theme),
+                        dev.krishnagurram.kassa.ui.settings.SettingsValues(alertApps, seenApps, sensitivity, lockOn, theme, vm.currency.collectAsState().value),
                         padding,
                     )
                 }
@@ -529,6 +533,7 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
     override fun setSensitivity(v: String) = vm.setSensitivity(v)
     override fun setLock(on: Boolean) = vm.setLock(on)
     override fun setTheme(v: String) = vm.setTheme(v)
+    override fun setCurrency(code: String) = vm.setCurrency(code)
     override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = vm.exportTo(uri, passphrase)
     override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray) = vm.readBackup(uri, passphrase)
     override fun restore(json: org.json.JSONObject) { vm.restore(json) }

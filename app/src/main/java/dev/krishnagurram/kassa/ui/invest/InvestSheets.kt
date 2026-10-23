@@ -76,7 +76,7 @@ fun AllocateSheet(
                 Option("Decide later", "Stays on Overview until you answer", onDismiss)
             } else {
                 if (existing.isNotEmpty()) FlowRow(Modifier.padding(top = 12.dp)) {
-                    existing.forEach { h -> Chip(h.ticker, selected = ticker.equals(h.ticker, true), small = true) { ticker = h.ticker; if (price.isBlank()) price = Money.format(h.price).removePrefix("$").replace(",", "") } }
+                    existing.forEach { h -> Chip(h.ticker, selected = ticker.equals(h.ticker, true), small = true) { ticker = h.ticker; if (price.isBlank()) price = Money.toInput(h.price) } }
                 }
                 OutlinedTextField(ticker, { ticker = it.uppercase() }, singleLine = true, label = { Text("Ticker") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))

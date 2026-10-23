@@ -50,6 +50,17 @@ class Settings(context: Context) {
     val theme: StateFlow<String> = _theme
     fun setTheme(v: String) { prefs.edit().putString(THEME, v).apply(); _theme.value = v }
 
+    private val _currency = MutableStateFlow(prefs.getString(CURRENCY, "USD")!!).also {
+        dev.krishnagurram.kassa.domain.Money.style = dev.krishnagurram.kassa.domain.Currencies.byCode(it.value)
+    }
+    /** The one currency this phone shows. Amounts are never converted when it changes. */
+    val currency: StateFlow<String> = _currency
+    fun setCurrency(code: String) {
+        prefs.edit().putString(CURRENCY, code).apply()
+        dev.krishnagurram.kassa.domain.Money.style = dev.krishnagurram.kassa.domain.Currencies.byCode(code)
+        _currency.value = code
+    }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -69,5 +80,6 @@ class Settings(context: Context) {
         const val DISMISSED = "dismissed_flags"
         const val LOCK = "app_lock"
         const val THEME = "theme"
+        const val CURRENCY = "currency"
     }
 }

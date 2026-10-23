@@ -15,7 +15,9 @@ data class ParsedAlert(
 )
 
 object AlertParser {
-    private val amountRe = Regex("""(?:USD|\$)\s?\(?\$?\s?([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})|[0-9]+\.[0-9]{2}|[0-9]+)\)?""")
+    // Any common currency mark or code before the number, so alerts read the same whichever currency the phone uses.
+    // Grouping can be 1,234 or the Indian 1,23,456.
+    private val amountRe = Regex("""(?:USD|GBP|EUR|AED|INR|CAD|AUD|SGD|SAR|QAR|Rs\.?|C\$|A\$|S\$|\$|£|€|₹)\s?\(?\s?([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})|[0-9]+\.[0-9]{2}|[0-9]+)\)?""")
     private val last4Re = Regex("""(?:ending(?: in)?|ending with|x|\*{2,}|\.\.\.)\s?#?\s?([0-9]{4})\b""", RegexOption.IGNORE_CASE)
     private val merchantRe = Regex(
         """\b(?:at|with|to|from)\s+([A-Za-z0-9][A-Za-z0-9 &'.#*/-]{1,40}?)(?=\s+(?:on|was|has|for|using|with|ending)\b|[.,;!]|$)""",

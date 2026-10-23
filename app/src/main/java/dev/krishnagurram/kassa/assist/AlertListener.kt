@@ -13,8 +13,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Reads notifications only from the bank and card apps the user turned on in Settings. A notification that
- * looks like a purchase becomes a pending card on Today; everything else is ignored and nothing is stored.
- * Apps that post dollar amounts are remembered (by package name only) so Settings can offer them.
+ * looks like a purchase becomes a pending item on Overview; everything else is ignored and nothing is stored.
+ * Apps that post amounts are remembered (by package name only) so Settings can offer them.
  */
 class AlertListener : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

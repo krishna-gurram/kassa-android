@@ -5,6 +5,9 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 ## Rules that matter
 - **No network, ever.** The manifest removes `INTERNET`; CI fails if it appears. Don't add libraries that need it.
 - **Money is `Long` cents.** Never `Double` for stored or summed amounts. Shares are millionths (`microShares`).
+- **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
+  are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
+  and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
 - **Nothing posts by itself.** Alerts, recurring bills and investment transfers become pending items the user confirms.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 

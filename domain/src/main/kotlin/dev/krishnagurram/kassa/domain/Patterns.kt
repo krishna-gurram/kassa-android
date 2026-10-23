@@ -32,7 +32,8 @@ object Patterns {
         val change: Long get() = now - before
     }
 
-    const val SMALL_LIMIT = 1_500L
+    /** Under this counts as a small purchase; it follows the phone's currency. */
+    val SMALL_LIMIT: Long get() = Money.style.smallLimit
 
     private fun dateOf(t: Transaction, zone: ZoneId): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
 

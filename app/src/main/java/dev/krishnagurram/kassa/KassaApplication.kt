@@ -14,4 +14,10 @@ class KassaApplication : Application() {
     val assist: AssistRepository by lazy { AssistRepository(database, repository) }
     val settings: Settings by lazy { Settings(this) }
     val backup: Backup by lazy { Backup(this, database, settings) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Reading the settings sets the currency before anything formats an amount, including bank alerts.
+        settings.currency
+    }
 }

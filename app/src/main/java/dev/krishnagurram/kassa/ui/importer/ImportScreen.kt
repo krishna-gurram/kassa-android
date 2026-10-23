@@ -98,6 +98,18 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, o
         }
     }
     Gap(12)
+    if (firstRun) {
+        // The currency this phone shows; it can change later in Settings.
+        val settings = (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings
+        val code by settings.currency.collectAsState()
+        Text("Currency", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow {
+            dev.krishnagurram.kassa.domain.Currencies.all.forEach { c ->
+                dev.krishnagurram.kassa.ui.entry.Chip(c.code, selected = c.code == code, small = true) { settings.setCurrency(c.code) }
+            }
+        }
+    }
     if (firstRun) TextButton(onClick = onFinished, modifier = Modifier.fillMaxWidth()) { Text("Start fresh instead", color = Kassa.colors.ink2) }
     if (onCancel != null) TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
 }

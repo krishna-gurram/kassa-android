@@ -83,8 +83,8 @@ fun CategoryEditor(
     val month = ledger.period.yearMonth
     val defaultBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == 0 }?.amount
     val monthBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == Budgets.key(month) }?.amount
-    var budget by remember { mutableStateOf(defaultBudget?.let { Money.format(it).removePrefix("$").replace(",", "") } ?: "") }
-    var thisMonth by remember { mutableStateOf(monthBudget?.let { Money.format(it).removePrefix("$").replace(",", "") } ?: "") }
+    var budget by remember { mutableStateOf(defaultBudget?.let { Money.toInput(it) } ?: "") }
+    var thisMonth by remember { mutableStateOf(monthBudget?.let { Money.toInput(it) } ?: "") }
     var iconTab by remember { mutableStateOf(when (original.icon) { is CategoryIcon.Symbol -> 1; is CategoryIcon.Image -> 2; else -> 0 }) }
     var iconQuery by remember { mutableStateOf("") }
     var typedEmoji by remember { mutableStateOf("") }

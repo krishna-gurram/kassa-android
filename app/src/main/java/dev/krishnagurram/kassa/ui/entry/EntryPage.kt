@@ -432,7 +432,7 @@ private fun AmountHero(amount: String, focused: Boolean, income: Boolean, large:
     Box(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = (size * 0.5f).sp, color = ink2, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.6f))) { append("$") }
+                withStyle(SpanStyle(fontSize = (size * 0.5f).sp, color = ink2, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.6f))) { append(Money.symbol) }
                 append(displayAmount(amount))
             },
             style = KassaType.hero.copy(fontSize = size.sp, letterSpacing = (-1.5).sp, textDecoration = if (focused) TextDecoration.Underline else null),
@@ -671,7 +671,7 @@ private fun applyKey(current: String, k: String): String = when (k) {
 private fun displayAmount(s: String): String {
     if (s.isEmpty()) return "0"
     val whole = s.substringBefore('.').ifEmpty { "0" }
-    val grouped = whole.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(java.util.Locale.US).format(it) } ?: whole
+    val grouped = whole.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(Money.style.locale).format(it) } ?: whole
     return if (s.contains('.')) grouped + "." + s.substringAfter('.') else grouped
 }
 

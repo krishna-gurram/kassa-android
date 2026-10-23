@@ -78,7 +78,7 @@ private fun RecurringForm(ledger: Ledger, r: Recurring, onSave: (Recurring) -> U
     var name by remember { mutableStateOf(r.name) }
     var day by remember { mutableStateOf(r.dayOfMonth.toString()) }
     var fixed by remember { mutableStateOf(r.fixedAmount != null) }
-    var amount by remember { mutableStateOf(r.fixedAmount?.let { Money.format(it).removePrefix("$").replace(",", "") } ?: "") }
+    var amount by remember { mutableStateOf(r.fixedAmount?.let { Money.toInput(it) } ?: "") }
     var categoryId by remember { mutableStateOf(r.categoryId) }
     var accountId by remember { mutableStateOf(r.accountId) }
     var active by remember { mutableStateOf(r.active) }
