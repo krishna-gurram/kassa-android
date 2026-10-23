@@ -88,7 +88,6 @@ private sealed interface Page {
     data object Alerts : Page
     data object Backup : Page
     data object BudgetMonth : Page
-    data object Sensitivity : Page
 }
 
 /** Settings as a tab: one list of groups, each row opening its own page. */
@@ -117,7 +116,6 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                     Page.Alerts -> "Bank notifications"
                     Page.Backup -> "Backup and restore"
                     Page.BudgetMonth -> "Budget month"
-                    Page.Sensitivity -> "Flag sensitivity"
                 },
                 onBack = back,
             )
@@ -125,7 +123,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
         when (val p = page) {
             Page.Main -> Main(ledger, actions, values, open = { page = it })
             is Page.Categories -> CategoryList(ledger, p.kind, open = { page = Page.Edit(it, p) })
-            is Page.Edit -> CategoryEditor(
+            is Page.Edit -> androidx.compose.runtime.key(p.category.id, p.category.parentId, p.category.kind) { CategoryEditor(
                 ledger = ledger,
                 original = p.category,
                 onSave = { edit -> save(edit, actions, ledger); page = p.back },
@@ -135,13 +133,12 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                 onRenameSub = { sub -> page = Page.Edit(sub, p) },
                 onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
                 savePhoto = actions::savePhoto,
-            )
+            ) }
             Page.Splitwise -> SplitwiseCleanup(ledger, actions)
             Page.Recurring -> RecurringPage(ledger, actions)
             Page.Alerts -> AlertsPage(ledger, actions, values.alertApps, values.seenApps)
             Page.Backup -> BackupPage(actions)
             Page.BudgetMonth -> BudgetMonthPage(ledger, actions)
-            Page.Sensitivity -> SensitivityPage(values, actions)
         }
     }
 }
@@ -165,7 +162,6 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     val expenses = ledger.categories.count { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.hidden }
     val incomes = ledger.categories.count { it.kind == CategoryKind.INCOME && it.parentId == null && !it.hidden }
     val splitwise = splitwiseAccounts(ledger)
-    val sensitivity = dev.krishnagurram.kassa.domain.Insights.Sensitivity.entries.firstOrNull { it.name == values.sensitivity }
 
     SectionHeader("Appearance")
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -178,7 +174,6 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     NavRow("Expense categories", "$expenses") { open(Page.Categories(CategoryKind.EXPENSE)) }
     NavRow("Income categories", "$incomes") { open(Page.Categories(CategoryKind.INCOME)) }
     NavRow("Budget month", "Starts on day ${ledger.monthStartDay}") { open(Page.BudgetMonth) }
-    NavRow("Flag sensitivity", sensitivity?.let { "${it.label}, ${Math.round(it.margin * 100)}%" } ?: "") { open(Page.Sensitivity) }
 
     SectionHeader("Automation")
     NavRow("Recurring bills", "${ledger.assist.recurring.size}") { open(Page.Recurring) }
@@ -245,17 +240,6 @@ private fun BudgetMonthPage(ledger: Ledger, actions: SettingsActions) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(custom, { custom = it.filter(Char::isDigit).take(2) }, singleLine = true, label = { Text("Another day, 1 to 28") }, modifier = Modifier.weight(1f))
         TextButton(onClick = { custom.toIntOrNull()?.takeIf { it in 1..28 }?.let { actions.setMonthStartDay(it); custom = "" } }) { Text("Set", color = Kassa.colors.ink) }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SensitivityPage(values: SettingsValues, actions: SettingsActions) {
-    Text("How far above its 3-month average a category goes before Insights flags it.", style = KassaType.small, color = Kassa.colors.ink2)
-    FlowRow(Modifier.padding(top = 12.dp)) {
-        dev.krishnagurram.kassa.domain.Insights.Sensitivity.entries.forEach { s ->
-            Chip("${s.label}, ${Math.round(s.margin * 100)}%", selected = values.sensitivity == s.name) { actions.setSensitivity(s.name) }
-        }
     }
 }
 

@@ -116,7 +116,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         val to = saved.toAccountId?.let { l?.accountById?.get(it) }
         if (draft.id == null && saved.kind == TxKind.TRANSFER && to?.type == dev.krishnagurram.kassa.domain.AccountType.INVESTMENT) {
             assist.addAllocation(saved.id, saved.amount, to.id, saved.epochMillis)
-            _messages.tryEmit("Moved ${Money.format(saved.amount)} to ${to.name}. Say where it went on Today.")
+            _messages.tryEmit("Moved ${Money.format(saved.amount)} to ${to.name}. Say where it went on Overview.")
             return@launch
         }
         val msg = when (saved.kind) {

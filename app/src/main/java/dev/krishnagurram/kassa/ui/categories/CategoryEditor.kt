@@ -195,16 +195,24 @@ fun CategoryEditor(
 
         if (isTop && !isNew) {
             SectionHeader("Subcategories", "${subs.count { !it.hidden }}")
-            subs.filter { !it.hidden }.forEach { s ->
+            subs.sortedWith(compareBy({ it.hidden }, { it.sortOrder })).forEach { s ->
                 Row(Modifier.fillMaxWidth().clickable { onRenameSub(s) }.padding(vertical = 12.dp)) {
-                    Text(s.name, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-                    Text("Edit", style = KassaType.small, color = Kassa.colors.ink2)
+                    Text(s.name, style = KassaType.body, color = if (s.hidden) Kassa.colors.ink3 else Kassa.colors.ink, modifier = Modifier.weight(1f))
+                    Text(if (s.hidden) "Hidden" else "Edit", style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 HorizontalDivider(color = Kassa.colors.line)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(newSub, { newSub = it }, singleLine = true, label = { Text("Add a subcategory") }, modifier = Modifier.weight(1f))
-                TextButton(onClick = { if (newSub.isNotBlank()) { onAddSub(original, newSub.trim()); newSub = "" } }) { Text("Add", color = Kassa.colors.ink) }
+                TextButton(onClick = {
+                    val n = newSub.trim()
+                    error = when {
+                        n.isEmpty() -> "Type the subcategory's name."
+                        subs.any { it.name.equals(n, ignoreCase = true) } -> "$n is already here."
+                        else -> null
+                    }
+                    if (error == null) { onAddSub(original, n); newSub = "" }
+                }) { Text("Add", color = Kassa.colors.ink) }
             }
         }
 

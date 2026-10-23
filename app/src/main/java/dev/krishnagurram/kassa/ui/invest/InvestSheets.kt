@@ -73,7 +73,7 @@ fun AllocateSheet(
             if (!buying) {
                 Option("It's uninvested cash", "Stays as cash in the brokerage account", onCash)
                 Option("I bought something", "Add the ticker, shares and price") { buying = true }
-                Option("Decide later", "Stays on Today until you answer", onDismiss)
+                Option("Decide later", "Stays on Overview until you answer", onDismiss)
             } else {
                 if (existing.isNotEmpty()) FlowRow(Modifier.padding(top = 12.dp)) {
                     existing.forEach { h -> Chip(h.ticker, selected = ticker.equals(h.ticker, true), small = true) { ticker = h.ticker; if (price.isBlank()) price = Money.format(h.price).removePrefix("$").replace(",", "") } }

@@ -43,15 +43,16 @@ fun RecurringPage(ledger: Ledger, actions: SettingsActions) {
     var editing by remember { mutableStateOf<Recurring?>(null) }
     val e = editing
     if (e != null) {
-        RecurringForm(ledger, e, onSave = { actions.saveRecurring(it); editing = null }, onDelete = { actions.deleteRecurring(it.id); editing = null }, onCancel = { editing = null })
+        androidx.compose.runtime.key(e.id) { RecurringForm(ledger, e, onSave = { actions.saveRecurring(it); editing = null }, onDelete = { actions.deleteRecurring(it.id); editing = null }, onCancel = { editing = null }) }
         return
     }
-    Text("On the bill's day, Today asks you to approve it with a fixed amount or an estimate from your last three bills.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text("On the bill's day, Overview asks you to approve it with a fixed amount or an estimate from your last three bills.", style = KassaType.body, color = Kassa.colors.ink2)
     Gap(10)
-    SecondaryButton("Add a recurring bill", {
-        val cat = ledger.categories.firstOrNull { it.kind == CategoryKind.EXPENSE && !it.countsTowardDaily && !it.hidden } ?: ledger.categories.first { it.kind == CategoryKind.EXPENSE }
-        val acct = ledger.accounts.accounts.firstOrNull { !it.archived && it.type == AccountType.CHECKING } ?: ledger.accounts.accounts.first()
-        editing = Recurring(name = "", categoryId = cat.id, accountId = acct.id, dayOfMonth = ledger.today.dayOfMonth, fixedAmount = null)
+    val cat = ledger.categories.firstOrNull { it.kind == CategoryKind.EXPENSE && !it.countsTowardDaily && !it.hidden } ?: ledger.categories.firstOrNull { it.kind == CategoryKind.EXPENSE && !it.hidden }
+    val acct = ledger.accounts.accounts.firstOrNull { !it.archived && it.type == AccountType.CHECKING } ?: ledger.accounts.accounts.firstOrNull { !it.archived }
+    if (cat == null || acct == null) Text("Add an account and an expense category first.", style = KassaType.small, color = Kassa.colors.attention)
+    else SecondaryButton("Add a recurring bill", {
+        editing = Recurring(name = "", categoryId = cat.id, accountId = acct.id, dayOfMonth = minOf(ledger.today.dayOfMonth, 28), fixedAmount = null)
     })
     SectionHeader("Your bills")
     if (ledger.assist.recurring.isEmpty()) Text("None yet. Good candidates: mortgage, electricity, water, phone, insurance.", style = KassaType.body, color = Kassa.colors.ink2)
@@ -140,7 +141,7 @@ private fun RecurringForm(ledger: Ledger, r: Recurring, onSave: (Recurring) -> U
 fun AlertsPage(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>, seenApps: Set<String>) {
     val granted = actions.hasNotificationAccess()
     Text(
-        "Kassa can read alerts from your bank and card apps and turn purchases into cards on Today for you to confirm. " +
+        "Kassa can read alerts from your bank and card apps and turn purchases into items on Overview for you to confirm. " +
             "Alerts are read on this phone only. Kassa has no internet access, keeps just the amount and merchant, and ignores every other app.",
         style = KassaType.body, color = Kassa.colors.ink2,
     )
@@ -164,7 +165,7 @@ fun AlertsPage(ledger: Ledger, actions: SettingsActions, alertApps: Set<String>,
             }
             Switch(on, { actions.setAlertApp(pkg, it) }, colors = SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
         }
-        if (on) RuleEditor(ledger, actions, pkg)
+        if (on) androidx.compose.runtime.key(pkg) { RuleEditor(ledger, actions, pkg) }
         HorizontalDivider(color = Kassa.colors.line)
     }
     Gap(24)
