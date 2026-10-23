@@ -8,21 +8,40 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 - **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
   are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
   and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
-- **Nothing posts by itself.** Alerts, recurring bills and investment transfers become pending items the user confirms.
+- **Nothing posts by itself.** Due bills and investment transfers wait on Overview until the user confirms them.
+- **Nothing guesses an account.** A new entry, payment or card payment starts with no account unless the user set one
+  (a card's own "pay from"). Lists may be ordered by use; nothing is preselected from a category or merchant.
+- **Every input is bounded.** Limits live in `domain/InputRules` (names 40, categories 30, notes 120, amounts
+  99,999,999.99). Forms filter as you type (`NameField`, `AmountField`, `DigitsField` in `ui/common/Fields.kt`) and
+  show the problem under the field; repositories check the same rules again and throw `IllegalArgumentException`
+  with a message, which `LedgerViewModel.change` shows. Any text that shows a name or note sets `maxLines` and
+  `TextOverflow.Ellipsis`.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 
 ## Layout
-- `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, alert parsing). Fast JVM tests.
-- `importer/`: Money Manager `.mmbak` mapping and reconcile. JVM tests.
-- `app/`: Room database (`data/db`), repositories, Compose UI (`ui/`).
+- `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares).
+  Fast JVM tests.
+- `importer/`: Money Manager `.mmbak` mapping and reconcile. Names and notes are cleaned and capped on the way in. JVM tests.
+- `app/data/db`: Room entities, DAOs, `KassaDatabase` (`DATABASE_VERSION`), `Migrations.kt`.
+- `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
+  are the only code that writes to the database, and each validates before writing.
+- `app/data/backup`: the `.kassa` file format (`BackupFile`), its JSON (`BackupContents`), and `BackupRepository`.
+- `app/ui`: `MainActivity` (theme, lock) → `AppRoot` → `Shell` (tabs) with `Routes.kt` mapping tabs and pages to
+  screens. `AppController` holds navigation and the actions screens call; `LedgerViewModel` exposes one `Ledger`
+  (everything screens read) and runs changes. Phone preferences are read through `LocalSettings`.
+- Big screens keep their state in a plain state holder next to them (`EntryState` for the entry page,
+  `AccountForm` for the account forms) so the composables only lay things out.
 
 ## Database changes
-Bump the version in `KassaDatabase` and add a `Migration` next to the others. Columns must match the entity exactly
+Bump `DATABASE_VERSION` and add a `Migration` to `ALL_MIGRATIONS`. Columns must match the entity exactly
 (type, nullability, indexes named `index_<table>_<column>`). CI installs the last published release on an emulator
 first and upgrades over it, so a bad migration fails the build instead of reaching the phone.
 
 ## Build and release
-- `./gradlew :domain:test :importer:test` runs the logic tests.
+- `./gradlew :domain:test :importer:test :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
+- `app/src/androidTest` holds device tests: upgrades from every database version (`app/schemas`; 1 to 3 were rebuilt
+  from 4.json by undoing each migration), entries with splits, and backup round trips. CI runs them on the emulator
+  after the smoke test. The debug build is `dev.krishnagurram.kassa.debug`, so it installs beside the real app.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
   certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
   as a GitHub release. Only the newest commit on `main` is published.

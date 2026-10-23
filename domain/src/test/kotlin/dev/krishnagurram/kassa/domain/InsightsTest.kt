@@ -25,22 +25,6 @@ class InsightsTest {
     }
 
     @Test
-    fun flagsGroceriesButNotFrontLoadedCar() {
-        val flags = Insights.flags(history, cats, emptyList(), setOf("car insurance"), today, 1, zone, Insights.Sensitivity.BALANCED)
-        assertEquals(listOf("Groceries"), flags.map { it.category.name })
-        val g = flags.single()
-        assertEquals(80_000, g.usual)
-        assertEquals(Math.round(90_000 / (22 / 31.0)), g.projected)
-        assertEquals(80_000, g.suggestedCap)
-    }
-
-    @Test
-    fun overBudgetFlagsEvenWhenUsualIsHigh() {
-        val flags = Insights.flags(history, cats, listOf(Budget(1, 0, 85_000)), setOf("car insurance"), today, 1, zone, Insights.Sensitivity.GENTLE)
-        assertTrue(flags.any { it.category.id == 1L && it.budget == 85_000L })
-    }
-
-    @Test
     fun repeatingFindsMonthlyChargesAndPriceChanges() {
         val subs = listOf("07", "08", "09").map { e("2026-$it-07", 1_549, 2, "Netflix") } + e("2026-10-07", 1_799, 2, "Netflix")
         val r = Insights.repeating(subs + history, cats.associateBy { it.id }, zone)
@@ -50,12 +34,4 @@ class InsightsTest {
         assertTrue(r.any { it.note == "Car insurance" })
     }
 
-    @Test
-    fun monthTotalsProjectTheCurrentMonth() {
-        val t = Insights.monthTotals(history, cats, today, 1, zone, 4)
-        assertEquals(4, t.size)
-        assertEquals(80_000 + 16_800 + 6_000, t[0].spent)
-        assertEquals(90_000 + 16_800 + 6_000, t[3].spent)
-        assertTrue(t[3].projected!! > t[3].spent)
-    }
 }

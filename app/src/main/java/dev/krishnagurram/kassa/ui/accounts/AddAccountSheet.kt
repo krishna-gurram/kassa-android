@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.accounts
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -8,14 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -24,142 +24,87 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.krishnagurram.kassa.domain.Account
+import dev.krishnagurram.kassa.domain.AccountField
+import dev.krishnagurram.kassa.domain.AccountForm
 import dev.krishnagurram.kassa.domain.AccountGroup
 import dev.krishnagurram.kassa.domain.AccountType
-import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.ui.common.AmountField
+import dev.krishnagurram.kassa.ui.common.DigitsField
 import dev.krishnagurram.kassa.ui.common.Gap
+import dev.krishnagurram.kassa.ui.common.NameField
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 
 /**
- * One form for every kind of account. Picking a type decides which fields appear; there is no cap on how many
- * accounts you can add.
+ * One form for every kind of account; picking a type decides which fields appear. Checking and building the account
+ * is [AccountForm]'s job, shared with [EditAccountPage].
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddAccountSheet(
     groups: List<AccountGroup>,
     payFromOptions: List<Account>,
+    takenNames: List<String>,
     onDismiss: () -> Unit,
     onSave: (Account, String?) -> Unit,
-    /** An account to edit, with its balance today. Changing the balance adjusts the starting balance. */
-    editing: Account? = null,
-    currentBalance: Long = 0,
 ) {
-    fun input(c: Long?) = c?.let { java.math.BigDecimal.valueOf(kotlin.math.abs(it)).movePointLeft(2).toPlainString() } ?: ""
-    var type by remember { mutableStateOf(editing?.type ?: AccountType.CHECKING) }
-    var name by remember { mutableStateOf(editing?.name ?: "") }
-    var last4 by remember { mutableStateOf(editing?.last4 ?: "") }
-    var balance by remember {
-        mutableStateOf(
-            when {
-                editing == null -> ""
-                editing.type.isDebt -> input(currentBalance)
-                else -> java.math.BigDecimal.valueOf(currentBalance).movePointLeft(2).toPlainString()
-            }
-        )
+    var form by remember { mutableStateOf(AccountForm(groupId = groups.firstOrNull()?.id)) }
+    var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
+    // Each edit clears that field's problem; the rest stay until the next save.
+    fun edit(field: AccountField?, change: (AccountForm) -> AccountForm) {
+        form = change(form)
+        if (field != null) problems = problems - field
     }
-    var statementDay by remember { mutableStateOf(editing?.statementDay?.toString() ?: "") }
-    var dueDay by remember { mutableStateOf(editing?.dueDay?.toString() ?: "") }
-    var limit by remember { mutableStateOf(input(editing?.creditLimit)) }
-    var groupId by remember { mutableStateOf(editing?.groupId ?: groups.firstOrNull()?.id) }
-    var newGroup by remember { mutableStateOf("") }
-    var payFrom by remember { mutableStateOf(editing?.payFromId ?: payFromOptions.firstOrNull()?.id) }
-    var error by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
-            Text(if (editing != null) "Edit ${editing.name}" else "Add an account", style = KassaType.title.copy(fontSize = KassaType.title.fontSize * 0.75f), color = Kassa.colors.ink)
-            Gap(16)
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
+            Gap(8)
             Label("Type")
             FlowRow {
-                AccountType.entries.forEach { t ->
-                    FilterChip(
-                        selected = type == t, onClick = { type = t; error = null },
-                        label = { Text(t.label, style = KassaType.small) },
-                        modifier = Modifier.padding(end = 8.dp),
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Kassa.colors.ink, selectedLabelColor = Kassa.colors.onInk),
-                    )
-                }
+                AccountType.entries.forEach { t -> Choice(t.label, form.type == t) { edit(null) { it.copy(type = t) } } }
             }
-            Gap(8)
-            Field(name, { name = it }, "Name", placeholder = when (type) {
-                AccountType.CREDIT_CARD -> "Citi Costco"
-                AccountType.INVESTMENT -> "Robinhood"
-                AccountType.LOAN -> "Car loan"
-                else -> "Chase checking"
-            })
-            Field(last4, { last4 = it.filter(Char::isDigit).take(4) }, "Last 4 digits (optional)", KeyboardType.Number, "1234")
-            Field(
-                balance, { balance = it },
-                label = if (type.isDebt) "Amount owed today" else "Balance today",
-                keyboard = KeyboardType.Decimal, placeholder = "0.00",
-            )
-            if (editing != null) Text(
-                "Changing the balance adjusts the account's starting balance. Entries stay as they are.",
-                style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
-            )
-            if (type == AccountType.CREDIT_CARD) {
-                Row {
-                    Field(statementDay, { statementDay = it.filter(Char::isDigit).take(2) }, "Statement day", KeyboardType.Number, "1 to 31", Modifier.weight(1f).padding(end = 8.dp))
-                    Field(dueDay, { dueDay = it.filter(Char::isDigit).take(2) }, "Due day", KeyboardType.Number, "1 to 31", Modifier.weight(1f))
+            NameField(form.name, { v -> edit(AccountField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[AccountField.NAME])
+            DigitsField(form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = v) } }, "Last 4 digits (optional)", 4, Modifier.fillMaxWidth(),
+                problem = problems[AccountField.LAST4])
+            AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
+                if (form.type.isDebt) "Amount owed today" else "Balance today", Modifier.fillMaxWidth(),
+                problem = problems[AccountField.BALANCE], placeholder = "0", signed = true)
+            if (form.type.hasStatement) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DigitsField(form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = v) } }, "Statement day", 2,
+                        Modifier.weight(1f), problem = problems[AccountField.STATEMENT_DAY], placeholder = "1 to 31")
+                    DigitsField(form.dueDay, { v -> edit(AccountField.DUE_DAY) { it.copy(dueDay = v) } }, "Due day", 2,
+                        Modifier.weight(1f), problem = problems[AccountField.DUE_DAY], placeholder = "1 to 31")
                 }
-                Field(limit, { limit = it }, "Credit limit (optional)", KeyboardType.Decimal, "0.00")
+                AmountField(form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = v) } }, "Credit limit (optional)", Modifier.fillMaxWidth(),
+                    problem = problems[AccountField.LIMIT])
                 if (payFromOptions.isNotEmpty()) {
                     Label("Pay from")
-                    FlowRow {
-                        payFromOptions.forEach { a ->
-                            FilterChip(selected = payFrom == a.id, onClick = { payFrom = a.id }, label = { Text(a.name, style = KassaType.small) },
-                                modifier = Modifier.padding(end = 8.dp),
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Kassa.colors.ink, selectedLabelColor = Kassa.colors.onInk))
-                        }
+                    FlowRow { payFromOptions.forEach { a -> Choice(a.name, form.payFromId == a.id) { edit(null) { it.copy(payFromId = a.id) } } } }
+                }
+            }
+            if (groups.isNotEmpty()) {
+                Label("Group")
+                FlowRow {
+                    groups.forEach { g ->
+                        Choice(g.name, form.groupId == g.id && form.newGroup.isBlank()) { edit(AccountField.NEW_GROUP) { it.copy(groupId = g.id, newGroup = "") } }
                     }
                 }
             }
-            Label("Group")
-            FlowRow {
-                groups.forEach { g ->
-                    FilterChip(selected = groupId == g.id && newGroup.isBlank(), onClick = { groupId = g.id; newGroup = "" }, label = { Text(g.name, style = KassaType.small) },
-                        modifier = Modifier.padding(end = 8.dp),
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Kassa.colors.ink, selectedLabelColor = Kassa.colors.onInk))
-                }
-            }
-            Field(newGroup, { newGroup = it }, "Or a new group", placeholder = "India accounts")
-            error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 8.dp)) }
-            Gap(16)
-            PrimaryButton(if (editing != null) "Save changes" else "Add account") {
-                val cents = if (balance.isBlank()) 0L else Money.parseCents(balance)
-                val st = statementDay.toIntOrNull()
-                val du = dueDay.toIntOrNull()
-                error = when {
-                    name.isBlank() -> "Give the account a name."
-                    last4.isNotEmpty() && last4.length != 4 -> "Last 4 digits needs four numbers."
-                    cents == null -> "The balance isn't a number."
-                    type == AccountType.CREDIT_CARD && ((st ?: 0) !in 1..31 || (du ?: 0) !in 1..31) -> "Statement and due day need to be 1 to 31."
-                    limit.isNotBlank() && Money.parseCents(limit) == null -> "The credit limit isn't a number."
-                    else -> null
-                }
-                if (error == null) {
-                    // Debts are stored as negative balances so net worth adds up directly.
-                    val today = if (type.isDebt) -kotlin.math.abs(cents!!) else cents!!
-                    // Editing: shift the starting balance by the difference, so entries don't change.
-                    val opening = if (editing != null) editing.openingBalance + (today - currentBalance) else today
-                    onSave(
-                        (editing ?: Account(name = "", type = type)).copy(
-                            name = name.trim(), type = type, groupId = groupId, openingBalance = opening,
-                            last4 = last4.takeIf { it.length == 4 },
-                            statementDay = if (type.hasStatement) st else null,
-                            dueDay = if (type.hasStatement) du else null,
-                            payFromId = if (type.hasStatement) payFrom else null,
-                            creditLimit = if (type.hasStatement) Money.parseCents(limit) else null,
-                        ),
-                        newGroup.takeIf { it.isNotBlank() },
-                    )
-                }
+            NameField(form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = v) } }, "Or a new group", Modifier.fillMaxWidth(),
+                problem = problems[AccountField.NEW_GROUP])
+            Gap(12)
+            PrimaryButton("Add account") {
+                problems = form.problems(takenNames)
+                if (problems.isEmpty()) onSave(form.toAccount(Account(name = "", type = form.type), currentBalance = 0), form.newGroupName)
             }
             Gap(24)
         }
@@ -167,18 +112,16 @@ fun AddAccountSheet(
 }
 
 @Composable
-private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
 
+/** A chip in one of the sheet's pick-one rows. Long names ellipsize inside it. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Field(
-    value: String, onChange: (String) -> Unit, label: String,
-    keyboard: KeyboardType = KeyboardType.Text, placeholder: String = "", modifier: Modifier = Modifier.fillMaxWidth(),
-) {
-    OutlinedTextField(
-        value = value, onValueChange = onChange, singleLine = true,
-        label = { Text(label) }, placeholder = { Text(placeholder, color = Kassa.colors.ink3) },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
-        textStyle = KassaType.body,
-        modifier = modifier.padding(top = 8.dp),
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected, onClick = onClick,
+        label = { Text(label, style = KassaType.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp)) },
+        modifier = Modifier.padding(end = 8.dp),
+        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Kassa.colors.ink, selectedLabelColor = Kassa.colors.onInk),
     )
 }

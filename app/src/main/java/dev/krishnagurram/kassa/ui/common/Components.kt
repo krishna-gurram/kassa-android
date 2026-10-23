@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryIcon
+import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 
@@ -56,8 +59,8 @@ fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = 
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, style = KassaType.section, color = Kassa.colors.ink)
-        if (trailing != null) Text(trailing, style = KassaType.small, color = Kassa.colors.ink2)
+        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f, fill = false))
+        if (trailing != null) Text(trailing, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
@@ -142,4 +145,18 @@ fun CategoryIconView(icon: CategoryIcon?, tint: Color, size: Int, fallback: Stri
         }
         null -> Text(fallback, style = KassaType.bodyStrong, color = tint)
     }
+}
+
+/** A filled search field, for searching within a page (icons, say). Stops at 60 characters. */
+@Composable
+fun SearchBox(value: String, onChange: (String) -> Unit, hint: String) {
+    TextField(
+        value = value, onValueChange = { onChange(InputRules.typed(it, 60)) }, singleLine = true,
+        placeholder = { Text(hint, style = KassaType.body) }, textStyle = KassaType.body,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(12.dp)),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Kassa.colors.chip, unfocusedContainerColor = Kassa.colors.chip,
+            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+        ),
+    )
 }

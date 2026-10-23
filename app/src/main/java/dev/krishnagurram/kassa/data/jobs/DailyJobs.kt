@@ -74,7 +74,7 @@ object DailyJobs {
             val name = "Kassa_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".kassa"
             val doc = DocumentsContract.createDocument(context.contentResolver, parent, "application/octet-stream", name)
                 ?: throw IllegalStateException("The backup folder can't be written to. Pick it again.")
-            context.contentResolver.openOutputStream(doc)!!.use { app.backup.write(it, null) }
+            context.contentResolver.openOutputStream(doc)!!.use { app.backups.write(it, null) }
             s.backupDone(System.currentTimeMillis())
             return name
         } catch (e: SecurityException) {

@@ -94,7 +94,9 @@ data class ActivityUi(
 
 @OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 class ActivityViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = (app as KassaApplication).repository
+    private val entries = (app as KassaApplication).entries
+    private val categories = (app as KassaApplication).categories.categories
+    private val accounts = (app as KassaApplication).accounts.state
     private val zone = ZoneId.systemDefault()
     private val month = MutableStateFlow(YearMonth.now(zone))
     private val query = MutableStateFlow("")
@@ -103,17 +105,17 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
     private val txs = month.flatMapLatest { m ->
         val from = m.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val to = m.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        repo.transactionsBetween(from, to)
+        entries.between(from, to)
     }
 
     /** Searching reads the whole database, not just the month on screen. */
     private val found = query.debounce(150).flatMapLatest { q ->
-        if (q.isBlank()) kotlinx.coroutines.flow.flowOf(emptyList()) else repo.search(q)
+        if (q.isBlank()) kotlinx.coroutines.flow.flowOf(emptyList()) else entries.search(q)
     }
 
     val ui: StateFlow<ActivityUi?> = combine(
         combine(month, query, filter) { m, q, f -> Triple(m, q, f) },
-        txs, found, repo.categories, repo.accounts,
+        txs, found, categories, accounts,
     ) { (m, q, f), list, hits, cats, accts ->
         val catMap = cats.associateBy { it.id }
         val acctMap = accts.accounts.associateBy { it.id }
@@ -259,15 +261,6 @@ private fun DayHeader(left: String, right: String, onClick: (() -> Unit)? = null
     }
 }
 
-@Composable
-private fun RoundIcon(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip)
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp)) }
-}
-
 /** A total that doubles as a filter: tap to show only these entries, tap again for all. */
 @Composable
 private fun FilterTile(label: String, value: String, color: Color, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
@@ -295,7 +288,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
     ) {
         Icon(androidx.compose.material.icons.Icons.Outlined.Search, null, tint = Kassa.colors.ink2, modifier = Modifier.size(20.dp))
         androidx.compose.foundation.text.BasicTextField(
-            value = value, onValueChange = onChange, singleLine = true,
+            value = value, onValueChange = { onChange(dev.krishnagurram.kassa.domain.InputRules.typed(it, 60)) }, singleLine = true,
             textStyle = KassaType.body.copy(color = Kassa.colors.ink),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(Kassa.colors.ink),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),

@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryKind
+import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.RecurringRules
@@ -126,15 +127,14 @@ fun BillPage(
     fun advance() { error = null; field = missing() }
 
     fun save() {
-        val problem = when {
-            name.isBlank() -> BillField.NAME to "Give the bill a name."
+        val problem = InputRules.nameProblem(name, "bill")?.let { BillField.NAME to it } ?: when {
             categoryId == null -> BillField.CATEGORY to "Pick a category."
             accountId == null -> BillField.ACCOUNT to "Pick an account."
             else -> null
         }
         if (problem != null) { field = problem.first; error = problem.second; return }
         val base = bill ?: Recurring(name = "", categoryId = 0, accountId = 0, dayOfMonth = day, fixedAmount = null)
-        onSave(base.copy(name = name.trim(), categoryId = categoryId!!, accountId = accountId!!, dayOfMonth = day, fixedAmount = cents.takeIf { it > 0 }, active = active))
+        onSave(base.copy(name = InputRules.clean(name), categoryId = categoryId!!, accountId = accountId!!, dayOfMonth = day, fixedAmount = cents.takeIf { it > 0 }, active = active))
     }
 
     val saveLabel = if (existing != null) "Save changes" else "Add bill"
@@ -167,7 +167,7 @@ fun BillPage(
                     }
                 }
                 NoteRow(
-                    name, { name = it; error = null }, focused = field == BillField.NAME,
+                    name, { name = InputRules.typed(it, InputRules.NAME_MAX); error = null }, focused = field == BillField.NAME,
                     hint = "Bill name, as in your entries",
                     requester = nameFocus,
                     onFocused = { field = BillField.NAME },
@@ -266,15 +266,14 @@ fun BillPage(
                                 sugg.forEach { s ->
                                     Box(
                                         Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
-                                            name = s
+                                            name = s.take(InputRules.NAME_MAX)
                                             if (categoryId == null) ledger.recent.firstOrNull { it.note.trim() == s && it.kind == TxKind.EXPENSE }?.let { last ->
                                                 categoryId = last.categoryId
-                                                if (bill?.id == 0L || bill == null) last.accountId?.let { accountId = it }
                                                 day = minOf(java.time.Instant.ofEpochMilli(last.epochMillis).atZone(ledger.zone).dayOfMonth, 31)
                                             }
                                             advance()
                                         }.padding(horizontal = 14.dp, vertical = 9.dp),
-                                    ) { Text(s, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1) }
+                                    ) { Text(s, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                                 }
                             }
                             Spacer(Modifier.weight(1f))

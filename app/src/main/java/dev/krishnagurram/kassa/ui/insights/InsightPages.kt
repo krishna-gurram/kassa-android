@@ -126,7 +126,7 @@ fun InsightDetailPage(
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).clickable { onOpenCategory(cr.category) }.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CategoryBadge(cr.category, size = 26)
-                            Text(cr.category.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                            Text(cr.category.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
                             Text("+" + Money.format(cr.rise, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.attention)
                             Text(" since ${short(cr.months.first().first)}", style = KassaType.tiny, color = Kassa.colors.ink2)
                         }
@@ -182,7 +182,7 @@ fun InsightDetailPage(
                             CategoryBadge(topCat, size = 28)
                             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                 Text(day.getDisplayName(TextStyle.FULL, Locale.getDefault()), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                                Text(listOfNotNull(topCat?.name?.let { "Mostly $it" }, "${list.size} buys").joinToString(" \u00b7 "), style = KassaType.tiny, color = Kassa.colors.ink3)
+                                Text(listOfNotNull(topCat?.name?.let { "Mostly $it" }, "${list.size} buys").joinToString(" \u00b7 "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.tiny, color = Kassa.colors.ink3)
                             }
                             Text(Money.format(v, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                         }
@@ -233,7 +233,7 @@ private fun RankRow(c: Category?, name: String, value: Long, max: Long, count: S
 @Composable
 private fun ListRow(title: String, middle: String, value: String, showDivider: Boolean) {
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
         Text(middle, style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 12.dp))
         Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink)
     }

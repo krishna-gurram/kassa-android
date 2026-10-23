@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.insights
 
+import androidx.compose.ui.text.style.TextOverflow
 import dev.krishnagurram.kassa.ui.common.swipeShift
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -128,7 +129,7 @@ fun CategoryPage(
             SectionHeader("By subcategory")
             bySub.forEach { (name, v) ->
                 Row(Modifier.padding(vertical = 6.dp)) {
-                    Text(name, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+                    Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
                     Text(Money.format(v), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                 }
             }

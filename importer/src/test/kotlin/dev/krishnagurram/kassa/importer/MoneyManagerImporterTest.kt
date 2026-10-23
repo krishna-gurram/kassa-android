@@ -115,5 +115,13 @@ class MoneyManagerImporterTest {
     fun splitsLeadingEmojiFromName() {
         assertEquals(CategoryIcon.Emoji("🧘🏼") to "Gym", MoneyManagerImporter.splitEmoji("🧘🏼 Gym"))
         assertEquals(CategoryIcon.DEFAULT to "Amazon", MoneyManagerImporter.splitEmoji("Amazon "))
+        assertEquals(30, MoneyManagerImporter.splitEmoji("🛒" + "g".repeat(50)).second.length)
+    }
+
+    @Test
+    fun namesAreTidiedCappedAndMadeUnique() {
+        assertEquals("Chase Sapphire", MoneyManagerImporter.fit("  Chase\n  Sapphire ", 40))
+        assertEquals(40, MoneyManagerImporter.fit("x".repeat(90), 40).length)
+        assertEquals(listOf("Cash", "cash 2", "Wallet", "Cash 3"), MoneyManagerImporter.uniqueNames(listOf("Cash", "cash", "Wallet", "Cash")))
     }
 }

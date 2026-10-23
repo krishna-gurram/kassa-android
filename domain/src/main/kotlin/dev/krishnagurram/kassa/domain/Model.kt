@@ -97,6 +97,10 @@ data class Category(
     val externalId: String? = null,
 )
 
+/** A new subcategory under this category: same kind, icon, color and daily setting. */
+fun Category.subcategory(name: String) =
+    Category(name = name, kind = kind, parentId = id, icon = icon, color = color, countsTowardDaily = countsTowardDaily)
+
 enum class TxKind {
     EXPENSE,
     INCOME,
