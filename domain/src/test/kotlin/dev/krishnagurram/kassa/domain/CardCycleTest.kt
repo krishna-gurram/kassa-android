@@ -135,4 +135,13 @@ class CardCycleTest {
         assertEquals(0, s.payable)
         assertEquals(31_500, s.outstanding)
     }
+
+    @Test
+    fun overpaidCardShowsACredit() {
+        val txs = listOf(charge("2026-09-20", 10_000), payment("2026-10-12", 10_600))
+        val s = CardCycle.snapshot(card(9, 4), txs, today, zone)
+        assertEquals(0, s.totalBalance)
+        assertEquals(600, s.credit)
+        assertEquals(-600, s.owed)
+    }
 }

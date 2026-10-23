@@ -32,6 +32,12 @@ data class CardSnapshot(
 
     val totalBalance: Long get() = payable + outstanding
 
+    /** What the bank owes you when payments and refunds went past everything charged (an overpaid card). */
+    val credit: Long get() = (paidSinceClose - statementTotal - notYetBilled).coerceAtLeast(0)
+
+    /** The card's balance as a signed figure: positive is owed, negative is a credit. Adds up with other debts. */
+    val owed: Long get() = totalBalance - credit
+
     fun daysUntilDue(today: LocalDate): Long = java.time.temporal.ChronoUnit.DAYS.between(today, due)
 
     val status: Status

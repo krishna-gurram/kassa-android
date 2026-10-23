@@ -137,7 +137,8 @@ fun AccountsScreen(
     }
     val cardSection: @Composable () -> Unit = {
         if (cards.isNotEmpty() || unsetCards.isNotEmpty()) {
-            val owed = cards.sumOf { it.snapshot.totalBalance } - unsetCards.sumOf { state.balances[it.id] ?: 0 }
+            // The cards' real balances, the same figure Liabilities adds up: an overpaid card's credit counts too.
+            val owed = -(cards.map { it.account } + unsetCards).sumOf { state.balances[it.id] ?: 0 }
             GroupHead("Credit cards", "−" + Money.format(owed), "cards" in open, { toggle("cards") }, listOf("Payable" to Money.format(cards.sumOf { it.snapshot.payable }), "Outstanding" to Money.format(cards.sumOf { it.snapshot.outstanding })))
             if ("cards" in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.forEach { c -> dev.krishnagurram.kassa.ui.cards.CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }

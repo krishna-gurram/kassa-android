@@ -230,7 +230,8 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, @Su
                     Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     c.account.last4?.let { Text("  ··$it", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1) }
                 }
-                Text(Money.format(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                if (s.credit > 0) Text("${Money.format(s.credit, showPlus = true)} credit", style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.positive, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                else Text(Money.format(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
             }
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
