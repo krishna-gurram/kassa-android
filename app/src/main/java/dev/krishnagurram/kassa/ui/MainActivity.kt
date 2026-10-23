@@ -344,7 +344,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() })
             }
-            else -> Shell(nav.tab, onTab = nav::select, onAdd = { openFromList(Page.Entry(EntryStart())) }) { padding ->
+            else -> Shell(nav.tab, onTab = nav::select, onAdd = { openFromList(Page.Entry(EntryStart())) }, showAdd = nav.stack.isEmpty()) { padding ->
                 // Unfolded: a list on the left and the page it opened on the right. Cards shows the first card by
                 // default; Activity waits for a tap.
                 val default: Page? = if (nav.tab == Tab.ACCOUNTS) dev.krishnagurram.kassa.ui.cards.cardsByDueDate(l).firstOrNull()?.let { Page.AccountDetail(it.account.id) } else null
@@ -433,7 +433,7 @@ private fun Gone(padding: PaddingValues, onBack: (() -> Unit)?) {
  * a navigation rail with the add button at its top. Switches by itself when the phone folds or unfolds.
  */
 @Composable
-private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @Composable (PaddingValues) -> Unit) {
+private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, showAdd: Boolean = true, content: @Composable (PaddingValues) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 600.dp
         val fab: @Composable () -> Unit = {
@@ -460,39 +460,30 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @C
                 }
             }
         } else {
-            // Add sits in the middle of the tab bar, so nothing floats over the content. Every tab shows its icon
-            // and name; the current one is highlighted and nothing shifts.
+            // Five even tabs with names; Add floats above the bar's right end, in thumb reach. It hides while a page
+            // is open so it never sits over a form, and lists get extra room at the bottom so it doesn't cover the last row.
             Scaffold(
                 containerColor = Kassa.colors.ground,
+                floatingActionButton = { if (showAdd) fab() },
                 bottomBar = {
                     NavigationBar(containerColor = Kassa.colors.raised) {
                         val colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Kassa.colors.ink, selectedTextColor = Kassa.colors.ink,
                             indicatorColor = Kassa.colors.chip, unselectedIconColor = Kassa.colors.ink3, unselectedTextColor = Kassa.colors.ink3,
                         )
-                        Tab.entries.forEachIndexed { i, t ->
-                            if (i == 2) NavigationBarItem(
-                                selected = false, onClick = onAdd,
-                                icon = {
-                                    Box(
-                                        Modifier.size(width = 44.dp, height = 36.dp).background(Kassa.colors.ink, RoundedCornerShape(12.dp)),
-                                        contentAlignment = androidx.compose.ui.Alignment.Center,
-                                    ) { Icon(plusIcon(), "Add an entry", tint = Kassa.colors.onInk) }
-                                },
-                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                            )
+                        Tab.entries.forEach { t ->
                             NavigationBarItem(
                                 selected = tab == t, onClick = { onTab(t) },
                                 // Labels always show, so selecting a tab only changes the highlight and nothing moves.
                                 icon = { Icon(iconFor(t), null) },
-                                label = { Text(t.label, fontSize = 10.sp, maxLines = 1, softWrap = false) },
+                                label = { Text(t.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                                 alwaysShowLabel = true, colors = colors,
                             )
                         }
                     }
                 },
             ) { inner ->
-                content(PaddingValues(start = 20.dp, end = 20.dp, top = inner.calculateTopPadding() + 12.dp, bottom = inner.calculateBottomPadding() + 16.dp))
+                content(PaddingValues(start = 20.dp, end = 20.dp, top = inner.calculateTopPadding() + 12.dp, bottom = inner.calculateBottomPadding() + if (showAdd) 88.dp else 16.dp))
             }
         }
     }
