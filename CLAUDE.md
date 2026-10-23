@@ -45,8 +45,13 @@ the phone's first day of the week (`Ledger.weekStart`).
 
 ## Wording
 Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the
-statement date, **Total balance** is both. Accounts show Assets, Liabilities and Net worth; people are Receivable or
+statement date, **Total balance** is both. A statement covers everything up to the day before its statement date; the
+statement date itself starts the next cycle. Card figures are never clamped: paying past zero shows a green credit. Accounts show Assets, Liabilities and Net worth; people are Receivable or
 Payable.
+
+## Entries
+Nothing guesses an account: a new entry starts with none and you pick it. Splits live on the entry page (Split row):
+several people, who paid, equal or exact shares; a person's "Split a transaction" opens that same page.
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.

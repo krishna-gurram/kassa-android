@@ -329,7 +329,8 @@ fun CardPage(
         repeat((back - 1).coerceAtLeast(0)) { close = dev.krishnagurram.kassa.domain.CardCycle.previousClose(statementDay, close) }
         val open = dev.krishnagurram.kassa.domain.CardCycle.previousClose(statementDay, close)
         val (from, to) = if (back == 0) s.lastClose to ledger.today else open to close
-        val list = all.filter { dateOf(it, ledger).let { d -> d.isAfter(from) && !d.isAfter(to) } }.sortedByDescending { it.epochMillis }
+        // A statement runs from its opening statement date up to the day before its own: the statement date starts the next one.
+        val list = all.filter { dateOf(it, ledger).let { d -> !d.isBefore(from) && (if (back == 0) !d.isAfter(to) else d.isBefore(to)) } }.sortedByDescending { it.epochMillis }
         val charges = list.filter { it.kind == TxKind.EXPENSE && it.accountId == id }.sumOf { it.amount }
         val credits = list.filter { it.toAccountId == id || (it.kind == TxKind.INCOME && it.accountId == id) }.sumOf { it.amount }
         val canBack = oldest != null && from.isAfter(oldest)
@@ -342,7 +343,7 @@ fun CardPage(
                 when (back) {
                     0 -> "Since ${s.lastClose.format(MONTH_DAY)} \u00b7 closes ${s.nextClose.format(MONTH_DAY)}"
                     1 -> "Due ${s.due.format(MONTH_DAY)}"
-                    else -> "${from.plusDays(1).format(MONTH_DAY)} to ${to.format(MONTH_DAY)}"
+                    else -> "${from.format(MONTH_DAY)} to ${to.minusDays(1).format(MONTH_DAY)}"
                 },
                 canBack, back > 0, onBack = { shift(-1) }, onForward = { shift(1) },
             )

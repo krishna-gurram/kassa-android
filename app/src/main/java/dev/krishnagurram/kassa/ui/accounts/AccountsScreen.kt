@@ -529,7 +529,7 @@ private fun InvestmentBody(
 @Composable
 fun PersonPage(
     p: Person, balance: Long, ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?,
-    onSave: (EntryDraft) -> Unit, onSplit: (Long, Long) -> Unit, onOpenEntry: (Long) -> Unit,
+    onSave: (EntryDraft) -> Unit, onSplit: (Long) -> Unit, onOpenEntry: (Long) -> Unit,
     onUpdate: (Person) -> Unit,
 ) {
     var editing by remember(p.id) { mutableStateOf(false) }
@@ -581,7 +581,7 @@ fun PersonPage(
         Gap(24)
     }
     if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }) { onSave(it); recording = false }
-    if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { tx, share -> onSplit(tx, share); splitting = false }
+    if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { tx -> splitting = false; onSplit(tx) }
 }
 
 private data class Quad(val millis: Long, val note: String, val amount: Long, val txId: Long?)
@@ -629,48 +629,23 @@ private fun PaymentSheet(p: Person, balance: Long, ledger: Ledger, onDismiss: ()
     }
 }
 
-/** Pick an expense from the last 60 days and how much of it is theirs: half, or an exact amount. */
+/** Pick an expense from the last 60 days to split with this person. It opens on the entry page, split panel up. */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun SplitSheet(p: Person, ledger: Ledger, onDismiss: () -> Unit, onSplit: (Long, Long) -> Unit) {
+private fun SplitSheet(p: Person, ledger: Ledger, onDismiss: () -> Unit, onPick: (Long) -> Unit) {
+    // Picking an expense opens it on the entry page with the split panel up and this person in it,
+    // so splitting works the same way from everywhere.
     val already = ledger.people.loans.filter { it.personId == p.id }.mapNotNull { it.transactionId }.toSet()
     val from = ledger.today.minusDays(60)
-    val choices = ledger.recent.filter { it.kind == TxKind.EXPENSE && it.id !in already && !Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate().isBefore(from) }
+    val choices = ledger.recent.filter { it.kind == TxKind.EXPENSE && it.accountId != null && it.id !in already && !Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate().isBefore(from) }
         .sortedByDescending { it.epochMillis }
-    var picked by remember { mutableStateOf<Transaction?>(null) }
-    var half by remember { mutableStateOf(true) }
-    var exact by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text("Split with ${p.name}", style = KassaType.section, color = Kassa.colors.ink)
-            val t = picked
-            if (t == null) {
-                Text("Pick an expense", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                if (choices.isEmpty()) Text("No expenses in the last 60 days.", style = KassaType.body, color = Kassa.colors.ink2)
-                LazyColumn(Modifier.fillMaxWidth().height(380.dp)) {
-                    items(choices, key = { it.id }) { c -> TransactionRow(c, ledger, showDate = true, onClick = { picked = it }) }
-                }
-            } else {
-                TransactionRow(t, ledger, showDivider = false, showDate = true, onClick = { picked = null })
-                val base = t.categoryAmount
-                FlowRow(Modifier.padding(top = 8.dp)) {
-                    Chip("Half", selected = half) { half = true; error = null }
-                    Chip("Exact amount", selected = !half) { half = false; error = null }
-                }
-                if (!half) OutlinedTextField(exact, { exact = it; error = null }, singleLine = true, label = { Text("${p.name}'s share") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-                val share = if (half) base / 2 else Money.parseCents(exact) ?: 0L
-                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("${p.name} owes ${Money.format(share)}", style = KassaType.bodyStrong, color = Kassa.colors.positive)
-                    Text("Your share ${Money.format(base - share)}", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                }
-                error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
-                Gap(12)
-                PrimaryButton("Split") {
-                    error = if (share <= 0 || share > base) "Their share has to be more than zero and at most ${Money.format(base)}." else null
-                    if (error == null) onSplit(t.id, share)
-                }
+            Text("Pick an expense", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            if (choices.isEmpty()) Text("No expenses in the last 60 days.", style = KassaType.body, color = Kassa.colors.ink2)
+            LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
+                items(choices, key = { it.id }) { c -> TransactionRow(c, ledger, showDate = true, onClick = { onPick(it.id) }) }
             }
         }
     }

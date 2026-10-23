@@ -56,6 +56,26 @@ object Split {
         val others = List(otherPeople) { i -> if (i == 0) each + (rest - each * otherPeople) else each }
         return Result(mine, others)
     }
+
+    /** What one shared expense means: your share (what counts as spending) and who owes whom. */
+    data class Outcome(val myShare: Long, val owed: List<Pair<Long, Long>>)
+
+    /**
+     * [shares] is each other person's part of [total]; yours is what's left. When you paid ([paidBy] null), each
+     * person owes you their part (positive). When someone else paid, you owe them your part (negative); what the
+     * others owe the payer isn't yours to track.
+     */
+    fun outcome(total: Long, shares: Map<Long, Long>, paidBy: Long?): Outcome {
+        val mine = total - shares.values.sum()
+        require(mine >= 0) { "Shares add up to more than the total" }
+        val owed = if (paidBy == null) shares.filterValues { it != 0L }.map { it.key to it.value }
+        else if (mine > 0) listOf(paidBy to -mine) else emptyList()
+        return Outcome(mine, owed)
+    }
+
+    /** Equal shares for [people], in their order; the odd cent stays with you. */
+    fun equalShares(total: Long, people: List<Long>): Map<Long, Long> =
+        if (people.isEmpty()) emptyMap() else people.zip(equal(total, people.size).others).toMap()
 }
 
 /**

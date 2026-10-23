@@ -180,8 +180,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
         val openFromList: (Page) -> Unit = { p -> nav.open(p, besideList = split) }
         val edit: (Transaction, Boolean) -> Unit = { t, fromPage ->
             scope.launch {
-                vm.loadForEdit(t.id)?.let { (tx, split2) ->
-                    val page = Page.Entry(EntryStart(editing = tx, splitWith = split2))
+                vm.entryStartFor(t.id)?.let { start ->
+                    val page = Page.Entry(start)
                     if (fromPage) nav.push(page) else openFromList(page)
                 }
             }
@@ -228,6 +228,9 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onSave = { vm.save(it, page.start.afterSave); nav.pop() },
                     onDelete = { vm.delete(it); nav.pop() },
                     onAddPerson = { name, then -> vm.addPerson(name, then) },
+                    onAddSubcategory = { parent, name, then ->
+                        vm.saveCategory(dev.krishnagurram.kassa.domain.Category(name = name, kind = parent.kind, parentId = parent.id, icon = parent.icon, color = parent.color, countsTowardDaily = parent.countsTowardDaily), null, then)
+                    },
                     onBack = back,
                 )
                 is Page.Bill -> dev.krishnagurram.kassa.ui.entry.BillPage(
@@ -282,9 +285,9 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     val p = lg.people.people.firstOrNull { it.id == page.personId }
                     if (p == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.accounts.PersonPage(p, lg.personBalances()[p.id] ?: 0, lg, padding, onBack, onSave = { vm.save(it) },
-                        onSplit = { tx, share -> vm.splitExisting(tx, p.id, share) },
+                        onSplit = { tx -> scope.launch { vm.entryStartFor(tx, withPerson = p.id)?.let { nav.push(Page.Entry(it)) } } },
                         onUpdate = { vm.updatePerson(it) },
-                        onOpenEntry = { id -> scope.launch { vm.loadForEdit(id)?.let { (tx, split2) -> nav.push(Page.Entry(EntryStart(editing = tx, splitWith = split2))) } } })
+                        onOpenEntry = { id -> scope.launch { vm.entryStartFor(id)?.let { nav.push(Page.Entry(it)) } } })
                 }
                 is Page.CategoryDetail -> {
                     val c = lg.categoryById[page.categoryId]

@@ -64,4 +64,26 @@ class PlanningTest {
         Transaction(kind = TxKind.EXPENSE, amount = 6_000, accountId = null, personId = 3, epochMillis = 0)
         assertFailsWith<IllegalArgumentException> { Transaction(kind = TxKind.INCOME, amount = 1, accountId = null, epochMillis = 0) }
     }
+
+    @Test
+    fun splitWithSeveralPeopleYouPaid() {
+        val o = Split.outcome(12_000, mapOf(1L to 5_000L, 2L to 4_000L), paidBy = null)
+        assertEquals(3_000, o.myShare)
+        assertEquals(listOf(1L to 5_000L, 2L to 4_000L), o.owed)
+    }
+
+    @Test
+    fun splitSomeoneElsePaidYouOweYourShare() {
+        val shares = Split.equalShares(12_000, listOf(1L, 2L))
+        val o = Split.outcome(12_000, shares, paidBy = 1L)
+        assertEquals(4_000, o.myShare)
+        assertEquals(listOf(1L to -4_000L), o.owed)
+    }
+
+    @Test
+    fun equalSharesKeepEveryCent() {
+        val shares = Split.equalShares(10_000, listOf(1L, 2L))
+        assertEquals(10_000 - shares.values.sum(), Split.outcome(10_000, shares, null).myShare)
+        assertEquals(10_000, shares.values.sum() + Split.outcome(10_000, shares, null).myShare)
+    }
 }

@@ -85,7 +85,8 @@ object CardCycle {
      * Builds the snapshot for [card] as of [today] from what's owed, so an unpaid balance carries forward the way
      * it does on a real statement (0% APR balances, partial payments, anything left over).
      *
-     * - The statement balance is what was owed on the closing day: everything before it, including any balance
+     * - The statement balance is what was owed when the cycle closed, the end of the day before the statement
+     *   date: everything before the statement date, including any balance
      *   carried from earlier months and the card's opening balance.
      * - Payments and credits since then (payments in, refunds) come off it first; what's left is balance payable.
      * - New charges since the closing day (purchases, cash withdrawals, fees, money sent from the card) are outstanding.
@@ -114,7 +115,9 @@ object CardCycle {
             val effect = t.effectOn(card.id)
             if (effect == 0L) continue
             val date = java.time.Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
-            if (!date.isAfter(last)) continue
+            // The statement covers everything up to the day before the statement date; the statement date itself
+            // starts the new cycle (statement on the 16th: through the 15th is payable, the 16th on is outstanding).
+            if (date.isBefore(last)) continue
             afterClose += effect
             if (date.isAfter(today)) continue
             if (effect < 0) charges += -effect else credits += effect

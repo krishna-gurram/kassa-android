@@ -53,7 +53,7 @@ class CardCycleTest {
         val txs = listOf(
             charge("2026-09-05", 10_000),   // previous statement (closed Sep 9)
             charge("2026-09-20", 20_000),   // this statement (Sep 10 to Oct 9)
-            charge("2026-10-09", 5_000),    // closing day counts in this statement
+            charge("2026-10-08", 5_000),    // the day before the statement date is the last day on it
             charge("2026-10-15", 7_500),    // not billed yet
             payment("2026-10-12", 5_000),
         )
@@ -148,5 +148,25 @@ class CardCycleTest {
         assertEquals(-600, s.totalBalance)
         assertEquals(600, s.credit)
         assertEquals(-600, s.owed)
+    }
+
+    @Test
+    fun theStatementDateStartsTheNextCycle() {
+        // Statement on the 16th: the 15th is payable, the 16th is outstanding.
+        val today16 = LocalDate.of(2026, 10, 20)
+        val txs = listOf(charge("2026-10-15", 10_000), charge("2026-10-16", 2_500))
+        val s = CardCycle.snapshot(card(16, 10), txs, today16, zone)
+        assertEquals(10_000, s.payable)
+        assertEquals(2_500, s.outstanding)
+    }
+
+    @Test
+    fun onTheStatementDateItsChargesAreOutstanding() {
+        val day = LocalDate.of(2026, 10, 16)
+        val txs = listOf(charge("2026-10-15", 10_000), charge("2026-10-16", 2_500))
+        val s = CardCycle.snapshot(card(16, 10), txs, day, zone)
+        assertEquals(LocalDate.of(2026, 10, 16), s.lastClose)
+        assertEquals(10_000, s.payable)
+        assertEquals(2_500, s.outstanding)
     }
 }

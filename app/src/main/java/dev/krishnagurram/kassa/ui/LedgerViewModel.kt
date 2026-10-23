@@ -272,6 +272,20 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         return t to repo.splitPeopleFor(id)
     }
 
+    /**
+     * How the entry page opens an existing entry, split included. [withPerson] adds someone to the split and opens
+     * the split panel, for "Split a transaction" from a person.
+     */
+    suspend fun entryStartFor(id: Long, withPerson: Long? = null): dev.krishnagurram.kassa.ui.entry.EntryStart? {
+        val t = repo.transaction(id) ?: return null
+        val loans = repo.loansFor(id)
+        val paidBy = if (t.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && t.accountId == null) t.personId else null
+        val shares = if (paidBy != null) mapOf(paidBy to (t.amount - (t.myShare ?: t.amount)).coerceAtLeast(0))
+        else loans.filterValues { it > 0 }
+        val people = (shares.keys.toList() + listOfNotNull(withPerson)).distinct()
+        return dev.krishnagurram.kassa.ui.entry.EntryStart(editing = t, splitWith = people, shares = shares, paidBy = paidBy, openSplit = withPerson != null)
+    }
+
     fun accountHistory(accountId: Long) = repo.accountHistory(accountId)
 
     fun between(fromMillis: Long, toMillis: Long) = repo.transactionsBetween(fromMillis, toMillis)

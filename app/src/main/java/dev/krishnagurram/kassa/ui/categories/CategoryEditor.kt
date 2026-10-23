@@ -64,7 +64,8 @@ fun CategoryEditor(
     original: Category,
     onSave: (CategoryEdit) -> Unit,
     onAddSub: (Category, String) -> Unit,
-    onRenameSub: (Category) -> Unit,
+    onSaveSub: (Category) -> Unit,
+    onMergeSub: (Category, Category) -> Unit,
     onMerge: (Category, Category) -> Unit,
 ) {
     val isNew = original.id == 0L
@@ -83,7 +84,6 @@ fun CategoryEditor(
     var iconTab by remember { mutableStateOf(if (original.icon is CategoryIcon.Symbol) 1 else 0) }
     var iconQuery by remember { mutableStateOf("") }
     var typedEmoji by remember { mutableStateOf("") }
-    var newSub by remember { mutableStateOf("") }
     var mergeOpen by remember { mutableStateOf(false) }
     var mergeInto by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -175,28 +175,7 @@ fun CategoryEditor(
             }
         }
 
-        if (isTop && !isNew) {
-            SectionHeader("Subcategories", "${subs.count { !it.hidden }}")
-            subs.sortedWith(compareBy({ it.hidden }, { it.sortOrder })).forEach { s ->
-                Row(Modifier.fillMaxWidth().clickable { onRenameSub(s) }.padding(vertical = 12.dp)) {
-                    Text(s.name, style = KassaType.body, color = if (s.hidden) Kassa.colors.ink3 else Kassa.colors.ink, modifier = Modifier.weight(1f))
-                    Text(if (s.hidden) "Archived" else "Edit", style = KassaType.small, color = Kassa.colors.ink2)
-                }
-                HorizontalDivider(color = Kassa.colors.line)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(newSub, { newSub = it }, singleLine = true, label = { Text("Add a subcategory") }, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    val n = newSub.trim()
-                    error = when {
-                        n.isEmpty() -> "Type the subcategory's name."
-                        subs.any { it.name.equals(n, ignoreCase = true) } -> "$n is already here."
-                        else -> null
-                    }
-                    if (error == null) { onAddSub(original, n); newSub = "" }
-                }) { Text("Add", color = Kassa.colors.ink) }
-            }
-        }
+        if (isTop && !isNew) SubcategoryList(ledger, original, onSave = onSaveSub, onAdd = { n -> onAddSub(original, n) }, onMerge = onMergeSub)
 
         if (!isNew) {
             TextButton(onClick = { mergeOpen = !mergeOpen }) { Text("Move all entries into another category", color = Kassa.colors.ink2) }

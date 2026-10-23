@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -94,6 +96,12 @@ import java.util.Locale
 data class EntryStart(
     val editing: Transaction? = null,
     val splitWith: List<Long> = emptyList(),
+    /** Each person's share when the split isn't equal (or when someone else paid). */
+    val shares: Map<Long, Long> = emptyMap(),
+    /** Someone else paid the whole expense. */
+    val paidBy: Long? = null,
+    /** Open with the split panel showing, as "Split a transaction" from a person does. */
+    val openSplit: Boolean = false,
     val prefill: EntryDraft? = null,
     /** Runs after a successful save, for example to clear the alert or bill that opened the page. */
     val afterSave: (() -> Unit)? = null,
@@ -102,7 +110,7 @@ data class EntryStart(
 private const val MAX_DIGITS = 8
 
 /** The input the bottom panel is showing. Null means none: the panel gives way to the save button. */
-private enum class Field { AMOUNT, CATEGORY, SUB, ACCOUNT, TO, DATE, NOTE }
+private enum class Field { AMOUNT, CATEGORY, SUB, ACCOUNT, TO, DATE, NOTE, SPLIT }
 
 /**
  * The add and edit page. The amount sits big at the top, then three tiles (category, account, date; for a transfer
@@ -121,6 +129,8 @@ fun EntryPage(
     onSave: (EntryDraft) -> Unit,
     onDelete: (Long) -> Unit,
     @Suppress("UNUSED_PARAMETER") onAddPerson: (String, (Long) -> Unit) -> Unit,
+    /** Creates a subcategory under the given category, then hands back its id. */
+    onAddSubcategory: (Category, String, (Long) -> Unit) -> Unit = { _, _, _ -> },
     onBack: () -> Unit,
 ) {
     val e = start.editing
@@ -129,12 +139,21 @@ fun EntryPage(
     var kind by remember { mutableStateOf(e?.kind?.takeIf { it in setOf(TxKind.EXPENSE, TxKind.INCOME, TxKind.TRANSFER) } ?: p?.kind ?: TxKind.EXPENSE) }
     var amount by remember { mutableStateOf((e?.amount ?: p?.amount)?.takeIf { it > 0 }?.let { centsToInput(it) } ?: "") }
     var categoryId by remember { mutableStateOf(e?.categoryId ?: p?.categoryId) }
-    var accountId by remember { mutableStateOf(e?.accountId ?: p?.accountId ?: lastUsedAccount(ledger, e?.kind ?: p?.kind ?: TxKind.EXPENSE)) }
+    // A new entry starts with no account: you always pick it. Nothing guesses one from the category or merchant.
+    var accountId by remember { mutableStateOf(e?.accountId ?: p?.accountId) }
     var toAccountId by remember { mutableStateOf(e?.toAccountId ?: p?.toAccountId) }
-    var accountTouched by remember { mutableStateOf(e != null || p?.accountId != null) }
     val originalMillis = e?.epochMillis ?: p?.epochMillis
     var date by remember { mutableStateOf(originalMillis?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: ledger.today) }
     var note by remember { mutableStateOf(e?.note ?: p?.note ?: "") }
+    // Split: who shares it, who paid (null: you), and exact shares when not equal.
+    var splitPeople by remember { mutableStateOf(start.splitWith) }
+    var paidBy by remember { mutableStateOf(start.paidBy) }
+    val startCents = (e?.amount ?: p?.amount ?: 0L)
+    var exact by remember { mutableStateOf(start.shares.isNotEmpty() && start.shares != dev.krishnagurram.kassa.domain.Split.equalShares(startCents, start.splitWith)) }
+    var exactShares by remember { mutableStateOf(start.shares) }
+    var editingShare by remember { mutableStateOf<Long?>(null) }
+    var shareBuf by remember { mutableStateOf("") }
+    var newSub by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -142,6 +161,7 @@ fun EntryPage(
     var field by remember {
         mutableStateOf(
             when {
+                start.openSplit -> Field.SPLIT
                 e != null -> null
                 amount.isEmpty() -> Field.AMOUNT
                 p != null && categoryId == null && kind != TxKind.TRANSFER -> Field.CATEGORY
@@ -150,8 +170,8 @@ fun EntryPage(
         )
     }
     var calMonth by remember { mutableStateOf(YearMonth.from(date)) }
-    val initial = remember { listOf(kind, amount, categoryId, accountId, toAccountId, date, note) }
-    val dirty = listOf(kind, amount, categoryId, accountId, toAccountId, date, note) != initial
+    val initial = remember { listOf(kind, amount, categoryId, accountId, toAccountId, date, note, start.splitWith, start.paidBy, start.shares) }
+    val dirty = listOf(kind, amount, categoryId, accountId, toAccountId, date, note, splitPeople, paidBy, exactShares) != initial || start.openSplit
     val leave: () -> Unit = { if (dirty) confirmDiscard = true else onBack() }
     BackHandler(enabled = dirty) { confirmDiscard = true }
 
@@ -171,11 +191,20 @@ fun EntryPage(
     val rankedTo = remember(ledger.recent.size, ledger.accounts.accounts.size) { rankAccounts(ledger, TxKind.TRANSFER, to = true) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val toCard = if (kind == TxKind.TRANSFER) toAccountId?.let { cards[it] } else null
+    val peopleById = ledger.people.people.associateBy { it.id }
+    val shared = kind == TxKind.EXPENSE && splitPeople.isNotEmpty()
+    val shares: Map<Long, Long> = when {
+        !shared -> emptyMap()
+        exact -> splitPeople.associateWith { exactShares[it] ?: 0L }
+        else -> dev.krishnagurram.kassa.domain.Split.equalShares(cents, splitPeople)
+    }
+    val myShare = cents - shares.values.sum()
+    val someoneElsePaid = kind == TxKind.EXPENSE && paidBy != null
 
     /** The next required input still empty, in the order the tiles read. */
     fun missing(): Field? = when (kind) {
         TxKind.TRANSFER -> when { accountId == null -> Field.ACCOUNT; toAccountId == null -> Field.TO; else -> null }
-        else -> when { categoryId == null -> Field.CATEGORY; accountId == null -> Field.ACCOUNT; else -> null }
+        else -> when { categoryId == null -> Field.CATEGORY; accountId == null && !someoneElsePaid -> Field.ACCOUNT; else -> null }
     }
 
     /** After a pick: the next empty input, then the note for a new entry, then nothing (the save button). */
@@ -186,14 +215,12 @@ fun EntryPage(
 
     fun pickCategory(c: Category) {
         categoryId = c.id
-        if (!accountTouched && kind == TxKind.EXPENSE) defaultAccountFor(ledger, c)?.let { accountId = it }
         error = null
     }
 
     fun switchKind(k: TxKind) {
         if (k == kind) return
         kind = k; categoryId = null; error = null
-        if (!accountTouched) accountId = lastUsedAccount(ledger, k)
         if (k == TxKind.TRANSFER && accountId?.let { ledger.accountById[it]?.type?.hasStatement } == true) accountId = null
         if (k != TxKind.TRANSFER) toAccountId = null
         field = if (amount.isEmpty()) Field.AMOUNT else missing()
@@ -204,19 +231,21 @@ fun EntryPage(
         val problem = when {
             cents <= 0 -> Field.AMOUNT to "Enter an amount."
             kind != TxKind.TRANSFER && categoryId == null -> Field.CATEGORY to "Pick a category."
-            accountId == null -> Field.ACCOUNT to "Pick an account."
+            accountId == null && !someoneElsePaid -> Field.ACCOUNT to "Pick an account."
+            shared && myShare < 0 -> Field.SPLIT to "The shares add up to more than ${Money.format(cents)}."
             kind == TxKind.TRANSFER && (toAccountId == null || toAccountId == accountId) -> Field.TO to "Pick where the money went."
             else -> null
         }
         if (problem != null) { field = problem.first; error = problem.second; return }
         onSave(
             EntryDraft(
-                id = e?.id, kind = kind, amount = cents, accountId = accountId,
+                id = e?.id, kind = kind, amount = cents, accountId = if (someoneElsePaid) null else accountId,
                 toAccountId = if (kind == TxKind.TRANSFER) toAccountId else null,
                 categoryId = if (kind == TxKind.TRANSFER) null else categoryId, personId = null,
                 epochMillis = millis, note = note.trim(),
-                // Splits are kept as they were when editing; the split row comes with the reimbursement rework.
-                splitWith = if (kind == TxKind.EXPENSE) start.splitWith else emptyList(),
+                splitWith = if (shared) splitPeople else emptyList(),
+                shares = if (shared) shares else null,
+                paidBy = if (shared) paidBy else null,
             )
         )
     }
@@ -259,7 +288,11 @@ fun EntryPage(
                         AccountTile("To", ledger.accountById[toAccountId], cards, showDue = true, twoLines = true, on = field == Field.TO, modifier = Modifier.weight(1f)) { field = Field.TO }
                     } else {
                         CategoryTile(topCat, cat?.takeIf { it.parentId != null }, on = field == Field.CATEGORY || field == Field.SUB, modifier = Modifier.weight(1.15f)) { field = Field.CATEGORY }
-                        AccountTile(if (kind == TxKind.INCOME) "Into" else "Paid with", ledger.accountById[accountId], cards, showDue = kind == TxKind.EXPENSE, twoLines = false, on = field == Field.ACCOUNT, modifier = Modifier.weight(1.15f)) { field = Field.ACCOUNT }
+                        if (someoneElsePaid) Tile("Paid by", on = field == Field.SPLIT, empty = false, modifier = Modifier.weight(1.15f), onClick = { field = Field.SPLIT }) {
+                            Text(peopleById[paidBy]?.name ?: "Someone", style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Not your account", style = KassaType.tiny.copy(fontSize = 11.sp), color = Kassa.colors.ink3, maxLines = 1)
+                        }
+                        else AccountTile(if (kind == TxKind.INCOME) "Into" else "Paid with", ledger.accountById[accountId], cards, showDue = kind == TxKind.EXPENSE, twoLines = false, on = field == Field.ACCOUNT, modifier = Modifier.weight(1.15f)) { field = Field.ACCOUNT }
                     }
                     DateTile(date, on = field == Field.DATE, modifier = Modifier.weight(0.7f)) { calMonth = YearMonth.from(date); field = Field.DATE }
                 }
@@ -270,6 +303,10 @@ fun EntryPage(
                     onFocused = { field = Field.NOTE },
                     onDone = { field = null },
                 )
+                if (kind == TxKind.EXPENSE && ledger.people.people.any { !it.archived } || shared) SplitRow(
+                    who = if (shared) (listOf("You") + splitPeople.map { peopleById[it]?.name ?: "?" }).joinToString(", ") else "Just you",
+                    mine = if (shared) myShare else null, on = field == Field.SPLIT,
+                ) { field = Field.SPLIT; editingShare = null }
                 error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp)) }
             }
 
@@ -327,6 +364,30 @@ fun EntryPage(
                                             Text(s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
+                                    // A new subcategory without leaving the entry.
+                                    item(key = "new", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(if (newSub == null) 1 else maxLineSpan) }) {
+                                        val typed = newSub
+                                        if (typed == null) PickTile(on = false, onClick = { newSub = "" }) {
+                                            Text("+ New", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                                        } else Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val focus = remember { FocusRequester() }
+                                            LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+                                            val add: () -> Unit = {
+                                                val n = typed.trim()
+                                                val clash = ledger.categories.any { it.parentId == t.id && it.name.equals(n, ignoreCase = true) }
+                                                if (n.isNotEmpty() && !clash) onAddSubcategory(t, n) { id -> categoryId = id; newSub = null; advance() }
+                                                else if (clash) error = "$n is already under ${t.name}."
+                                            }
+                                            androidx.compose.material3.OutlinedTextField(
+                                                typed, { newSub = it; error = null }, singleLine = true,
+                                                placeholder = { Text("New subcategory under ${t.name}") },
+                                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                                                keyboardActions = KeyboardActions(onDone = { add() }),
+                                                modifier = Modifier.weight(1f).focusRequester(focus),
+                                            )
+                                            TextButton(onClick = add) { Text("Add", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -344,7 +405,7 @@ fun EntryPage(
                                             error = null
                                             field = if (cards[a.id]?.payable?.let { it > 0 } == true && cents <= 0) Field.AMOUNT else missing() ?: if (cents <= 0) Field.AMOUNT else null
                                         } else {
-                                            accountId = a.id; accountTouched = true
+                                            accountId = a.id
                                             if (toAccountId == a.id) toAccountId = null
                                             advance()
                                         }
@@ -370,6 +431,64 @@ fun EntryPage(
                             }
                             MonthCalendar(calMonth, date, ledger.today, onMonth = { calMonth = it }, modifier = Modifier.weight(1f)) { date = it; after() }
                         }
+                        Field.SPLIT -> {
+                            val editing = editingShare
+                            if (editing != null) {
+                                val commit: () -> Unit = {
+                                    Money.parseCents(shareBuf)?.let { v -> exactShares = exactShares + (editing to v) }
+                                    editingShare = null; error = null
+                                }
+                                PanelTitle("${peopleById[editing]?.name ?: "Their"} share", back = { editingShare = null }, onDone = commit)
+                                Text(
+                                    if (shareBuf.isEmpty()) Money.format(exactShares[editing] ?: 0L) else Money.symbol + displayAmount(shareBuf),
+                                    style = KassaType.hero.copy(fontSize = 30.sp), color = if (shareBuf.isEmpty()) Kassa.colors.ink3 else Kassa.colors.ink,
+                                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                                )
+                                NumberPad(Modifier.weight(1f)) { k -> shareBuf = applyKey(shareBuf, k) }
+                                PrimaryButton("Done", commit)
+                            } else {
+                                PanelTitle("Split") { field = null }
+                                val everyone = ledger.people.people.filter { !it.archived || it.id in splitPeople }.sortedBy { it.name.lowercase() }
+                                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    SplitLabel("With")
+                                    if (everyone.isEmpty()) Text("Add people in Accounts to split with them.", style = KassaType.small, color = Kassa.colors.ink2)
+                                    FlowRow {
+                                        everyone.forEach { person ->
+                                            Chip(person.name, selected = person.id in splitPeople) {
+                                                error = null
+                                                if (person.id in splitPeople) {
+                                                    splitPeople = splitPeople - person.id
+                                                    exactShares = exactShares - person.id
+                                                    if (paidBy == person.id) paidBy = null
+                                                } else splitPeople = splitPeople + person.id
+                                            }
+                                        }
+                                    }
+                                    if (shared) {
+                                        SplitLabel("Paid by")
+                                        FlowRow {
+                                            Chip("You", selected = paidBy == null) { paidBy = null }
+                                            splitPeople.forEach { id -> Chip(peopleById[id]?.name ?: "?", selected = paidBy == id) { paidBy = id } }
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            SplitLabel("Shares", Modifier.weight(1f))
+                                            Chip("Equally", selected = !exact, small = true) { exact = false; error = null }
+                                            Chip("Exact amounts", selected = exact, small = true) {
+                                                if (!exact) exactShares = dev.krishnagurram.kassa.domain.Split.equalShares(cents, splitPeople) + exactShares.filterKeys { it in splitPeople && (exactShares[it] ?: 0L) > 0 }
+                                                exact = true
+                                            }
+                                        }
+                                        ShareLine("You", myShare, cents, editable = false) {}
+                                        splitPeople.forEach { id -> ShareLine(peopleById[id]?.name ?: "?", shares[id] ?: 0L, cents, editable = exact) { editingShare = id; shareBuf = "" } }
+                                        if (myShare < 0) Text("The shares add up to more than ${Money.format(cents)}.", style = KassaType.small, color = Kassa.colors.attention)
+                                        Text(
+                                            if (paidBy == null) "Each person owes you their share." else "You owe ${peopleById[paidBy]?.name ?: "them"} ${Money.format(myShare.coerceAtLeast(0))}.",
+                                            style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 2.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Field.NOTE -> {
                             PanelTitle("Note") { field = null }
                             val sugg = suggestions(notes, note, ledger, kind, categoryId)
@@ -381,7 +500,6 @@ fun EntryPage(
                                             note = s
                                             if (categoryId == null) ledger.recent.firstOrNull { it.note == s && it.kind == kind }?.let { last ->
                                                 categoryId = last.categoryId
-                                                if (!accountTouched && last.accountId != null) accountId = last.accountId
                                             }
                                             field = missing()
                                         }.padding(horizontal = 14.dp, vertical = 9.dp),
@@ -514,6 +632,45 @@ internal fun NoteRow(value: String, onChange: (String) -> Unit, focused: Boolean
             }
         },
     )
+}
+
+/** The Split line under the note: who shares the expense and what your share is. */
+@Composable
+private fun SplitRow(who: String, mine: Long?, on: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(shape).background(Kassa.colors.raised)
+            .border(1.5.dp, if (on) Kassa.colors.ink else Color.Transparent, shape)
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Split", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.width(44.dp))
+        Column(Modifier.weight(1f)) {
+            Text(who, style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (mine != null) Text("Your share ${Money.format(mine)}", style = KassaType.tiny, color = if (mine < 0) Kassa.colors.attention else Kassa.colors.ink2)
+        }
+    }
+}
+
+@Composable
+private fun SplitLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = modifier.padding(top = 4.dp))
+}
+
+/** One person's share: name, percent of the total, amount. Exact shares are tapped to type an amount. */
+@Composable
+private fun ShareLine(name: String, amount: Long, total: Long, editable: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Kassa.colors.ground)
+            .then(if (editable) Modifier.border(1.dp, Kassa.colors.line, shape).clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (total > 0) Text("${Math.round(amount * 100.0 / total)}%", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 10.dp))
+        Text(Money.format(amount), style = KassaType.bodyStrong, color = if (amount < 0) Kassa.colors.attention else Kassa.colors.ink)
+    }
 }
 
 /* ---------- the panel ---------- */
@@ -731,20 +888,11 @@ internal fun rankAccounts(ledger: Ledger, kind: TxKind, to: Boolean): List<Accou
         .sortedWith(compareByDescending<Account> { score[it.id] ?: 0.0 }.thenByDescending { it.type in likely }.thenBy { it.sortOrder })
 }
 
-private fun lastUsedAccount(ledger: Ledger, kind: TxKind): Long? =
-    ledger.recent.filter { it.kind == kind && it.accountId != null }.maxByOrNull { it.epochMillis }?.accountId
-
 internal fun subsRanked(ledger: Ledger, top: Category): List<Category> {
     val n = HashMap<Long, Int>()
     for (t in ledger.recent) t.categoryId?.let { n[it] = (n[it] ?: 0) + 1 }
     return ledger.categories.filter { it.parentId == top.id && !it.hidden }
         .sortedWith(compareByDescending<Category> { n[it.id] ?: 0 }.thenBy { it.sortOrder })
-}
-
-private fun defaultAccountFor(ledger: Ledger, c: Category): Long? {
-    val ids = ledger.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
-    return ledger.recent.filter { it.kind == TxKind.EXPENSE && it.categoryId in ids && it.accountId != null }
-        .groupingBy { it.accountId!! }.eachCount().maxByOrNull { it.value }?.key
 }
 
 private fun suggestions(all: List<String>, typed: String, ledger: Ledger, kind: TxKind, categoryId: Long?): List<String> {

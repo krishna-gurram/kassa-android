@@ -44,6 +44,10 @@ data class EntryDraft(
     val epochMillis: Long,
     val note: String,
     val splitWith: List<Long>,
+    /** Each person's exact share of an expense; null means equal shares between you and [splitWith]. */
+    val shares: Map<Long, Long>? = null,
+    /** The person who paid an expense when it wasn't you; the entry then has no account of yours. */
+    val paidBy: Long? = null,
 )
 
 class KassaRepository(private val db: KassaDatabase) {
@@ -87,6 +91,9 @@ class KassaRepository(private val db: KassaDatabase) {
 
     suspend fun splitPeopleFor(txId: Long): List<Long> = db.loans().forTransaction(txId).map { it.personId }
 
+    /** Who shares an entry and how much: person to amount (positive, they owe you; negative, you owe them). */
+    suspend fun loansFor(txId: Long): Map<Long, Long> = db.loans().forTransaction(txId).groupBy { it.personId }.mapValues { (_, v) -> v.sumOf { it.amount } }
+
     suspend fun frequentNotes(kind: TxKind): List<String> = db.transactions().frequentNotes(kind.name)
 
     /**
@@ -98,7 +105,7 @@ class KassaRepository(private val db: KassaDatabase) {
         // including uneven ones from "Split a transaction".
         val before = draft.id?.let { db.transactions().byId(it)?.toDomain() }
         val keptLoans = draft.id?.let { db.loans().forTransaction(it) }.orEmpty()
-        val keepSplit = before != null && before.amount == draft.amount && draft.kind == TxKind.EXPENSE &&
+        val keepSplit = draft.shares == null && draft.paidBy == null && before != null && before.amount == draft.amount && draft.kind == TxKind.EXPENSE &&
             keptLoans.isNotEmpty() && keptLoans.map { it.personId }.toSet() == draft.splitWith.toSet()
         if (keepSplit) {
             val tx = before!!.copy(
@@ -108,26 +115,33 @@ class KassaRepository(private val db: KassaDatabase) {
             db.transactions().update(tx.toEntity())
             return@withTransaction tx
         }
-        val split = if (draft.kind == TxKind.EXPENSE && draft.splitWith.isNotEmpty()) Split.equal(draft.amount, draft.splitWith.size) else null
+        val shared = draft.kind == TxKind.EXPENSE && draft.splitWith.isNotEmpty()
+        val paidBy = if (draft.kind == TxKind.EXPENSE) draft.paidBy else null
+        val outcome = if (shared) Split.outcome(
+            draft.amount,
+            draft.shares?.filterKeys { it in draft.splitWith } ?: Split.equalShares(draft.amount, draft.splitWith),
+            paidBy,
+        ) else null
         val tx = Transaction(
             id = draft.id ?: 0,
             kind = draft.kind,
             amount = draft.amount,
-            accountId = draft.accountId,
+            // Paid by someone else: no account of yours moves.
+            accountId = if (paidBy != null) null else draft.accountId,
             toAccountId = if (draft.kind == TxKind.TRANSFER) draft.toAccountId else null,
             categoryId = if (draft.kind == TxKind.EXPENSE || draft.kind == TxKind.INCOME) draft.categoryId else null,
-            personId = draft.personId,
+            personId = paidBy ?: draft.personId,
             epochMillis = draft.epochMillis,
             note = draft.note.trim(),
-            myShare = split?.mine,
+            myShare = outcome?.myShare,
         )
         val id = if (draft.id == null) db.transactions().insert(tx.toEntity()) else {
             db.transactions().update(tx.toEntity()); draft.id
         }
         db.loans().deleteForTransaction(id)
-        if (split != null) {
-            db.loans().insertAll(draft.splitWith.mapIndexed { i, pid ->
-                LoanEntry(personId = pid, amount = split.others[i], epochMillis = draft.epochMillis, note = tx.note, transactionId = id).toEntity()
+        if (outcome != null && outcome.owed.isNotEmpty()) {
+            db.loans().insertAll(outcome.owed.map { (pid, amt) ->
+                LoanEntry(personId = pid, amount = amt, epochMillis = draft.epochMillis, note = tx.note, transactionId = id).toEntity()
             })
         }
         tx.copy(id = id)

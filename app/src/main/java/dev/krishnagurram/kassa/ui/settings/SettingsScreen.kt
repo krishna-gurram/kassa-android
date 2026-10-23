@@ -126,7 +126,8 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, values: SettingsVal
                 onAddSub = { parent, name ->
                     actions.saveCategory(Category(name = name, kind = parent.kind, parentId = parent.id, icon = parent.icon, color = parent.color, countsTowardDaily = parent.countsTowardDaily), null)
                 },
-                onRenameSub = { sub -> page = Page.Edit(sub, p) },
+                onSaveSub = { sub -> actions.saveCategory(sub, null) },
+                onMergeSub = { from, into -> actions.mergeCategory(from, into) },
                 onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
             ) }
             Page.Splitwise -> SplitwiseCleanup(ledger, actions)
