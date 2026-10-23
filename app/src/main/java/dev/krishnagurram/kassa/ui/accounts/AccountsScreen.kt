@@ -251,7 +251,6 @@ fun AccountPage(
 ) {
     val balance = ledger.accounts.balances[account.id] ?: 0
     val holdingsValue = if (account.type == AccountType.INVESTMENT) ledger.holdingsValue(account.id) else 0L
-    var confirmArchive by remember { mutableStateOf(false) }
     // Balance right after each entry: walk back from today's balance.
     val after = remember(history, balance) {
         var running = balance
@@ -264,20 +263,7 @@ fun AccountPage(
         item {
             Column(Modifier.widthIn(max = 720.dp)) {
                 PageTop(account.name, onBack) {
-                    var menu by remember { mutableStateOf(false) }
-                    androidx.compose.foundation.layout.Box {
-                        androidx.compose.material3.IconButton(onClick = { menu = true }) {
-                            Text("\u22EF", style = KassaType.section, color = Kassa.colors.ink2)
-                        }
-                        androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Edit account") }, onClick = { menu = false; onEditAccount() })
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Adjust balance") }, onClick = { menu = false; onEditAccount() })
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(if (account.archived) "Restore account" else "Archive account") },
-                                onClick = { menu = false; if (account.archived) onArchive(false) else confirmArchive = true },
-                            )
-                        }
-                    }
+                    androidx.compose.material3.TextButton(onClick = onEditAccount) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
                 }
                 Text(listOfNotNull(account.type.label, group, if (account.archived) "archived" else null).joinToString(", "), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(horizontal = 4.dp))
                 Gap(14)
@@ -325,11 +311,6 @@ fun AccountPage(
         }
     }
 
-    if (confirmArchive) ConfirmDialog(
-        title = "Archive ${account.name}?",
-        body = "It leaves your lists and totals. Its entries stay in your history, and you can restore it from Accounts.",
-        confirm = "Archive", onConfirm = { onArchive(true) }, onDismiss = { confirmArchive = false },
-    )
 }
 
 /** A person's receivable or payable and its history, with a way to record money moving either way. */

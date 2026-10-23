@@ -289,7 +289,7 @@ private fun LargestBuys(ledger: Ledger, actions: InsightActions) {
     if (list.isEmpty()) return
     Column {
         Head("Largest buys")
-        list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit) }
+        list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit, showDate = true) }
     }
 }
 

@@ -256,7 +256,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         dev.krishnagurram.kassa.ui.accounts.EditAccountPage(
                             lg, a, padding, onBack = back,
                             onSave = { acct, group -> vm.updateAccount(acct, group); nav.pop() },
-                            onArchive = { vm.setArchived(a, it); nav.pop(); if (it && nav.top is Page.CardDetail) nav.pop() },
+                            onArchive = { vm.setArchived(a, it); nav.pop(); if (it && (nav.top is Page.CardDetail || nav.top is Page.AccountDetail)) nav.pop() },
                         )
                     }
                 }

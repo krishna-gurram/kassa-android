@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.common
 
+import java.time.Instant
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -22,7 +23,12 @@ fun TransactionRow(
     /** Replaces the small line under the amount, for example with the running balance on an account page. */
     noteOverride: String? = null,
     onClick: ((Transaction) -> Unit)? = null,
+    /** Puts the date in front of the second line, for lists that aren't grouped by day. */
+    showDate: Boolean = false,
 ) {
+    val date = if (showDate) Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { d ->
+        d.format(java.time.format.DateTimeFormatter.ofPattern(if (d.year == ledger.today.year) "MMM d" else "MMM d, yyyy")) + " \u00b7 "
+    } else ""
     val m = if (onClick != null) modifier.clickable { onClick(t) } else modifier
     val acct = t.accountId?.let { ledger.accountById[it]?.name }
     val person = t.personId?.let { id -> ledger.people.people.firstOrNull { it.id == id }?.name }
@@ -32,7 +38,7 @@ fun TransactionRow(
             EntryRow(
                 badge = { IconBadge(androidx.compose.material.icons.Icons.Outlined.SwapHoriz) },
                 title = "To ${to?.name ?: "an account"}",
-                subtitle = "From ${acct ?: "an account"}",
+                subtitle = date + "From ${acct ?: "an account"}",
                 amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
                 note = noteOverride ?: when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
                 showDivider = showDivider, modifier = m,
@@ -41,14 +47,14 @@ fun TransactionRow(
         TxKind.BUY, TxKind.SELL -> EntryRow(
             badge = { IconBadge(if (t.kind == TxKind.BUY) androidx.compose.material.icons.Icons.Outlined.TrendingUp else androidx.compose.material.icons.Icons.Outlined.TrendingDown) },
             title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
-            subtitle = acct ?: "",
+            subtitle = date + (acct ?: ""),
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
             note = noteOverride ?: "Investing", showDivider = showDivider, modifier = m,
         )
         TxKind.PERSON_IN, TxKind.PERSON_OUT -> EntryRow(
             badge = { GlyphBadge(person?.take(1) ?: "?") },
             title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) "${person ?: "Someone"} paid you" else "You paid ${person ?: "someone"}" },
-            subtitle = acct ?: "",
+            subtitle = date + (acct ?: ""),
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
             note = noteOverride ?: "Settle up", showDivider = showDivider, modifier = m,
         )
@@ -59,7 +65,7 @@ fun TransactionRow(
             EntryRow(
                 badge = { CategoryBadge(parent ?: cat) },
                 title = t.note.ifBlank { cat?.name ?: "Uncategorized" },
-                subtitle = listOfNotNull(cat?.name ?: "Uncategorized", share).joinToString(", "),
+                subtitle = date + listOfNotNull(cat?.name ?: "Uncategorized", share).joinToString(", "),
                 amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
                 amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
                 note = noteOverride ?: acct ?: person?.let { "Paid by $it" },

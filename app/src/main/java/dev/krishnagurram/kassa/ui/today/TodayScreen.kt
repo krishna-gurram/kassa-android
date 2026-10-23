@@ -360,8 +360,7 @@ private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: 
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
 
 /**
- * The one page for "this week" or "this month": the total, every category (the same lines Insights uses), then every
- * entry by day. Overview's "Where it went" and Insights' "All" open this same page.
+ * The one page for "this week" or "this month": the total and every category (the same lines Insights uses). Overview's "Where it went" and Insights' "All" open this same page.
  */
 @Composable
 fun SpendingPage(
@@ -399,14 +398,6 @@ fun SpendingPage(
         }
         SectionHeader("By category")
         dev.krishnagurram.kassa.ui.common.CategoryLinesAll(lines, if (income) "Nothing received yet" else "No spending yet") { onOpenCategory(it.id) }
-        entries.groupBy { dateOf(it, ledger) }.forEach { (day, list) ->
-            SectionHeader(
-                when (day) { ledger.today -> "Today"; ledger.today.minusDays(1) -> "Yesterday"; else -> day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")) },
-                Money.format(list.sumOf { it.categoryAmount }) + "  \u203a",
-                modifier = Modifier.clickable { onOpenDay(day) },
-            )
-            list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
-        }
         Gap(24)
     }
 }

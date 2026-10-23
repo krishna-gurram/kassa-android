@@ -63,7 +63,7 @@ fun InsightDetailPage(
             InsightPage.BIG_WEEK, InsightPage.BIG_MONTH -> {
                 val list = bigPurchases(ledger, week = page == InsightPage.BIG_WEEK)
                 if (list.isEmpty()) Empty("No purchases yet.")
-                Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) } }
+                Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) } }
             }
             InsightPage.DUES -> {
                 val dues = duesThisWeek(ledger)
@@ -274,9 +274,9 @@ fun InsightStorePage(ledger: Ledger, name: String, contentPadding: PaddingValues
         PageTop(name, onBack)
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Figure("This month", Money.format(month.sumOf { it.categoryAmount }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-            Figure("Visits", month.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+            Figure("Purchases", month.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
         }
         if (list.isEmpty()) Empty("No entries for $name.")
-        Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) } }
+        Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) } }
     }
 }

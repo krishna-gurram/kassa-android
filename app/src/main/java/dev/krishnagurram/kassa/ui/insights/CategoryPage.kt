@@ -134,7 +134,7 @@ fun CategoryPage(
         }
         SectionHeader("Entries", "${entries.size}")
         if (entries.isEmpty()) Text("Nothing in ${c.name} in ${monthName(p)}.", style = KassaType.body, color = Kassa.colors.ink2)
-        entries.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < entries.lastIndex, onClick = onEdit) }
+        entries.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < entries.lastIndex, onClick = onEdit, showDate = true) }
         Gap(24)
     }
 }
