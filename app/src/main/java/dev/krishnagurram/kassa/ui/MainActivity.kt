@@ -62,7 +62,6 @@ import dev.krishnagurram.kassa.KassaApplication
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.ui.accounts.AccountsScreen
 import dev.krishnagurram.kassa.ui.activity.ActivityScreen
-import dev.krishnagurram.kassa.ui.cards.CardsScreen
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.importer.ImportScreen
 import dev.krishnagurram.kassa.ui.theme.Kassa
@@ -244,7 +243,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                                 lg, a, history, padding, onBack,
                                 onEditEntry = editFromPage,
                                 onEditAccount = { nav.push(Page.EditAccount(a.id)) },
-                                onArchive = { vm.setArchived(a, it) },
+                                onSaveHolding = { vm.saveHolding(it) },
+                                onDeleteHolding = { vm.deleteHolding(it.id) },
                             )
                         }
                     }
@@ -293,7 +293,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onUpcoming = { openFromList(Page.Upcoming) },
                     onReview = { openFromList(Page.Review) },
                     onAccounts = { nav.select(Tab.ACCOUNTS) },
-                    onCards = { nav.select(Tab.CARDS) },
+                    onCards = { nav.select(Tab.ACCOUNTS) },
                 )
                 Tab.ACTIVITY -> ActivityScreen(lg, padding, onEdit = editFromList, onOpenDay = { openFromList(Page.Day(it.toEpochDay())) }, selectedId = (selected as? Page.Entry)?.start?.editing?.id)
                 Tab.INSIGHTS -> dev.krishnagurram.kassa.ui.insights.InsightsScreen(
@@ -306,7 +306,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         override fun openSpending(month: Boolean) { openFromList(Page.Spending(month)) }
                     },
                 )
-                Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })
                 Tab.SETTINGS -> {
                     val alertApps by vm.alertApps.collectAsState()
                     val seenApps by vm.seenApps.collectAsState()
@@ -325,8 +324,6 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     onImportAgain = { nav.push(Page.Import) },
                     onAddAccount = { a, g -> vm.addAccount(a, g) },
                     onAddPerson = { vm.addPerson(it) },
-                    onSaveHolding = { vm.saveHolding(it) },
-                    onDeleteHolding = { vm.deleteHolding(it.id) },
                 )
             }
         }
@@ -340,11 +337,11 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             else -> Shell(nav.tab, onTab = nav::select, onAdd = { openFromList(Page.Entry(EntryStart())) }) { padding ->
                 // Unfolded: a list on the left and the page it opened on the right. Cards shows the first card by
                 // default; Activity waits for a tap.
-                val default: Page? = if (nav.tab == Tab.CARDS) dev.krishnagurram.kassa.ui.cards.cardsByDueDate(l).firstOrNull()?.let { Page.CardDetail(it.account.id) } else null
+                val default: Page? = if (nav.tab == Tab.ACCOUNTS) dev.krishnagurram.kassa.ui.cards.cardsByDueDate(l).firstOrNull()?.let { Page.AccountDetail(it.account.id) } else null
                 // The page beside the list is the newest one that opens there; Add/Edit lies over everything.
                 val paneTop = nav.stack.lastOrNull { it.besideList }
                 val shown = paneTop ?: default
-                if (split && (paneTop != null || nav.tab == Tab.CARDS || nav.tab == Tab.ACTIVITY)) {
+                if (split && (paneTop != null || nav.tab == Tab.ACCOUNTS || nav.tab == Tab.ACTIVITY)) {
                     Row(Modifier.fillMaxSize()) {
                         Box(Modifier.weight(1f)) {
                             TabContent(l, PaddingValues(start = 24.dp, end = 20.dp, top = 16.dp, bottom = 32.dp), shown)
@@ -464,7 +461,7 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @C
                             indicatorColor = Kassa.colors.chip, unselectedIconColor = Kassa.colors.ink3, unselectedTextColor = Kassa.colors.ink3,
                         )
                         Tab.entries.forEachIndexed { i, t ->
-                            if (i == 3) NavigationBarItem(
+                            if (i == 2) NavigationBarItem(
                                 selected = false, onClick = onAdd,
                                 icon = {
                                     Box(
@@ -502,7 +499,6 @@ private fun plusIcon() = line("plus") { moveTo(12f, 5f); lineTo(12f, 19f); moveT
 private fun iconFor(t: Tab): ImageVector = when (t) {
     Tab.TODAY -> androidx.compose.material.icons.Icons.Outlined.Dashboard
     Tab.ACTIVITY -> androidx.compose.material.icons.Icons.Outlined.ReceiptLong
-    Tab.CARDS -> androidx.compose.material.icons.Icons.Outlined.CreditCard
     Tab.INSIGHTS -> androidx.compose.material.icons.Icons.Outlined.Insights
     Tab.ACCOUNTS -> androidx.compose.material.icons.Icons.Outlined.AccountBalance
     Tab.SETTINGS -> androidx.compose.material.icons.Icons.Outlined.Settings

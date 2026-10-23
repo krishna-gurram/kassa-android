@@ -7,7 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 
-enum class Tab(val label: String) { TODAY("Overview"), ACTIVITY("Activity"), CARDS("Cards"), INSIGHTS("Insights"), ACCOUNTS("Accounts"), SETTINGS("Settings") }
+/** Cards live in Accounts now; Add sits in the middle of the bar, after Activity. */
+enum class Tab(val label: String) { TODAY("Overview"), ACTIVITY("Activity"), INSIGHTS("Insights"), ACCOUNTS("Accounts"), SETTINGS("Settings") }
 
 /**
  * A page opened on top of a tab, with a back button. Quick actions (pay a card, record a payment, update a price)
