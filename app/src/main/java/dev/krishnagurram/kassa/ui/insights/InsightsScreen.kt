@@ -59,14 +59,15 @@ import java.util.Locale
 
 /** The pages one tap away from Insights. */
 enum class InsightPage(val title: String) {
-    BUDGETS("Budgets"), WEEK_CATEGORIES("This week by category"), SAVED("Saved"), STORES("Top stores"),
-    SMALL("Under $15"), CREEP("Creeping up"), REPEATING("Repeating"), WEEKDAYS("By weekday"),
+    BUDGETS("By category"), WEEK_CATEGORIES("This week by category"), SAVED("Saved"), STORES("Top stores"),
+    SMALL("Small purchases"), CREEP("Creeping up"), REPEATING("Repeating"), WEEKDAYS("By weekday"), DUES("Due this week"),
 }
 
 interface InsightActions {
     fun openCategory(category: Category)
     fun open(page: InsightPage)
     fun edit(t: Transaction)
+    fun openDay(date: LocalDate)
 }
 
 /**
@@ -75,7 +76,7 @@ interface InsightActions {
  */
 @Composable
 fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: InsightActions) {
-    var week by rememberSaveable { mutableStateOf(false) }
+    var week by rememberSaveable { mutableStateOf(true) }
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -91,18 +92,18 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
                 head()
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (week) { WeekHero(ledger); WeekCategories(ledger, actions, limit = 6) } else { MonthHero(ledger); BudgetList(ledger, actions, limit = 7) }
+                        if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, limit = 7) } else { MonthHero(ledger); BudgetList(ledger, actions, limit = 7) }
                     }
                     Box(Modifier.width(1.dp).fillMaxHeight().background(Kassa.colors.line))
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (week) { WeekStandouts(ledger); LargestBuys(ledger, actions) } else PatternTiles(ledger, actions)
+                        if (week) { WeekTiles(ledger, actions); LargestBuys(ledger, actions) } else PatternTiles(ledger, actions)
                     }
                 }
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 head()
-                if (week) { WeekHero(ledger); WeekCategories(ledger, actions, limit = 3); WeekStandouts(ledger) }
+                if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, limit = 4); WeekTiles(ledger, actions) }
                 else { MonthHero(ledger); BudgetList(ledger, actions, limit = 4); PatternTiles(ledger, actions) }
             }
         }
@@ -126,24 +127,47 @@ private fun MonthHero(ledger: Ledger) {
     }
 }
 
-/** Top-level expense categories with a budget or spending this month: over budget first, then the largest. */
-private fun budgetRows(ledger: Ledger): List<Triple<Category, Long, Long>> {
+/** One line in "By category": what was spent, and what it's measured against (budget, or last week) when there is one. */
+internal data class CatLine(val category: Category, val spent: Long, val ref: Long?, val refLabel: String?)
+
+/** Every visible top-level expense category this month, largest first, measured against its budget. */
+internal fun monthLines(ledger: Ledger): List<CatLine> {
     val p = ledger.period
     val spent = Spending.byTopCategory(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
     return ledger.categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden }
-        .map { Triple(it, spent[it.id] ?: 0L, Budgets.amountFor(it.id, p.yearMonth, ledger.budgets) ?: 0L) }
-        .filter { it.second > 0 || it.third > 0 }
-        .sortedWith(compareByDescending<Triple<Category, Long, Long>> { it.third > 0 && it.second > it.third }.thenByDescending { it.second })
+        .map { c ->
+            val b = Budgets.amountFor(c.id, p.yearMonth, ledger.budgets)?.takeIf { it > 0 }
+            CatLine(c, spent[c.id] ?: 0L, b, b?.let { "of ${Money.format(it, wholeDollars = true)}" })
+        }
+        .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
+}
+
+/** Every visible top-level expense category this week, largest first, measured against last week by the same day. */
+internal fun weekLines(ledger: Ledger): List<CatLine> {
+    val monday = Patterns.weekStart(ledger.today)
+    val (from, to) = Patterns.samePointBefore(monday, ledger.today, monday.minusWeeks(1))
+    val now = Spending.byTopCategory(ledger.recent, ledger.categoryById, monday, ledger.today, ledger.zone)
+    val before = Spending.byTopCategory(ledger.recent, ledger.categoryById, from, to, ledger.zone)
+    return ledger.categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden }
+        .map { c -> val b = before[c.id] ?: 0L; CatLine(c, now[c.id] ?: 0L, b.takeIf { it > 0 }, "last wk ${Money.format(b, wholeDollars = true)}") }
+        .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
+}
+
+/** Draws lines with one rule: the bar is how much of the reference is used, orange past it. Without one, it's relative to the largest. */
+@Composable
+internal fun CategoryLines(lines: List<CatLine>, onOpen: (Category) -> Unit) {
+    val max = (lines.maxOfOrNull { it.spent } ?: 0L).coerceAtLeast(1L)
+    lines.forEach { l -> CategoryBar(l.category, l.spent, l.ref ?: max, l.refLabel, over = l.ref != null && l.spent > l.ref) { onOpen(l.category) } }
 }
 
 @Composable
 private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int) {
-    val rows = budgetRows(ledger)
+    val lines = monthLines(ledger)
+    val spent = lines.filter { it.spent > 0 }
     Column {
-        Head("Budgets", if (rows.size > limit) "All ${rows.size}" else null) { actions.open(InsightPage.BUDGETS) }
-        if (rows.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
-        val maxNoBudget = rows.filter { it.third == 0L }.maxOfOrNull { it.second } ?: 1L
-        rows.take(limit).forEach { (c, s, b) -> CategoryBar(c, s, if (b > 0) b else maxNoBudget, if (b > 0) "of ${Money.format(b, wholeDollars = true)}" else null, over = b > 0 && s > b) { actions.openCategory(c) } }
+        Head("By category", "All ${lines.size}") { actions.open(InsightPage.BUDGETS) }
+        if (spent.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
+        CategoryLines(spent.take(limit), actions::openCategory)
     }
 }
 
@@ -173,7 +197,7 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.STORES) }) {
                     MiniBars(stores.take(5).map { it.total }, 0, stores.firstOrNull()?.category?.let { Color(it.color) } ?: Kassa.colors.ink)
                 }
-                PatternTile("Under $15", Money.format(small.total, wholeDollars = true), "${small.count} buys",
+                PatternTile("Small purchases", Money.format(small.total, wholeDollars = true), "${small.count} buys",
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.SMALL) }) {
                     MiniBars(smallMonths.map { it.second }, smallMonths.lastIndex, Kassa.colors.ink)
                 }
@@ -200,7 +224,7 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
 /* ---------- week ---------- */
 
 @Composable
-private fun WeekHero(ledger: Ledger) {
+private fun WeekHero(ledger: Ledger, actions: InsightActions) {
     val monday = Patterns.weekStart(ledger.today)
     val days = Patterns.daysThisWeek(ledger.recent, ledger.today, ledger.zone)
     val spent = days.sumOf { it.second ?: 0L }
@@ -212,7 +236,8 @@ private fun WeekHero(ledger: Ledger) {
         Row(Modifier.fillMaxWidth().height(84.dp).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             days.forEach { (d, v) ->
                 val today = d == ledger.today.dayOfWeek
-                Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                val date = monday.plusDays((d.value - 1).toLong())
+                Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).clickable(enabled = v != null) { actions.openDay(date) }, horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Kassa.colors.ground.copy(alpha = if (v == null) 0.5f else 1f)), contentAlignment = Alignment.BottomCenter) {
                         if (v != null && v > 0) Box(Modifier.fillMaxWidth().fillMaxHeight((v.toFloat() / max).coerceAtLeast(0.04f)).clip(RoundedCornerShape(6.dp)).background(Kassa.colors.ink))
                     }
@@ -226,43 +251,58 @@ private fun WeekHero(ledger: Ledger) {
     }
 }
 
-private fun weekRows(ledger: Ledger): List<Pair<Category, Long>> {
-    val monday = Patterns.weekStart(ledger.today)
-    return Spending.byTopCategory(ledger.recent, ledger.categoryById, monday, ledger.today, ledger.zone)
-        .mapNotNull { (id, v) -> ledger.categoryById[id]?.let { it to v } }.filter { it.second > 0 }.sortedByDescending { it.second }
-}
-
 @Composable
 private fun WeekCategories(ledger: Ledger, actions: InsightActions, limit: Int) {
-    val rows = weekRows(ledger)
+    val lines = weekLines(ledger)
+    val spent = lines.filter { it.spent > 0 }
     Column {
-        Head("By category", if (rows.size > limit) "All ${rows.size}" else null) { actions.open(InsightPage.WEEK_CATEGORIES) }
-        if (rows.isEmpty()) Text("Nothing spent yet this week.", style = KassaType.body, color = Kassa.colors.ink2)
-        val max = rows.firstOrNull()?.second ?: 1L
-        rows.take(limit).forEach { (c, v) -> CategoryBar(c, v, max, null, over = false) { actions.openCategory(c) } }
+        Head("By category", "All ${lines.size}") { actions.open(InsightPage.WEEK_CATEGORIES) }
+        if (spent.isEmpty()) Text("Nothing spent yet this week.", style = KassaType.body, color = Kassa.colors.ink2)
+        CategoryLines(spent.take(limit), actions::openCategory)
     }
 }
 
+/** Card payments due from today through Sunday, soonest first. */
+internal fun duesThisWeek(ledger: Ledger) = ledger.cards()
+    .filter { it.snapshot.payable > 0 && !it.snapshot.due.isBefore(ledger.today) && !it.snapshot.due.isAfter(Patterns.weekStart(ledger.today).plusDays(6)) }
+    .sortedBy { it.snapshot.due }
+
+private fun weekExpenses(ledger: Ledger): List<Transaction> {
+    val monday = Patterns.weekStart(ledger.today)
+    return ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
+}
+
+/** Up and down most against last week, what's due before Sunday, and the biggest purchase: four tiles, two rows. */
 @Composable
-private fun WeekStandouts(ledger: Ledger) {
+private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
     val changes = Patterns.weekChanges(ledger.recent, ledger.categories, ledger.today, ledger.zone)
     val up = changes.filter { it.change > 0 }.maxByOrNull { it.change }
     val down = changes.filter { it.change < 0 }.minByOrNull { it.change }
-    if (up == null && down == null) return
-    Column {
-        Head("vs last week")
+    val dues = duesThisWeek(ledger)
+    val biggest = weekExpenses(ledger).maxByOrNull { it.categoryAmount }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("Up most", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention, Modifier.weight(1f))
-            Figure("Down most", down?.category?.name ?: "None", down?.let { "−" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, Modifier.weight(1f))
+            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention, Modifier.weight(1f))
+            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "\u2212" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, Modifier.weight(1f))
+        }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Figure(
+                "Due this week", Money.format(dues.sumOf { it.snapshot.payable }, wholeDollars = true),
+                if (dues.isEmpty()) "No cards due" else "${dues.size} ${if (dues.size == 1) "card" else "cards"} \u00b7 next ${dues.first().snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}",
+                Kassa.colors.ink3, Modifier.weight(1f).clickable { actions.open(InsightPage.DUES) },
+            )
+            Figure(
+                "Biggest purchase", biggest?.let { Money.format(it.categoryAmount) } ?: "None yet",
+                biggest?.let { "${it.note.ifBlank { ledger.categoryById[it.categoryId]?.name ?: "" }} \u00b7 ${dateOf(it, ledger).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}" },
+                Kassa.colors.ink3, Modifier.weight(1f).then(if (biggest != null) Modifier.clickable { actions.edit(biggest) } else Modifier),
+            )
         }
     }
 }
 
 @Composable
 private fun LargestBuys(ledger: Ledger, actions: InsightActions) {
-    val monday = Patterns.weekStart(ledger.today)
-    val list = ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
-        .sortedByDescending { it.categoryAmount }.take(4)
+    val list = weekExpenses(ledger).sortedByDescending { it.categoryAmount }.take(4)
     if (list.isEmpty()) return
     Column {
         Head("Largest buys")

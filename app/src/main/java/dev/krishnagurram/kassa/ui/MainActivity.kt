@@ -270,7 +270,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
                 }
-                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) })
+                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) })
+                is Page.InsightDay -> dev.krishnagurram.kassa.ui.insights.InsightDayPage(lg, java.time.LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = editFromPage)
                 is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
                 Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
                 Page.Review -> dev.krishnagurram.kassa.ui.today.ReviewPage(lg, padding, onBack, needs)
@@ -299,6 +300,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         override fun openCategory(category: dev.krishnagurram.kassa.domain.Category) { openFromList(Page.CategoryDetail(category.id)) }
                         override fun open(page: dev.krishnagurram.kassa.ui.insights.InsightPage) { openFromList(Page.Insight(page)) }
                         override fun edit(t: Transaction) { editFromList(t) }
+                        override fun openDay(date: java.time.LocalDate) { openFromList(Page.InsightDay(date.toEpochDay())) }
                     },
                 )
                 Tab.CARDS -> CardsScreen(lg, padding, selectedCard = (selected as? Page.CardDetail)?.accountId, onOpen = { openFromList(Page.CardDetail(it)) })

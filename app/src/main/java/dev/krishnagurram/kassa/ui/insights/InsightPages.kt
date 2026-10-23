@@ -1,6 +1,8 @@
 package dev.krishnagurram.kassa.ui.insights
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,32 +50,48 @@ private fun short(m: YearMonth) = m.month.getDisplayName(TextStyle.SHORT, Locale
 
 /** The full view behind each Insights tile or "All" link. */
 @Composable
-fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCategory: (Category) -> Unit) {
+fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCategory: (Category) -> Unit, onOpenCard: (Long) -> Unit) {
     val p = ledger.period
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PageTop(page.title, onBack)
+        PageTop(if (page == InsightPage.BUDGETS) "${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} by category" else page.title, onBack)
         when (page) {
             InsightPage.BUDGETS -> {
-                val spent = Spending.byTopCategory(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
-                val rows = ledger.categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden }
-                    .map { Triple(it, spent[it.id] ?: 0L, Budgets.amountFor(it.id, p.yearMonth, ledger.budgets) ?: 0L) }
-                    .filter { it.second > 0 || it.third > 0 }
-                val maxNoBudget = rows.filter { it.third == 0L }.maxOfOrNull { it.second } ?: 1L
-                val (everyday, bills) = rows.partition { it.first.countsTowardDaily }
+                val lines = monthLines(ledger)
+                val (spent, none) = lines.partition { it.spent > 0 }
+                val (everyday, bills) = spent.partition { it.category.countsTowardDaily }
                 Column {
-                    everyday.sortedByDescending { it.second }.forEach { (c, s, b) -> CategoryBar(c, s, if (b > 0) b else maxNoBudget, if (b > 0) "of ${Money.format(b, wholeDollars = true)}" else null, b > 0 && s > b) { onOpenCategory(c) } }
-                    if (bills.isNotEmpty()) {
-                        Head("Bills")
-                        bills.sortedByDescending { it.second }.forEach { (c, s, b) -> CategoryBar(c, s, if (b > 0) b else maxNoBudget, if (b > 0) "of ${Money.format(b, wholeDollars = true)}" else null, b > 0 && s > b) { onOpenCategory(c) } }
-                    }
+                    CategoryLines(everyday, onOpenCategory)
+                    if (bills.isNotEmpty()) { Head("Bills"); CategoryLines(bills, onOpenCategory) }
+                    if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
                 }
             }
             InsightPage.WEEK_CATEGORIES -> {
-                val monday = Patterns.weekStart(ledger.today)
-                val rows = Spending.byTopCategory(ledger.recent, ledger.categoryById, monday, ledger.today, ledger.zone)
-                    .mapNotNull { (id, v) -> ledger.categoryById[id]?.let { it to v } }.filter { it.second > 0 }.sortedByDescending { it.second }
-                val max = rows.firstOrNull()?.second ?: 1L
-                Column { rows.forEach { (c, v) -> CategoryBar(c, v, max, null, false) { onOpenCategory(c) } } }
+                val (spent, none) = weekLines(ledger).partition { it.spent > 0 }
+                Column {
+                    CategoryLines(spent, onOpenCategory)
+                    if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
+                }
+            }
+            InsightPage.DUES -> {
+                val dues = duesThisWeek(ledger)
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Figure("Total", Money.format(dues.sumOf { it.snapshot.payable }), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure("Cards", dues.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+                }
+                if (dues.isEmpty()) Empty("No card payments due before Sunday.")
+                Column {
+                    dues.forEachIndexed { i, d ->
+                        Row(Modifier.fillMaxWidth().clickable { onOpenCard(d.account.id) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(d.snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.width(44.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(d.account.name + (d.account.last4?.takeIf { it.isNotBlank() }?.let { "  \u00b7\u00b7$it" } ?: ""), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink3)
+                            }
+                            Text(Money.format(d.snapshot.payable), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                        }
+                        if (i < dues.lastIndex) HorizontalDivider(color = Kassa.colors.line)
+                    }
+                }
             }
             InsightPage.SAVED -> {
                 val months = Patterns.saved(ledger.recent, ledger.today, ledger.monthStartDay, ledger.zone)
@@ -102,6 +120,7 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Figure("This month", Money.format(s.total, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                     Figure("Buys", s.count.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure("Each under", Money.format(Patterns.SMALL_LIMIT, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                 }
                 BarChart(months.map { short(it.first) to it.second }, months.lastIndex, Kassa.colors.ink)
                 val max = s.byCategory.firstOrNull()?.second ?: 1L
@@ -204,4 +223,20 @@ private fun ListRow(title: String, middle: String, value: String, showDivider: B
         Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink)
     }
     if (showDivider) HorizontalDivider(color = Kassa.colors.line)
+}
+
+/** Everything spent on one day, from a tap on the week strip. */
+@Composable
+fun InsightDayPage(ledger: Ledger, date: java.time.LocalDate, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit) {
+    val list = ledger.recent.filter { java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() == date && it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE }
+        .sortedByDescending { it.epochMillis }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+        PageTop(date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()), onBack)
+        Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())), style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        dev.krishnagurram.kassa.ui.today.BigMoney(list.sumOf { it.categoryAmount }, sizeSp = 34f)
+        if (list.isEmpty()) Empty("Nothing spent this day.")
+        Column(Modifier.padding(top = 8.dp)) {
+            list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
+        }
+    }
 }
