@@ -255,6 +255,8 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun accountHistory(accountId: Long) = repo.accountHistory(accountId)
 
+    fun between(fromMillis: Long, toMillis: Long) = repo.transactionsBetween(fromMillis, toMillis)
+
     fun updateAccount(account: Account, newGroupName: String?) = viewModelScope.launch {
         repo.updateAccount(account, newGroupName); _messages.tryEmit("${account.name} saved.")
     }

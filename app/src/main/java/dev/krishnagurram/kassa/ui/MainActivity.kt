@@ -268,7 +268,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                 is Page.CategoryDetail -> {
                     val c = lg.categoryById[page.categoryId]
                     if (c == null) Gone(padding, onBack)
-                    else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage)
+                    else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage, load = vm::between)
                 }
                 is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) })
                 is Page.InsightDay -> dev.krishnagurram.kassa.ui.insights.InsightDayPage(lg, java.time.LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = editFromPage)

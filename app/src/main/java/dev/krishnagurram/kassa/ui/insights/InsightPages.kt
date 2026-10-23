@@ -56,12 +56,9 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
         PageTop(if (page == InsightPage.BUDGETS) "${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} by category" else page.title, onBack)
         when (page) {
             InsightPage.BUDGETS -> {
-                val lines = monthLines(ledger)
-                val (spent, none) = lines.partition { it.spent > 0 }
-                val (everyday, bills) = spent.partition { it.category.countsTowardDaily }
+                val (spent, none) = monthLines(ledger).partition { it.spent > 0 }
                 Column {
-                    CategoryLines(everyday, onOpenCategory)
-                    if (bills.isNotEmpty()) { Head("Bills"); CategoryLines(bills, onOpenCategory) }
+                    CategoryLines(spent, onOpenCategory)
                     if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
                 }
             }
@@ -124,13 +121,13 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
                 }
                 BarChart(months.map { short(it.first) to it.second }, months.lastIndex, Kassa.colors.ink)
                 val max = s.byCategory.firstOrNull()?.second ?: 1L
-                Column { s.byCategory.forEach { (c, v, n) -> RankRow(c, c.name, v, max, "$n×") } }
+                Column { s.byCategory.forEach { (c, v, n) -> RankRow(c, c.name, v, max, "$n×") { onOpenCategory(c) } } }
             }
             InsightPage.CREEP -> {
                 val creep = Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone)
                 if (creep.isEmpty()) Empty("No category has gone up three months in a row.")
                 creep.forEach { cr ->
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).padding(12.dp)) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).clickable { onOpenCategory(cr.category) }.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CategoryBadge(cr.category, size = 26)
                             Text(cr.category.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
@@ -172,8 +169,30 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
             InsightPage.WEEKDAYS -> {
                 val avg = Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone)
                 val top = avg.maxByOrNull { it.second }
-                BarChart(avg.map { it.first.getDisplayName(TextStyle.SHORT, Locale.getDefault()) to it.second }, top?.let { avg.indexOf(it) } ?: -1, Kassa.colors.ink)
-                Text("Avg day · 13 weeks", style = KassaType.tiny, color = Kassa.colors.ink3)
+                BarChart(avg.map { it.first.getDisplayName(TextStyle.SHORT, Locale.getDefault()) to it.second }, top?.let { avg.indexOf(it) } ?: -1, Kassa.colors.ink, height = 200)
+                Text("Avg day \u00b7 last 13 weeks", style = KassaType.tiny, color = Kassa.colors.ink3)
+                // Per weekday: what it mostly goes to and how many purchases over the 13 weeks.
+                val from = ledger.today.minusWeeks(13)
+                val byDay = ledger.recent.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE }
+                    .map { it to java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
+                    .filter { (_, d) -> !d.isBefore(from) && d.isBefore(ledger.today) }
+                    .groupBy({ it.second.dayOfWeek }, { it.first })
+                Column {
+                    val sorted = avg.sortedByDescending { it.second }
+                    sorted.forEachIndexed { i, (day, v) ->
+                        val list = byDay[day].orEmpty()
+                        val topCat = list.groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }.maxByOrNull { e -> e.value.sumOf { it.categoryAmount } }?.key
+                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CategoryBadge(topCat, size = 28)
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(day.getDisplayName(TextStyle.FULL, Locale.getDefault()), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                                Text(listOfNotNull(topCat?.name?.let { "Mostly $it" }, "${list.size} buys").joinToString(" \u00b7 "), style = KassaType.tiny, color = Kassa.colors.ink3)
+                            }
+                            Text(Money.format(v, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                        }
+                        if (i < sorted.lastIndex) HorizontalDivider(color = Kassa.colors.line)
+                    }
+                }
             }
         }
     }
@@ -199,8 +218,8 @@ private fun BarChart(rows: List<Pair<String, Long>>, highlight: Int, color: Colo
 }
 
 @Composable
-private fun RankRow(c: Category?, name: String, value: Long, max: Long, count: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun RankRow(c: Category?, name: String, value: Long, max: Long, count: String, onClick: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         CategoryBadge(c, size = 28)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)

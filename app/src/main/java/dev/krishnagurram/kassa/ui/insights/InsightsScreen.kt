@@ -174,14 +174,13 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int) {
 @Composable
 private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
     val p = ledger.period
-    val saved = remember(ledger) { Patterns.saved(ledger.recent, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val monthBiggest = remember(ledger) { ledger.recent.filter { it.kind == TxKind.EXPENSE && dateOf(it, ledger) in p && !dateOf(it, ledger).isAfter(ledger.today) }.sortedByDescending { it.categoryAmount }.take(5) }
     val stores = remember(ledger) { Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
     val small = remember(ledger) { Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
     val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
     val creep = remember(ledger) { Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
     val repeating = remember(ledger) { Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone) }
     val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone) }
-    val now = saved.last()
     val busiest = weekdays.maxByOrNull { it.second }
     val changed = repeating.count { it.change > 0 }
 
@@ -189,9 +188,11 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
         Head("Patterns")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PatternTile("Saved so far", Money.format(now.saved, wholeDollars = true), now.rate?.let { "$it% of income" } ?: "No income yet",
-                    valueColor = if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.SAVED) }) {
-                    MiniBars(saved.map { maxOf(0L, it.saved) }, saved.lastIndex, Kassa.colors.positive)
+                val biggest = monthBiggest
+                PatternTile("Biggest purchase", biggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
+                    biggest.firstOrNull()?.let { it.note.ifBlank { ledger.categoryById[it.categoryId]?.name ?: "" } } ?: "",
+                    modifier = Modifier.weight(1f), onClick = { biggest.firstOrNull()?.let(actions::edit) }) {
+                    MiniBars(biggest.map { it.categoryAmount }, 0, Kassa.colors.ink)
                 }
                 PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.STORES) }) {
