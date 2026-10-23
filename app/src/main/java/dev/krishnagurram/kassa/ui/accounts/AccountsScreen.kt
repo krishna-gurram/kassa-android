@@ -143,7 +143,7 @@ fun AccountsScreen(
     val invest = active.filter { it.type in INVEST_TYPES }.ordered({ it.name }, valueOf)
     val loans = active.filter { it.type in LOAN_TYPES }.ordered({ it.name }, balanceOf)
     val people = ledger.people.people.filter { !it.archived }.ordered({ it.name }, { personBalances[it.id] ?: 0L })
-    val archived = state.accounts.filter { it.archived }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+    val archived = state.accounts.filter { it.archived }.sortedWith(compareBy<Account, String>(String.CASE_INSENSITIVE_ORDER) { it.name })
     val archivedPeople = ledger.people.people.filter { it.archived }
 
     val accountRow: @Composable (Account, Long) -> Unit = { a, amount ->

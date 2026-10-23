@@ -237,7 +237,7 @@ fun PricesSheet(holdings: List<Holding>, onSave: (List<Holding>) -> Unit, onDism
 @Composable
 fun TradeSheet(holdings: List<Holding>, cash: Long, onBuy: (String, Long, Long) -> Unit, onSell: (String, Long, Long) -> Unit, onDismiss: () -> Unit) {
     var buy by remember { mutableStateOf(true) }
-    val input = remember { TradeInput().apply { holdings.firstOrNull()?.let(::pick) } }
+    val input = remember { TradeInput().apply { holdings.firstOrNull()?.let { pick(it) } } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
             Text("Buy or sell", style = KassaType.section, color = Kassa.colors.ink)
