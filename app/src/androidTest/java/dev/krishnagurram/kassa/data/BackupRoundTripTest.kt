@@ -47,7 +47,7 @@ class BackupRoundTripTest {
     private fun repo(db: KassaDatabase) = BackupRepository(context, db, Settings(context))
 
     @Test
-    fun everyTableSurvivesBackupAndRestore() = runBlocking {
+    fun everyTableSurvivesBackupAndRestore(): Unit = runBlocking {
         repo(source).restore(sample)
         for (password in listOf<CharArray?>(null, "a long password".toCharArray())) {
             val file = ByteArrayOutputStream().also { repo(source).write(it, password) }.toByteArray()
@@ -58,7 +58,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun aProtectedBackupNeedsItsPassword() = runBlocking {
+    fun aProtectedBackupNeedsItsPassword(): Unit = runBlocking {
         repo(source).restore(sample)
         val file = ByteArrayOutputStream().also { repo(source).write(it, "a long password".toCharArray()) }.toByteArray()
         assertFailsWith<BackupFile.NeedsPassword> { repo(target).read(ByteArrayInputStream(file), null) }
@@ -66,7 +66,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun restoringReplacesWhatWasThere() = runBlocking {
+    fun restoringReplacesWhatWasThere(): Unit = runBlocking {
         target.people().insertAll(listOf(PersonEntity(9, "Someone old", false)))
         repo(target).restore(sample)
         assertEquals(sample.people, target.people().all())

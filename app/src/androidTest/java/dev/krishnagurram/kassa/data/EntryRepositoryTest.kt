@@ -31,7 +31,7 @@ class EntryRepositoryTest {
     private var alex = 0L
 
     @Before
-    fun open() = runBlocking {
+    fun open(): Unit = runBlocking {
         db = Room.inMemoryDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, KassaDatabase::class.java).build()
         entries = EntryRepository(db)
         card = db.accounts().insert(AccountEntity(0, "Travel card", "CREDIT_CARD", null, 0, 16, 10, null, null, false, 0, null))
@@ -52,7 +52,7 @@ class EntryRepositoryTest {
     private suspend fun owed(txId: Long) = entries.sharesFor(txId)
 
     @Test
-    fun anEqualSplitYouPaidLeavesEachPersonOwingTheirShare() = runBlocking {
+    fun anEqualSplitYouPaidLeavesEachPersonOwingTheirShare(): Unit = runBlocking {
         val tx = entries.save(dinner(9_000, splitWith = listOf(sam, alex)))
         assertEquals(3_000, tx.myShare)
         assertEquals(card, tx.accountId)
@@ -60,14 +60,14 @@ class EntryRepositoryTest {
     }
 
     @Test
-    fun exactSharesLeaveYouTheRest() = runBlocking {
+    fun exactSharesLeaveYouTheRest(): Unit = runBlocking {
         val tx = entries.save(dinner(3_000, splitWith = listOf(sam, alex), shares = mapOf(sam to 1_000L, alex to 500L)))
         assertEquals(1_500, tx.myShare)
         assertEquals(mapOf(sam to 1_000L, alex to 500L), owed(tx.id))
     }
 
     @Test
-    fun whenSomeoneElsePaidYouOweThemYourShareAndNoAccountMoves() = runBlocking {
+    fun whenSomeoneElsePaidYouOweThemYourShareAndNoAccountMoves(): Unit = runBlocking {
         val tx = entries.save(dinner(3_000, splitWith = listOf(sam), paidBy = sam))
         assertNull(tx.accountId)
         assertEquals(sam, tx.personId)
@@ -76,7 +76,7 @@ class EntryRepositoryTest {
     }
 
     @Test
-    fun editingASplitRewritesWhoOwesWhat() = runBlocking {
+    fun editingASplitRewritesWhoOwesWhat(): Unit = runBlocking {
         val first = entries.save(dinner(9_000, splitWith = listOf(sam, alex)))
         entries.save(dinner(5_000, splitWith = listOf(sam), id = first.id))
         assertEquals(mapOf(sam to 2_500L), owed(first.id))
@@ -88,7 +88,7 @@ class EntryRepositoryTest {
     }
 
     @Test
-    fun switchingWhoPaidOnAnEditUpdatesTheAccountAndTheDebt() = runBlocking {
+    fun switchingWhoPaidOnAnEditUpdatesTheAccountAndTheDebt(): Unit = runBlocking {
         val first = entries.save(dinner(4_000, splitWith = listOf(sam)))
         val edited = entries.save(dinner(4_000, splitWith = listOf(sam), paidBy = sam, id = first.id))
         assertNull(edited.accountId)
@@ -96,7 +96,7 @@ class EntryRepositoryTest {
     }
 
     @Test
-    fun deletingAnEntryRemovesItsSplit() = runBlocking {
+    fun deletingAnEntryRemovesItsSplit(): Unit = runBlocking {
         val tx = entries.save(dinner(9_000, splitWith = listOf(sam, alex)))
         entries.delete(tx.id)
         assertNull(entries.get(tx.id))
@@ -104,7 +104,7 @@ class EntryRepositoryTest {
     }
 
     @Test
-    fun entriesThatBreakTheRulesAreRefused() = runBlocking {
+    fun entriesThatBreakTheRulesAreRefused(): Unit = runBlocking {
         assertFailsWith<IllegalArgumentException> { entries.save(dinner(0)) }
         assertFailsWith<IllegalArgumentException> { entries.save(dinner(3_000, splitWith = listOf(sam), shares = mapOf(sam to 3_001L))) }
         assertFailsWith<IllegalArgumentException> { entries.save(dinner(3_000).copy(note = "x".repeat(121))) }
