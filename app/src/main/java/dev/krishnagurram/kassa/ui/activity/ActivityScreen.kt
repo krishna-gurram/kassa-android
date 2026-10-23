@@ -195,7 +195,7 @@ fun ActivityScreen(
             )
         }
 
-        LazyColumn(Modifier.fillMaxSize().then(if (searching) Modifier else Modifier.swipeShift { d -> if (d < 0 || !s.isCurrentMonth) vm.shift(d) }), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
+        LazyColumn(Modifier.fillMaxSize().then(if (searching) Modifier else Modifier.swipeShift { d -> if (d < 0 || !s.isCurrentMonth) vm.shift(d.toLong()) }), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
             if (searching) {
                 if (s.resultCount == 0) item {
                     Text("No transactions match “${s.query.trim()}”.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))

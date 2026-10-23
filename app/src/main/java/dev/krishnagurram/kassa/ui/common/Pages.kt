@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -137,7 +138,7 @@ private fun RoundArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
 /** Swipe left or right across the content to step [onShift] by -1 (back in time) or +1. */
 fun Modifier.swipeShift(onShift: (Int) -> Unit): Modifier = this.pointerInput(onShift) {
     var dx = 0f
-    androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+    detectHorizontalDragGestures(
         onDragStart = { dx = 0f },
         onDragEnd = { if (dx > 120f) onShift(-1) else if (dx < -120f) onShift(1) },
         onHorizontalDrag = { _, d -> dx += d },
