@@ -270,7 +270,8 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     if (c == null) Gone(padding, onBack)
                     else dev.krishnagurram.kassa.ui.insights.CategoryPage(lg, c, padding, onBack, onEdit = editFromPage, load = vm::between)
                 }
-                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) })
+                is Page.Insight -> dev.krishnagurram.kassa.ui.insights.InsightDetailPage(lg, page.page, padding, onBack, onOpenCategory = { nav.push(Page.CategoryDetail(it.id)) }, onOpenCard = { nav.push(Page.CardDetail(it)) }, onOpenStore = { nav.push(Page.InsightStore(it)) }, onEdit = editFromPage)
+                is Page.InsightStore -> dev.krishnagurram.kassa.ui.insights.InsightStorePage(lg, page.name, padding, onBack, onEdit = editFromPage)
                 is Page.InsightDay -> dev.krishnagurram.kassa.ui.insights.InsightDayPage(lg, java.time.LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = editFromPage)
                 is Page.Spending -> dev.krishnagurram.kassa.ui.today.SpendingPage(lg, page.month, page.income, padding, onBack, onEdit = editFromPage, onOpenCategory = { nav.push(Page.CategoryDetail(it)) })
                 Page.Upcoming -> dev.krishnagurram.kassa.ui.today.UpcomingPage(lg, padding, onBack, onOpenCard = { nav.push(Page.CardDetail(it)) })
@@ -288,6 +289,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                     lg, padding,
                     onOpenCard = { openFromList(Page.CardDetail(it)) },
                     onSpending = { m, inc -> openFromList(Page.Spending(m, inc)) },
+                    onOpenCategory = { openFromList(Page.CategoryDetail(it)) },
                     onUpcoming = { openFromList(Page.Upcoming) },
                     onReview = { openFromList(Page.Review) },
                     onAccounts = { nav.select(Tab.ACCOUNTS) },
@@ -350,7 +352,7 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
                         Box(Modifier.weight(1f)) {
                             val pad = PaddingValues(start = 16.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)
                             if (shown != null) PageHost(shown, l, pad, onBack = if (paneTop != null) nav::pop else null)
-                            else if (nav.tab == Tab.ACTIVITY) dev.krishnagurram.kassa.ui.activity.MonthBreakdown(l, pad)
+                            else if (nav.tab == Tab.ACTIVITY) dev.krishnagurram.kassa.ui.activity.MonthBreakdown(l, pad, onOpenCategory = { openFromList(Page.CategoryDetail(it.id)) })
                             else dev.krishnagurram.kassa.ui.common.PanePlaceholder("Pick something on the left.")
                         }
                     }

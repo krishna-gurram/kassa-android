@@ -29,6 +29,8 @@ sealed interface Page {
     data class Insight(val page: dev.krishnagurram.kassa.ui.insights.InsightPage) : Page
     /** One day's spending, from the week strip on Insights. */
     data class InsightDay(val epochDay: Long) : Page
+    /** Every entry at one store (the entry's note), from Top stores or Repeating. */
+    data class InsightStore(val name: String) : Page
     /** Where the spending went, or the income came from: this week, or this budget month. */
     data class Spending(val month: Boolean, val income: Boolean = false) : Page
     /** Card payments and bills in the next 30 days. */

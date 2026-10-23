@@ -50,7 +50,10 @@ private fun short(m: YearMonth) = m.month.getDisplayName(TextStyle.SHORT, Locale
 
 /** The full view behind each Insights tile or "All" link. */
 @Composable
-fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCategory: (Category) -> Unit, onOpenCard: (Long) -> Unit) {
+fun InsightDetailPage(
+    ledger: Ledger, page: InsightPage, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCategory: (Category) -> Unit, onOpenCard: (Long) -> Unit,
+    onOpenStore: (String) -> Unit, onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit,
+) {
     val p = ledger.period
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTop(if (page == InsightPage.BUDGETS) "${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} by category" else page.title, onBack)
@@ -68,6 +71,11 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
                     CategoryLines(spent, onOpenCategory)
                     if (none.isNotEmpty()) { Head("No spending yet"); CategoryLines(none, onOpenCategory) }
                 }
+            }
+            InsightPage.BIG_WEEK, InsightPage.BIG_MONTH -> {
+                val list = bigPurchases(ledger, week = page == InsightPage.BIG_WEEK)
+                if (list.isEmpty()) Empty("No purchases yet.")
+                Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) } }
             }
             InsightPage.DUES -> {
                 val dues = duesThisWeek(ledger)
@@ -109,7 +117,7 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
                 val stores = Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
                 if (stores.isEmpty()) Empty("No entries with a store name this month.")
                 val max = stores.firstOrNull()?.total ?: 1L
-                Column { stores.forEach { RankRow(it.category, it.name, it.total, max, "${it.visits}×") } }
+                Column { stores.forEach { st -> RankRow(st.category, st.name, st.total, max, "${st.visits}×") { onOpenStore(st.name) } } }
             }
             InsightPage.SMALL -> {
                 val s = Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
@@ -148,7 +156,7 @@ fun InsightDetailPage(ledger: Ledger, page: InsightPage, contentPadding: Padding
                 if (r.isEmpty()) Empty("No charges have come back monthly for three months yet.")
                 Column {
                     r.forEachIndexed { i, x ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().clickable { onOpenStore(x.note) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             CategoryBadge(x.category, size = 30)
                             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,5 +265,22 @@ fun InsightDayPage(ledger: Ledger, date: java.time.LocalDate, contentPadding: Pa
         Column(Modifier.padding(top = 8.dp)) {
             list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
         }
+    }
+}
+
+/** Every entry at one store in the last few months, newest first, with this month's total. */
+@Composable
+fun InsightStorePage(ledger: Ledger, name: String, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit) {
+    val key = name.trim().lowercase()
+    val list = ledger.recent.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && it.note.trim().lowercase() == key }.sortedByDescending { it.epochMillis }
+    val month = list.filter { dateOf(it, ledger) in ledger.period }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PageTop(name, onBack)
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Figure("This month", Money.format(month.sumOf { it.categoryAmount }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+            Figure("Visits", month.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+        }
+        if (list.isEmpty()) Empty("No entries for $name.")
+        Column { list.forEachIndexed { i, t -> dev.krishnagurram.kassa.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) } }
     }
 }

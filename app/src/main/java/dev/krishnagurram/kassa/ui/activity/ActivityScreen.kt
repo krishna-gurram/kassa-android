@@ -334,7 +334,7 @@ fun Chevron(left: Boolean): ImageVector = ImageVector.Builder("chevron", 24.dp, 
 
 /** Unfolded, beside the list: where this month's spending went, by category. */
 @Composable
-fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, vm: ActivityViewModel = viewModel()) {
+fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: PaddingValues, onOpenCategory: (dev.krishnagurram.kassa.domain.Category) -> Unit, vm: ActivityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
     val rows = s.monthEntries.filter { it.kind == TxKind.EXPENSE }
@@ -343,7 +343,7 @@ fun MonthBreakdown(ledger: dev.krishnagurram.kassa.ui.Ledger, contentPadding: Pa
     Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
         dev.krishnagurram.kassa.ui.common.SectionHeader("Where it went", s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
         if (rows.isEmpty()) Text("No expenses this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 16.dp))
-        dev.krishnagurram.kassa.ui.common.CategoryBreakdown(rows)
+        dev.krishnagurram.kassa.ui.common.CategoryBreakdown(rows, onOpen = onOpenCategory)
     }
 }
 

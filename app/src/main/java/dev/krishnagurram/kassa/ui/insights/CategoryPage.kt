@@ -73,12 +73,13 @@ fun CategoryPage(
     val txs = loaded ?: ledger.recent
     val ids = ledger.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
     fun inPeriod(t: Transaction, q: Period) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { it in q }
-    val mine = txs.filter { it.kind == TxKind.EXPENSE && it.categoryId in ids }
+    val kind = if (c.kind == dev.krishnagurram.kassa.domain.CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE
+    val mine = txs.filter { it.kind == kind && it.categoryId in ids }
     val entries = mine.filter { inPeriod(it, p) }.sortedByDescending { it.epochMillis }
     val bySub = entries.groupBy { t -> ledger.categoryById[t.categoryId]?.takeIf { it.parentId == c.id }?.name ?: "Other" }
         .mapValues { (_, v) -> v.sumOf { it.categoryAmount } }.entries.sortedByDescending { it.value }
     val spent = entries.sumOf { it.categoryAmount }
-    val budget = Budgets.amountFor(c.id, p.yearMonth, ledger.budgets)?.takeIf { it > 0 }
+    val budget = Budgets.amountFor(c.id, p.yearMonth, ledger.budgets)?.takeIf { it > 0 && kind == TxKind.EXPENSE }
     val months = (5 downTo 0).map { i -> Period.startingIn(p.yearMonth.minusMonths(i.toLong()), ledger.monthStartDay) }
     val totals = months.map { q -> mine.filter { inPeriod(it, q) }.sumOf { it.categoryAmount } }
     val prevTotal = totals[4]

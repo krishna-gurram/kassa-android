@@ -99,6 +99,7 @@ fun TodayScreen(
     contentPadding: PaddingValues,
     onOpenCard: (Long) -> Unit,
     onSpending: (month: Boolean, income: Boolean) -> Unit,
+    onOpenCategory: (Long) -> Unit,
     onUpcoming: () -> Unit,
     onReview: () -> Unit,
     onAccounts: () -> Unit,
@@ -128,7 +129,7 @@ fun TodayScreen(
                 androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
             }
         }
-        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }) }
+        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory) }
         val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
         val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
 
@@ -212,7 +213,7 @@ private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChan
  * The title itself switches between spending and income.
  */
 @Composable
-private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, roomy: Boolean, onOpen: () -> Unit) {
+private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, roomy: Boolean, onOpen: () -> Unit, onOpenCategory: (Long) -> Unit) {
     val from = if (month) ledger.period.start else weekPace(ledger).start
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
     val rows = spendingByCategory(ledger, from, kind)
@@ -236,7 +237,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
     top.chunked(3).forEach { rowItems -> Row(Modifier.fillMaxWidth().padding(top = if (roomy) 12.dp else 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         rowItems.forEach { (c, amt) ->
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen).padding(if (roomy) 14.dp else 10.dp)) {
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(if (roomy) 14.dp else 10.dp)) {
                 CategoryBadge(c, size = 26)
                 Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
                 Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
@@ -395,7 +396,7 @@ fun SpendingPage(
             return@Column
         }
         SectionHeader("By category", "Share")
-        CategoryBreakdown(byTop, onOpen = if (month && !income) ({ c: dev.krishnagurram.kassa.domain.Category -> onOpenCategory(c.id) }) else null)
+        CategoryBreakdown(byTop, onOpen = { c: dev.krishnagurram.kassa.domain.Category -> onOpenCategory(c.id) })
         entries.groupBy { dateOf(it, ledger) }.forEach { (day, list) ->
             SectionHeader(
                 when (day) { ledger.today -> "Today"; ledger.today.minusDays(1) -> "Yesterday"; else -> day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")) },

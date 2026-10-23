@@ -61,6 +61,7 @@ import java.util.Locale
 enum class InsightPage(val title: String) {
     BUDGETS("By category"), WEEK_CATEGORIES("This week by category"), SAVED("Saved"), STORES("Top stores"),
     SMALL("Small purchases"), CREEP("Creeping up"), REPEATING("Repeating"), WEEKDAYS("By weekday"), DUES("Due this week"),
+    BIG_WEEK("Big purchases this week"), BIG_MONTH("Big purchases this month"),
 }
 
 interface InsightActions {
@@ -112,7 +113,7 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
 
 /* ---------- month ---------- */
 
-private fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+internal fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
 
 @Composable
 private fun MonthHero(ledger: Ledger) {
@@ -174,7 +175,7 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int) {
 @Composable
 private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
     val p = ledger.period
-    val monthBiggest = remember(ledger) { ledger.recent.filter { it.kind == TxKind.EXPENSE && dateOf(it, ledger) in p && !dateOf(it, ledger).isAfter(ledger.today) }.sortedByDescending { it.categoryAmount }.take(5) }
+    val monthBiggest = remember(ledger) { bigPurchases(ledger, week = false) }
     val stores = remember(ledger) { Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
     val small = remember(ledger) { Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
     val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
@@ -189,9 +190,9 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val biggest = monthBiggest
-                PatternTile("Biggest purchase", biggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
-                    biggest.firstOrNull()?.let { it.note.ifBlank { ledger.categoryById[it.categoryId]?.name ?: "" } } ?: "",
-                    modifier = Modifier.weight(1f), onClick = { biggest.firstOrNull()?.let(actions::edit) }) {
+                PatternTile("Big purchases", biggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
+                    if (biggest.isEmpty()) "" else "Top ${biggest.size}",
+                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.BIG_MONTH) }) {
                     MiniBars(biggest.map { it.categoryAmount }, 0, Kassa.colors.ink)
                 }
                 PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
@@ -268,6 +269,13 @@ internal fun duesThisWeek(ledger: Ledger) = ledger.cards()
     .filter { it.snapshot.payable > 0 && !it.snapshot.due.isBefore(ledger.today) && !it.snapshot.due.isAfter(Patterns.weekStart(ledger.today).plusDays(6)) }
     .sortedBy { it.snapshot.due }
 
+/** The 10 largest expenses this week or this budget month, largest first (fewer if there aren't 10). */
+internal fun bigPurchases(ledger: Ledger, week: Boolean): List<Transaction> {
+    val from = if (week) Patterns.weekStart(ledger.today) else ledger.period.start
+    return ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(from) && !dateOf(it, ledger).isAfter(ledger.today) }
+        .sortedByDescending { it.categoryAmount }.take(10)
+}
+
 private fun weekExpenses(ledger: Ledger): List<Transaction> {
     val monday = Patterns.weekStart(ledger.today)
     return ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
@@ -280,11 +288,12 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
     val up = changes.filter { it.change > 0 }.maxByOrNull { it.change }
     val down = changes.filter { it.change < 0 }.minByOrNull { it.change }
     val dues = duesThisWeek(ledger)
-    val biggest = weekExpenses(ledger).maxByOrNull { it.categoryAmount }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention, Modifier.weight(1f))
-            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "\u2212" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, Modifier.weight(1f))
+            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention,
+                Modifier.weight(1f).then(if (up != null) Modifier.clickable { actions.openCategory(up.category) } else Modifier))
+            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "\u2212" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, 
+                Modifier.weight(1f).then(if (down != null) Modifier.clickable { actions.openCategory(down.category) } else Modifier))
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Figure(
@@ -292,10 +301,11 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
                 if (dues.isEmpty()) "No cards due" else "${dues.size} ${if (dues.size == 1) "card" else "cards"} \u00b7 next ${dues.first().snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}",
                 Kassa.colors.ink3, Modifier.weight(1f).clickable { actions.open(InsightPage.DUES) },
             )
+            val big = bigPurchases(ledger, week = true)
             Figure(
-                "Biggest purchase", biggest?.let { Money.format(it.categoryAmount) } ?: "None yet",
-                biggest?.let { "${it.note.ifBlank { ledger.categoryById[it.categoryId]?.name ?: "" }} \u00b7 ${dateOf(it, ledger).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}" },
-                Kassa.colors.ink3, Modifier.weight(1f).then(if (biggest != null) Modifier.clickable { actions.edit(biggest) } else Modifier),
+                "Big purchases", big.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
+                if (big.isEmpty()) null else "Top ${big.size}",
+                Kassa.colors.ink3, Modifier.weight(1f).clickable { actions.open(InsightPage.BIG_WEEK) },
             )
         }
     }
