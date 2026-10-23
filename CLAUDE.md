@@ -18,6 +18,18 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
   `TextOverflow.Ellipsis`.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 
+## Built for public release
+Kassa is headed to the Play Store, so code is written for strangers' phones, not one Fold:
+- No personal assumptions: nothing tied to the owner's banks, cards, Money Manager setup or Splitwise habits.
+  Defaults must make sense for someone starting fresh.
+- Locale-aware: dates, weekdays and numbers come from the phone's locale (never a hardcoded `Locale.US`);
+  currencies cover what real users need. New UI copy should be easy to move into `strings.xml` later.
+- Accessible: content descriptions on icon buttons, layouts that survive large font sizes, 48dp touch targets.
+- Works on ordinary phones and tablets, not only the Fold; light and dark.
+- Privacy is the product: still no network, no analytics, no crash upload. Crash reports stay on the phone
+  and the user chooses to share them.
+- Third-party libraries need licenses compatible with a public app, and their notices shown in the app.
+
 ## Layout
 - `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares).
   Fast JVM tests.
