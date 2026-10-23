@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.krishnagurram.kassa.ui.activity.Chevron
@@ -144,3 +145,31 @@ fun Modifier.swipeShift(onShift: (Int) -> Unit): Modifier = this.pointerInput(on
         onHorizontalDrag = { _, d -> dx += d },
     )
 }
+
+/**
+ * Items top to bottom, as many as fit whole in the height it's given; the rest are left out rather than cut
+ * or scrolled. Gives Overview and Insights a screen that fills without scrolling on any screen size.
+ */
+@Composable
+fun FitColumn(modifier: Modifier = Modifier, spacing: androidx.compose.ui.unit.Dp = 0.dp, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier.clipToBounds()) { measurables, constraints ->
+        val gap = spacing.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+        val placed = mutableListOf<androidx.compose.ui.layout.Placeable>()
+        var used = 0
+        for (m in measurables) {
+            val p = m.measure(loose)
+            val need = used + (if (placed.isEmpty()) 0 else gap) + p.height
+            if (constraints.hasBoundedHeight && need > constraints.maxHeight) break
+            used = need; placed += p
+        }
+        val h = if (constraints.hasBoundedHeight) maxOf(constraints.minHeight, used) else used
+        layout(constraints.maxWidth, h) {
+            var y = 0
+            placed.forEachIndexed { i, p -> if (i > 0) y += gap; p.place(0, y); y += p.height }
+        }
+    }
+}
+
+/** Tall enough to lay a tab out to fit the screen instead of scrolling it (the cover screen in landscape isn't). */
+val FIT_MIN_HEIGHT = 560.dp

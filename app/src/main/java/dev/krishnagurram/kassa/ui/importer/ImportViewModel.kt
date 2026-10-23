@@ -34,7 +34,12 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.value = try {
                 val plan = withContext(Dispatchers.IO) {
-                    AndroidMoneyManagerSource.open(getApplication(), uri).use { MoneyManagerImporter().plan(it) }
+                    AndroidMoneyManagerSource.open(getApplication(), uri).use { src ->
+                        // Show amounts in the backup's own currency when Kassa knows it; it can still be changed.
+                        src.mainCurrency()?.takeIf { code -> dev.krishnagurram.kassa.domain.Currencies.all.any { it.code == code } }
+                            ?.let { (getApplication<KassaApplication>()).settings.setCurrency(it) }
+                        MoneyManagerImporter().plan(src)
+                    }
                 }
                 ImportState.Review(plan)
             } catch (e: NotAMoneyManagerBackup) {

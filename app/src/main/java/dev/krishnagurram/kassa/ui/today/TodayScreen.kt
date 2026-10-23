@@ -54,6 +54,7 @@ import dev.krishnagurram.kassa.ui.common.RaisedPanel
 import dev.krishnagurram.kassa.ui.common.SectionHeader
 import dev.krishnagurram.kassa.ui.common.TransactionRow
 import dev.krishnagurram.kassa.ui.common.plural
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 import java.time.Instant
@@ -128,23 +129,32 @@ fun TodayScreen(
                 androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
             }
         }
-        val spending: @Composable () -> Unit = { FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory) }
-        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
+        // Tall screens fit with no scrolling: Upcoming lists as many as there's room for.
+        val fit = maxHeight >= dev.krishnagurram.kassa.ui.common.FIT_MIN_HEIGHT
+        val spending: @Composable () -> Unit = {
+            // Swipe the spending card between this week and this month, the same as its toggle.
+            Column(Modifier.swipeShift { d -> month = d > 0 }) {
+                FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
+            }
+        }
+        val coming: @Composable (Modifier) -> Unit = { m -> UpcomingSection(ledger, if (fit) null else if (wide) 5 else 3, onOpenCard, onUpcoming, m) }
         val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
 
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
+        Column(Modifier.fillMaxSize().then(if (fit) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(contentPadding)) {
             Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
             if (wide) {
                 banner()
-                Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Row(if (fit) Modifier.weight(1f) else Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     Column(Modifier.weight(1f)) { spending() }
                     androidx.compose.material3.VerticalDivider(color = Kassa.colors.line)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) { coming(); worth() }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) {
+                        coming(if (fit) Modifier.weight(1f) else Modifier); worth()
+                    }
                 }
             } else {
-                Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.widthIn(max = 640.dp).then(if (fit) Modifier.weight(1f) else Modifier), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column { banner(); spending() }
-                    coming(); worth()
+                    coming(if (fit) Modifier.weight(1f) else Modifier); worth()
                 }
             }
         }
@@ -248,14 +258,15 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
 }
 
 @Composable
-private fun UpcomingSection(ledger: Ledger, show: Int, onOpenCard: (Long) -> Unit, onAll: () -> Unit) {
+private fun UpcomingSection(ledger: Ledger, show: Int?, onOpenCard: (Long) -> Unit, onAll: () -> Unit, modifier: Modifier = Modifier) {
     val items = upcoming(ledger, 30)
-    SectionTop("Upcoming", "Next 30 days", onAll)
-    if (items.isEmpty()) {
-        Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        return
+    Column(modifier) {
+        SectionTop("Upcoming", "Next 30 days", onAll)
+        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
+        // With no fixed count, as many as fit the space left on the screen.
+        else if (show != null) items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
+        else dev.krishnagurram.kassa.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) } }
     }
-    items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.insights
 
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
@@ -85,7 +86,7 @@ fun CategoryPage(
     val prevTotal = totals[4]
     val monthName = { q: Period -> q.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+    Column(Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(c.name, onBack)
         Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             RoundArrow("\u2039", enabled = true) { back++ }

@@ -49,6 +49,8 @@ import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.CategoryBadge
 import dev.krishnagurram.kassa.ui.common.CategoryLines
+import dev.krishnagurram.kassa.ui.common.FIT_MIN_HEIGHT
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import dev.krishnagurram.kassa.ui.common.monthLines
 import dev.krishnagurram.kassa.ui.common.weekLines
 import dev.krishnagurram.kassa.ui.common.TransactionRow
@@ -85,8 +87,13 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
     var week by rememberSaveable { mutableStateOf(true) }
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // Swipe between this week and this month, the same as tapping the toggle.
+    BoxWithConstraints(Modifier.fillMaxSize().swipeShift { d -> week = d < 0 }) {
         val wide = maxWidth >= 720.dp
+        // Tall screens fit everything with no scrolling: the category list shows as many lines as there's room for.
+        val fit = maxHeight >= FIT_MIN_HEIGHT
+        val scroll: @Composable () -> Modifier = { if (fit) Modifier else Modifier.verticalScroll(rememberScrollState()) }
+        val grow: ColumnScope.() -> Modifier = { if (fit) Modifier.weight(1f) else Modifier }
         val head: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Insights", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
@@ -97,23 +104,30 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
             Column(Modifier.fillMaxSize().padding(contentPadding)) {
                 head()
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, limit = 7) } else { MonthHero(ledger); BudgetList(ledger, actions, limit = 7) }
+                    Column(Modifier.weight(1f).then(scroll()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, if (fit) null else 7, grow()) } else { MonthHero(ledger); BudgetList(ledger, actions, if (fit) null else 7, grow()) }
                     }
                     Box(Modifier.width(1.dp).fillMaxHeight().background(Kassa.colors.line))
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (week) { WeekTiles(ledger, actions); LargestBuys(ledger, actions) } else PatternTiles(ledger, actions)
+                    Column(Modifier.weight(1f).then(scroll()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (week) { WeekTiles(ledger, actions); LargestBuys(ledger, actions, if (fit) null else 4, grow()) } else PatternTiles(ledger, actions)
                     }
                 }
             }
         } else {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.fillMaxSize().then(scroll()).padding(contentPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 head()
-                if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, limit = 4); WeekTiles(ledger, actions) }
-                else { MonthHero(ledger); BudgetList(ledger, actions, limit = 4); PatternTiles(ledger, actions) }
+                if (week) { WeekHero(ledger, actions); WeekCategories(ledger, actions, if (fit) null else 4, grow()); WeekTiles(ledger, actions) }
+                else { MonthHero(ledger); BudgetList(ledger, actions, if (fit) null else 4, grow()); PatternTiles(ledger, actions) }
             }
         }
     }
+}
+
+/** Category lines: a fixed number, or with no [limit], as many as fit the height the column gives. */
+@Composable
+private fun FittedLines(lines: List<dev.krishnagurram.kassa.ui.common.CatLine>, limit: Int?, onOpen: (Category) -> Unit, modifier: Modifier) {
+    if (limit != null) CategoryLines(lines.take(limit), onOpen)
+    else dev.krishnagurram.kassa.ui.common.FitColumn(modifier) { CategoryLines(lines, onOpen) }
 }
 
 /* ---------- month ---------- */
@@ -134,13 +148,13 @@ private fun MonthHero(ledger: Ledger) {
 }
 
 @Composable
-private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int) {
+private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int?, modifier: Modifier = Modifier) {
     val lines = monthLines(ledger)
     val spent = lines.filter { it.spent > 0 }
-    Column {
+    Column(modifier) {
         Head("By category", "All ${lines.size}") { actions.openSpending(true) }
         if (spent.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
-        CategoryLines(spent.take(limit), actions::openCategory)
+        FittedLines(spent, limit, actions::openCategory, Modifier.weight(1f, fill = false))
     }
 }
 
@@ -226,13 +240,13 @@ private fun WeekHero(ledger: Ledger, actions: InsightActions) {
 }
 
 @Composable
-private fun WeekCategories(ledger: Ledger, actions: InsightActions, limit: Int) {
+private fun WeekCategories(ledger: Ledger, actions: InsightActions, limit: Int?, modifier: Modifier = Modifier) {
     val lines = weekLines(ledger)
     val spent = lines.filter { it.spent > 0 }
-    Column {
+    Column(modifier) {
         Head("By category", "All ${lines.size}") { actions.openSpending(false) }
         if (spent.isEmpty()) Text("Nothing spent yet this week.", style = KassaType.body, color = Kassa.colors.ink2)
-        CategoryLines(spent.take(limit), actions::openCategory)
+        FittedLines(spent, limit, actions::openCategory, Modifier.weight(1f, fill = false))
     }
 }
 
@@ -284,12 +298,13 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
 }
 
 @Composable
-private fun LargestBuys(ledger: Ledger, actions: InsightActions) {
-    val list = weekExpenses(ledger).sortedByDescending { it.categoryAmount }.take(4)
+private fun LargestBuys(ledger: Ledger, actions: InsightActions, limit: Int?, modifier: Modifier = Modifier) {
+    val list = weekExpenses(ledger).sortedByDescending { it.categoryAmount }.take(limit ?: 10)
     if (list.isEmpty()) return
-    Column {
+    Column(modifier) {
         Head("Largest buys")
-        list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit, showDate = true) }
+        if (limit != null) list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit, showDate = true) }
+        else dev.krishnagurram.kassa.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { list.forEach { t -> TransactionRow(t, ledger, onClick = actions::edit, showDate = true) } }
     }
 }
 

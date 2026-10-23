@@ -139,7 +139,8 @@ fun AccountsScreen(
         if (cards.isNotEmpty() || unsetCards.isNotEmpty()) {
             // The cards' real balances, the same figure Liabilities adds up: an overpaid card's credit counts too.
             val owed = -(cards.map { it.account } + unsetCards).sumOf { state.balances[it.id] ?: 0 }
-            GroupHead("Credit cards", "−" + Money.format(owed), "cards" in open, { toggle("cards") }, listOf("Payable" to Money.format(cards.sumOf { it.snapshot.payable }), "Outstanding" to Money.format(cards.sumOf { it.snapshot.outstanding })))
+            GroupHead("Credit cards", if (owed < 0) Money.format(-owed, showPlus = true) else "−" + Money.format(owed), "cards" in open, { toggle("cards") },
+                listOf("Payable" to dev.krishnagurram.kassa.ui.cards.cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to Money.format(cards.sumOf { it.snapshot.outstanding })))
             if ("cards" in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.forEach { c -> dev.krishnagurram.kassa.ui.cards.CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }
                 unsetCards.forEach { a -> OneLineRow(IconTile(accountIcon(a.type)), a.name, a.last4, Money.format(-(state.balances[a.id] ?: 0)), selected = a.id == selectedAccount) { onOpenAccount(a.id) } }
@@ -291,13 +292,13 @@ private fun GroupHead(title: String, total: String, open: Boolean, onToggle: () 
             modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f),
         )
         Text(title, style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 4.dp))
-        Text(total, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+        Text(total, style = KassaType.bodyStrong, color = if (total.startsWith("+")) Kassa.colors.positive else Kassa.colors.ink)
     }
     if (open && figures != null) Row(Modifier.padding(start = 26.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         figures.forEach { (l, v) ->
             Row {
                 Text("$l ", style = KassaType.small, color = Kassa.colors.ink2)
-                Text(v, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
+                Text(v, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = if (v.startsWith("+")) Kassa.colors.positive else Kassa.colors.ink)
             }
         }
     }

@@ -77,6 +77,7 @@ import dev.krishnagurram.kassa.ui.common.CategoryIconView
 import dev.krishnagurram.kassa.ui.common.ConfirmDialog
 import dev.krishnagurram.kassa.ui.common.PageTop
 import dev.krishnagurram.kassa.ui.common.accountIcon
+import dev.krishnagurram.kassa.ui.common.swipeShift
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
@@ -278,10 +279,10 @@ fun EntryPage(
                         // The pad is the resting state: with nothing else open, it stays up with the save button under it.
                         Field.AMOUNT, null -> {
                             PanelTitle("Amount", onDone = null)
-                            if (toCard != null) {
+                            if (toCard != null && (toCard.payable > 0 || toCard.totalBalance > 0)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-                                    QuickButton("Payable ${Money.format(toCard.payable)}", on = cents == toCard.payable, modifier = Modifier.weight(1f)) { amount = centsToInput(toCard.payable); error = null }
-                                    QuickButton("Total ${Money.format(toCard.totalBalance)}", on = cents == toCard.totalBalance, modifier = Modifier.weight(1f)) { amount = centsToInput(toCard.totalBalance); error = null }
+                                    if (toCard.payable > 0) QuickButton("Payable ${Money.format(toCard.payable)}", on = cents == toCard.payable, modifier = Modifier.weight(1f)) { amount = centsToInput(toCard.payable); error = null }
+                                    if (toCard.totalBalance > 0) QuickButton("Total ${Money.format(toCard.totalBalance)}", on = cents == toCard.totalBalance, modifier = Modifier.weight(1f)) { amount = centsToInput(toCard.totalBalance); error = null }
                                 }
                             }
                             NumberPad(Modifier.weight(1f)) { k -> amount = applyKey(amount, k); error = null }
@@ -560,7 +561,8 @@ internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick
 /** A month of days starting on Sunday. Days after today can't be picked; neither can months after this one. */
 @Composable
 private fun MonthCalendar(month: YearMonth, selected: LocalDate, today: LocalDate, onMonth: (YearMonth) -> Unit, modifier: Modifier, onPick: (LocalDate) -> Unit) {
-    Column(modifier.fillMaxWidth()) {
+    val canNextMonth = month < YearMonth.from(today)
+    Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) onMonth(month.minusMonths(1)) else if (canNextMonth) onMonth(month.plusMonths(1)) }) {
         Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink, modifier = Modifier.clip(CircleShape).clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 12.dp))
             Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)), style = KassaType.bodyStrong, color = Kassa.colors.ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))

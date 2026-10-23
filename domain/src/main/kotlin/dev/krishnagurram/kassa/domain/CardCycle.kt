@@ -25,18 +25,26 @@ data class CardSnapshot(
     val paidSinceClose: Long,
     val notYetBilled: Long,
 ) {
-    val payable: Long get() = (statementTotal - paidSinceClose).coerceAtLeast(0)
+    /**
+     * The last statement less what's been paid or refunded since. Negative when you paid more than it: that
+     * extra is a credit, shown in green, and it comes off the total. Nothing is clamped to zero.
+     */
+    val balancePayable: Long get() = statementTotal - paidSinceClose
 
-    /** Charges since the statement date. A payment beyond the statement balance comes off this first. */
-    val outstanding: Long get() = (notYetBilled - (paidSinceClose - statementTotal).coerceAtLeast(0)).coerceAtLeast(0)
+    /** What still has to be paid by the due date: [balancePayable], or zero once it's covered. */
+    val payable: Long get() = balancePayable.coerceAtLeast(0)
 
-    val totalBalance: Long get() = payable + outstanding
+    /** Charges since the statement date. */
+    val outstanding: Long get() = notYetBilled
 
-    /** What the bank owes you when payments and refunds went past everything charged (an overpaid card). */
-    val credit: Long get() = (paidSinceClose - statementTotal - notYetBilled).coerceAtLeast(0)
+    /** Everything on the card now: positive is owed, negative is a credit. */
+    val totalBalance: Long get() = balancePayable + outstanding
 
-    /** The card's balance as a signed figure: positive is owed, negative is a credit. Adds up with other debts. */
-    val owed: Long get() = totalBalance - credit
+    /** What the bank owes you when payments and refunds went past everything charged. */
+    val credit: Long get() = (-totalBalance).coerceAtLeast(0)
+
+    /** Same as [totalBalance]; adds up with other debts. */
+    val owed: Long get() = totalBalance
 
     fun daysUntilDue(today: LocalDate): Long = java.time.temporal.ChronoUnit.DAYS.between(today, due)
 

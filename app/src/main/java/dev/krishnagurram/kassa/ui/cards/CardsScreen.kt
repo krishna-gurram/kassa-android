@@ -146,19 +146,28 @@ fun CardsScreen(ledger: Ledger, contentPadding: PaddingValues, selectedCard: Lon
     }
 }
 
+/**
+ * A card figure as shown everywhere: what's owed in ink, a credit (paid past zero) as a green +amount.
+ * Nothing is clamped, so 159 paid on 100 payable shows +59 and the total drops by it.
+ */
+fun cardMoney(v: Long): String = if (v < 0) Money.format(-v, showPlus = true) else Money.format(v)
+
+@Composable
+fun cardTint(v: Long, owed: androidx.compose.ui.graphics.Color = Kassa.colors.ink): androidx.compose.ui.graphics.Color = if (v < 0) Kassa.colors.positive else owed
+
 /** Total card balance, split into balance payable and outstanding. Used on Cards and in Accounts. */
 @Composable
 fun CardTotals(cards: List<CardSnapshotFor>) {
-    val payable = cards.sumOf { it.snapshot.payable }
+    val payable = cards.sumOf { it.snapshot.balancePayable }
     val outstanding = cards.sumOf { it.snapshot.outstanding }
     RaisedPanel {
         Text("Total card balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-        dev.krishnagurram.kassa.ui.today.BigMoney(payable + outstanding, sizeSp = 40f)
+        dev.krishnagurram.kassa.ui.today.BigMoney(Math.abs(payable + outstanding), sizeSp = 40f, color = cardTint(payable + outstanding))
         HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                Text(Money.format(payable), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
+                Text(cardMoney(payable), style = KassaType.stat, color = cardTint(payable), maxLines = 1)
             }
             Column(Modifier.weight(1f)) {
                 Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
@@ -230,15 +239,14 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, @Su
                     Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     c.account.last4?.let { Text("  ··$it", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1) }
                 }
-                if (s.credit > 0) Text("${Money.format(s.credit, showPlus = true)} credit", style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.positive, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
-                else Text(Money.format(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                Text(cardMoney(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = cardTint(s.totalBalance), maxLines = 1, modifier = Modifier.padding(start = 8.dp))
             }
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
                     androidx.compose.ui.text.buildAnnotatedString {
                         append("Payable ")
-                        pushStyle(androidx.compose.ui.text.SpanStyle(color = Kassa.colors.ink, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
-                        append(Money.format(s.payable)); pop()
+                        pushStyle(androidx.compose.ui.text.SpanStyle(color = cardTint(s.balancePayable), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        append(cardMoney(s.balancePayable)); pop()
                     },
                     style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1,
                 )
@@ -269,7 +277,9 @@ fun CardPage(
     val id = a.id
     val dateNote: (Transaction) -> String = { t -> dateOf(t, ledger).format(MONTH_DAY) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
+    // Set further down, where the statement navigator is built; a plain holder so assigning it doesn't recompose.
+    val pageShift = remember { arrayOf<(Int) -> Unit>({}) }
+    Column(Modifier.fillMaxSize().swipeShift { d -> pageShift[0](d) }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(a.name + (a.last4?.let { "  ··$it" } ?: ""), onBack) {
             androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
@@ -279,9 +289,10 @@ fun CardPage(
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    dev.krishnagurram.kassa.ui.today.BigMoney(s.payable, sizeSp = 36f)
+                    dev.krishnagurram.kassa.ui.today.BigMoney(Math.abs(s.balancePayable), sizeSp = 36f, color = cardTint(s.balancePayable))
                     Text(
                         when {
+                            s.balancePayable < 0 -> "Paid ${Money.format(-s.balancePayable)} extra"
                             dueTone == Tone.POSITIVE -> "Paid in full"
                             s.payable == 0L -> "Nothing due"
                             days < 0 -> "${-days} days late"
@@ -299,7 +310,7 @@ fun CardPage(
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box2(Modifier.weight(1f).fillMaxHeight()) {
                     Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    Text(Money.format(s.totalBalance), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
+                    Text(cardMoney(s.totalBalance), style = KassaType.stat, color = cardTint(s.totalBalance), maxLines = 1)
                 }
                 Box2(Modifier.weight(1f).fillMaxHeight()) {
                     Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
@@ -323,8 +334,9 @@ fun CardPage(
         val credits = list.filter { it.toAccountId == id || (it.kind == TxKind.INCOME && it.accountId == id) }.sumOf { it.amount }
         val canBack = oldest != null && from.isAfter(oldest)
         val shift: (Int) -> Unit = { d -> if (d < 0 && canBack) back++ else if (d > 0 && back > 0) back-- }
+        pageShift[0] = shift
         Gap(18)
-        Column(Modifier.swipeShift(shift)) {
+        Column {
             dev.krishnagurram.kassa.ui.common.PeriodSwitcher(
                 if (back == 0) "Outstanding" else "${to.format(MONTH_DAY)} statement",
                 when (back) {
@@ -337,7 +349,7 @@ fun CardPage(
             Row(Modifier.padding(top = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Charges ${Money.format(charges)}", style = KassaType.small, color = Kassa.colors.ink)
                 if (credits > 0) Text("Payments ${Money.format(credits)}", style = KassaType.small, color = Kassa.colors.ink2)
-                if (back == 1) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else "Paid in full", style = KassaType.small,
+                if (back == 1) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else if (s.balancePayable < 0) "Paid ${Money.format(-s.balancePayable)} extra" else "Paid in full", style = KassaType.small,
                     color = if (s.payable > 0) Kassa.colors.attention else Kassa.colors.positive)
             }
             if (list.isEmpty()) Text(if (back == 0) "No charges since the statement date." else "Nothing on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
