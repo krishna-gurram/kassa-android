@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -451,8 +452,8 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @C
                 }
             }
         } else {
-            // Add sits in the middle of the tab bar, so nothing floats over the content. Seven targets fit the
-            // cover screen as icons; the current one is highlighted and nothing shifts.
+            // Add sits in the middle of the tab bar, so nothing floats over the content. Every tab shows its icon
+            // and name; the current one is highlighted and nothing shifts.
             Scaffold(
                 containerColor = Kassa.colors.ground,
                 bottomBar = {
@@ -474,9 +475,10 @@ private fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, content: @C
                             )
                             NavigationBarItem(
                                 selected = tab == t, onClick = { onTab(t) },
-                                // Icons only: a label appearing on the selected tab made the row jump.
-                                icon = { Icon(iconFor(t), t.label) },
-                                alwaysShowLabel = false, colors = colors,
+                                // Labels always show, so selecting a tab only changes the highlight and nothing moves.
+                                icon = { Icon(iconFor(t), null) },
+                                label = { Text(t.label, fontSize = 10.sp, maxLines = 1, softWrap = false) },
+                                alwaysShowLabel = true, colors = colors,
                             )
                         }
                     }
