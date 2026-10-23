@@ -410,11 +410,12 @@ private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -
             }
         }
 
-        // One place for messages, above the bottom bar on the cover screen.
+        // One place for messages. On the cover screen's tabs they sit above the Add button, never over it, so Add
+        // always works while a message shows.
         SnackbarHost(
             snackbar,
             Modifier.align(androidx.compose.ui.Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(bottom = if (!wide && top == null) 88.dp else 16.dp),
+                .padding(bottom = if (!wide && top == null) 168.dp else 16.dp),
         )
 
         allocating?.let { p ->

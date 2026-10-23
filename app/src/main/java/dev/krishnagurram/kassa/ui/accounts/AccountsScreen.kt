@@ -93,7 +93,9 @@ fun AccountsScreen(
     val open = openKeys.split(',').filter { it.isNotEmpty() }.toSet()
     val toggle: (String) -> Unit = { k -> openKeys = (if (k in open) open - k else open + k).joinToString(",") }
 
-    val active = state.accounts.filter { !it.archived }
+    // Everything on this tab reads A to Z.
+    val byName = compareBy<Account, String>(String.CASE_INSENSITIVE_ORDER) { it.name }
+    val active = state.accounts.filter { !it.archived }.sortedWith(byName)
     val personBalances = ledger.personBalances()
     val receivable = personBalances.values.filter { it > 0 }.sum()
     val payable = -personBalances.values.filter { it < 0 }.sum()
@@ -101,14 +103,14 @@ fun AccountsScreen(
     val assets = active.filter { !it.type.isDebt }.sumOf { valueOf(it) } + receivable
     val liabilities = -active.filter { it.type.isDebt }.sumOf { state.balances[it.id] ?: 0 } + payable
 
-    val cards = dev.krishnagurram.kassa.ui.cards.cardsByDueDate(ledger)
+    val cards = ledger.cards().sortedWith(compareBy<dev.krishnagurram.kassa.ui.CardSnapshotFor, String>(String.CASE_INSENSITIVE_ORDER) { it.account.name })
     val cardIds = cards.map { it.account.id }.toSet()
     val unsetCards = active.filter { it.type == AccountType.CREDIT_CARD && it.id !in cardIds }
     val banks = active.filter { it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID) }
     val invest = active.filter { it.type == AccountType.INVESTMENT || it.type == AccountType.OTHER_ASSET }
     val loans = active.filter { it.type == AccountType.LOAN || it.type == AccountType.OTHER_DEBT }
-    val people = ledger.people.people.filter { !it.archived }
-    val archived = state.accounts.filter { it.archived }
+    val people = ledger.people.people.filter { !it.archived }.sortedWith(compareBy<Person, String>(String.CASE_INSENSITIVE_ORDER) { it.name })
+    val archived = state.accounts.filter { it.archived }.sortedWith(byName)
     val archivedPeople = ledger.people.people.filter { it.archived }
 
     val allKeys = listOf("cards", "Bank and cash", "Investments", "Loans", "people")
