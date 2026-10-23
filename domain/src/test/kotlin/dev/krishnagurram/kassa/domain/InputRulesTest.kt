@@ -81,5 +81,8 @@ class InputRulesTest {
         assertEquals("🍜", InputRules.typedEmoji(" 🍜🍕"))
         assertEquals("👨‍👩‍👧", InputRules.typedEmoji("👨‍👩‍👧x"))
         assertEquals("", InputRules.typedEmoji("  "))
+        assertEquals("👍🏽", InputRules.typedEmoji("👍🏽👍"))
+        assertEquals("🇮🇳", InputRules.typedEmoji("🇮🇳🇺🇸"))
+        assertEquals("❤️", InputRules.typedEmoji("❤️x"))
     }
 }

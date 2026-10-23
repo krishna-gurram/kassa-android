@@ -45,13 +45,32 @@ object InputRules {
     /** Digits only, at most [max] of them: last 4, days of the month. */
     fun typedDigits(raw: String, max: Int): String = raw.filter(Char::isDigit).take(max)
 
-    /** For an emoji field: only the first character as you see it (one emoji, even one built from several codes). */
+    /**
+     * For an emoji field: only the first character as you see it, even when it's built from several codes
+     * (a skin tone, a flag, or a family joined with zero-width joiners). Done by hand because
+     * java.text.BreakIterator splits joined emoji on older Java versions.
+     */
     fun typedEmoji(raw: String): String {
         val t = raw.trim()
         if (t.isEmpty()) return ""
-        val it = java.text.BreakIterator.getCharacterInstance().apply { setText(t) }
-        return t.substring(0, it.next().coerceAtLeast(1))
+        var end = Character.charCount(t.codePointAt(0))
+        val flag = isRegionalIndicator(t.codePointAt(0))
+        if (flag && end < t.length && isRegionalIndicator(t.codePointAt(end))) end += Character.charCount(t.codePointAt(end))
+        while (end < t.length) {
+            val cp = t.codePointAt(end)
+            end += when {
+                // A joiner glues the next character on, as in 👨‍👩‍👧.
+                cp == ZWJ && end + 1 < t.length -> 1 + Character.charCount(t.codePointAt(end + 1))
+                cp in 0xFE00..0xFE0F || cp in 0x1F3FB..0x1F3FF || cp == 0x20E3 ||
+                    Character.getType(cp) == Character.NON_SPACING_MARK.toInt() || Character.getType(cp) == Character.ENCLOSING_MARK.toInt() -> Character.charCount(cp)
+                else -> break
+            }
+        }
+        return t.substring(0, end)
     }
+
+    private const val ZWJ = 0x200D
+    private fun isRegionalIndicator(cp: Int) = cp in 0x1F1E6..0x1F1FF
 
     /** How a name is stored: trimmed, with runs of spaces collapsed and invisible characters removed. */
     fun clean(raw: String): String = raw.filter { !it.isISOControl() }.trim().replace(Regex("\\s+"), " ")
