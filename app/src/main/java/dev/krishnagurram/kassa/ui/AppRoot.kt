@@ -85,7 +85,7 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
             entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() })
             }
-            else -> Shell(nav.tab, onTab = nav::select, onAdd = app::newEntry, showAdd = nav.stack.isEmpty()) { padding ->
+            else -> Shell(nav.tab, onTab = nav::select, onAdd = { app.newEntry(from = nav.top) }, showAdd = nav.stack.isEmpty()) { padding ->
                 Tabs(app, l, padding, wide)
             }
         }
@@ -107,7 +107,11 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
                     .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
                     .windowInsetsPadding(WindowInsets.safeDrawing),
             ) {
-                key(page) { PageContent(app, page, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = 24.dp), onBack = nav::pop) }
+                // Card, account and category pages keep Add, which starts the entry with that card or category picked.
+                val offersAdd = app.presetFor(page) != null
+                val bottom = if (offersAdd) ADD_BUTTON_CLEARANCE else 24.dp
+                key(page) { PageContent(app, page, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = bottom), onBack = nav::pop) }
+                if (offersAdd) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) { AddButton { app.newEntry(from = page) } }
             }
         }
 

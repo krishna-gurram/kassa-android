@@ -28,9 +28,14 @@ data class EntryStart(
     /** Open with the split panel showing, as "Split a transaction" from a person does. */
     val openSplit: Boolean = false,
     val prefill: EntryDraft? = null,
+    /** Where Add was pressed: from a card's or category's page, the new entry starts with it picked. */
+    val preset: EntryPreset? = null,
     /** Runs after a successful save, for example to mark the bill that opened the page as handled. */
     val afterSave: (() -> Unit)? = null,
 )
+
+/** A new entry's starting kind, account or category, taken from the page Add was pressed on. */
+data class EntryPreset(val kind: TxKind = TxKind.EXPENSE, val accountId: Long? = null, val categoryId: Long? = null)
 
 /** The input the bottom panel shows. Null means none: the panel shows the number pad and the save button. */
 internal enum class Field { AMOUNT, CATEGORY, SUB, ACCOUNT, TO, DATE, NOTE, SPLIT }
@@ -49,11 +54,14 @@ internal class EntryState(val start: EntryStart, private val zone: ZoneId, priva
     private val originalMillis: Long? = editing?.epochMillis ?: prefill?.epochMillis
 
     // What's typed.
-    var kind by mutableStateOf(editing?.kind?.takeIf { it in PAGE_KINDS } ?: prefill?.kind?.takeIf { it in PAGE_KINDS } ?: TxKind.EXPENSE)
+    var kind by mutableStateOf(editing?.kind?.takeIf { it in PAGE_KINDS } ?: prefill?.kind?.takeIf { it in PAGE_KINDS } ?: start.preset?.kind ?: TxKind.EXPENSE)
     var amount by mutableStateOf((editing?.amount ?: prefill?.amount)?.takeIf { it > 0 }?.let(::centsToInput) ?: "")
-    var categoryId by mutableStateOf(editing?.categoryId ?: prefill?.categoryId)
-    /** A new entry starts with no account: you always pick it. Nothing guesses one from the category or merchant. */
-    var accountId by mutableStateOf(editing?.accountId ?: prefill?.accountId)
+    var categoryId by mutableStateOf(editing?.categoryId ?: prefill?.categoryId ?: start.preset?.categoryId)
+    /**
+     * A new entry starts with no account: you pick it, or it's the one whose page you pressed Add on.
+     * Nothing guesses one from the category or merchant.
+     */
+    var accountId by mutableStateOf(editing?.accountId ?: prefill?.accountId ?: start.preset?.accountId)
     var toAccountId by mutableStateOf(editing?.toAccountId ?: prefill?.toAccountId)
     var date by mutableStateOf(originalMillis?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: today)
     var note by mutableStateOf((editing?.note ?: prefill?.note ?: "").take(InputRules.NOTE_MAX))

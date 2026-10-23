@@ -12,11 +12,13 @@ import dev.krishnagurram.kassa.data.jobs.DailyJobs
 import dev.krishnagurram.kassa.data.repo.EntryDraft
 import dev.krishnagurram.kassa.domain.Account
 import dev.krishnagurram.kassa.domain.Category
+import dev.krishnagurram.kassa.domain.CategoryKind
 import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.RecurringRules
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
+import dev.krishnagurram.kassa.ui.entry.EntryPreset
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.insights.InsightActions
 import dev.krishnagurram.kassa.ui.insights.InsightPage
@@ -59,7 +61,21 @@ class AppController(
 
     fun back() = nav.pop()
 
-    fun newEntry() = openFromList(Page.Entry(EntryStart()))
+    /** Add, pressed on [from] (null for the tabs). A card, account or category page starts the entry with it picked. */
+    fun newEntry(from: Page? = null) = openFromList(Page.Entry(EntryStart(preset = from?.let(::presetFor))))
+
+    /** What Add starts with on [page]; null when that page doesn't offer Add. */
+    fun presetFor(page: Page): EntryPreset? {
+        val l = vm.ledger.value ?: return null
+        return when (page) {
+            is Page.CardDetail -> l.accountById[page.accountId]?.let { EntryPreset(accountId = it.id) }
+            is Page.AccountDetail -> l.accountById[page.accountId]?.let { EntryPreset(accountId = it.id) }
+            is Page.CategoryDetail -> l.categoryById[page.categoryId]?.let { c ->
+                EntryPreset(kind = if (c.kind == CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE, categoryId = c.id)
+            }
+            else -> null
+        }
+    }
 
     /** Opens an entry on the entry page, its split loaded. [withPerson] adds them to the split, as "Split a transaction" does. */
     fun openEntry(id: Long, fromPage: Boolean, withPerson: Long? = null) {

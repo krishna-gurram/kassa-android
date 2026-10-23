@@ -37,17 +37,13 @@ import dev.krishnagurram.kassa.ui.theme.Kassa
 val ADD_BUTTON_CLEARANCE = 88.dp
 
 /**
- * The tabs. Cover screen: a bottom bar with Add floating above its right end (hidden while a page is open, so it
- * never sits over a form). Unfolded (600dp and wider): a rail with Add at its top.
+ * The tabs. Cover screen: a bottom bar with Add floating above its right end. A page covers the tabs there, so card,
+ * account and category pages show their own Add (see AppRoot). Unfolded (600dp and wider): a rail with Add at its top.
  */
 @Composable
 fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, showAdd: Boolean, content: @Composable (PaddingValues) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val addButton: @Composable () -> Unit = {
-            FloatingActionButton(onClick = onAdd, containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk, shape = RoundedCornerShape(18.dp)) {
-                Icon(Icons.Outlined.Add, "Add an entry")
-            }
-        }
+        val addButton: @Composable () -> Unit = { AddButton(onAdd) }
         if (maxWidth >= 600.dp) {
             Scaffold(containerColor = Kassa.colors.ground) { inner ->
                 Row(Modifier.fillMaxSize().padding(inner)) {
@@ -89,6 +85,14 @@ fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, showAdd: Boolean, c
                 content(PaddingValues(start = 20.dp, end = 20.dp, top = inner.calculateTopPadding() + 12.dp, bottom = bottom))
             }
         }
+    }
+}
+
+/** The Add button: ink on ground, the same on the tabs, the rail and pages. */
+@Composable
+fun AddButton(onClick: () -> Unit) {
+    FloatingActionButton(onClick = onClick, containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk, shape = RoundedCornerShape(18.dp)) {
+        Icon(Icons.Outlined.Add, "Add an entry")
     }
 }
 
