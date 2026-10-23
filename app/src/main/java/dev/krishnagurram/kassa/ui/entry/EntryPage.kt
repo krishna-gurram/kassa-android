@@ -66,6 +66,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Search
 import dev.krishnagurram.kassa.data.EntryDraft
 import dev.krishnagurram.kassa.domain.Account
 import dev.krishnagurram.kassa.domain.AccountType
@@ -154,6 +155,9 @@ fun EntryPage(
     var editingShare by remember { mutableStateOf<Long?>(null) }
     var shareBuf by remember { mutableStateOf("") }
     var newSub by remember { mutableStateOf<String?>(null) }
+    // Search in the category and account panels. While typing, the form above steps aside so results have room.
+    var query by remember { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -178,6 +182,7 @@ fun EntryPage(
     val focus = LocalFocusManager.current
     val noteFocus = remember { FocusRequester() }
     LaunchedEffect(field) {
+        query = ""; searching = false
         if (field == Field.NOTE) runCatching { noteFocus.requestFocus() } else focus.clearFocus()
     }
     LaunchedEffect(kind) { notes = if (kind == TxKind.TRANSFER) emptyList() else loadNotes(kind) }
@@ -334,7 +339,31 @@ fun EntryPage(
                             else PrimaryButton(saveLabel, ::save)
                         }
                         Field.CATEGORY -> {
-                            PanelTitle("Category") { field = null }
+                            PanelSearch(query, { query = it }, "Search categories", onFocus = { searching = it }) { field = null }
+                            val q = query.trim()
+                            if (q.isNotEmpty()) {
+                                // Matching categories and subcategories together; a subcategory picks both at once.
+                                val hits = ledger.categories.filter { it.kind == catKind && !it.hidden && it.name.contains(q, ignoreCase = true) && (it.parentId == null || ledger.categoryById[it.parentId]?.hidden == false) }
+                                    .sortedWith(compareBy<Category> { !it.name.startsWith(q, ignoreCase = true) }.thenBy { it.parentId != null }.thenBy { it.name.lowercase() })
+                                if (hits.isEmpty()) Text("No category matches \"$q\".", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
+                                LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(hits, key = { it.id }) { c ->
+                                        val parent = c.parentId?.let { ledger.categoryById[it] }
+                                        PickTile(on = cat?.id == c.id, onClick = {
+                                            pickCategory(c); query = ""; searching = false; focus.clearFocus()
+                                            if (parent == null && subsRanked(ledger, c).isNotEmpty()) field = Field.SUB else advance()
+                                        }) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                CategoryIconView((parent ?: c).icon, Color((parent ?: c).color), 26, fallback = c.name.take(1))
+                                                Column(Modifier.padding(start = 8.dp)) {
+                                                    Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    if (parent != null) Text(parent.name, style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else
                             LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(ranked, key = { it.id }) { c ->
                                     PickTile(on = topCat?.id == c.id, minHeight = 66.dp, onClick = {
@@ -393,13 +422,17 @@ fun EntryPage(
                         }
                         Field.ACCOUNT, Field.TO -> {
                             val isTo = field == Field.TO
-                            PanelTitle(when { isTo -> "To"; kind == TxKind.TRANSFER -> "From"; kind == TxKind.INCOME -> "Into"; else -> "Paid with" }) { field = null }
-                            val list = if (isTo) rankedTo.filter { it.id != accountId }
-                            else rankedAccounts.filter { kind != TxKind.TRANSFER || !it.type.hasStatement || it.id == accountId }
+                            PanelSearch(query, { query = it }, "Search accounts", onFocus = { searching = it }) { field = null }
+                            val q = query.trim()
+                            val list = (if (isTo) rankedTo.filter { it.id != accountId }
+                            else rankedAccounts.filter { kind != TxKind.TRANSFER || !it.type.hasStatement || it.id == accountId })
+                                .filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) || it.last4?.contains(q) == true }
+                            if (list.isEmpty()) Text("No account matches \"$q\".", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
                             val selected = if (isTo) toAccountId else accountId
                             LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(list, key = { it.id }) { a ->
                                     PickTile(on = selected == a.id, onClick = {
+                                        query = ""; searching = false; focus.clearFocus()
                                         if (isTo) {
                                             toAccountId = a.id
                                             error = null
@@ -519,8 +552,10 @@ fun EntryPage(
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
-                    Column(Modifier.padding(horizontal = 16.dp)) { form() }
-                    Spacer(Modifier.height(10.dp))
+                    if (!searching) {
+                        Column(Modifier.padding(horizontal = 16.dp)) { form() }
+                        Spacer(Modifier.height(10.dp))
+                    }
                     panel(Modifier.weight(1f).fillMaxWidth())
                 }
             }
@@ -674,6 +709,34 @@ private fun ShareLine(name: String, amount: Long, total: Long, editable: Boolean
 }
 
 /* ---------- the panel ---------- */
+
+/** The panel's title row as a search box, with Done on the right, so searching adds no row of its own. */
+@Composable
+private fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String, onFocus: (Boolean) -> Unit, onDone: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+        BasicTextField(
+            value = query, onValueChange = onQuery, singleLine = true,
+            textStyle = KassaType.body.copy(color = Kassa.colors.ink),
+            cursorBrush = SolidColor(Kassa.colors.ink),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Search),
+            modifier = Modifier.weight(1f).onFocusChanged { onFocus(it.isFocused) },
+            decorationBox = { inner ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).padding(horizontal = 10.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Outlined.Search, null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+                    Box(Modifier.weight(1f).padding(start = 8.dp)) {
+                        if (query.isEmpty()) Text(hint, style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        inner()
+                    }
+                    if (query.isNotEmpty()) Text("✕", style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.clip(CircleShape).clickable { onQuery("") }.padding(horizontal = 6.dp))
+                }
+            },
+        )
+        Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onDone).padding(horizontal = 8.dp, vertical = 6.dp))
+    }
+}
 
 @Composable
 internal fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {

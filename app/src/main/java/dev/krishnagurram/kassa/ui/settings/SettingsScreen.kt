@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,8 +68,12 @@ interface SettingsActions {
     fun setLock(on: Boolean)
     fun setTheme(v: String)
     fun setCurrency(code: String)
-    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String
-    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>>
+    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray?): String
+    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray?): Result<Pair<org.json.JSONObject, String>>
+    /** Saves a backup to the backup folder now. Returns the file's name; throws with a message to show. */
+    suspend fun backupNow(): String
+    /** Books or cancels the daily backup and reminder to match Settings. */
+    fun refreshDailyJobs()
     fun restore(json: org.json.JSONObject)
 }
 
@@ -176,6 +181,9 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     SectionHeader("Bills")
     NavRow("Recurring bills", "${ledger.assist.recurring.size}") { open(Page.Recurring) }
 
+    SectionHeader("Reminder")
+    DailyReminder(actions)
+
     SectionHeader("Security")
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -188,7 +196,13 @@ private fun Main(ledger: Ledger, actions: SettingsActions, values: SettingsValue
     HorizontalDivider(color = Kassa.colors.line)
 
     SectionHeader("Data")
-    NavRow("Backup and restore", "Encrypted file") { open(Page.Backup) }
+    val lastBackup by (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings.lastBackup.collectAsState()
+    NavRow("Backup and restore", when {
+        lastBackup.second != null -> "Needs attention"
+        lastBackup.first > 0 -> "Last " + java.time.Instant.ofEpochMilli(lastBackup.first).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM))
+        else -> "Not set up"
+    }) { open(Page.Backup) }
     NavRow("Import from Money Manager", "Replaces data") { actions.importAgain() }
     if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(Page.Splitwise) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -359,57 +373,204 @@ private fun SplitwiseCleanup(ledger: Ledger, actions: SettingsActions) {
     Gap(24)
 }
 
-/** Save everything to one encrypted file, or bring it back. The passphrase never leaves this screen. */
+/**
+ * Backups, the Money Manager way: no password, a file per backup in a folder you pick, every one kept. Automatic
+ * once a day at your time, or now. A copy with a password is there for sharing or storing somewhere you don't control.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun BackupPage(actions: SettingsActions) {
-    var pass by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = (context.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings
+    val auto by settings.autoBackup.collectAsState()
+    val folder by settings.backupFolder.collectAsState()
+    val minute by settings.backupMinute.collectAsState()
+    val last by settings.lastBackup.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf(false) }
+    var afterFolder by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // Restore: the picked file, its password if it has one, and what it holds once read.
+    var restoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var needsPass by remember { mutableStateOf(false) }
+    var restorePass by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf<Pair<org.json.JSONObject, String>?>(null) }
     var confirmRestore by remember { mutableStateOf(false) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val stamp = java.time.LocalDate.now().toString()
+    // A copy with a password.
+    var protectedOpen by remember { mutableStateOf(false) }
+    var pass by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+
+    val runNow: () -> Unit = {
+        busy = true; status = null
+        scope.launch {
+            status = runCatching { actions.backupNow() }.fold({ "Saved $it." }, { it.message ?: "The backup couldn't be saved." })
+            busy = false
+        }
+    }
+    val folderPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            settings.setBackupFolder(uri.toString())
+            actions.refreshDailyJobs()
+            afterFolder?.invoke()
+        }
+        afterFolder = null
+    }
     val saver = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null) scope.launch { status = actions.exportTo(uri, pass.toCharArray()) }
+        if (uri != null) scope.launch { status = actions.exportTo(uri, pass.toCharArray()); protectedOpen = false; pass = ""; confirm = "" }
+    }
+    fun read(uri: android.net.Uri, p: CharArray?) {
+        scope.launch {
+            actions.readBackup(uri, p)
+                .onSuccess { pending = it; status = null; needsPass = false; restorePass = "" }
+                .onFailure { e ->
+                    if (e is dev.krishnagurram.kassa.data.Backup.NeedsPassphrase) { needsPass = true; status = null }
+                    else status = e.message ?: "Couldn't open that file."
+                }
+        }
     }
     val opener = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            actions.readBackup(uri, pass.toCharArray())
-                .onSuccess { pending = it; status = null }
-                .onFailure { status = it.message ?: "Couldn't open that file." }
-        }
+        if (uri != null) { restoreUri = uri; pending = null; needsPass = false; read(uri, null) }
     }
-    Text("A backup holds everything in Kassa, encrypted with a passphrase you choose. Save it somewhere you control, like a USB drive or your computer. Kassa can't recover a lost passphrase.",
-        style = KassaType.body, color = Kassa.colors.ink2)
-    OutlinedTextField(pass, { pass = it }, singleLine = true, label = { Text("Passphrase") },
-        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
-    OutlinedTextField(confirm, { confirm = it }, singleLine = true, label = { Text("Repeat it to save a backup") },
-        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    fun time(m: Int) = java.time.LocalTime.of(m / 60, m % 60).format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT))
+    val folderName = folder?.let { android.net.Uri.parse(it).lastPathSegment?.substringAfterLast(':')?.ifBlank { null } ?: "Chosen folder" }
+
+    // Daily backup.
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Back up every day", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text("No password. Every backup is kept.", style = KassaType.small, color = Kassa.colors.ink2)
+        }
+        androidx.compose.material3.Switch(auto, { on ->
+            if (on && folder == null) {
+                afterFolder = { settings.setAutoBackup(true); actions.refreshDailyJobs() }
+                folderPicker.launch(null)
+            } else {
+                settings.setAutoBackup(on); actions.refreshDailyJobs()
+            }
+        }, colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
+    }
+    HorizontalDivider(color = Kassa.colors.line)
+    NavRow("Folder", folderName ?: "Choose") { folderPicker.launch(null) }
+    NavRow("Time", time(minute)) { pickTime = true }
+    val (lastAt, problem) = last
+    Text(
+        when {
+            problem != null -> problem
+            lastAt > 0 -> "Last backup " + java.time.Instant.ofEpochMilli(lastAt).atZone(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM, java.time.format.FormatStyle.SHORT))
+            else -> "No backup yet"
+        },
+        style = KassaType.small, color = if (problem != null) Kassa.colors.attention else Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp),
+    )
     Gap(12)
-    dev.krishnagurram.kassa.ui.importer.PrimaryButton("Save encrypted backup") {
-        status = when {
-            pass.length < 8 -> "Use at least 8 characters."
-            pass != confirm -> "The two passphrases don't match."
-            else -> { saver.launch("kassa-backup-$stamp.kassa"); null }
-        }
+    dev.krishnagurram.kassa.ui.importer.PrimaryButton(if (busy) "Backing up..." else "Back up now") {
+        if (busy) return@PrimaryButton
+        if (folder == null) { afterFolder = runNow; folderPicker.launch(null) } else runNow()
     }
-    Gap(8)
-    SecondaryButton("Restore from a backup", {
-        if (pass.isEmpty()) status = "Enter the backup's passphrase first." else opener.launch(arrayOf("*/*"))
-    })
-    status?.let { Text(it, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp)) }
+
+    // Restore.
+    SectionHeader("Restore")
+    SecondaryButton("Restore from a backup", { opener.launch(arrayOf("*/*")) })
+    if (needsPass) {
+        OutlinedTextField(restorePass, { restorePass = it }, singleLine = true, label = { Text("This backup's password") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
+        Gap(8)
+        dev.krishnagurram.kassa.ui.importer.PrimaryButton("Open backup") { restoreUri?.let { read(it, restorePass.toCharArray()) } }
+    }
     pending?.let { (json, summary) ->
-        Gap(16)
+        Gap(14)
         Text(summary, style = KassaType.bodyStrong, color = Kassa.colors.ink)
         Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
         Gap(8)
         dev.krishnagurram.kassa.ui.importer.PrimaryButton("Replace with this backup") { confirmRestore = true }
+        TextButton(onClick = { pending = null }) { Text("Cancel", color = Kassa.colors.ink2) }
         if (confirmRestore) dev.krishnagurram.kassa.ui.common.ConfirmDialog(
             title = "Replace everything in Kassa?",
             body = "All accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.",
-            confirm = "Replace", onConfirm = { actions.restore(json); pending = null; status = "Restoring..." }, onDismiss = { confirmRestore = false },
+            confirm = "Replace", onConfirm = { actions.restore(json); pending = null; confirmRestore = false; status = "Restoring..." }, onDismiss = { confirmRestore = false },
         )
-        TextButton(onClick = { pending = null }) { Text("Cancel", color = Kassa.colors.ink2) }
     }
+
+    // A copy with a password, for sharing or storing somewhere you don't control.
+    SectionHeader("Copy with a password")
+    if (!protectedOpen) TextButton(onClick = { protectedOpen = true }) { Text("Save a copy with a password", color = Kassa.colors.ink) }
+    else {
+        Text("Anyone opening this copy needs the password. Kassa can't recover a lost one.", style = KassaType.small, color = Kassa.colors.ink2)
+        OutlinedTextField(pass, { pass = it }, singleLine = true, label = { Text("Password") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        OutlinedTextField(confirm, { confirm = it }, singleLine = true, label = { Text("Repeat it") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        Gap(10)
+        dev.krishnagurram.kassa.ui.importer.PrimaryButton("Save copy") {
+            status = when {
+                pass.length < 8 -> "Use at least 8 characters."
+                pass != confirm -> "The two passwords don't match."
+                else -> { saver.launch("Kassa_${stamp}_protected.kassa"); null }
+            }
+        }
+    }
+    status?.let { Text(it, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp)) }
     Gap(24)
+
+    if (pickTime) TimeDialog(minute, onDismiss = { pickTime = false }) { m -> settings.setBackupMinute(m); actions.refreshDailyJobs(); pickTime = false }
+}
+
+/**
+ * One notification a day at your time, asking whether today's transactions are in. Android asks for permission to
+ * notify only when this is turned on; turning it off asks nothing.
+ */
+@Composable
+private fun DailyReminder(actions: SettingsActions) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = (context.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings
+    val on by settings.reminder.collectAsState()
+    val minute by settings.reminderMinute.collectAsState()
+    var pickTime by remember { mutableStateOf(false) }
+    var denied by remember { mutableStateOf(false) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        denied = !granted
+        if (granted) { settings.setReminder(true); actions.refreshDailyJobs() }
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Daily reminder", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text("A nudge to record the day's transactions", style = KassaType.small, color = Kassa.colors.ink2)
+        }
+        androidx.compose.material3.Switch(on, { want ->
+            if (!want) {
+                settings.setReminder(false); actions.refreshDailyJobs()
+            } else if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                denied = false; settings.setReminder(true); actions.refreshDailyJobs()
+            }
+        }, colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
+    }
+    HorizontalDivider(color = Kassa.colors.line)
+    if (on) NavRow("Time", java.time.LocalTime.of(minute / 60, minute % 60).format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT))) { pickTime = true }
+    if (denied) Text("Notifications are off for Kassa. Allow them in the phone's Settings > Apps > Kassa > Notifications, then turn this on again.",
+        style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp))
+    if (pickTime) TimeDialog(minute, onDismiss = { pickTime = false }) { m -> settings.setReminderMinute(m); actions.refreshDailyJobs(); pickTime = false }
+}
+
+/** A clock to pick a time of day, in the phone's 12 or 24 hour style. Returns minutes after midnight. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun TimeDialog(minute: Int, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val state = androidx.compose.material3.rememberTimePickerState(minute / 60, minute % 60, android.text.format.DateFormat.is24HourFormat(context))
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Kassa.colors.raised,
+        confirmButton = { TextButton(onClick = { onPick(state.hour * 60 + state.minute) }) { Text("Set", color = Kassa.colors.ink) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Kassa.colors.ink2) } },
+        text = { androidx.compose.material3.TimePicker(state) },
+    )
 }

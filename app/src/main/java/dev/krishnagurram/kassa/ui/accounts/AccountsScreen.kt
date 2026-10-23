@@ -10,6 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.unit.sp
 import dev.krishnagurram.kassa.ui.common.accountIcon
 import androidx.compose.foundation.clickable
@@ -93,23 +97,34 @@ fun AccountsScreen(
     val open = openKeys.split(',').filter { it.isNotEmpty() }.toSet()
     val toggle: (String) -> Unit = { k -> openKeys = (if (k in open) open - k else open + k).joinToString(",") }
 
-    // Everything on this tab reads A to Z.
+    // One order for every section, chosen in the header: name (the default), balance, or due date for cards.
+    val settings = (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.krishnagurram.kassa.KassaApplication).settings
+    val sort by settings.accountSort.collectAsState()
+    val desc by settings.accountSortDesc.collectAsState()
     val byName = compareBy<Account, String>(String.CASE_INSENSITIVE_ORDER) { it.name }
     val active = state.accounts.filter { !it.archived }.sortedWith(byName)
     val personBalances = ledger.personBalances()
     val receivable = personBalances.values.filter { it > 0 }.sum()
     val payable = -personBalances.values.filter { it < 0 }.sum()
     fun valueOf(a: Account): Long = (state.balances[a.id] ?: 0) + if (a.type == AccountType.INVESTMENT) ledger.holdingsValue(a.id) else 0L
+    fun <T> List<T>.ordered(name: (T) -> String, size: (T) -> Long): List<T> {
+        val base = if (sort == "BALANCE") sortedWith(compareByDescending<T> { Math.abs(size(it)) }.thenBy(String.CASE_INSENSITIVE_ORDER) { name(it) })
+        else sortedWith(compareBy<T, String>(String.CASE_INSENSITIVE_ORDER) { name(it) })
+        return if (desc) base.reversed() else base
+    }
     val assets = active.filter { !it.type.isDebt }.sumOf { valueOf(it) } + receivable
     val liabilities = -active.filter { it.type.isDebt }.sumOf { state.balances[it.id] ?: 0 } + payable
 
-    val cards = ledger.cards().sortedWith(compareBy<dev.krishnagurram.kassa.ui.CardSnapshotFor, String>(String.CASE_INSENSITIVE_ORDER) { it.account.name })
+    val cards = if (sort == "DUE") dev.krishnagurram.kassa.ui.cards.cardsByDueDate(ledger).let { if (desc) it.reversed() else it }
+        else ledger.cards().ordered({ it.account.name }, { it.snapshot.totalBalance })
     val cardIds = cards.map { it.account.id }.toSet()
     val unsetCards = active.filter { it.type == AccountType.CREDIT_CARD && it.id !in cardIds }
-    val banks = active.filter { it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID) }
-    val invest = active.filter { it.type == AccountType.INVESTMENT || it.type == AccountType.OTHER_ASSET }
-    val loans = active.filter { it.type == AccountType.LOAN || it.type == AccountType.OTHER_DEBT }
-    val people = ledger.people.people.filter { !it.archived }.sortedWith(compareBy<Person, String>(String.CASE_INSENSITIVE_ORDER) { it.name })
+    // Due date only orders cards; the other sections keep the A to Z order then.
+    val sortBy: (Account) -> Long = { if (sort == "BALANCE") valueOf(it) else 0L }
+    val banks = active.filter { it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID) }.ordered({ it.name }, sortBy)
+    val invest = active.filter { it.type == AccountType.INVESTMENT || it.type == AccountType.OTHER_ASSET }.ordered({ it.name }, sortBy)
+    val loans = active.filter { it.type == AccountType.LOAN || it.type == AccountType.OTHER_DEBT }.ordered({ it.name }, sortBy)
+    val people = ledger.people.people.filter { !it.archived }.ordered({ it.name }, { if (sort == "BALANCE") personBalances[it.id] ?: 0L else 0L })
     val archived = state.accounts.filter { it.archived }.sortedWith(byName)
     val archivedPeople = ledger.people.people.filter { it.archived }
 
@@ -131,9 +146,11 @@ fun AccountsScreen(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            SortHeader(sort, desc, onSort = settings::setAccountSort, onFlip = { settings.setAccountSortDesc(!desc) })
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             TextButton(onClick = { openKeys = if (allOpen) "" else allKeys.joinToString(",") }) {
-                Text(if (allOpen) "Collapse all" else "Expand all", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Text(if (allOpen) "Collapse all" else "Expand all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
     }
@@ -251,6 +268,49 @@ private fun EditPersonSheet(p: Person, balance: Long, ledger: Ledger, onDismiss:
         body = if (balance != 0L) "${Money.format(Math.abs(balance))} is still open between you. ${p.name} leaves the people list and the pickers; the history and balance stay." else "${p.name} leaves the people list and the pickers. The history stays.",
         confirm = "Archive", onConfirm = { onSave(p.copy(archived = true)) }, onDismiss = { confirmArchive = false },
     )
+}
+
+/**
+ * The list's order, as Google Files shows it: the sort's name opens a menu, and a separate round button flips the
+ * direction. The two have their own 48dp targets with space between, so one can't be hit for the other.
+ */
+@Composable
+private fun SortHeader(sort: String, desc: Boolean, onSort: (String) -> Unit, onFlip: () -> Unit) {
+    val options = listOf("NAME" to "Name", "BALANCE" to "Balance", "DUE" to "Due date")
+    var menu by remember { mutableStateOf(false) }
+    val label = options.firstOrNull { it.first == sort }?.second ?: "Name"
+    val direction = when (sort) {
+        "BALANCE" -> if (desc) "Smallest first" else "Largest first"
+        "DUE" -> if (desc) "Latest due first" else "Soonest due first"
+        else -> if (desc) "Z to A" else "A to Z"
+    }
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.Box {
+            TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            }
+            androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
+                options.forEach { (k, l) ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(l, style = KassaType.body, color = Kassa.colors.ink) },
+                        leadingIcon = {
+                            androidx.compose.foundation.layout.Box(Modifier.size(24.dp)) {
+                                if (k == sort) androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Check, null, tint = Kassa.colors.ink)
+                            }
+                        },
+                        onClick = { menu = false; onSort(k) },
+                    )
+                }
+            }
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
+        androidx.compose.material3.IconButton(onClick = onFlip, modifier = Modifier.size(48.dp)) {
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Outlined.ArrowUpward, direction, tint = Kassa.colors.ink,
+                modifier = Modifier.size(20.dp).rotate(if (desc) 180f else 0f),
+            )
+        }
+    }
 }
 
 /** A new person: their name and, if there's already money between you, who owes whom. */

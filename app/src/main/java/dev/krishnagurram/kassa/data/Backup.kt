@@ -31,21 +31,26 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Kassa's own backup: everything in one file, encrypted with a passphrase you choose. The database file itself
- * can't be copied to another phone (its key lives in this phone's Keystore), so this is how data moves or survives
- * a reset. Format: "KASSA1", 16-byte salt, 12-byte IV, then AES-256-GCM over gzipped JSON. The key comes from
- * PBKDF2-HMAC-SHA256 with 210,000 iterations.
+ * Kassa's own backup: everything in one file. The database file itself can't be copied to another phone (its key
+ * lives in this phone's Keystore), so this is how data moves or survives a reset.
+ *
+ * Like a Money Manager .mmbak, a backup has no password by default: "KASSA0" then gzipped JSON. Anyone with the file
+ * can read it. Protected backups are "KASSA1", a 16-byte salt, a 12-byte IV, then AES-256-GCM over the same gzipped
+ * JSON, keyed by PBKDF2-HMAC-SHA256 (210,000 iterations) from the password.
  */
 class Backup(private val context: Context, private val db: KassaDatabase, private val settings: Settings) {
 
-    class WrongPassphrase : Exception("That passphrase doesn't open this backup.")
+    class WrongPassphrase : Exception("That password doesn't open this backup.")
+    class NeedsPassphrase : Exception("This backup has a password. Enter it, then pick the file again.")
     class NotABackup : Exception("This file isn't a Kassa backup.")
 
-    suspend fun write(out: OutputStream, passphrase: CharArray) {
+    /** Writes a backup; with no [passphrase] (null or empty) it has no password. */
+    suspend fun write(out: OutputStream, passphrase: CharArray?) {
         val json = JSONObject()
             .put("version", 1)
             .put("createdAt", System.currentTimeMillis())
             .put("monthStartDay", settings.monthStartDay.value)
+            .put("currency", settings.currency.value)
             .put("groups", arr(db.groups().all()) { o, e -> o.put("id", e.id).put("name", e.name).put("sortOrder", e.sortOrder) })
             .put("accounts", arr(db.accounts().all()) { o, e ->
                 o.put("id", e.id).put("name", e.name).put("type", e.type).putOpt("groupId", e.groupId).put("openingBalance", e.openingBalance)
@@ -79,24 +84,33 @@ class Backup(private val context: Context, private val db: KassaDatabase, privat
             })
 
         val plain = ByteArrayOutputStream().also { bos -> GZIPOutputStream(bos).use { it.write(json.toString().toByteArray()) } }.toByteArray()
+        if (passphrase == null || passphrase.isEmpty()) { out.write(PLAIN); out.write(plain); return }
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
         val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key(passphrase, salt), GCMParameterSpec(128, iv)) }
         out.write(MAGIC); out.write(salt); out.write(iv); out.write(cipher.doFinal(plain))
     }
 
-    /** Reads and decrypts a backup without changing anything. Returns a short summary for the confirm step. */
-    fun read(input: InputStream, passphrase: CharArray): Pair<JSONObject, String> {
+    /** Reads a backup without changing anything, decrypting it if it has a password. Returns a summary for the confirm step. */
+    fun read(input: InputStream, passphrase: CharArray?): Pair<JSONObject, String> {
         val bytes = input.readBytes()
-        if (bytes.size < MAGIC.size + 28 || !bytes.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) throw NotABackup()
-        val salt = bytes.copyOfRange(MAGIC.size, MAGIC.size + 16)
-        val iv = bytes.copyOfRange(MAGIC.size + 16, MAGIC.size + 28)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(passphrase, salt), GCMParameterSpec(128, iv)) }
-        val plain = try { cipher.doFinal(bytes, MAGIC.size + 28, bytes.size - MAGIC.size - 28) } catch (e: AEADBadTagException) { throw WrongPassphrase() }
-        val json = JSONObject(GZIPInputStream(ByteArrayInputStream(plain)).readBytes().decodeToString())
+        val head = if (bytes.size >= MAGIC.size) bytes.copyOfRange(0, MAGIC.size) else ByteArray(0)
+        val plain = when {
+            head.contentEquals(PLAIN) -> bytes.copyOfRange(PLAIN.size, bytes.size)
+            head.contentEquals(MAGIC) && bytes.size >= MAGIC.size + 28 -> decrypt(bytes, passphrase?.takeIf { it.isNotEmpty() } ?: throw NeedsPassphrase())
+            else -> throw NotABackup()
+        }
+        val json = try { JSONObject(GZIPInputStream(ByteArrayInputStream(plain)).readBytes().decodeToString()) } catch (e: Exception) { throw NotABackup() }
         val created = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(json.optLong("createdAt")))
         val summary = "From $created: ${json.getJSONArray("transactions").length()} entries, ${json.getJSONArray("accounts").length()} accounts, ${json.getJSONArray("categories").length()} categories."
         return json to summary
+    }
+
+    private fun decrypt(bytes: ByteArray, passphrase: CharArray): ByteArray {
+        val salt = bytes.copyOfRange(MAGIC.size, MAGIC.size + 16)
+        val iv = bytes.copyOfRange(MAGIC.size + 16, MAGIC.size + 28)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(passphrase, salt), GCMParameterSpec(128, iv)) }
+        return try { cipher.doFinal(bytes, MAGIC.size + 28, bytes.size - MAGIC.size - 28) } catch (e: AEADBadTagException) { throw WrongPassphrase() }
     }
 
     /** Replaces everything with the backup's contents, in one database transaction. */
@@ -135,6 +149,7 @@ class Backup(private val context: Context, private val db: KassaDatabase, privat
             icons.keys().forEach { name -> java.io.File(dir, name).writeBytes(Base64.decode(icons.getString(name), Base64.NO_WRAP)) }
         }
         settings.setMonthStartDay(json.optInt("monthStartDay", 1))
+        json.optString("currency").takeIf { c -> dev.krishnagurram.kassa.domain.Currencies.all.any { it.code == c } }?.let { settings.setCurrency(it) }
     }
 
     private fun key(passphrase: CharArray, salt: ByteArray): SecretKeySpec {
@@ -155,5 +170,6 @@ class Backup(private val context: Context, private val db: KassaDatabase, privat
 
     private companion object {
         val MAGIC = "KASSA1".toByteArray()
+        val PLAIN = "KASSA0".toByteArray()
     }
 }

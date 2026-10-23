@@ -28,6 +28,8 @@ class KassaApplication : Application() {
         }
         // Reading the settings sets the currency before anything formats an amount, including bank alerts.
         settings.currency
+        // Keep the daily backup and reminder booked; cheap, and fixes anything a restart or update dropped.
+        runCatching { dev.krishnagurram.kassa.data.jobs.DailyJobs.refresh(this) }
     }
 
     fun crashFile(): java.io.File = java.io.File(filesDir, "last-crash.txt")

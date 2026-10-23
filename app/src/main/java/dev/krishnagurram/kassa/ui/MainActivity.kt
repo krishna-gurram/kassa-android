@@ -73,11 +73,14 @@ import kotlinx.coroutines.launch
 
 class MainActivity : androidx.fragment.app.FragmentActivity() {
     private val locked = mutableStateOf(false)
+    /** Set when the daily reminder is tapped: open Add once the app is showing. */
+    private val openAdd = mutableStateOf(false)
     private var hiddenAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (intent?.action == dev.krishnagurram.kassa.data.jobs.DailyJobs.ACTION_ADD) openAdd.value = true
         val app = application as KassaApplication
         if (app.settings.lockEnabled.value) locked.value = true
         setContent {
@@ -99,11 +102,18 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                     LockScreen(onUnlock = ::unlock)
                     LaunchedEffect(Unit) { unlock() }
                 } else {
-                    KassaRoot(entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true })
+                    KassaRoot(entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
+                        openAdd = openAdd.value, onAddOpened = { openAdd.value = false })
                 }
             }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == dev.krishnagurram.kassa.data.jobs.DailyJobs.ACTION_ADD) openAdd.value = true
     }
 
     override fun onStop() {
@@ -150,8 +160,15 @@ private fun LockScreen(onUnlock: () -> Unit) {
 }
 
 @Composable
-private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit) {
+private fun KassaRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, openAdd: Boolean = false, onAddOpened: () -> Unit = {}) {
     val nav: NavViewModel = viewModel()
+    // From the daily reminder: straight to a new entry, once there's data to add to.
+    LaunchedEffect(openAdd, entryCount) {
+        if (openAdd && (entryCount > 0 || startedFresh)) {
+            if (nav.top !is Page.Entry) nav.push(Page.Entry(EntryStart()))
+            onAddOpened()
+        }
+    }
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
     var allocating by remember { mutableStateOf<dev.krishnagurram.kassa.data.db.PendingEntity?>(null) }
     var paying by remember { mutableStateOf<Long?>(null) }
@@ -537,7 +554,9 @@ private fun settingsActions(vm: LedgerViewModel, context: android.content.Contex
     override fun setLock(on: Boolean) = vm.setLock(on)
     override fun setTheme(v: String) = vm.setTheme(v)
     override fun setCurrency(code: String) = vm.setCurrency(code)
-    override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = vm.exportTo(uri, passphrase)
-    override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray) = vm.readBackup(uri, passphrase)
+    override suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray?): String = vm.exportTo(uri, passphrase)
+    override suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray?) = vm.readBackup(uri, passphrase)
+    override suspend fun backupNow(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dev.krishnagurram.kassa.data.jobs.DailyJobs.backupNow(context) }
+    override fun refreshDailyJobs() = dev.krishnagurram.kassa.data.jobs.DailyJobs.refresh(context)
     override fun restore(json: org.json.JSONObject) { vm.restore(json) }
 }

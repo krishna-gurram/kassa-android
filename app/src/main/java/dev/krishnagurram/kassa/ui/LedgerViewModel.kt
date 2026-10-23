@@ -250,14 +250,14 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val backup = (app as KassaApplication).backup
 
-    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun exportTo(uri: android.net.Uri, passphrase: CharArray?): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         runCatching {
             getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { backup.write(it, passphrase) }
-            "Backup saved. Keep the passphrase somewhere safe; without it the file can't be opened."
+            if (passphrase == null || passphrase.isEmpty()) "Backup saved." else "Copy saved. Keep the password somewhere safe; without it the file can't be opened."
         }.getOrElse { "Couldn't save the backup: ${it.message}" }
     }
 
-    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray): Result<Pair<org.json.JSONObject, String>> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun readBackup(uri: android.net.Uri, passphrase: CharArray?): Result<Pair<org.json.JSONObject, String>> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         runCatching { getApplication<Application>().contentResolver.openInputStream(uri)!!.use { backup.read(it, passphrase) } }
     }
 
