@@ -198,7 +198,7 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
                 }
                 PatternTile("Repeating", Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
                     subColor = if (changed > 0) Kassa.colors.attention else null, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.REPEATING) }) {
-                    RepeatLines(repeating.take(4).map { it.category?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
+                    RepeatLines(repeating.take(4).map { r -> Spending.topOf(r.categoryId, ledger.categoryById)?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
                 }
                 PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.WEEKDAYS) }) {
