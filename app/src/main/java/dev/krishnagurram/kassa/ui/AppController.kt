@@ -15,7 +15,7 @@ import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryKind
 import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Recurring
-import dev.krishnagurram.kassa.domain.RecurringRules
+import dev.krishnagurram.kassa.domain.Repeat
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.entry.EntryPreset
@@ -23,7 +23,8 @@ import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.insights.InsightActions
 import dev.krishnagurram.kassa.ui.insights.InsightPage
 import dev.krishnagurram.kassa.ui.settings.SettingsActions
-import dev.krishnagurram.kassa.ui.today.NeedsYouActions
+import dev.krishnagurram.kassa.ui.today.Notice
+import dev.krishnagurram.kassa.ui.today.NoticeActions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -105,21 +106,25 @@ class AppController(
     val editFromList: (Transaction) -> Unit = { openEntry(it.id, fromPage = false) }
     val editFromPage: (Transaction) -> Unit = { openEntry(it.id, fromPage = true) }
 
-    /** Overview's review list: bills due today and transfers to explain. */
-    val needs = object : NeedsYouActions {
-        override fun approve(r: Recurring, amount: Long) { vm.approveBill(r, amount) }
-        override fun skip(r: Recurring) { vm.skipBill(r) }
-        override fun allocate(t: InvestmentTransfer) { allocating = t }
-        override fun dismiss(t: InvestmentTransfer) { vm.clearTransfer(t.id) }
-        override fun editRecurring(r: Recurring, amount: Long) {
+    /** The Notifications page. Each choice is the user's; nothing posts by itself. */
+    val notices = object : NoticeActions {
+        override fun addBill(n: Notice.Bill, amount: Long) { vm.approveBill(n.bill, amount, n.due) }
+        override fun editBill(n: Notice.Bill, amount: Long) {
             val l = vm.ledger.value ?: return
-            val due = RecurringRules.dueDate(r, YearMonth.from(l.today))
+            val r = n.bill
             val draft = EntryDraft(
                 id = null, kind = TxKind.EXPENSE, amount = amount, accountId = r.accountId, toAccountId = null, categoryId = r.categoryId,
-                personId = null, epochMillis = due.atTime(9, 0).atZone(l.zone).toInstant().toEpochMilli(), note = r.name,
+                personId = null, epochMillis = minOf(n.due, l.today).atTime(9, 0).atZone(l.zone).toInstant().toEpochMilli(), note = r.name,
             )
-            openFromList(Page.Entry(EntryStart(prefill = draft, afterSave = { vm.billHandled(r) })))
+            openFromList(Page.Entry(EntryStart(prefill = draft, afterSave = { vm.billHandled(r, n.due) })))
         }
+        override fun payCard(accountId: Long) { paying = accountId }
+        override fun allocate(t: InvestmentTransfer) { allocating = t }
+        override fun trackAsBill(r: Repeat) {
+            // The account is left for the user to pick: nothing guesses an account.
+            push(Page.Bill(Recurring(name = r.name, categoryId = r.categoryId ?: 0, accountId = 0, dayOfMonth = r.dayOfMonth, fixedAmount = r.typical)))
+        }
+        override fun clear(notices: List<Notice>) { vm.clear(notices) }
     }
 
     val insights = object : InsightActions {

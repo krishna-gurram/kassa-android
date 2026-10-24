@@ -33,6 +33,24 @@ class RecurringTest {
     }
 
     @Test
+    fun asksFiveDaysAheadAndKeepsAskingWhenOverdue() {
+        val oct = LocalDate.parse("2026-10-20")
+        assertNull(RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-14"), zone))
+        assertEquals(oct, RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-15"), zone))
+        assertEquals(oct, RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-30"), zone))
+        // October handled: November's shows from the 15th.
+        val handled = elec.copy(handledMonth = 202610)
+        assertNull(RecurringRules.nextDue(handled, history, LocalDate.parse("2026-10-30"), zone))
+        assertEquals(LocalDate.parse("2026-11-20"), RecurringRules.nextDue(handled, history, LocalDate.parse("2026-11-16"), zone))
+        assertEquals(LocalDate.parse("2026-11-03"), RecurringRules.nextDue(elec.copy(dayOfMonth = 3, handledMonth = 202610), history, LocalDate.parse("2026-10-30"), zone))
+    }
+
+    @Test
+    fun billNamesMatchNotesThatAddTheMonth() {
+        assertTrue(RecurringRules.matches(elec, bill("2026-10-20", 1).copy(note = "Electric bill October 2026")))
+    }
+
+    @Test
     fun shortMonthsClampTheDay() {
         assertEquals(LocalDate.parse("2026-02-28"), RecurringRules.dueDate(elec.copy(dayOfMonth = 31), java.time.YearMonth.of(2026, 2)))
     }

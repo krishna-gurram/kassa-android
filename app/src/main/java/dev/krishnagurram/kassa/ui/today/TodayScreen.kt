@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.Money
@@ -72,8 +73,6 @@ fun weekPace(ledger: Ledger): WeekPace.Result =
     WeekPace.compute(ledger.recent, ledger.today, ledger.firstDayOfWeek, ledger.zone)
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
-fun pendingCount(ledger: Ledger): Int = ledger.transfers.size + ledger.dueBills().size
-
 /** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
 data class Upcoming(val date: java.time.LocalDate, val name: String, val kind: String, val amount: Long?, val accountId: Long?)
 
@@ -102,7 +101,7 @@ fun TodayScreen(
     onSpending: (month: Boolean, income: Boolean) -> Unit,
     onOpenCategory: (Long) -> Unit,
     onUpcoming: () -> Unit,
-    onReview: () -> Unit,
+    onNotifications: () -> Unit,
     onAccounts: () -> Unit,
     onCards: () -> Unit,
 ) {
@@ -114,23 +113,8 @@ fun TodayScreen(
         // The unfolded inner screen is both wide and tall: a list of categories fills the height that
         // tiles would leave empty. The cover screen in landscape is wide but short, so it keeps tiles.
         val roomy = wide && maxHeight >= 560.dp
-        val pending = pendingCount(ledger)
-        val banner: @Composable () -> Unit = {
-            if (pending > 0) Row(
-                Modifier.fillMaxWidth().padding(bottom = 14.dp).clip(RoundedCornerShape(12.dp))
-                    .background(Kassa.colors.attention.copy(alpha = 0.10f)).clickable(onClick = onReview)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.attention))
-                Text(
-                    if (pending == 1) "1 transaction to confirm" else "$pending transactions to confirm",
-                    style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink,
-                    modifier = Modifier.weight(1f).padding(start = 10.dp),
-                )
-                androidx.compose.material3.Icon(dev.krishnagurram.kassa.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
-            }
-        }
+        val waiting = remember(ledger) { notices(ledger) }
+        val banner: @Composable () -> Unit = { NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 14.dp)) }
         // Tall screens fit with no scrolling: Upcoming lists as many as there's room for.
         val fit = maxHeight >= dev.krishnagurram.kassa.ui.common.FIT_MIN_HEIGHT
         val spending: @Composable () -> Unit = {
@@ -352,17 +336,6 @@ fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> U
         Gap(12)
         if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2)
         items.forEach { UpcomingRow(it, ledger, onOpenCard) }
-        Gap(24)
-    }
-}
-
-/** Everything waiting to be confirmed, on its own page. */
-@Composable
-fun ReviewPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?, needs: NeedsYouActions) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop("To confirm", onBack)
-        if (pendingCount(ledger) == 0) Text("Nothing to confirm.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
-        NeedsYou(ledger, needs)
         Gap(24)
     }
 }

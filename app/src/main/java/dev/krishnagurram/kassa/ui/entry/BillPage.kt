@@ -84,19 +84,16 @@ fun BillPage(
     val existing = bill?.takeIf { it.id != 0L }
     var amount by remember { mutableStateOf(bill?.fixedAmount?.let { centsToInput(it) } ?: "") }
     var categoryId by remember { mutableStateOf(bill?.categoryId?.takeIf { ledger.categoryById[it] != null }) }
-    var accountId by remember {
-        mutableStateOf(
-            bill?.accountId?.takeIf { ledger.accountById[it] != null }
-                ?: ledger.accounts.accounts.firstOrNull { !it.archived && it.type == AccountType.CHECKING }?.id
-        )
-    }
+    // Nothing guesses an account: a new bill starts with none.
+    var accountId by remember { mutableStateOf(bill?.accountId?.takeIf { ledger.accountById[it] != null }) }
     var day by remember { mutableStateOf(bill?.dayOfMonth ?: minOf(ledger.today.dayOfMonth, 28)) }
     var name by remember { mutableStateOf(bill?.name ?: "") }
     var active by remember { mutableStateOf(bill?.active ?: true) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
-    var field by remember { mutableStateOf(if (existing == null) BillField.NAME else null) }
+    // A new bill starts on its name, unless it came filled in (from a suggestion), when it starts on what's missing.
+    var field by remember { mutableStateOf(if (existing == null && bill?.name.isNullOrBlank()) BillField.NAME else null) }
     val initial = remember { listOf(amount, categoryId, accountId, day, name, active) }
     val dirty = listOf(amount, categoryId, accountId, day, name, active) != initial
     val leave: () -> Unit = { if (dirty) confirmDiscard = true else onBack() }
@@ -109,8 +106,8 @@ fun BillPage(
     val cents = Money.parseCents(amount) ?: 0L
     val cat = categoryId?.let { ledger.categoryById[it] }
     val topCat = cat?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-    val ranked = remember(ledger.recent.size) { rankTop(ledger, CategoryKind.EXPENSE) }
-    val rankedAccounts = remember(ledger.recent.size, ledger.accounts.accounts.size) { rankAccounts(ledger, TxKind.EXPENSE, to = false) }
+    val categoryChoices = remember(ledger.recent.size) { topCategories(ledger, CategoryKind.EXPENSE) }
+    val accountChoices = remember(ledger.recent.size, ledger.accounts.accounts.size) { openAccounts(ledger) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val estimate = if (cents > 0 || name.isBlank() || categoryId == null) null else RecurringRules.estimate(
         Recurring(name = name.trim(), categoryId = categoryId!!, accountId = accountId ?: 0, dayOfMonth = day, fixedAmount = null),
@@ -196,10 +193,10 @@ fun BillPage(
                         BillField.CATEGORY -> {
                             PanelTitle("Category") { field = null }
                             LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(ranked, key = { it.id }) { c ->
+                                items(categoryChoices, key = { it.id }) { c ->
                                     PickTile(on = topCat?.id == c.id, minHeight = 66.dp, onClick = {
                                         categoryId = c.id; error = null
-                                        if (subsRanked(ledger, c).isNotEmpty()) field = BillField.SUB else advance()
+                                        if (subcategories(ledger, c).isNotEmpty()) field = BillField.SUB else advance()
                                     }) {
                                         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                                             CategoryIconView(c.icon, Color(c.color), 34, fallback = c.name.take(1))
@@ -219,7 +216,7 @@ fun BillPage(
                                             Text("No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
                                         }
                                     }
-                                    items(subsRanked(ledger, t), key = { it.id }) { s: Category ->
+                                    items(subcategories(ledger, t), key = { it.id }) { s: Category ->
                                         PickTile(on = cat?.id == s.id, onClick = { categoryId = s.id; advance() }) {
                                             Text(s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                         }
@@ -230,7 +227,7 @@ fun BillPage(
                         BillField.ACCOUNT -> {
                             PanelTitle("Paid with") { field = null }
                             LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(rankedAccounts, key = { it.id }) { a ->
+                                items(accountChoices, key = { it.id }) { a ->
                                     PickTile(on = accountId == a.id, onClick = { accountId = a.id; advance() }) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(a.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))

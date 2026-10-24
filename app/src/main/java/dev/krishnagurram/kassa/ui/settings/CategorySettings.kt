@@ -10,6 +10,7 @@ import dev.krishnagurram.kassa.domain.Budgets
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.CategoryKind
 import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.domain.Names
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.categories.CategoryEdit
 import dev.krishnagurram.kassa.ui.categories.IconCatalog
@@ -21,11 +22,11 @@ import dev.krishnagurram.kassa.ui.importer.SecondaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 
-/** Expense or income categories with their budgets; archived ones in their own group at the end. */
+/** Expense or income categories A to Z with their budgets; archived ones in their own group at the end. */
 @Composable
 internal fun CategoryList(ledger: Ledger, kind: CategoryKind, open: (Category) -> Unit) {
     val month = ledger.period.yearMonth
-    val tops = ledger.categories.filter { it.kind == kind && it.parentId == null }.sortedBy { it.sortOrder }
+    val tops = ledger.categories.filter { it.kind == kind && it.parentId == null }.sortedWith(Names.order { it.name })
     val (active, archived) = tops.partition { !it.hidden }
     if (kind == CategoryKind.EXPENSE) {
         val total = active.sumOf { Budgets.amountFor(it.id, month, ledger.budgets) ?: 0 }

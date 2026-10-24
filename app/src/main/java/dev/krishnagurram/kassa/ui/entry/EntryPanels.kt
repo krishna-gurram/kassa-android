@@ -104,7 +104,7 @@ internal fun ColumnScope.AmountPanel(s: EntryState, toCard: CardSnapshot?, saveL
 
 /** Categories most used first; typing searches categories and subcategories together. */
 @Composable
-internal fun ColumnScope.CategoryPanel(s: EntryState, ledger: Ledger, ranked: List<Category>, wide: Boolean) {
+internal fun ColumnScope.CategoryPanel(s: EntryState, ledger: Ledger, categoryChoices: List<Category>, wide: Boolean) {
     val focus = LocalFocusManager.current
     val kind = if (s.kind == TxKind.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
     val picked = s.categoryId?.let { ledger.categoryById[it] }
@@ -112,14 +112,14 @@ internal fun ColumnScope.CategoryPanel(s: EntryState, ledger: Ledger, ranked: Li
     // A top-level category with subcategories opens them; anything else moves on.
     val choose: (Category) -> Unit = { c ->
         s.pickCategory(c.id)
-        if (c.parentId == null && subsRanked(ledger, c).isNotEmpty()) s.field = Field.SUB else s.advance()
+        if (c.parentId == null && subcategories(ledger, c).isNotEmpty()) s.field = Field.SUB else s.advance()
     }
 
     PanelSearch(s.query, { s.query = it }, "Search categories", onFocus = { s.searching = it }) { s.field = null }
     val q = s.query.trim()
     if (q.isEmpty()) {
         LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(ranked, key = { it.id }) { c ->
+            items(categoryChoices, key = { it.id }) { c ->
                 PickTile(on = pickedTop?.id == c.id, minHeight = 66.dp, onClick = { choose(c) }) {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         CategoryIconView(c.icon, Color(c.color), 34, fallback = c.name.take(1))
@@ -164,7 +164,7 @@ internal fun ColumnScope.SubcategoryPanel(s: EntryState, ledger: Ledger, top: Ca
                 Text("No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
-        items(subsRanked(ledger, top), key = { it.id }) { sub ->
+        items(subcategories(ledger, top), key = { it.id }) { sub ->
             PickTile(on = pickedId == sub.id, onClick = { s.pickCategory(sub.id); s.advance() }) {
                 Text(sub.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
@@ -215,13 +215,13 @@ private fun NewSubcategory(parent: Category, value: String, siblings: List<Strin
  */
 @Composable
 internal fun ColumnScope.AccountPanel(
-    s: EntryState, ranked: List<Account>, rankedTo: List<Account>, cards: Map<Long, CardSnapshot>, wide: Boolean,
+    s: EntryState, accountChoices: List<Account>, toChoices: List<Account>, cards: Map<Long, CardSnapshot>, wide: Boolean,
 ) {
     val focus = LocalFocusManager.current
     val isTo = s.field == Field.TO
     PanelSearch(s.query, { s.query = it }, "Search accounts", onFocus = { s.searching = it }) { s.field = null }
     val q = s.query.trim()
-    val list = (if (isTo) rankedTo.filter { it.id != s.accountId } else ranked.filter { s.kind != TxKind.TRANSFER || !it.type.hasStatement || it.id == s.accountId })
+    val list = (if (isTo) toChoices.filter { it.id != s.accountId } else accountChoices.filter { s.kind != TxKind.TRANSFER || !it.type.hasStatement || it.id == s.accountId })
         .filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) || it.last4?.contains(q) == true }
     if (list.isEmpty()) Text(if (q.isEmpty()) "Add an account in Accounts first." else "No account matches \"$q\".",
         style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))

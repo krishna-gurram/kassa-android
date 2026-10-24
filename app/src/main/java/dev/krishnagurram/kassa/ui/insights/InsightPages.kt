@@ -135,31 +135,16 @@ fun InsightDetailPage(
                 }
             }
             InsightPage.REPEATING -> {
-                val r = Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone).sortedWith(compareByDescending<Insights.RepeatingCharge> { it.change > 0 }.thenByDescending { it.amount })
-                val monthly = r.sumOf { it.amount }
+                val all = ledger.repeats
+                val spent = all.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE }
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Figure("Monthly", Money.format(monthly), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Yearly", Money.format(monthly * 12, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure("A month", Money.format(spent.sumOf { it.perMonth }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure("A year", Money.format(spent.sumOf { it.perYear }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                 }
-                if (r.isEmpty()) Empty("No charges have come back monthly for three months yet.")
-                Column {
-                    r.forEachIndexed { i, x ->
-                        Row(Modifier.fillMaxWidth().clickable { onOpenStore(x.note) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CategoryBadge(x.category, size = 30)
-                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(x.note, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                    if (x.change > 0) Text(
-                                        "+" + Money.format(x.change), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.attention,
-                                        modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(6.dp)).background(Kassa.colors.attention.copy(alpha = 0.14f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                                    )
-                                }
-                                Text("${Money.format(x.amount * 12, wholeDollars = true)}/yr", style = KassaType.tiny, color = Kassa.colors.ink3)
-                            }
-                            Text(Money.format(x.amount), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                        }
-                        if (i < r.lastIndex) HorizontalDivider(color = Kassa.colors.line)
-                    }
+                if (all.isEmpty()) Empty("Nothing has repeated on a schedule yet.")
+                all.groupBy { it.cadence }.toSortedMap().forEach { (cadence, list) ->
+                    Text(cadence.label, style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp))
+                    Column { list.forEachIndexed { i, x -> RepeatRow(x, ledger, onOpenStore, last = i == list.lastIndex) } }
                 }
             }
             InsightPage.WEEKDAYS -> {
@@ -193,6 +178,42 @@ fun InsightDetailPage(
         }
     }
 }
+
+/** One repeat: what and when on the left; the amount and what it adds up to in a year on the right. */
+@Composable
+private fun RepeatRow(x: dev.krishnagurram.kassa.domain.Repeat, ledger: Ledger, onOpen: (String) -> Unit, last: Boolean) {
+    val income = x.kind == dev.krishnagurram.kassa.domain.TxKind.INCOME
+    val next = x.next(ledger.today).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
+    val detail = listOfNotNull(
+        "Next $next",
+        if (!x.fixed) "${Money.format(x.low, wholeDollars = true)} to ${Money.format(x.high, wholeDollars = true)}" else null,
+        if (income) "Income" else null,
+    ).joinToString(" · ")
+    Row(Modifier.fillMaxWidth().clickable { onOpen(x.name) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        CategoryBadge(dev.krishnagurram.kassa.domain.Spending.topOf(x.categoryId, ledger.categoryById), size = 30)
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(x.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                when {
+                    x.change != 0L -> Tag((if (x.change > 0) "+" else "−") + Money.format(Math.abs(x.change)), if (x.change > 0) Kassa.colors.attention else Kassa.colors.positive)
+                    !x.fixed -> Tag("varies", Kassa.colors.ink2)
+                }
+            }
+            Text(detail, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text((if (x.fixed) "" else "≈ ") + Money.format(x.typical), style = KassaType.bodyStrong, color = if (income) Kassa.colors.positive else Kassa.colors.ink, maxLines = 1)
+            Text("${Money.format(x.perYear, wholeDollars = true)}/yr", style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1)
+        }
+    }
+    if (!last) HorizontalDivider(color = Kassa.colors.line)
+}
+
+@Composable
+private fun Tag(text: String, color: androidx.compose.ui.graphics.Color) = Text(
+    text, style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = color, maxLines = 1,
+    modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.14f)).padding(horizontal = 6.dp, vertical = 2.dp),
+)
 
 @Composable
 private fun Empty(text: String) = Text(text, style = KassaType.body, color = Kassa.colors.ink2)
@@ -267,8 +288,9 @@ fun DayPage(
 /** Every entry at one store in the last few months, newest first, with this month's total. */
 @Composable
 fun InsightStorePage(ledger: Ledger, name: String, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (dev.krishnagurram.kassa.domain.Transaction) -> Unit) {
-    val key = name.trim().lowercase()
-    val list = ledger.recent.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && it.note.trim().lowercase() == key }.sortedByDescending { it.epochMillis }
+    // Notes match the way repeats do: "Mortgage October 2026" counts as Mortgage.
+    val key = dev.krishnagurram.kassa.domain.Repeats.key(name)
+    val list = ledger.recent.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE && dev.krishnagurram.kassa.domain.Repeats.key(it.note) == key }.sortedByDescending { it.epochMillis }
     val month = list.filter { dateOf(it, ledger) in ledger.period }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTop(name, onBack)

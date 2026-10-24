@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import dev.krishnagurram.kassa.domain.Category
 import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.domain.Names
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.ConfirmDialog
@@ -43,22 +44,23 @@ import dev.krishnagurram.kassa.ui.theme.KassaType
 import java.time.Instant
 
 /**
- * A category's subcategories, edited where they are: tap a name to rename it, ⋯ to move it up or down, move it to
- * another category, merge it or archive it. Each shows this month's amount and entries. "Add subcategory" stays
+ * A category's subcategories, A to Z, edited where they are: tap a name to rename it, ⋯ to move it to another
+ * category, merge it or archive it. Each shows this month's amount and entries. "Add subcategory" stays
  * open after each one, so several can be typed in a row. Every change saves right away.
  */
 @Composable
 fun SubcategoryList(
     ledger: Ledger,
     parent: Category,
-    /** Saves a subcategory; the flag is true for quiet changes (reordering). */
+    /** Saves a subcategory; the flag is true for quiet changes. */
     onSave: (Category, Boolean) -> Unit,
     onAdd: (String) -> Unit,
     onMerge: (from: Category, into: Category) -> Unit,
 ) {
     val all = ledger.categories.filter { it.parentId == parent.id }
-    val active = all.filter { !it.hidden }.sortedWith(compareBy({ it.sortOrder }, { it.name.lowercase() }))
-    val archived = all.filter { it.hidden }.sortedBy { it.name.lowercase() }
+    val byName = Names.order<Category> { it.name }
+    val active = all.filter { !it.hidden }.sortedWith(byName)
+    val archived = all.filter { it.hidden }.sortedWith(byName)
     var renaming by remember { mutableStateOf<Long?>(null) }
     var adding by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
@@ -81,7 +83,7 @@ fun SubcategoryList(
 
     SectionHeader("Subcategories", "${active.size}")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).padding(horizontal = 12.dp)) {
-        active.forEachIndexed { i, s ->
+        active.forEach { s ->
             if (renaming == s.id) {
                 NameField(s.name, "Name", button = "Save", keepOpen = false, error = { n -> problem(n, s.id) },
                     onDone = { n -> if (n != null && n != s.name) onSave(s.copy(name = n), false); renaming = null })
@@ -104,15 +106,13 @@ fun SubcategoryList(
                             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { menu = true }.padding(horizontal = 10.dp, vertical = 6.dp))
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem({ Text("Rename") }, { menu = false; renaming = s.id })
-                            if (i > 0) DropdownMenuItem({ Text("Move up") }, { menu = false; swap(active, i, i - 1, onSave) })
-                            if (i < active.lastIndex) DropdownMenuItem({ Text("Move down") }, { menu = false; swap(active, i, i + 1, onSave) })
                             DropdownMenuItem({ Text("Move to another category") }, { menu = false; moveMenu = true })
                             DropdownMenuItem({ Text("Merge into…") }, { menu = false; mergeMenu = true })
                             DropdownMenuItem({ Text("Archive", color = Kassa.colors.attention) }, { menu = false; confirmArchive = s })
                         }
                         DropdownMenu(moveMenu, { moveMenu = false }) {
                             ledger.categories.filter { it.parentId == null && it.kind == parent.kind && !it.hidden && it.id != parent.id }
-                                .sortedBy { it.name.lowercase() }
+                                .sortedWith(byName)
                                 .forEach { top -> DropdownMenuItem({ Text(top.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { moveMenu = false; onSave(s.copy(parentId = top.id, color = top.color), false) }) }
                         }
                         DropdownMenu(mergeMenu, { mergeMenu = false }) {
@@ -156,13 +156,6 @@ fun SubcategoryList(
             confirm = "Merge", onConfirm = { onMerge(from, into); merging = null }, onDismiss = { merging = null },
         )
     }
-}
-
-/** Swaps two neighbours' order, renumbering the list so the order is stable even when old values tie. */
-private fun swap(list: List<Category>, a: Int, b: Int, onSave: (Category, Boolean) -> Unit) {
-    val order = list.toMutableList()
-    val x = order[a]; order[a] = order[b]; order[b] = x
-    order.forEachIndexed { i, c -> if (c.sortOrder != i) onSave(c.copy(sortOrder = i), true) }
 }
 
 /** An inline name field. Enter or the button submits; with [keepOpen] it clears for the next one. Null means cancel. */
