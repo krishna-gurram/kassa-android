@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dev.krishnagurram.kassa.KassaApplication
 import dev.krishnagurram.kassa.data.backup.BackupContents
 import dev.krishnagurram.kassa.data.repo.EntryDraft
+import dev.krishnagurram.kassa.data.repo.PeopleState
 import dev.krishnagurram.kassa.domain.Trade
 import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Account
@@ -18,10 +19,12 @@ import dev.krishnagurram.kassa.domain.Holding
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Person
 import dev.krishnagurram.kassa.domain.Recurring
-import dev.krishnagurram.kassa.domain.RecurringRules
+import dev.krishnagurram.kassa.domain.Repeat
+import dev.krishnagurram.kassa.domain.Repeats
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.entry.EntryStart
+import dev.krishnagurram.kassa.ui.today.Notice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -29,6 +32,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,6 +46,9 @@ import java.time.ZoneId
  * through [messages]: what happened, or why it couldn't be saved (an input rule the repository enforced).
  */
 /** Bills and investing rows, gathered before they go into the [Ledger]. */
+/** Entries and what's derived from them, gathered before they go into the [Ledger]. */
+private data class Quad(val people: PeopleState, val recent: List<Transaction>, val repeats: List<Repeat>, val cleared: Set<String>)
+
 private data class Investing(val bills: List<Recurring>, val holdings: List<Holding>, val transfers: List<InvestmentTransfer>, val trades: List<Trade>)
 
 class LedgerViewModel(app: Application) : AndroidViewModel(app) {
@@ -53,17 +61,23 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         Long.MAX_VALUE,
     )
 
+    /** What repeats, found in the last [HISTORY_DAYS] days: long enough for a yearly charge to show up twice. */
+    private val repeats = kassa.entries.between(
+        LocalDate.now(zone).minusDays(HISTORY_DAYS).atStartOfDay(zone).toInstant().toEpochMilli(),
+        Long.MAX_VALUE,
+    ).map { Repeats.find(it, LocalDate.now(zone), zone) }.flowOn(Dispatchers.Default)
+
     val ledger: StateFlow<Ledger?> = combine(
         combine(kassa.categories.categories, kassa.accounts.state, kassa.categories.budgets) { c, a, b -> Triple(c, a, b) },
-        combine(kassa.people.state, recent) { p, r -> p to r },
+        combine(kassa.people.state, recent, repeats, settings.cleared) { p, r, rep, cl -> Quad(p, r, rep, cl) },
         combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers, kassa.investments.trades) { b, h, t, tr ->
             Investing(b, h, t, tr)
         },
         settings.monthStartDay,
-    ) { (categories, accounts, budgets), (people, entries), inv, monthStart ->
+    ) { (categories, accounts, budgets), (people, entries, rep, cleared), inv, monthStart ->
         Ledger(
             categories, accounts, budgets, people, entries, inv.bills, inv.holdings, inv.transfers,
-            inv.trades.associateBy { it.transactionId }, monthStart, LocalDate.now(zone), zone,
+            inv.trades.associateBy { it.transactionId }, rep, cleared, monthStart, LocalDate.now(zone), zone,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -170,30 +184,45 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteBill(id: Long) = change { kassa.bills.delete(id) }
 
-    /** Adds this month's bill for [amount] on its due day, and marks the month handled. */
-    fun approveBill(bill: Recurring, amount: Long) = change("${bill.name} added for ${Money.format(amount)}.") {
-        val today = LocalDate.now(zone)
-        val due = RecurringRules.dueDate(bill, YearMonth.from(today))
+    /**
+     * Records the bill due on [due] for [amount] and marks that month handled. Paid ahead of its day, it's dated
+     * today, when the money actually moved.
+     */
+    fun approveBill(bill: Recurring, amount: Long, due: LocalDate) = change("${bill.name} added for ${Money.format(amount)}.") {
+        val day = minOf(due, LocalDate.now(zone))
         kassa.entries.save(
             EntryDraft(
                 id = null, kind = TxKind.EXPENSE, amount = amount, accountId = bill.accountId, toAccountId = null,
-                categoryId = bill.categoryId, personId = null, epochMillis = due.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), note = bill.name,
+                categoryId = bill.categoryId, personId = null, epochMillis = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), note = bill.name,
             )
         )
-        kassa.bills.markHandled(bill, Budgets.key(YearMonth.from(today)))
+        kassa.bills.markHandled(bill, Budgets.key(YearMonth.from(due)))
     }
 
-    fun skipBill(bill: Recurring) = change("Skipped ${bill.name} this month.") { kassa.bills.markHandled(bill, Budgets.key(YearMonth.now(zone))) }
+    /** After the bill due on [due] was entered by hand from its notification. */
+    fun billHandled(bill: Recurring, due: LocalDate) = change { kassa.bills.markHandled(bill, Budgets.key(YearMonth.from(due))) }
 
-    /** After the bill was entered by hand from its prompt. */
-    fun billHandled(bill: Recurring) = change { kassa.bills.markHandled(bill, Budgets.key(YearMonth.now(zone))) }
+    /**
+     * Clears notifications without adding or paying anything: a bill skips that month, a transfer stops asking,
+     * and a card payment or suggested bill is hidden by its key.
+     */
+    fun clear(notices: List<Notice>) = change(if (notices.size == 1) "Cleared." else "Cleared ${notices.size} notifications.") {
+        notices.forEach { n ->
+            when (n) {
+                is Notice.Bill -> kassa.bills.markHandled(n.bill, Budgets.key(YearMonth.from(n.due)))
+                is Notice.Transfer -> kassa.investments.settle(n.transfer.id)
+                is Notice.Card, is Notice.Suggestion -> Unit
+            }
+        }
+        settings.clear(notices.filter { it is Notice.Card || it is Notice.Suggestion }.map { it.key })
+    }
 
     /* ---------- investments ---------- */
 
     fun keepTransferAsCash(transferId: Long) = change("Kept as cash in the account.") { kassa.investments.settle(transferId) }
 
     /** Clears a transfer the user already accounted for (or no longer wants asked about). */
-    fun clearTransfer(transferId: Long) = change("Removed from pending review.") { kassa.investments.settle(transferId) }
+    fun clearTransfer(transferId: Long) = change { kassa.investments.settle(transferId) }
 
     fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?, onDone: () -> Unit = {}) =
         change("Added ${ticker.trim().uppercase()} to holdings.", onDone) { kassa.investments.buy(accountId, ticker, microShares, price, at, transferId) }
@@ -245,5 +274,6 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** How far back [ledger] reaches: card statements and three months of comparisons. */
         const val RECENT_DAYS = 130L
+        const val HISTORY_DAYS = 800L
     }
 }

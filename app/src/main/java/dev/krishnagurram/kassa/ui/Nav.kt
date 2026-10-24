@@ -37,7 +37,7 @@ sealed interface Page {
     /** Card payments and bills in the next 30 days. */
     data object Upcoming : Page
     /** Bank alerts, bills and investment transfers waiting to be confirmed. */
-    data object Review : Page
+    data object Notifications : Page
     data object Import : Page { override val besideList: Boolean get() = false }
     /** Add or edit a recurring bill; built like the entry page, so it takes the full screen too. */
     data class Bill(val bill: dev.krishnagurram.kassa.domain.Recurring?) : Page { override val besideList: Boolean get() = false }

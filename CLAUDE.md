@@ -8,9 +8,13 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 - **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
   are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
   and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
-- **Nothing posts by itself.** Due bills and investment transfers wait on Overview until the user confirms them.
+- **Nothing posts by itself.** Bills due within 5 days or overdue, card payments due, investment transfers and suggested
+  bills wait on the Notifications page (`ui/today/Notifications.kt`, linked from Overview only when something waits)
+  until the user acts or clears them. Clearing never adds or pays anything.
 - **Nothing guesses an account.** A new entry, payment or card payment starts with no account unless the user set one
-  (a card's own "pay from"). Lists may be ordered by use; nothing is preselected from a category or merchant.
+  (a card's own "pay from"). Nothing is preselected from a category or merchant.
+- **Lists of names are A to Z** (`Names.order`, the phone's language): categories, subcategories, accounts, people,
+  and the pickers on Add. Entries stay by date; spending breakdowns stay largest first.
 - **Every input is bounded.** Limits live in `domain/InputRules` (names 40, categories 30, notes 120, amounts
   99,999,999.99). Forms filter as you type (`NameField`, `AmountField`, `DigitsField` in `ui/common/Fields.kt`) and
   show the problem under the field; repositories check the same rules again and throw `IllegalArgumentException`
@@ -83,6 +87,12 @@ Every category opens `CategoryPage`, every entry opens the entry page (`Transact
 every day `DayPage`, every store `InsightStorePage`, and "this week"/"this month" opens `SpendingPage`. Category lists
 everywhere use `CategoryLines` in `ui/common/Breakdown.kt`. Reuse these; don't build a second version. "This week" starts on
 the phone's first day of the week (`Ledger.weekStart`).
+
+## Repeating charges
+`domain/Repeats.kt` finds what repeats in about two years of entries (`Ledger.repeats`): notes match loosely
+(`Repeats.key` drops trailing months, years, numbers, #ids), one store's different charges split by amount, and
+weekly to yearly cadences are recognised. Bills match entries the same way. Only a monthly expense with the same
+amount three times is suggested as a bill; ones that vary are added by the user.
 
 ## Wording
 Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the

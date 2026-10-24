@@ -54,6 +54,13 @@ import dev.krishnagurram.kassa.ui.common.TransactionRow
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 import java.time.Instant
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.rotate
+import dev.krishnagurram.kassa.ui.activity.Chevron
+import dev.krishnagurram.kassa.ui.common.CategoryBadge
+import dev.krishnagurram.kassa.ui.entry.Chip
 
 /**
  * One category, one month at a time. Arrows (or a tap on the six-month bars) move between months: spent against that
@@ -136,8 +143,40 @@ fun CategoryPage(
         }
         SectionHeader("Entries", "${entries.size}")
         if (entries.isEmpty()) Text("Nothing in ${c.name} in ${monthName(p)}.", style = KassaType.body, color = Kassa.colors.ink2)
-        entries.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < entries.lastIndex, onClick = onEdit, showDate = true) }
+        // By date unless switched; it opens by date every time.
+        var grouped by remember(c.id) { mutableStateOf(false) }
+        if (bySub.size > 1) Row(Modifier.padding(bottom = 4.dp)) {
+            Chip("By date", selected = !grouped, small = true) { grouped = false }
+            Chip("By subcategory", selected = grouped, small = true) { grouped = true }
+        }
+        if (grouped && bySub.size > 1) SubcategoryGroups(entries, ledger, c, onEdit)
+        else entries.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < entries.lastIndex, onClick = onEdit, showDate = true) }
         Gap(24)
+    }
+}
+
+/** Entries grouped by subcategory, largest first, each opening to its entries (newest first). The first starts open. */
+@Composable
+private fun SubcategoryGroups(entries: List<Transaction>, ledger: Ledger, c: Category, onEdit: (Transaction) -> Unit) {
+    val groups = entries.groupBy { t -> ledger.categoryById[t.categoryId]?.takeIf { it.parentId == c.id } }
+        .entries.sortedByDescending { (_, v) -> v.sumOf { it.categoryAmount } }
+    var open by remember(c.id, groups.firstOrNull()?.key?.id) { mutableStateOf(setOfNotNull(groups.firstOrNull()?.key?.id ?: -1L)) }
+    groups.forEach { (sub, list) ->
+        val id = sub?.id ?: -1L
+        val expanded = id in open
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { open = if (expanded) open - id else open + id }.padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CategoryBadge(sub ?: c, size = 30)
+            Text(sub?.name ?: "No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+            Text("${list.size}", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
+            Text(Money.format(list.sumOf { it.categoryAmount }), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Icon(Chevron(left = false), if (expanded) "Hide entries" else "Show entries", tint = Kassa.colors.ink3,
+                modifier = Modifier.padding(start = 4.dp).size(18.dp).rotate(if (expanded) 90f else 0f))
+        }
+        if (expanded) list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) }
+        HorizontalDivider(color = Kassa.colors.line)
     }
 }
 

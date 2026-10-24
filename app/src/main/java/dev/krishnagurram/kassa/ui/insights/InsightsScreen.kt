@@ -166,10 +166,10 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
     val small = remember(ledger) { Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
     val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
     val creep = remember(ledger) { Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
-    val repeating = remember(ledger) { Insights.repeating(ledger.recent, ledger.categoryById, ledger.zone) }
+    val repeating = remember(ledger) { ledger.repeats.filter { it.kind == dev.krishnagurram.kassa.domain.TxKind.EXPENSE } }
     val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone) }
     val busiest = weekdays.maxByOrNull { it.second }
-    val changed = repeating.count { it.change > 0 }
+    val changed = repeating.count { it.change != 0L }
 
     Column {
         Head("Patterns")
@@ -196,9 +196,9 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.CREEP) }) {
                     MiniBars(top?.months?.map { it.second } ?: listOf(1L, 1L, 1L), (top?.months?.size ?: 3) - 1, if (top != null) Kassa.colors.attention else Kassa.colors.track)
                 }
-                PatternTile("Repeating", Money.format(repeating.sumOf { it.amount }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
+                PatternTile("Repeating", Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
                     subColor = if (changed > 0) Kassa.colors.attention else null, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.REPEATING) }) {
-                    RepeatLines(repeating.take(4).map { it.category?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
+                    RepeatLines(repeating.take(4).map { r -> Spending.topOf(r.categoryId, ledger.categoryById)?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
                 }
                 PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
                     modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.WEEKDAYS) }) {

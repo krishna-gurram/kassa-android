@@ -64,6 +64,15 @@ class Settings(context: Context) {
     val reminderMinute: StateFlow<Int> = _reminderMinute
     fun setReminderMinute(m: Int) { prefs.edit().putInt(REMINDER_MINUTE, m).apply(); _reminderMinute.value = m }
 
+    private val _cleared = MutableStateFlow(prefs.getStringSet(CLEARED, emptySet())!!.toSet())
+    /** Notifications the user cleared, by key (a card's statement, a suggested bill). They don't come back. */
+    val cleared: StateFlow<Set<String>> = _cleared
+    fun clear(keys: Collection<String>) {
+        val next = _cleared.value + keys
+        prefs.edit().putStringSet(CLEARED, next).apply()
+        _cleared.value = next
+    }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -89,5 +98,6 @@ class Settings(context: Context) {
         const val LOCK = "app_lock"
         const val THEME = "theme"
         const val CURRENCY = "currency"
+        const val CLEARED = "cleared_notifications"
     }
 }

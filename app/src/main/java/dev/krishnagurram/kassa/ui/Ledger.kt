@@ -14,7 +14,7 @@ import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Period
 import dev.krishnagurram.kassa.domain.Recurring
-import dev.krishnagurram.kassa.domain.RecurringRules
+import dev.krishnagurram.kassa.domain.Repeat
 import dev.krishnagurram.kassa.domain.Spending
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.WeekPace
@@ -41,6 +41,10 @@ data class Ledger(
     val transfers: List<InvestmentTransfer>,
     /** The shares and price behind each buy or sale, by its entry's id. Older trades have none. */
     val trades: Map<Long, Trade>,
+    /** What repeats, from about two years of entries (see [Repeats]). */
+    val repeats: List<Repeat>,
+    /** Keys of notifications the user cleared (see Notice.key). */
+    val cleared: Set<String>,
     val monthStartDay: Int,
     val today: LocalDate,
     val zone: ZoneId,
@@ -54,9 +58,6 @@ data class Ledger(
     /** The phone's first day of the week (Sunday in the US). Every "this week" starts here. */
     val firstDayOfWeek: DayOfWeek get() = WeekFields.of(Locale.getDefault()).firstDayOfWeek
     val weekStart: LocalDate get() = WeekPace.startOf(today, firstDayOfWeek)
-
-    /** Bills waiting for approval today. */
-    fun dueBills(): List<Recurring> = bills.filter { RecurringRules.isDue(it, recent, today, zone) }
 
     fun holdingsValue(accountId: Long): Long = holdings.filter { it.accountId == accountId }.sumOf { it.value }
 

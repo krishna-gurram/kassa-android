@@ -31,7 +31,7 @@ import dev.krishnagurram.kassa.ui.insights.InsightsScreen
 import dev.krishnagurram.kassa.ui.settings.SettingsScreen
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
-import dev.krishnagurram.kassa.ui.today.ReviewPage
+import dev.krishnagurram.kassa.ui.today.NotificationsPage
 import dev.krishnagurram.kassa.ui.today.SpendingPage
 import dev.krishnagurram.kassa.ui.today.TodayScreen
 import dev.krishnagurram.kassa.ui.today.UpcomingPage
@@ -51,7 +51,7 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
             onSpending = { month, income -> app.openFromList(Page.Spending(month, income)) },
             onOpenCategory = { app.openFromList(Page.CategoryDetail(it)) },
             onUpcoming = { app.openFromList(Page.Upcoming) },
-            onReview = { app.openFromList(Page.Review) },
+            onNotifications = { app.openFromList(Page.Notifications) },
             onAccounts = { app.nav.select(Tab.ACCOUNTS) },
             onCards = { app.nav.select(Tab.ACCOUNTS) },
         )
@@ -136,7 +136,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             onOpenCategory = { app.push(Page.CategoryDetail(it)) }, onOpenDay = { app.push(Page.Day(it.toEpochDay())) },
         )
         Page.Upcoming -> UpcomingPage(l, padding, onBack, onOpenCard = { app.push(Page.CardDetail(it)) })
-        Page.Review -> ReviewPage(l, padding, onBack, app.needs)
+        Page.Notifications -> NotificationsPage(l, padding, onBack, app.notices)
         Page.Import -> Box(Modifier.padding(padding)) {
             ImportScreen(firstRun = false, onFinished = { app.nav.select(Tab.TODAY) }, onCancel = back)
         }

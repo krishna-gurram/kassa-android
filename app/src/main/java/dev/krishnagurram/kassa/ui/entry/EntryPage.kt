@@ -80,9 +80,9 @@ fun EntryPage(
     LaunchedEffect(s.kind) { notes = if (s.kind == TxKind.TRANSFER) emptyList() else loadNotes(s.kind) }
 
     val catKind = if (s.kind == TxKind.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val rankedCategories = remember(s.kind, ledger.recent.size, ledger.categories) { rankTop(ledger, catKind) }
-    val rankedAccounts = remember(s.kind, ledger.recent.size, ledger.accounts.accounts) { rankAccounts(ledger, s.kind, to = false) }
-    val rankedTo = remember(ledger.recent.size, ledger.accounts.accounts) { rankAccounts(ledger, TxKind.TRANSFER, to = true) }
+    val categoryChoices = remember(s.kind, ledger.recent.size, ledger.categories) { topCategories(ledger, catKind) }
+    val accountChoices = remember(s.kind, ledger.recent.size, ledger.accounts.accounts) { openAccounts(ledger) }
+    val toChoices = remember(ledger.recent.size, ledger.accounts.accounts) { openAccounts(ledger) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val toCard = if (s.kind == TxKind.TRANSFER) s.toAccountId?.let { cards[it] } else null
 
@@ -114,12 +114,12 @@ fun EntryPage(
                     when (s.field) {
                         // The pad is the resting state: with nothing else open, it stays up with the save button under it.
                         Field.AMOUNT, null -> AmountPanel(s, toCard, saveLabel, save)
-                        Field.CATEGORY -> CategoryPanel(s, ledger, rankedCategories, wide)
+                        Field.CATEGORY -> CategoryPanel(s, ledger, categoryChoices, wide)
                         Field.SUB -> {
                             val top = s.categoryId?.let { ledger.categoryById[it] }?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
                             if (top == null) s.field = Field.CATEGORY else SubcategoryPanel(s, ledger, top, wide, onAddSubcategory)
                         }
-                        Field.ACCOUNT, Field.TO -> AccountPanel(s, rankedAccounts, rankedTo, cards, wide)
+                        Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide)
                         Field.DATE -> DatePanel(s, ledger.today)
                         Field.SPLIT -> SplitPanel(s, ledger)
                         Field.NOTE -> NotePanel(s, ledger, notes)
