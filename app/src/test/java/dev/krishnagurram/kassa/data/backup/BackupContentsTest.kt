@@ -8,6 +8,7 @@ import dev.krishnagurram.kassa.data.db.HoldingEntity
 import dev.krishnagurram.kassa.data.db.LoanEntryEntity
 import dev.krishnagurram.kassa.data.db.PersonEntity
 import dev.krishnagurram.kassa.data.db.RecurringEntity
+import dev.krishnagurram.kassa.data.db.TradeEntity
 import dev.krishnagurram.kassa.data.db.TransactionEntity
 import org.junit.Test
 import java.util.Base64
@@ -39,6 +40,7 @@ internal fun sampleContents() = BackupContents(
     loans = listOf(LoanEntryEntity(1, 2, 4_000, 1_760_000_100_000, "Corner market", 1), LoanEntryEntity(2, 1, -1_500, 1_760_000_200_000, "Dinner, Sam paid", 2)),
     bills = listOf(RecurringEntity(1, "Rent", 1, 1, 1, 120_000, true, 202609)),
     holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000, 21_333), HoldingEntity(2, 1, "SCHD", 80_000_000, 2_750, 1_760_000_000_000)),
+        trades = listOf(TradeEntity(1, 3, "VTI", 2_500_000, 25_050)),
     icons = mapOf("photo_1.jpg" to byteArrayOf(1, 2, 3, -1)),
 )
 

@@ -40,14 +40,22 @@ import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Shares
+import dev.krishnagurram.kassa.domain.Trade
+import dev.krishnagurram.kassa.domain.Transaction
+import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.AmountField
 import dev.krishnagurram.kassa.ui.common.ConfirmDialog
+import dev.krishnagurram.kassa.ui.common.DateRow
+import dev.krishnagurram.kassa.ui.common.momentOn
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.entry.Chip
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 /*
  * Sheets for investment accounts. Kassa never looks prices up: every price here is typed by you.
@@ -130,11 +138,13 @@ fun AllocateSheet(
     onCash: () -> Unit,
     /** The user already added what it bought; just stop asking. */
     onRecorded: () -> Unit,
-    onBuy: (ticker: String, microShares: Long, price: Long) -> Unit,
+    onBuy: (TradeOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var buying by remember { mutableStateOf(false) }
     val input = remember { TradeInput() }
+    // Most buys happen the day the money arrives, so the date starts there.
+    var date by remember { mutableStateOf(Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).toLocalDate()) }
     val existing = ledger.holdings.filter { it.accountId == p.accountId }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
@@ -161,7 +171,12 @@ fun AllocateSheet(
                 modifier = Modifier.padding(top = 8.dp),
             )
             Gap(12)
-            PrimaryButton("Add to holdings") { if (input.check()) onBuy(input.cleanTicker, input.microShares!!, input.priceCents!!) }
+            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            DateRow(date, ledger.today) { date = it }
+            Gap(8)
+            PrimaryButton("Add to holdings") {
+                if (input.check()) onBuy(TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, momentOn(date, ledger.today, ledger.zone)))
+            }
             TextButton(onClick = { buying = false }) { Text("Back", color = Kassa.colors.ink2) }
         }
     }
@@ -285,8 +300,17 @@ fun PricesSheet(holdings: List<Holding>, onSave: (List<Holding>) -> Unit, onDism
 /** A buy or a sale: cash moves inside the account and the holding grows or shrinks. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TradeSheet(holdings: List<Holding>, cash: Long, onBuy: (String, Long, Long) -> Unit, onSell: (String, Long, Long) -> Unit, onDismiss: () -> Unit) {
+fun TradeSheet(
+    holdings: List<Holding>,
+    cash: Long,
+    today: LocalDate,
+    zone: ZoneId,
+    onBuy: (TradeOrder) -> Unit,
+    onSell: (TradeOrder) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var buy by remember { mutableStateOf(true) }
+    var date by remember { mutableStateOf(today) }
     val input = remember { TradeInput().apply { holdings.firstOrNull()?.let { pick(it) } } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
@@ -300,20 +324,102 @@ fun TradeSheet(holdings: List<Holding>, cash: Long, onBuy: (String, Long, Long) 
             if (buy) TickerField(input)
             SharesAndPrice(input, "Price")
             val total = input.total ?: 0L
+            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            DateRow(date, today) { date = it }
             Text(if (buy) "Costs ${Money.format(total)} of ${Money.format(cash)} cash" else "Adds ${Money.format(total)} to cash",
-                style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp))
+                style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
             Gap(12)
             PrimaryButton(if (buy) "Save buy" else "Save sale") {
                 if (!input.check()) return@PrimaryButton
                 val held = holdings.firstOrNull { it.ticker == input.cleanTicker }
+                val order = TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, momentOn(date, today, zone))
                 when {
-                    buy -> onBuy(input.cleanTicker, input.microShares!!, input.priceCents!!)
+                    buy -> onBuy(order)
                     held == null -> input.tickerProblem = "Pick a holding to sell."
                     input.microShares!! > held.microShares -> input.sharesProblem = "You hold ${Shares.format(held.microShares)}."
-                    else -> onSell(input.cleanTicker, input.microShares!!, input.priceCents!!)
+                    else -> onSell(order)
                 }
             }
             if (!buy) input.tickerProblem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
         }
     }
+}
+
+/**
+ * An existing buy or sale. When its shares were recorded ([trade]), everything can change and saving updates the
+ * cash and the holding together. Older trades only kept their total, so only their date can change. Either can be
+ * deleted, after asking.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TradeEditSheet(
+    entry: Transaction,
+    trade: Trade?,
+    today: LocalDate,
+    zone: ZoneId,
+    onSave: (TradeOrder) -> Unit,
+    onMove: (Long) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val buy = entry.kind == TxKind.BUY
+    val ticker = trade?.ticker ?: entry.note
+    val originalDate = Instant.ofEpochMilli(entry.epochMillis).atZone(zone).toLocalDate()
+    var date by remember { mutableStateOf(originalDate) }
+    val input = remember {
+        TradeInput(ticker, trade?.let { Money.toInput(it.price) }.orEmpty(), savedTicker = ticker)
+            .apply { trade?.let { shares = Shares.format(it.microShares) } }
+    }
+    var confirmDelete by remember { mutableStateOf(false) }
+    // An unchanged date keeps the original time of day, so the entry doesn't jump within its day.
+    val at = { if (date == originalDate) entry.epochMillis else momentOn(date, today, zone) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
+            if (trade != null) {
+                Text(if (buy) "Edit buy" else "Edit sale", style = KassaType.section, color = Kassa.colors.ink)
+                TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
+                SharesAndPrice(input, "Price")
+            } else {
+                Text("${if (buy) "Buy" else "Sale"} of $ticker · ${Money.format(entry.amount)}", style = KassaType.section, color = Kassa.colors.ink,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Note("This trade is from before Kassa kept shares and price, so only its date can change. To change your $ticker shares, open $ticker under Holdings.")
+            }
+            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            DateRow(date, today) { date = it }
+            if (trade != null) {
+                input.total?.let { Text("Total ${Money.format(it)}", style = KassaType.small, color = Kassa.colors.ink2) }
+                Note("Saving updates the cash and your $ticker shares${if (buy) " and average cost" else ""} together.")
+            }
+            Gap(12)
+            PrimaryButton(if (trade != null) "Save changes" else "Save date") {
+                when {
+                    trade == null -> onMove(at())
+                    input.check() -> onSave(TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, at()))
+                }
+            }
+            TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (buy) "Delete buy" else "Delete sale", color = Kassa.colors.attention, style = KassaType.bodyStrong)
+            }
+        }
+    }
+    if (confirmDelete) ConfirmDialog(
+        title = if (buy) "Delete this buy?" else "Delete this sale?",
+        body = when {
+            trade != null && buy -> "${Money.format(entry.amount)} goes back to cash and ${Shares.format(trade.microShares)} $ticker shares come off. This can't be undone."
+            trade != null -> "${Money.format(entry.amount)} comes out of cash and ${Shares.format(trade.microShares)} $ticker shares come back. This can't be undone."
+            buy -> "${Money.format(entry.amount)} goes back to cash. Your $ticker shares stay as they are; edit $ticker to change them."
+            else -> "${Money.format(entry.amount)} comes out of cash. Your $ticker shares stay as they are; edit $ticker to change them."
+        },
+        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+    )
+}
+
+/** A short explanation in a quiet box. */
+@Composable
+private fun Note(text: String) {
+    Text(
+        text, style = KassaType.small, color = Kassa.colors.ink2,
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).padding(12.dp),
+    )
 }

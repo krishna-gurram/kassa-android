@@ -2,6 +2,7 @@ package dev.krishnagurram.kassa.ui
 
 import dev.krishnagurram.kassa.data.repo.AccountsState
 import dev.krishnagurram.kassa.data.repo.PeopleState
+import dev.krishnagurram.kassa.domain.Trade
 import dev.krishnagurram.kassa.domain.Account
 import dev.krishnagurram.kassa.domain.Budget
 import dev.krishnagurram.kassa.domain.Budgets
@@ -38,6 +39,8 @@ data class Ledger(
     val bills: List<Recurring>,
     val holdings: List<Holding>,
     val transfers: List<InvestmentTransfer>,
+    /** The shares and price behind each buy or sale, by its entry's id. Older trades have none. */
+    val trades: Map<Long, Trade>,
     val monthStartDay: Int,
     val today: LocalDate,
     val zone: ZoneId,

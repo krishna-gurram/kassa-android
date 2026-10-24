@@ -31,7 +31,43 @@ data class Holding(
         // An unknown average stays unknown: blending a guess in would show a wrong profit.
         avgCost = avgCost?.let { Shares.average(this.microShares, it, microShares, price) },
     )
+
+    /** The holding after selling [microShares] at [price]: fewer shares, same average cost. */
+    fun afterSale(microShares: Long, price: Long, at: Long): Holding {
+        require(microShares <= this.microShares) { "You hold ${Shares.format(this.microShares)} shares of $ticker." }
+        return copy(microShares = this.microShares - microShares, price = price, priceMillis = at)
+    }
+
+    /**
+     * The holding as if a buy of [microShares] at [price] never happened, for editing or deleting that buy.
+     * The average cost is taken back out too, when it's known and the rest still cost something.
+     */
+    fun withoutBuy(microShares: Long, price: Long): Holding {
+        val left = (this.microShares - microShares).coerceAtLeast(0)
+        val avg = avgCost?.let { a ->
+            if (left == 0L) a
+            else {
+                val restCost = BigDecimal.valueOf(this.microShares).multiply(BigDecimal.valueOf(a)) -
+                    BigDecimal.valueOf(microShares).multiply(BigDecimal.valueOf(price))
+                if (restCost.signum() > 0) restCost.divide(BigDecimal.valueOf(left), 0, RoundingMode.HALF_UP).toLong() else a
+            }
+        }
+        return copy(microShares = left, avgCost = avg)
+    }
+
+    /** The holding as if a sale of [microShares] never happened: the shares come back at the same average cost. */
+    fun withoutSale(microShares: Long): Holding = copy(microShares = this.microShares + microShares)
 }
+
+/** The shares and price behind one buy or sale entry, so the trade can be edited or undone later. */
+data class Trade(
+    val id: Long = 0,
+    /** The BUY or SELL entry that moved the cash. */
+    val transactionId: Long,
+    val ticker: String,
+    val microShares: Long,
+    val price: Long,
+)
 
 /** Share counts are kept in millionths ([Holding.microShares]) so fractional shares stay exact. */
 object Shares {

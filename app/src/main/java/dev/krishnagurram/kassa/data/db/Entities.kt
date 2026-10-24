@@ -17,6 +17,7 @@ import dev.krishnagurram.kassa.domain.LoanEntry
 import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.Person
 import dev.krishnagurram.kassa.domain.Transaction
+import dev.krishnagurram.kassa.domain.Trade
 import dev.krishnagurram.kassa.domain.TxKind
 
 /* Room rows. Enums are stored by name so the database stays readable and reorder-safe. */
@@ -135,6 +136,16 @@ data class HoldingEntity(
     val avgCost: Long? = null,
 )
 
+/** A [Trade]: the shares and price behind a BUY or SELL entry. */
+@Entity(tableName = "trades", indices = [Index("transactionId")])
+data class TradeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val transactionId: Long,
+    val ticker: String,
+    val microShares: Long,
+    val price: Long,
+)
+
 /** Result row for the balance query. */
 data class AccountBalance(
     @ColumnInfo(name = "id") val id: Long,
@@ -183,3 +194,5 @@ fun HoldingEntity.toDomain() = Holding(id, accountId, ticker, microShares, price
 fun Holding.toEntity() = HoldingEntity(id, accountId, ticker, microShares, price, priceMillis, avgCost)
 fun InvestmentTransferEntity.toDomain() = InvestmentTransfer(id, transactionId, accountId, amount, epochMillis)
 fun InvestmentTransfer.toEntity() = InvestmentTransferEntity(id, transactionId, accountId, amount, epochMillis)
+fun TradeEntity.toDomain() = Trade(id, transactionId, ticker, microShares, price)
+fun Trade.toEntity() = TradeEntity(id, transactionId, ticker, microShares, price)

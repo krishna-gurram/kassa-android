@@ -8,6 +8,7 @@ import dev.krishnagurram.kassa.data.db.HoldingEntity
 import dev.krishnagurram.kassa.data.db.LoanEntryEntity
 import dev.krishnagurram.kassa.data.db.PersonEntity
 import dev.krishnagurram.kassa.data.db.RecurringEntity
+import dev.krishnagurram.kassa.data.db.TradeEntity
 import dev.krishnagurram.kassa.data.db.TransactionEntity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -26,6 +27,8 @@ data class BackupContents(
     val loans: List<LoanEntryEntity>,
     val bills: List<RecurringEntity>,
     val holdings: List<HoldingEntity>,
+    /** Absent in backups from before trades were kept. */
+    val trades: List<TradeEntity> = emptyList(),
     val icons: Map<String, ByteArray>,
 ) {
     /** One line for the confirm step before restoring. */
@@ -68,6 +71,9 @@ data class BackupContents(
         .put("holdings", array(holdings) {
             put("id", it.id).put("accountId", it.accountId).put("ticker", it.ticker).put("microShares", it.microShares).put("price", it.price).put("priceMillis", it.priceMillis).putOpt("avgCost", it.avgCost)
         })
+        .put("trades", array(trades) {
+            put("id", it.id).put("transactionId", it.transactionId).put("ticker", it.ticker).put("microShares", it.microShares).put("price", it.price)
+        })
         .put("icons", JSONObject().also { o -> icons.forEach { (name, bytes) -> o.put(name, encodeBytes(bytes)) } })
         .toString()
 
@@ -103,6 +109,7 @@ data class BackupContents(
                 holdings = j.rows("holdings") {
                     HoldingEntity(getLong("id"), getLong("accountId"), getString("ticker"), getLong("microShares"), getLong("price"), getLong("priceMillis"), longOrNull("avgCost"))
                 },
+                trades = j.rows("trades") { TradeEntity(getLong("id"), getLong("transactionId"), getString("ticker"), getLong("microShares"), getLong("price")) },
                 icons = j.optJSONObject("icons")?.let { o -> o.keys().asSequence().associateWith { decodeBytes(o.getString(it)) } }.orEmpty(),
             )
         } catch (e: org.json.JSONException) {

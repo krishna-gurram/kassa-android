@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import dev.krishnagurram.kassa.KassaApplication
 import dev.krishnagurram.kassa.data.backup.BackupContents
 import dev.krishnagurram.kassa.data.repo.EntryDraft
+import dev.krishnagurram.kassa.domain.Trade
+import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Account
 import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.Budgets
@@ -38,6 +40,9 @@ import java.time.ZoneId
  * The main screens' state ([ledger]) and every change they make. Each change runs in the background and reports
  * through [messages]: what happened, or why it couldn't be saved (an input rule the repository enforced).
  */
+/** Bills and investing rows, gathered before they go into the [Ledger]. */
+private data class Investing(val bills: List<Recurring>, val holdings: List<Holding>, val transfers: List<InvestmentTransfer>, val trades: List<Trade>)
+
 class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private val kassa = app as KassaApplication
     private val settings = kassa.settings
@@ -51,10 +56,15 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     val ledger: StateFlow<Ledger?> = combine(
         combine(kassa.categories.categories, kassa.accounts.state, kassa.categories.budgets) { c, a, b -> Triple(c, a, b) },
         combine(kassa.people.state, recent) { p, r -> p to r },
-        combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers) { b, h, t -> Triple(b, h, t) },
+        combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers, kassa.investments.trades) { b, h, t, tr ->
+            Investing(b, h, t, tr)
+        },
         settings.monthStartDay,
-    ) { (categories, accounts, budgets), (people, entries), (bills, holdings, transfers), monthStart ->
-        Ledger(categories, accounts, budgets, people, entries, bills, holdings, transfers, monthStart, LocalDate.now(zone), zone)
+    ) { (categories, accounts, budgets), (people, entries), inv, monthStart ->
+        Ledger(
+            categories, accounts, budgets, people, entries, inv.bills, inv.holdings, inv.transfers,
+            inv.trades.associateBy { it.transactionId }, monthStart, LocalDate.now(zone), zone,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
@@ -91,6 +101,8 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
      * How the entry page opens an existing entry, split included. [withPerson] adds someone to the split and opens
      * the split panel, for "Split a transaction" from a person.
      */
+    suspend fun entry(id: Long): Transaction? = kassa.entries.get(id)
+
     suspend fun entryStartFor(id: Long, withPerson: Long? = null): EntryStart? {
         val t = kassa.entries.get(id) ?: return null
         val paidBy = if (t.kind == TxKind.EXPENSE && t.accountId == null) t.personId else null
@@ -183,11 +195,18 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     /** Clears a transfer the user already accounted for (or no longer wants asked about). */
     fun clearTransfer(transferId: Long) = change("Removed from pending review.") { kassa.investments.settle(transferId) }
 
-    fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, transferId: Long?) =
-        change("Added ${ticker.trim().uppercase()} to holdings.") { kassa.investments.buy(accountId, ticker, microShares, price, System.currentTimeMillis(), transferId) }
+    fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?, onDone: () -> Unit = {}) =
+        change("Added ${ticker.trim().uppercase()} to holdings.", onDone) { kassa.investments.buy(accountId, ticker, microShares, price, at, transferId) }
 
-    fun sell(accountId: Long, ticker: String, microShares: Long, price: Long) =
-        change("Sold ${ticker.trim().uppercase()}.") { kassa.investments.sell(accountId, ticker, microShares, price, System.currentTimeMillis()) }
+    fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, onDone: () -> Unit = {}) =
+        change("Sold ${ticker.trim().uppercase()}.", onDone) { kassa.investments.sell(accountId, ticker, microShares, price, at) }
+
+    fun editTrade(entry: Transaction, ticker: String, microShares: Long, price: Long, at: Long, onDone: () -> Unit) =
+        change("Trade saved.", onDone) { kassa.investments.editTrade(entry, ticker, microShares, price, at) }
+
+    fun moveTrade(entry: Transaction, at: Long, onDone: () -> Unit) = change("Date changed.", onDone) { kassa.investments.moveTrade(entry, at) }
+
+    fun deleteTrade(entry: Transaction, onDone: () -> Unit) = change("Trade deleted.", onDone) { kassa.investments.deleteTrade(entry) }
 
     fun saveHolding(h: Holding) = change { kassa.investments.save(h) }
 

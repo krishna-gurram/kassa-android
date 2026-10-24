@@ -77,11 +77,28 @@ class AppController(
         }
     }
 
-    /** Opens an entry on the entry page, its split loaded. [withPerson] adds them to the split, as "Split a transaction" does. */
+    /** The buy or sale whose sheet is open, if any. */
+    var editingTrade by mutableStateOf<Transaction?>(null)
+
+    /** The payment to or from a person whose sheet is open, if any. */
+    var editingPayment by mutableStateOf<Transaction?>(null)
+
+    /**
+     * Opens an entry where it's edited: expenses, income and transfers on the entry page (its split loaded;
+     * [withPerson] adds them to the split, as "Split a transaction" does), trades and person payments in their own
+     * sheets. The entry page only knows its three kinds, so nothing else may reach it.
+     */
     fun openEntry(id: Long, fromPage: Boolean, withPerson: Long? = null) {
         scope.launch {
-            val start = vm.entryStartFor(id, withPerson) ?: return@launch
-            if (fromPage) push(Page.Entry(start)) else openFromList(Page.Entry(start))
+            val t = vm.entry(id) ?: return@launch
+            when (t.kind) {
+                TxKind.BUY, TxKind.SELL -> editingTrade = t
+                TxKind.PERSON_IN, TxKind.PERSON_OUT -> editingPayment = t
+                else -> {
+                    val start = vm.entryStartFor(id, withPerson) ?: return@launch
+                    if (fromPage) push(Page.Entry(start)) else openFromList(Page.Entry(start))
+                }
+            }
         }
     }
 

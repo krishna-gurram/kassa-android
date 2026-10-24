@@ -106,7 +106,8 @@ fun TodayScreen(
     onAccounts: () -> Unit,
     onCards: () -> Unit,
 ) {
-    var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    // The month comes first: it's what budgets and statements are measured in.
+    var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(true) }
     var income by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
@@ -134,7 +135,8 @@ fun TodayScreen(
         val fit = maxHeight >= dev.krishnagurram.kassa.ui.common.FIT_MIN_HEIGHT
         val spending: @Composable () -> Unit = {
             // Swipe the spending card between this week and this month, the same as its toggle.
-            Column(Modifier.swipeShift { d -> month = d > 0 }) {
+            // The month is on the left of the toggle, so a swipe back shows it.
+            Column(Modifier.swipeShift { d -> month = d < 0 }) {
                 FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
             }
         }
@@ -240,7 +242,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
             )
         }
         Box(Modifier.weight(1f))
-        Switch2(listOf(false to "This week", true to monthName), month, setMonth)
+        Switch2(listOf(true to monthName, false to "This week"), month, setMonth)
     }
     BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
     // Tiles in rows of three: one row on the cover screen, two on the taller inner screen.

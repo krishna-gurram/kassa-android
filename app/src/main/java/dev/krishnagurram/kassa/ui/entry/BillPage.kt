@@ -148,7 +148,7 @@ fun BillPage(
             val wide = maxWidth >= 600.dp
 
             val form: @Composable ColumnScope.() -> Unit = {
-                AmountHero(amount, focused = field == BillField.AMOUNT, income = false, large = wide) { field = BillField.AMOUNT }
+                AmountHero(amount, income = false, large = wide) { field = BillField.AMOUNT }
                 Text(
                     when {
                         cents > 0 -> "Same every month"

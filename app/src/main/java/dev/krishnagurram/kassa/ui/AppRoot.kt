@@ -42,7 +42,9 @@ import dev.krishnagurram.kassa.ui.common.MessageHost
 import dev.krishnagurram.kassa.ui.common.PanePlaceholder
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.importer.ImportScreen
+import dev.krishnagurram.kassa.ui.accounts.PaymentSheet
 import dev.krishnagurram.kassa.ui.invest.AllocateSheet
+import dev.krishnagurram.kassa.ui.invest.TradeEditSheet
 import dev.krishnagurram.kassa.ui.theme.Kassa
 
 /**
@@ -128,13 +130,35 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
                     t, l,
                     onCash = { app.vm.keepTransferAsCash(t.id); app.allocating = null },
                     onRecorded = { app.vm.clearTransfer(t.id); app.allocating = null },
-                    onBuy = { ticker, shares, price -> app.vm.buy(t.accountId, ticker, shares, price, t.id); app.allocating = null },
+                    onBuy = { o -> app.vm.buy(t.accountId, o.ticker, o.microShares, o.price, o.at, transferId = t.id); app.allocating = null },
                     onDismiss = { app.allocating = null },
                 )
             }
             app.paying?.let { id ->
                 l.cards().firstOrNull { it.account.id == id }?.let { card ->
                     PaySheet(card, l, onDismiss = { app.paying = null }, onPay = { draft -> app.paying = null; app.vm.save(draft) })
+                }
+            }
+            app.editingTrade?.let { t ->
+                val close = { app.editingTrade = null }
+                TradeEditSheet(
+                    t, l.trades[t.id], l.today, l.zone,
+                    onSave = { o -> app.vm.editTrade(t, o.ticker, o.microShares, o.price, o.at, close) },
+                    onMove = { at -> app.vm.moveTrade(t, at, close) },
+                    onDelete = { app.vm.deleteTrade(t, close) },
+                    onDismiss = close,
+                )
+            }
+            app.editingPayment?.let { t ->
+                val close = { app.editingPayment = null }
+                l.people.people.firstOrNull { it.id == t.personId }?.let { person ->
+                    PaymentSheet(
+                        person, l.personBalances()[person.id] ?: 0, l,
+                        onDismiss = close,
+                        onSave = { draft -> app.vm.save(draft, onDone = close) },
+                        editing = t,
+                        onDelete = { app.vm.delete(t.id); close() },
+                    )
                 }
             }
         }

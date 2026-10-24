@@ -8,6 +8,7 @@ import dev.krishnagurram.kassa.domain.Holding
 import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.InvestmentTransfer
 import dev.krishnagurram.kassa.domain.Shares
+import dev.krishnagurram.kassa.domain.Trade
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.map
 class InvestmentRepository(private val db: KassaDatabase, private val entries: EntryRepository) {
 
     val holdings: Flow<List<Holding>> = db.holdings().observeAll().map { rows -> rows.map { it.toDomain() } }
+
+    val trades: Flow<List<Trade>> = db.trades().observeAll().map { rows -> rows.map { it.toDomain() } }
 
     val transfers: Flow<List<InvestmentTransfer>> = db.investmentTransfers().observeAll().map { rows -> rows.map { it.toDomain() } }
 
@@ -35,14 +38,12 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
      */
     suspend fun settle(transferId: Long) = db.investmentTransfers().delete(transferId)
 
-    /** Buys shares with cash in the account: a BUY entry, and the holding grows. Clears [transferId] when given. */
+    /** Buys shares with cash in the account: a BUY entry, its trade, and the holding grows. Clears [transferId] when given. */
     suspend fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?) = db.withTransaction {
         val t = checkedTicker(ticker)
         val cost = checkedTrade(microShares, price)
-        entries.insertRaw(Transaction(kind = TxKind.BUY, amount = cost, accountId = accountId, epochMillis = at, note = t))
-        val existing = db.holdings().find(accountId, t)?.toDomain()
-        if (existing == null) db.holdings().insert(Holding(accountId = accountId, ticker = t, microShares = microShares, price = price, priceMillis = at, avgCost = price).toEntity())
-        else db.holdings().update(existing.afterBuy(microShares, price, at).toEntity())
+        applyBuy(accountId, t, microShares, price, at)
+        record(TxKind.BUY, accountId, t, microShares, price, cost, at)
         transferId?.let { db.investmentTransfers().delete(it) }
     }
 
@@ -53,11 +54,72 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
     suspend fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) = db.withTransaction {
         val t = checkedTicker(ticker)
         val proceeds = checkedTrade(microShares, price)
-        val h = db.holdings().find(accountId, t) ?: throw IllegalArgumentException("You don't hold $t here.")
-        require(microShares <= h.microShares) { "You hold ${Shares.format(h.microShares)} shares of $t." }
-        entries.insertRaw(Transaction(kind = TxKind.SELL, amount = proceeds, accountId = accountId, epochMillis = at, note = t))
-        val left = h.microShares - microShares
-        if (left == 0L) db.holdings().delete(h.id) else db.holdings().update(h.copy(microShares = left, price = price, priceMillis = at))
+        applySale(accountId, t, microShares, price, at)
+        record(TxKind.SELL, accountId, t, microShares, price, proceeds, at)
+    }
+
+    /** The shares and price behind a BUY or SELL entry; null for trades made before Kassa kept them. */
+    suspend fun tradeFor(transactionId: Long): Trade? = db.trades().forTransaction(transactionId)?.toDomain()
+
+    /**
+     * Changes a buy or sale: the old trade comes off the holding, the new one goes on, and the entry's cash and date
+     * follow. Throws [IllegalArgumentException] for a trade without recorded shares (see [moveTrade]).
+     */
+    suspend fun editTrade(entry: Transaction, ticker: String, microShares: Long, price: Long, at: Long) = db.withTransaction {
+        val old = tradeFor(entry.id) ?: throw IllegalArgumentException("This trade's shares weren't recorded, so only its date can change.")
+        val accountId = requireNotNull(entry.accountId) { "This trade has no account." }
+        val t = if (ticker == old.ticker) ticker else checkedTicker(ticker)
+        val total = checkedTrade(microShares, price)
+        undo(entry, old)
+        if (entry.kind == TxKind.BUY) applyBuy(accountId, t, microShares, price, at) else applySale(accountId, t, microShares, price, at)
+        db.transactions().update(entry.copy(amount = total, epochMillis = at, note = t).toEntity())
+        db.trades().update(old.copy(ticker = t, microShares = microShares, price = price).toEntity())
+    }
+
+    /** Moves a trade to another date, nothing else. The only change for trades made before shares were kept. */
+    suspend fun moveTrade(entry: Transaction, at: Long) = db.transactions().update(entry.copy(epochMillis = at).toEntity())
+
+    /** Deletes a buy or sale. A trade with recorded shares is taken off its holding; an older one only returns its cash. */
+    suspend fun deleteTrade(entry: Transaction) = db.withTransaction {
+        tradeFor(entry.id)?.let { undo(entry, it) }
+        db.trades().deleteForTransaction(entry.id)
+        entries.delete(entry.id)
+    }
+
+    private suspend fun record(kind: TxKind, accountId: Long, ticker: String, microShares: Long, price: Long, total: Long, at: Long) {
+        val id = entries.insertRaw(Transaction(kind = kind, amount = total, accountId = accountId, epochMillis = at, note = ticker))
+        db.trades().insert(Trade(transactionId = id, ticker = ticker, microShares = microShares, price = price).toEntity())
+    }
+
+    private suspend fun applyBuy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) {
+        val existing = db.holdings().find(accountId, ticker)?.toDomain()
+        store(existing?.afterBuy(microShares, price, at)
+            ?: Holding(accountId = accountId, ticker = ticker, microShares = microShares, price = price, priceMillis = at, avgCost = price))
+    }
+
+    private suspend fun applySale(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) {
+        val h = db.holdings().find(accountId, ticker)?.toDomain() ?: throw IllegalArgumentException("You don't hold $ticker here.")
+        store(h.afterSale(microShares, price, at))
+    }
+
+    /** Takes [trade] back off its holding, as if it never happened. */
+    private suspend fun undo(entry: Transaction, trade: Trade) {
+        val accountId = entry.accountId ?: return
+        val h = db.holdings().find(accountId, trade.ticker)?.toDomain()
+        when (entry.kind) {
+            TxKind.BUY -> h?.let { store(it.withoutBuy(trade.microShares, trade.price)) }
+            // A holding sold to zero was removed, so undoing that sale brings it back.
+            TxKind.SELL -> store(h?.withoutSale(trade.microShares)
+                ?: Holding(accountId = accountId, ticker = trade.ticker, microShares = trade.microShares, price = trade.price, priceMillis = entry.epochMillis))
+            else -> {}
+        }
+    }
+
+    /** Saves a holding; one with no shares left is removed. */
+    private suspend fun store(h: Holding) = when {
+        h.microShares == 0L -> { if (h.id != 0L) db.holdings().delete(h.id) else Unit }
+        h.id == 0L -> { db.holdings().insert(h.toEntity()); Unit }
+        else -> db.holdings().update(h.toEntity())
     }
 
     /**
