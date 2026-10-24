@@ -68,6 +68,16 @@ Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating b
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
+## One component per job
+Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before
+writing a new control, find the existing one; if it doesn't fit, change it rather than adding a second version.
+- Dates: `MonthCalendar` (the entry page's date panel) and `DateRow` (Today, Yesterday, Other day; opens the same
+  calendar). Never Material's `DatePicker`.
+- Amounts `AmountField`, names `NameField`, short numbers `DigitsField` (`ui/common/Fields.kt`); the entry and bill
+  pages use `NumberPad`.
+- Pick-one choices `Chip`; one-tap answers `QuickButton`; anything that removes data `ConfirmDialog`;
+  short messages `MessageHost`; Add `AddButton`.
+
 ## One page per thing
 Every category opens `CategoryPage`, every entry opens the entry page (`TransactionRow` onClick), every card `CardPage`,
 every day `DayPage`, every store `InsightStorePage`, and "this week"/"this month" opens `SpendingPage`. Category lists

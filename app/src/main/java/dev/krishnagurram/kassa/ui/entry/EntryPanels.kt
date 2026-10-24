@@ -57,6 +57,7 @@ import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.CategoryIconView
+import dev.krishnagurram.kassa.ui.common.MonthCalendar
 import dev.krishnagurram.kassa.ui.common.swipeShift
 import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.theme.Kassa
@@ -283,59 +284,4 @@ internal fun ColumnScope.NotePanel(s: EntryState, ledger: Ledger, frequentNotes:
         }
     }
     Spacer(Modifier.weight(1f))
-}
-
-/** A month of days starting on Sunday. Days after today can't be picked; neither can months after this one. */
-@Composable
-private fun MonthCalendar(month: YearMonth, selected: LocalDate, today: LocalDate, onMonth: (YearMonth) -> Unit, modifier: Modifier, onPick: (LocalDate) -> Unit) {
-    val canNext = month < YearMonth.from(today)
-    Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) onMonth(month.minusMonths(1)) else if (canNext) onMonth(month.plusMonths(1)) }) {
-        Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink,
-                modifier = Modifier.clip(CircleShape).clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 12.dp))
-            Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)), style = KassaType.bodyStrong, color = Kassa.colors.ink,
-                textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-            Text("›", style = KassaType.body.copy(fontSize = 22.sp), color = if (canNext) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f),
-                modifier = Modifier.clip(CircleShape).clickable(enabled = canNext) { onMonth(month.plusMonths(1)) }.padding(horizontal = 12.dp))
-        }
-        Row(Modifier.fillMaxWidth()) {
-            WEEK_FROM_SUNDAY.forEach {
-                Text(it.getDisplayName(TextStyle.NARROW, Locale.US), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                    color = Kassa.colors.ink3, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = 2.dp))
-            }
-        }
-        val lead = month.atDay(1).dayOfWeek.value % 7
-        val cells = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
-        cells.chunked(7).forEach { week ->
-            Row(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 40.dp)) {
-                (0 until 7).forEach { i ->
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        week.getOrNull(i)?.let { d -> CalendarDay(d, selected = d == selected, today = today, onPick = onPick) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private val WEEK_FROM_SUNDAY = listOf(
-    DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY,
-)
-
-@Composable
-private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, onPick: (LocalDate) -> Unit) {
-    val future = d.isAfter(today)
-    Box(
-        Modifier.size(34.dp).clip(CircleShape).background(if (selected) Kassa.colors.ink else Color.Transparent).clickable(enabled = !future) { onPick(d) },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            d.dayOfMonth.toString(),
-            style = KassaType.body.copy(
-                fontWeight = if (d == today) FontWeight.Bold else FontWeight.Medium,
-                textDecoration = if (d == today && !selected) TextDecoration.Underline else null,
-            ),
-            color = when { selected -> Kassa.colors.onInk; future -> Kassa.colors.ink3.copy(alpha = 0.4f); else -> Kassa.colors.ink },
-        )
-    }
 }
