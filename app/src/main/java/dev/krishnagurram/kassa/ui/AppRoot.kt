@@ -42,6 +42,7 @@ import dev.krishnagurram.kassa.ui.common.MessageHost
 import dev.krishnagurram.kassa.ui.common.PanePlaceholder
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.importer.ImportScreen
+import dev.krishnagurram.kassa.ui.start.StartFresh
 import dev.krishnagurram.kassa.ui.accounts.PaymentSheet
 import dev.krishnagurram.kassa.ui.invest.AllocateSheet
 import dev.krishnagurram.kassa.ui.invest.TradeEditSheet
@@ -62,6 +63,8 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
     val app = remember(vm, nav) { AppController(vm, nav, scope, context) }
     val ledger by vm.ledger.collectAsState()
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
+    // First run: "Start fresh" opens the setup (starter categories and a first account).
+    var settingUp by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
@@ -85,7 +88,11 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
         when {
             entryCount < 0 || l == null -> Unit
             entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() })
+                if (settingUp) StartFresh(
+                    onDone = { categories, account -> vm.startFresh(categories, account); fresh = true; onStartFresh() },
+                    onBack = { settingUp = false },
+                )
+                else ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() }, onStartFresh = { settingUp = true })
             }
             else -> Shell(nav.tab, onTab = nav::select, onAdd = { app.newEntry(from = nav.top) }, showAdd = nav.stack.isEmpty()) { padding ->
                 Tabs(app, l, padding, wide)

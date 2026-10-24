@@ -73,6 +73,11 @@ class Settings(context: Context) {
         _cleared.value = next
     }
 
+    private val _tip = MutableStateFlow(prefs.getInt(TIP, 0))
+    /** Which first-run tip Overview shows next; past the last one, none. */
+    val tip: StateFlow<Int> = _tip
+    fun setTip(n: Int) { prefs.edit().putInt(TIP, n).apply(); _tip.value = n }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -99,5 +104,6 @@ class Settings(context: Context) {
         const val THEME = "theme"
         const val CURRENCY = "currency"
         const val CLEARED = "cleared_notifications"
+        const val TIP = "first_run_tip"
     }
 }

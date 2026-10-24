@@ -32,10 +32,29 @@
             </intent-filter>
         </activity>
 
+        <!-- Lets the email app read screenshots attached to feedback. Nothing else is shared. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files" />
+        </provider>
+
         <service
             android:name=".data.jobs.DailyJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
     </application>
+
+    <!-- Feedback opens the email app; Android 11+ needs to be told Kassa looks for one. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+    </queries>
 </manifest>

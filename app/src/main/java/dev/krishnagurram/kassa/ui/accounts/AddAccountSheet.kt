@@ -65,40 +65,7 @@ fun AddAccountSheet(
         ) {
             Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
             Gap(8)
-            Label("Type")
-            FlowRow {
-                AccountType.entries.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(null) { it.copy(type = t) } } }
-            }
-            NameField(form.name, { v -> edit(AccountField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[AccountField.NAME])
-            DigitsField(form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = v) } }, "Last 4 digits (optional)", 4, Modifier.fillMaxWidth(),
-                problem = problems[AccountField.LAST4])
-            AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
-                if (form.type.isDebt) "Amount owed today" else "Balance today", Modifier.fillMaxWidth(),
-                problem = problems[AccountField.BALANCE], placeholder = "0", signed = true)
-            if (form.type.hasStatement) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DigitsField(form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = v) } }, "Statement day", 2,
-                        Modifier.weight(1f), problem = problems[AccountField.STATEMENT_DAY], placeholder = "1 to 31")
-                    DigitsField(form.dueDay, { v -> edit(AccountField.DUE_DAY) { it.copy(dueDay = v) } }, "Due day", 2,
-                        Modifier.weight(1f), problem = problems[AccountField.DUE_DAY], placeholder = "1 to 31")
-                }
-                AmountField(form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = v) } }, "Credit limit (optional)", Modifier.fillMaxWidth(),
-                    problem = problems[AccountField.LIMIT])
-                if (payFromOptions.isNotEmpty()) {
-                    Label("Pay from")
-                    FlowRow { payFromOptions.forEach { a -> Chip(a.name, form.payFromId == a.id, small = true) { edit(null) { it.copy(payFromId = a.id) } } } }
-                }
-            }
-            if (groups.isNotEmpty()) {
-                Label("Group")
-                FlowRow {
-                    groups.forEach { g ->
-                        Chip(g.name, form.groupId == g.id && form.newGroup.isBlank(), small = true) { edit(AccountField.NEW_GROUP) { it.copy(groupId = g.id, newGroup = "") } }
-                    }
-                }
-            }
-            NameField(form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = v) } }, "Or a new group", Modifier.fillMaxWidth(),
-                problem = problems[AccountField.NEW_GROUP])
+            AccountFields(form, problems, ::edit, groups, payFromOptions)
             Gap(12)
             PrimaryButton("Add account") {
                 problems = form.problems(takenNames)
@@ -107,6 +74,57 @@ fun AddAccountSheet(
             Gap(24)
         }
     }
+}
+
+/**
+ * The fields of the account form: type, name, last 4, balance, card details and group. Shared by [AddAccountSheet]
+ * and the first-run setup, which offers fewer [types] and no groups.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AccountFields(
+    form: AccountForm,
+    problems: Map<AccountField, String>,
+    edit: (AccountField?, (AccountForm) -> AccountForm) -> Unit,
+    groups: List<AccountGroup>,
+    payFromOptions: List<Account>,
+    types: List<AccountType> = AccountType.entries,
+    showGroup: Boolean = true,
+) {
+    Label("Type")
+    FlowRow {
+        types.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(null) { it.copy(type = t) } } }
+    }
+    NameField(form.name, { v -> edit(AccountField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[AccountField.NAME])
+    DigitsField(form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = v) } }, "Last 4 digits (optional)", 4, Modifier.fillMaxWidth(),
+        problem = problems[AccountField.LAST4])
+    AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
+        if (form.type.isDebt) "Amount owed today" else "Balance today", Modifier.fillMaxWidth(),
+        problem = problems[AccountField.BALANCE], placeholder = "0", signed = true)
+    if (form.type.hasStatement) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DigitsField(form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = v) } }, "Statement day", 2,
+                Modifier.weight(1f), problem = problems[AccountField.STATEMENT_DAY], placeholder = "1 to 31")
+            DigitsField(form.dueDay, { v -> edit(AccountField.DUE_DAY) { it.copy(dueDay = v) } }, "Due day", 2,
+                Modifier.weight(1f), problem = problems[AccountField.DUE_DAY], placeholder = "1 to 31")
+        }
+        AmountField(form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = v) } }, "Credit limit (optional)", Modifier.fillMaxWidth(),
+            problem = problems[AccountField.LIMIT])
+        if (payFromOptions.isNotEmpty()) {
+            Label("Pay from")
+            FlowRow { payFromOptions.forEach { a -> Chip(a.name, form.payFromId == a.id, small = true) { edit(null) { it.copy(payFromId = a.id) } } } }
+        }
+    }
+    if (showGroup && groups.isNotEmpty()) {
+        Label("Group")
+        FlowRow {
+            groups.forEach { g ->
+                Chip(g.name, form.groupId == g.id && form.newGroup.isBlank(), small = true) { edit(AccountField.NEW_GROUP) { it.copy(groupId = g.id, newGroup = "") } }
+            }
+        }
+    }
+    if (showGroup) NameField(form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = v) } }, "Or a new group", Modifier.fillMaxWidth(),
+        problem = problems[AccountField.NEW_GROUP])
 }
 
 @Composable
