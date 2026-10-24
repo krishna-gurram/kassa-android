@@ -81,6 +81,9 @@ statement date itself starts the next cycle. Card figures are never clamped: pay
 Payable.
 
 ## Entries
+The entry page edits only expenses, income and transfers. Buys and sales open the trade sheet (their shares and
+price live in `trades`; trades from before database v7 have none and only their date can change), and payments to or
+from a person open the payment sheet. `AppController.openEntry` routes each kind; never send another kind to the entry page.
 Nothing guesses an account: a new entry starts with none and you pick it. Splits live on the entry page (Split row):
 several people, who paid, equal or exact shares; a person's "Split a transaction" opens that same page.
 

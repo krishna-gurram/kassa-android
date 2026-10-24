@@ -160,8 +160,8 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
         onEditAccount = { app.push(Page.EditAccount(a.id)) },
         onSaveHolding = { app.vm.saveHolding(it) },
         onDeleteHolding = { app.vm.deleteHolding(it.id) },
-        onBuy = { ticker, shares, price -> app.vm.buy(a.id, ticker, shares, price, null) },
-        onSell = { ticker, shares, price -> app.vm.sell(a.id, ticker, shares, price) },
+        onBuy = { o -> app.vm.buy(a.id, o.ticker, o.microShares, o.price, o.at, transferId = null) },
+        onSell = { o -> app.vm.sell(a.id, o.ticker, o.microShares, o.price, o.at) },
     )
 }
 

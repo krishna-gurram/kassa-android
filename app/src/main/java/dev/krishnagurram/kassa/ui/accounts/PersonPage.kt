@@ -35,10 +35,14 @@ import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Person
+import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.AmountField
+import dev.krishnagurram.kassa.ui.common.ConfirmDialog
+import dev.krishnagurram.kassa.ui.common.DateRow
 import dev.krishnagurram.kassa.ui.common.Gap
+import dev.krishnagurram.kassa.ui.common.momentOn
 import dev.krishnagurram.kassa.ui.common.PageTop
 import dev.krishnagurram.kassa.ui.common.RaisedPanel
 import dev.krishnagurram.kassa.ui.common.SectionHeader
@@ -50,7 +54,6 @@ import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 import dev.krishnagurram.kassa.ui.today.BigMoney
 import java.time.Instant
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /** One line of a person's history: a split share or a payment. [amount] is positive when it adds to what they owe you. */
@@ -151,26 +154,42 @@ fun PersonPage(
             onUpdate(updated, newStarting.takeIf { it != starting }) { editing = false }
         }
     }
-    if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }) { draft -> onSave(draft) { recording = false } }
+    if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }, onSave = { draft -> onSave(draft) { recording = false } })
     if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { id -> splitting = false; onSplit(id) }
 }
 
-/** Money between you and one person, either way. Starts on settling the balance. */
+/**
+ * Money between you and one person, either way. A new payment starts on settling the balance; [editing] opens an
+ * existing one filled in, with Delete ([onDelete]) under Save.
+ */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun PaymentSheet(p: Person, balance: Long, ledger: Ledger, onDismiss: () -> Unit, onSave: (EntryDraft) -> Unit) {
-    val banks = ledger.accounts.accounts.filter { !it.archived && it.type in PAYMENT_ACCOUNT_TYPES }
-    var direction by remember(p.id, balance) { mutableStateOf(if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
-    var amount by remember(p.id, balance) { mutableStateOf(if (balance != 0L) Money.toInput(Math.abs(balance)) else "") }
+internal fun PaymentSheet(
+    p: Person,
+    balance: Long,
+    ledger: Ledger,
+    onDismiss: () -> Unit,
+    onSave: (EntryDraft) -> Unit,
+    editing: Transaction? = null,
+    onDelete: (() -> Unit)? = null,
+) {
+    // An edited payment keeps its account in the list even if that account was archived since.
+    val banks = ledger.accounts.accounts.filter { (!it.archived && it.type in PAYMENT_ACCOUNT_TYPES) || it.id == editing?.accountId }
+    var direction by remember(p.id) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
+    var amount by remember(p.id) {
+        mutableStateOf(editing?.let { Money.toInput(it.amount) } ?: if (balance != 0L) Money.toInput(Math.abs(balance)) else "")
+    }
     // Nothing guesses an account: you pick where the money went.
-    var account by remember { mutableStateOf<Long?>(null) }
-    var date by remember { mutableStateOf(ledger.today) }
+    var account by remember { mutableStateOf(editing?.accountId) }
+    val originalDate = editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
+    var date by remember { mutableStateOf(originalDate ?: ledger.today) }
     var amountProblem by remember { mutableStateOf<String?>(null) }
     var accountProblem by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            Text("Record a payment", style = KassaType.section, color = Kassa.colors.ink)
+            Text(if (editing != null) "Edit payment" else "Record a payment", style = KassaType.section, color = Kassa.colors.ink)
             FlowRow(Modifier.padding(top = 10.dp)) {
                 Chip("${p.name} paid me", selected = direction == TxKind.PERSON_IN) { direction = TxKind.PERSON_IN }
                 Chip("I paid or lent ${p.name}", selected = direction == TxKind.PERSON_OUT) { direction = TxKind.PERSON_OUT }
@@ -181,28 +200,33 @@ private fun PaymentSheet(p: Person, balance: Long, ledger: Ledger, onDismiss: ()
             FlowRow { banks.forEach { a -> Chip(a.name, selected = account == a.id) { account = a.id; accountProblem = null } } }
             accountProblem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-            FlowRow {
-                listOf("Today" to 0L, "Yesterday" to 1L, "2 days ago" to 2L).forEach { (label, back) ->
-                    val day = ledger.today.minusDays(back)
-                    Chip(label, selected = date == day, small = true) { date = day }
-                }
-            }
+            DateRow(date, ledger.today) { date = it }
             Gap(12)
-            PrimaryButton("Save payment") {
+            PrimaryButton(if (editing != null) "Save changes" else "Save payment") {
                 val cents = Money.parseCents(amount)
                 amountProblem = InputRules.amountProblem(cents)
                 accountProblem = if (account == null) "Pick an account." else null
                 if (amountProblem != null || accountProblem != null) return@PrimaryButton
-                val time = if (date == ledger.today) LocalTime.now(ledger.zone) else LocalTime.NOON
+                val defaultNote = if (direction == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}"
                 onSave(EntryDraft(
-                    id = null, kind = direction, amount = cents!!, accountId = account, toAccountId = null, categoryId = null,
+                    id = editing?.id, kind = direction, amount = cents!!, accountId = account, toAccountId = null, categoryId = null,
                     personId = p.id,
-                    epochMillis = date.atTime(time).atZone(ledger.zone).toInstant().toEpochMilli(),
-                    note = if (direction == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}",
+                    // An unchanged date keeps the original time, so the payment doesn't move within its day.
+                    epochMillis = if (editing != null && date == originalDate) editing.epochMillis else momentOn(date, ledger.today, ledger.zone),
+                    // A note the user wrote stays; the generated one follows the direction.
+                    note = editing?.note?.takeIf { direction == editing.kind && it.isNotBlank() } ?: defaultNote,
                 ))
+            }
+            if (onDelete != null) TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Delete payment", color = Kassa.colors.attention, style = KassaType.bodyStrong)
             }
         }
     }
+    if (confirmDelete && onDelete != null) ConfirmDialog(
+        title = "Delete this payment?",
+        body = "${Money.format(editing?.amount ?: 0)} comes off what's between you and ${p.name}, and off the account. This can't be undone.",
+        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+    )
 }
 
 private val PAYMENT_ACCOUNT_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID, AccountType.CREDIT_CARD)

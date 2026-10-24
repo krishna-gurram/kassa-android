@@ -8,7 +8,7 @@ import dev.krishnagurram.kassa.data.security.DatabaseKey
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 /** Bump with every schema change, and add the migration to [ALL_MIGRATIONS]. */
-const val DATABASE_VERSION = 6
+const val DATABASE_VERSION = 7
 
 /**
  * Kassa's database. Changing an entity means bumping [version] and adding a migration in Migrations.kt;
@@ -18,7 +18,7 @@ const val DATABASE_VERSION = 6
     entities = [
         GroupEntity::class, AccountEntity::class, CategoryEntity::class, TransactionEntity::class, BudgetEntity::class,
         PersonEntity::class, LoanEntryEntity::class,
-        RecurringEntity::class, InvestmentTransferEntity::class, HoldingEntity::class,
+        RecurringEntity::class, InvestmentTransferEntity::class, HoldingEntity::class, TradeEntity::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -34,6 +34,7 @@ abstract class KassaDatabase : RoomDatabase() {
     abstract fun recurring(): RecurringDao
     abstract fun investmentTransfers(): InvestmentTransferDao
     abstract fun holdings(): HoldingDao
+    abstract fun trades(): TradeDao
 
     companion object {
         /** Encrypted with SQLCipher. The key lives in the Android Keystore, see [DatabaseKey]. */

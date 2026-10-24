@@ -166,7 +166,7 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
     val people = ledger.people.people.associateBy { it.id }
 
     KindSwitch(s.kind, onSelect = { s.switchKind(it, ledger.accountById) }, modifier = Modifier.fillMaxWidth())
-    AmountHero(s.amount, focused = s.field == Field.AMOUNT || s.field == null, income = s.kind == TxKind.INCOME, large = wide) { s.field = Field.AMOUNT }
+    AmountHero(s.amount, income = s.kind == TxKind.INCOME, large = wide) { s.field = Field.AMOUNT }
     if (s.kind == TxKind.TRANSFER && s.toAccountId != null) {
         Text(if (toCard != null) "Card payment" else "Transfer", style = KassaType.tiny, color = Kassa.colors.ink2,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))

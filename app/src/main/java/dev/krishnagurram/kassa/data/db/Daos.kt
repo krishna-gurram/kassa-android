@@ -293,3 +293,30 @@ interface BudgetDao {
     @Query("DELETE FROM budgets")
     suspend fun deleteAll()
 }
+
+@Dao
+interface TradeDao {
+    @Query("SELECT * FROM trades")
+    suspend fun all(): List<TradeEntity>
+
+    @Query("SELECT * FROM trades")
+    fun observeAll(): Flow<List<TradeEntity>>
+
+    @Query("SELECT * FROM trades WHERE transactionId = :transactionId")
+    suspend fun forTransaction(transactionId: Long): TradeEntity?
+
+    @Insert
+    suspend fun insert(t: TradeEntity): Long
+
+    @Insert
+    suspend fun insertAll(t: List<TradeEntity>)
+
+    @Update
+    suspend fun update(t: TradeEntity)
+
+    @Query("DELETE FROM trades WHERE transactionId = :transactionId")
+    suspend fun deleteForTransaction(transactionId: Long)
+
+    @Query("DELETE FROM trades")
+    suspend fun deleteAll()
+}

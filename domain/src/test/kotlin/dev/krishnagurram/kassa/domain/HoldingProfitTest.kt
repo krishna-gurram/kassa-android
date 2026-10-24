@@ -2,6 +2,7 @@ package dev.krishnagurram.kassa.domain
 
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class HoldingProfitTest {
@@ -29,5 +30,26 @@ class HoldingProfitTest {
         val h = vti.copy(avgCost = null)
         assertNull(h.profit)
         assertNull(h.afterBuy(1_000_000, 30_000, at = 1).avgCost)
+    }
+
+    @Test
+    fun undoingABuyRestoresTheEarlierHolding() {
+        val after = vti.afterBuy(5_000_000, 24_000, at = 1)
+        val undone = after.withoutBuy(5_000_000, 24_000)
+        assertEquals(10_000_000, undone.microShares)
+        assertEquals(20_000, undone.avgCost)
+    }
+
+    @Test
+    fun aSaleKeepsTheAverageAndUndoingItBringsSharesBack() {
+        val sold = vti.afterSale(4_000_000, 26_000, at = 1)
+        assertEquals(6_000_000, sold.microShares)
+        assertEquals(20_000, sold.avgCost)
+        assertEquals(10_000_000, sold.withoutSale(4_000_000).microShares)
+    }
+
+    @Test
+    fun youCantSellMoreThanYouHold() {
+        assertFailsWith<IllegalArgumentException> { vti.afterSale(11_000_000, 26_000, at = 1) }
     }
 }

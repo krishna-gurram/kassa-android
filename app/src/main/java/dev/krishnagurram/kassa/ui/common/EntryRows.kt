@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import dev.krishnagurram.kassa.domain.Money
+import dev.krishnagurram.kassa.domain.Shares
 import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
@@ -50,7 +51,7 @@ fun TransactionRow(
         TxKind.BUY, TxKind.SELL -> EntryRow(
             badge = { IconBadge(if (t.kind == TxKind.BUY) androidx.compose.material.icons.Icons.Outlined.TrendingUp else androidx.compose.material.icons.Icons.Outlined.TrendingDown) },
             title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
-            subtitle = date + (acct ?: ""),
+            subtitle = date + (ledger.trades[t.id]?.let { "${Shares.format(it.microShares)} shares at ${Money.format(it.price)}" } ?: acct ?: ""),
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
             note = noteOverride ?: "Investing", showDivider = showDivider, modifier = m,
         )

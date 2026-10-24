@@ -96,4 +96,16 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun tradesStartEmptyAndEarlierBuysStay() {
+        helper.createDatabase("trades-v6.db", 6).apply {
+            execSQL("INSERT INTO transactions (id, kind, amount, accountId, toAccountId, categoryId, personId, epochMillis, note, myShare, externalId) VALUES (4, 'BUY', 200000, 3, NULL, NULL, NULL, 1760000000000, 'VTI', NULL, NULL)")
+            close()
+        }
+        helper.runMigrationsAndValidate("trades-v6.db", DATABASE_VERSION, true, *ALL_MIGRATIONS).use { db ->
+            db.query("SELECT COUNT(*) FROM trades").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+            db.query("SELECT amount FROM transactions WHERE id = 4").use { c -> c.moveToFirst(); assertEquals(200000L, c.getLong(0)) }
+        }
+    }
 }

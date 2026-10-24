@@ -84,11 +84,11 @@ interface InsightActions {
  */
 @Composable
 fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: InsightActions) {
-    var week by rememberSaveable { mutableStateOf(true) }
+    var week by rememberSaveable { mutableStateOf(false) }
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     // Swipe between this week and this month, the same as tapping the toggle.
-    BoxWithConstraints(Modifier.fillMaxSize().swipeShift { d -> week = d < 0 }) {
+    BoxWithConstraints(Modifier.fillMaxSize().swipeShift { d -> week = d > 0 }) {
         val wide = maxWidth >= 720.dp
         // Tall screens fit everything with no scrolling: the category list shows as many lines as there's room for.
         val fit = maxHeight >= FIT_MIN_HEIGHT
@@ -97,7 +97,7 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
         val head: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Insights", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-                Toggle(listOf(true to "This week", false to monthName), week) { week = it }
+                Toggle(listOf(false to monthName, true to "This week"), week) { week = it }
             }
         }
         if (wide) {

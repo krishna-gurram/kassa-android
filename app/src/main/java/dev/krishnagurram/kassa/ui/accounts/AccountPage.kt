@@ -52,6 +52,7 @@ import dev.krishnagurram.kassa.ui.importer.PrimaryButton
 import dev.krishnagurram.kassa.ui.importer.SecondaryButton
 import dev.krishnagurram.kassa.ui.invest.HoldingSheet
 import dev.krishnagurram.kassa.ui.invest.PricesSheet
+import dev.krishnagurram.kassa.ui.invest.TradeOrder
 import dev.krishnagurram.kassa.ui.invest.TradeSheet
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
@@ -80,8 +81,8 @@ fun AccountPage(
     onEditAccount: () -> Unit,
     onSaveHolding: (Holding) -> Unit,
     onDeleteHolding: (Holding) -> Unit,
-    onBuy: (String, Long, Long) -> Unit,
-    onSell: (String, Long, Long) -> Unit,
+    onBuy: (TradeOrder) -> Unit,
+    onSell: (TradeOrder) -> Unit,
 ) {
     val balance = ledger.accounts.balances[account.id] ?: 0
     // The balance right after each entry: walk back from today's balance.
@@ -201,8 +202,8 @@ private fun InvestmentBody(
     onEditEntry: (Transaction) -> Unit,
     onSaveHolding: (Holding) -> Unit,
     onDeleteHolding: (Holding) -> Unit,
-    onBuy: (String, Long, Long) -> Unit,
-    onSell: (String, Long, Long) -> Unit,
+    onBuy: (TradeOrder) -> Unit,
+    onSell: (TradeOrder) -> Unit,
 ) {
     val holdings = ledger.holdings.filter { it.accountId == account.id }.sortedByDescending { it.value }
     val holdingsValue = holdings.sumOf { it.value }
@@ -271,8 +272,9 @@ private fun InvestmentBody(
     if (pricing) PricesSheet(holdings, onSave = { list -> list.forEach(onSaveHolding); pricing = false }, onDismiss = { pricing = false })
     if (trading) TradeSheet(
         holdings, cash,
-        onBuy = { ticker, shares, price -> onBuy(ticker, shares, price); trading = false },
-        onSell = { ticker, shares, price -> onSell(ticker, shares, price); trading = false },
+        today = ledger.today, zone = ledger.zone,
+        onBuy = { onBuy(it); trading = false },
+        onSell = { onSell(it); trading = false },
         onDismiss = { trading = false },
     )
 }
