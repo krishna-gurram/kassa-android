@@ -97,7 +97,7 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
             Gap(24)
             PrimaryButton("Next") { step = 1 }
         } else {
-            PageTop("Your first account") { step = 0 }
+            PageTop("Your first account", onBack = { step = 0 })
             Text("Where your money is. Add the rest any time from Accounts.", style = KassaType.body, color = Kassa.colors.ink2)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 AccountFields(form, problems, { field, change -> form = change(form); if (field != null) problems = problems - field },
