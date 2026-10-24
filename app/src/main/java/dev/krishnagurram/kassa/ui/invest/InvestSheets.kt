@@ -62,6 +62,9 @@ import java.time.ZoneId
  * Shares are parsed with [Shares] and prices with [Money]; the repository checks both again on save.
  */
 
+/** A buy or sale ready to save: what, how much, at what price, and when. */
+data class TradeOrder(val ticker: String, val microShares: Long, val price: Long, val at: Long)
+
 /**
  * A trade or holding as typed: ticker, shares and price, with each field's problem. [savedTicker] is the ticker
  * already stored, which passes as it is even if it predates the ticker rules.

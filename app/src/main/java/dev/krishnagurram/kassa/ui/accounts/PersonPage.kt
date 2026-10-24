@@ -154,7 +154,7 @@ fun PersonPage(
             onUpdate(updated, newStarting.takeIf { it != starting }) { editing = false }
         }
     }
-    if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }) { draft -> onSave(draft) { recording = false } }
+    if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }, onSave = { draft -> onSave(draft) { recording = false } })
     if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { id -> splitting = false; onSplit(id) }
 }
 
