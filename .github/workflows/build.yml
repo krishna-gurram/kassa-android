@@ -63,14 +63,15 @@ jobs:
             echo "No signing key on this pull request build; using a throwaway debug key."
           fi
 
-      - name: Build APK
+      # The APK is for GitHub releases; the App Bundle (.aab) is what Google Play takes. Both carry the Kassa key.
+      - name: Build APK and App Bundle
         env:
           KASSA_KEYSTORE_PASSWORD: ${{ secrets.KASSA_KEYSTORE_PASSWORD }}
           KASSA_KEY_ALIAS: ${{ secrets.KASSA_KEY_ALIAS }}
           KASSA_KEY_PASSWORD: ${{ secrets.KASSA_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          ./gradlew --no-daemon :app:assembleRelease --stacktrace 2>&1 | tee ci-output/build.log
+          ./gradlew --no-daemon :app:assembleRelease :app:bundleRelease --stacktrace 2>&1 | tee ci-output/build.log
 
       - name: Check the release is signed with the Kassa key
         if: github.event_name != 'pull_request'
@@ -95,6 +96,11 @@ jobs:
         with:
           name: kassa-apk
           path: app/build/outputs/apk/release/app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kassa-aab
+          path: app/build/outputs/bundle/release/app-release.aab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -146,7 +152,8 @@ jobs:
       - name: Launch on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          # The level Kassa targets, so Android 16's behaviour is what gets tested.
+          api-level: 36
           arch: x86_64
           target: google_apis
           disable-animations: true
@@ -172,6 +179,10 @@ jobs:
         with:
           name: kassa-apk
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: kassa-aab
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -185,6 +196,7 @@ jobs:
           fi
           VERSION="v0.2.${{ needs.build.outputs.build_number }}"
           mv app-release.apk "kassa-$VERSION.apk"
-          gh release create "$VERSION" "kassa-$VERSION.apk" -R "${{ github.repository }}" \
+          mv app-release.aab "kassa-$VERSION.aab"
+          gh release create "$VERSION" "kassa-$VERSION.apk" "kassa-$VERSION.aab" -R "${{ github.repository }}" \
             --title "Kassa $VERSION" \
-            --notes "Built from ${GITHUB_SHA::7}. Install over the previous version; your data stays."
+            --notes "Built from ${GITHUB_SHA::7}. Install the .apk over the previous version; your data stays. The .aab is for Google Play."
