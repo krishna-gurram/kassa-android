@@ -13,6 +13,8 @@ object InputRules {
     const val CATEGORY_NAME_MAX = 30
     /** An entry's merchant or note. */
     const val NOTE_MAX = 120
+    /** A feedback message: several lines allowed. */
+    const val FEEDBACK_MAX = 2000
     const val TICKER_MAX = 10
     const val PASSWORD_MIN = 8
 
@@ -24,6 +26,9 @@ object InputRules {
 
     /** For a text field's onValueChange: no line breaks, never longer than [max]. */
     fun typed(raw: String, max: Int): String = raw.replace(Regex("[\\r\\n\\t]"), " ").take(max)
+
+    /** Like [typed], but keeps line breaks, for longer text such as feedback. */
+    fun typedLines(raw: String, max: Int): String = raw.replace('\t', ' ').take(max)
 
     /**
      * For an amount field's onValueChange: digits and one decimal point only, at most [AMOUNT_DIGITS] whole digits

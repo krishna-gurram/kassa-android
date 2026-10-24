@@ -114,7 +114,10 @@ fun TodayScreen(
         // tiles would leave empty. The cover screen in landscape is wide but short, so it keeps tiles.
         val roomy = wide && maxHeight >= 560.dp
         val waiting = remember(ledger) { notices(ledger) }
-        val banner: @Composable () -> Unit = { NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 14.dp)) }
+        val banner: @Composable () -> Unit = {
+            TipCard(Modifier.padding(bottom = 14.dp))
+            NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 14.dp))
+        }
         // Tall screens fit with no scrolling: Upcoming lists as many as there's room for.
         val fit = maxHeight >= dev.krishnagurram.kassa.ui.common.FIT_MIN_HEIGHT
         val spending: @Composable () -> Unit = {

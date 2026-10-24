@@ -38,11 +38,17 @@ import dev.krishnagurram.kassa.ui.theme.KassaType
 import java.text.NumberFormat
 
 /**
- * The whole import, from picking the file to the result. Shown on first launch, and again from Accounts
- * when importing over existing data. [onFinished] is called after a successful import or on "Start fresh".
+ * The whole import, from picking the file to the result. Shown on first launch, where "Start fresh" comes first
+ * ([onStartFresh]), and again from Settings when importing over existing data. [onFinished] follows a successful import.
  */
 @Composable
-fun ImportScreen(firstRun: Boolean, onFinished: () -> Unit, onCancel: (() -> Unit)? = null, vm: ImportViewModel = viewModel()) {
+fun ImportScreen(
+    firstRun: Boolean,
+    onFinished: () -> Unit,
+    onCancel: (() -> Unit)? = null,
+    onStartFresh: () -> Unit = onFinished,
+    vm: ImportViewModel = viewModel(),
+) {
     val state by vm.state.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::read) }
     val pick = { picker.launch(arrayOf("*/*")) }
@@ -53,11 +59,11 @@ fun ImportScreen(firstRun: Boolean, onFinished: () -> Unit, onCancel: (() -> Uni
     ) {
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth()) {
             when (val s = state) {
-                ImportState.Idle -> Intro(firstRun, pick, onFinished, onCancel)
+                ImportState.Idle -> Intro(firstRun, pick, onStartFresh, onCancel)
                 ImportState.Reading -> Busy("Reading your backup")
                 ImportState.Saving -> Busy("Saving to the encrypted database")
                 is ImportState.Failed -> {
-                    Intro(firstRun, pick, onFinished, onCancel)
+                    Intro(firstRun, pick, onStartFresh, onCancel)
                     Gap(12)
                     Text(s.message, style = KassaType.body, color = Kassa.colors.attention)
                 }
@@ -75,7 +81,7 @@ fun ImportScreen(firstRun: Boolean, onFinished: () -> Unit, onCancel: (() -> Uni
 }
 
 @Composable
-private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, onCancel: (() -> Unit)?) {
+private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit, onCancel: (() -> Unit)?) {
     Gap(if (firstRun) 48 else 8)
     Text(if (firstRun) "Kassa" else "Import from another app", style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
@@ -84,33 +90,35 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, o
         else "This replaces everything in Kassa with the backup you pick. You'll see a review before anything changes.",
         style = KassaType.body, color = Kassa.colors.ink2,
     )
-    Gap(28)
-    Panel {
-        Column {
-            Text("Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            Gap(4)
-            Text(
-                "Supported files: .mmbak. Make a backup in your old app, then pick the file here. It's read on the phone and never uploaded.",
-                style = KassaType.small, color = Kassa.colors.ink2,
-            )
-            Gap(14)
-            PrimaryButton("Choose backup file", pick)
-        }
-    }
-    Gap(12)
     if (firstRun) {
         // The currency this phone shows; it can change later in Settings.
         val settings = dev.krishnagurram.kassa.ui.LocalSettings.current
         val code by settings.currency.collectAsState()
-        Text("Currency", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+        Text("Currency", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 20.dp, bottom = 6.dp))
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow {
             dev.krishnagurram.kassa.domain.Currencies.all.forEach { c ->
                 dev.krishnagurram.kassa.ui.entry.Chip(c.code, selected = c.code == code, small = true) { settings.setCurrency(c.code) }
             }
         }
+        Gap(20)
+        // Most people have no backup to bring, so starting fresh comes first.
+        PrimaryButton("Start fresh", onStartFresh)
+        Gap(16)
+    } else Gap(28)
+    Panel {
+        Column {
+            Text(if (firstRun) "Have a backup?" else "Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Gap(4)
+            Text(
+                "Supported files: .mmbak. It's read on the phone and never uploaded.",
+                style = KassaType.small, color = Kassa.colors.ink2,
+            )
+            Gap(14)
+            if (firstRun) SecondaryButton("Choose backup file", pick) else PrimaryButton("Choose backup file", pick)
+        }
     }
-    if (firstRun) TextButton(onClick = onFinished, modifier = Modifier.fillMaxWidth()) { Text("Start fresh instead", color = Kassa.colors.ink2) }
+    Gap(12)
     if (onCancel != null) TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
 }
 

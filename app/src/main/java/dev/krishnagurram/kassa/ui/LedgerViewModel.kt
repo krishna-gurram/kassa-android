@@ -164,6 +164,12 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     fun convertToPerson(account: Account, balance: Long, name: String) =
         change("${account.name} is now ${name.trim()} under People. The account is archived with its history.") { kassa.people.fromAccount(account, balance, name) }
 
+    /** First run's "Start fresh": the starter categories picked and, unless skipped, a first account. */
+    fun startFresh(categories: List<Category>, account: Account?) = change {
+        categories.forEach { kassa.categories.save(it) }
+        account?.let { kassa.accounts.add(it, null) }
+    }
+
     /* ---------- categories and budgets ---------- */
 
     /** Saves a category, and its default budget when it's a top-level expense category. [quiet] skips the message (reordering). */

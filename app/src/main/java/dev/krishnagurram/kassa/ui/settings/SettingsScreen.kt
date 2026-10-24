@@ -83,13 +83,23 @@ private sealed interface SettingsPage {
     data object Backup : SettingsPage { override val title = "Backup and restore" }
     data object BudgetMonth : SettingsPage { override val title = "Budget month" }
     data object Currency : SettingsPage { override val title = "Currency" }
+    data object Feedback : SettingsPage { override val title = "Send feedback" }
+    data object Privacy : SettingsPage { override val title = "Privacy" }
+    data object Licences : SettingsPage { override val title = "Open source licences" }
+    data class LicenceDetail(val licence: Licence) : SettingsPage { override val title get() = licence.name }
 }
 
 /** Settings as a tab: one list of groups, each row opening its own page. */
 @Composable
 fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: PaddingValues) {
     var page by remember { mutableStateOf<SettingsPage>(SettingsPage.Main) }
-    val back: () -> Unit = { page = (page as? SettingsPage.EditCategory)?.back ?: SettingsPage.Main }
+    val back: () -> Unit = {
+        page = when (val p = page) {
+            is SettingsPage.EditCategory -> p.back
+            is SettingsPage.LicenceDetail -> SettingsPage.Licences
+            else -> SettingsPage.Main
+        }
+    }
     BackHandler(enabled = page != SettingsPage.Main, onBack = back)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
@@ -118,6 +128,10 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
             SettingsPage.Backup -> BackupPage(actions)
             SettingsPage.BudgetMonth -> BudgetMonthPage(ledger)
             SettingsPage.Currency -> CurrencyPage(ledger)
+            SettingsPage.Feedback -> FeedbackPage()
+            SettingsPage.Privacy -> PrivacyPage()
+            SettingsPage.Licences -> LicencesPage(open = { page = SettingsPage.LicenceDetail(it) })
+            is SettingsPage.LicenceDetail -> LicenceText(p.licence)
         }
     }
 }
@@ -164,23 +178,15 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     NavRow("Import from another app", "Supported files: .mmbak") { actions.importAgain() }
     val splitwise = splitwiseAccounts(ledger)
     if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(SettingsPage.Splitwise) }
-    CrashReportRow()
+
+    SectionHeader("About")
+    NavRow("Send feedback", "") { open(SettingsPage.Feedback) }
+    val tip by settings.tip.collectAsState()
+    NavRow("Show tips again", if (tip == 0) "On Overview" else "") { settings.setTip(0) }
+    NavRow("Privacy", "") { open(SettingsPage.Privacy) }
+    NavRow("Open source licences", "") { open(SettingsPage.Licences) }
 
     Gap(20)
     Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)
     Gap(24)
-}
-
-/** Shows after a crash: tapping copies the report to paste into a message, then deletes it. */
-@Composable
-private fun CrashReportRow() {
-    val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
-    val file = remember { (context.applicationContext as KassaApplication).crashFile.takeIf { it.exists() } }
-    var copied by remember { mutableStateOf(false) }
-    if (file != null && !copied) NavRow("Last crash report", "Tap to copy") {
-        clipboard.setText(AnnotatedString(runCatching { file.readText() }.getOrDefault("")))
-        file.delete()
-        copied = true
-    }
 }
