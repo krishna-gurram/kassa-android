@@ -25,14 +25,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import dev.krishnagurram.kassa.domain.AccountType
 import dev.krishnagurram.kassa.domain.InputRules
 import dev.krishnagurram.kassa.ui.common.AmountField
+import dev.krishnagurram.kassa.ui.common.DateRow
+import dev.krishnagurram.kassa.ui.common.momentOn
 import dev.krishnagurram.kassa.domain.CardCycle
 import dev.krishnagurram.kassa.domain.Money
 import dev.krishnagurram.kassa.domain.Transaction
@@ -72,7 +71,6 @@ import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -292,7 +290,6 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     var other by rememberSaveable { mutableStateOf("") }
     var from by remember { mutableStateOf(defaultPayFrom(c, ledger)) }
     var date by remember { mutableStateOf(ledger.today) }
-    var pickDate by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
     var amountProblem by remember { mutableStateOf<String?>(null) }
@@ -314,10 +311,8 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
             )
             Text("From", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             FlowRow { sources.forEach { a -> Chip(a.name, selected = from == a.id) { from = a.id; error = null } } }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp).clickable { pickDate = true }.padding(vertical = 12.dp)) {
-                Text("Date", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-                Text(if (date == ledger.today) "Today" else date.format(DAY_MONTH_DAY), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            }
+            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            DateRow(date, ledger.today) { date = it }
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Gap(12)
             PrimaryButton(if (amount > 0) "Record ${Money.format(amount)} payment" else "Enter an amount") {
@@ -327,21 +322,13 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
                     EntryDraft(
                         id = null, kind = TxKind.TRANSFER, amount = amount, accountId = from, toAccountId = c.account.id,
                         categoryId = null, personId = null,
-                        epochMillis = date.atTime(if (date == ledger.today) LocalTime.now(ledger.zone) else LocalTime.NOON).atZone(ledger.zone).toInstant().toEpochMilli(),
+                        epochMillis = momentOn(date, ledger.today, ledger.zone),
                         note = "Card payment", splitWith = emptyList(),
                     )
                 )
             }
             TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
         }
-    }
-    if (pickDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { pickDate = false },
-            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }; pickDate = false }) { Text("Done", color = Kassa.colors.ink) } },
-            dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancel", color = Kassa.colors.ink2) } },
-        ) { DatePicker(state = state) }
     }
 }
 

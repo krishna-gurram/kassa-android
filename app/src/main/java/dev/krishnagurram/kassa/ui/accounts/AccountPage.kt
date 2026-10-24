@@ -53,6 +53,7 @@ import dev.krishnagurram.kassa.ui.importer.SecondaryButton
 import dev.krishnagurram.kassa.ui.invest.HoldingSheet
 import dev.krishnagurram.kassa.ui.invest.PricesSheet
 import dev.krishnagurram.kassa.ui.invest.TradeOrder
+import dev.krishnagurram.kassa.ui.invest.percentOf
 import dev.krishnagurram.kassa.ui.invest.TradeSheet
 import dev.krishnagurram.kassa.ui.theme.Kassa
 import dev.krishnagurram.kassa.ui.theme.KassaType
@@ -185,9 +186,6 @@ private fun HoldingRow(h: Holding, showDivider: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** [part] as a percent of [whole] with one decimal, like "17.2%". */
-private fun percentOf(part: Long, whole: Long): String =
-    BigDecimal.valueOf(part).multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(whole), 1, java.math.RoundingMode.HALF_UP).toPlainString() + "%"
 
 /** An investment account: total value, gain on what you put in, holdings, and its cash moves by month. */
 @Composable
@@ -237,7 +235,7 @@ private fun InvestmentBody(
                     Gap(12)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(Modifier.weight(1f)) {
-                            PrimaryButton(if (holdings.isEmpty()) "Add a holding" else "Update prices") {
+                            PrimaryButton(if (holdings.isEmpty()) "Add shares you own" else "Update prices") {
                                 if (holdings.isEmpty()) holdingOpen = newHolding() else pricing = true
                             }
                         }
@@ -249,7 +247,7 @@ private fun InvestmentBody(
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
                     SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${oldest.format(DateTimeFormatter.ofPattern("MMM d"))}")
                     holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
-                    TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add a holding", color = Kassa.colors.ink) }
+                    TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add shares you own", color = Kassa.colors.ink) }
                 }
                 if (history.isEmpty()) Text("No money in or out yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
             }

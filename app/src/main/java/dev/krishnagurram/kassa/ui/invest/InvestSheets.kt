@@ -186,8 +186,12 @@ fun AllocateSheet(
 }
 
 /**
- * One holding: ticker, shares, today's price and the average cost per share, with what it's worth and its profit
- * as you type. Also adds a new holding.
+ * A holding's sheet. For a holding you have, the only thing to type is today's price: shares and average cost change
+ * only through trades, so they always match your cash. The one exception is a holding with no average cost yet
+ * (brought over from another app), which asks once what you paid.
+ *
+ * A new holding ([Holding.id] 0) is "shares you already own": ticker, shares and what you paid, with no cash moving.
+ * Its price starts at what you paid.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,70 +201,101 @@ fun HoldingSheet(
     onDelete: (Holding) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val isNew = holding.id == 0L
-    val input = remember {
-        TradeInput(holding.ticker, if (isNew) "" else Money.toInput(holding.price), savedTicker = holding.ticker.takeIf { !isNew })
-            .apply { if (!isNew) shares = Shares.format(holding.microShares) }
-    }
-    var avgCost by remember { mutableStateOf(holding.avgCost?.let(Money::toInput).orEmpty()) }
-    var avgProblem by remember { mutableStateOf<String?>(null) }
-    var confirmRemove by remember { mutableStateOf(false) }
-    // What the typed values come to: the holding as it would be saved.
-    val preview = input.microShares?.let { s -> input.priceCents?.let { p -> holding.copy(microShares = s, price = p, avgCost = Money.parseCents(avgCost)) } }
-
-    if (confirmRemove) ConfirmDialog(
-        title = "Remove ${holding.ticker}?",
-        body = "It comes off your holdings and net worth. Entries that moved money stay as they are.",
-        confirm = "Remove", onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
-    )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
-            Text(if (isNew) "Add a holding" else holding.ticker, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
-            SharesAndPrice(input, "Price today")
-            AmountField(
-                avgCost, { avgCost = it; avgProblem = null }, "Average cost per share", Modifier.fillMaxWidth(),
-                problem = avgProblem, placeholder = "Optional",
-            )
-            Text("From your broker's \"Average cost\". Buys in Kassa keep it up to date.", style = KassaType.small, color = Kassa.colors.ink2)
-            if (preview != null) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Figure("Worth", Money.format(preview.value), Kassa.colors.ink, Modifier.weight(1f))
-                val profit = preview.profit
-                Figure(
-                    "Profit", profit?.let { Money.format(it, showPlus = true) } ?: "Add average cost",
-                    when { profit == null -> Kassa.colors.ink3; profit < 0 -> Kassa.colors.attention; else -> Kassa.colors.positive },
-                    Modifier.weight(1f),
-                )
-            }
-            Gap(12)
-            PrimaryButton(if (isNew) "Add holding" else "Save") {
-                val avg = if (avgCost.isBlank()) null else Money.parseCents(avgCost)
-                avgProblem = if (avgCost.isBlank()) null else InputRules.amountProblem(avg)
-                if (input.check() && avgProblem == null) {
-                    val price = input.priceCents!!
-                    onSave(holding.copy(
-                        ticker = input.cleanTicker.ifEmpty { holding.ticker },
-                        microShares = input.microShares!!,
-                        price = price,
-                        // The price date says how fresh the price is, so it only moves when the price does.
-                        priceMillis = if (price != holding.price || isNew) System.currentTimeMillis() else holding.priceMillis,
-                        avgCost = avg,
-                    ))
-                }
-            }
-            if (!isNew) TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
+            if (holding.id == 0L) NewHolding(holding, onSave) else ExistingHolding(holding, onSave, onDelete)
         }
     }
 }
 
-/** A labelled figure in a quiet box. */
+/** Shares you already own: ticker, shares and what you paid. */
 @Composable
-private fun Figure(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp)) {
-        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2)
-        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun NewHolding(holding: Holding, onSave: (Holding) -> Unit) {
+    val input = remember { TradeInput() }
+    Text("Add shares you own", style = KassaType.section, color = Kassa.colors.ink)
+    TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
+    SharesField(input.shares, { input.shares = it; input.sharesProblem = null }, input.sharesProblem, Modifier.fillMaxWidth())
+    AmountField(input.price, { input.price = it; input.priceProblem = null }, "Price you paid per share", Modifier.fillMaxWidth(), problem = input.priceProblem)
+    Text("Your broker's \"Average cost\".", style = KassaType.small, color = Kassa.colors.ink2)
+    Gap(12)
+    PrimaryButton("Add shares") {
+        if (input.check()) {
+            val paid = input.priceCents!!
+            onSave(holding.copy(ticker = input.cleanTicker, microShares = input.microShares!!, price = paid, priceMillis = System.currentTimeMillis(), avgCost = paid))
+        }
     }
 }
+
+/** A holding you have: its figures, and today's price to type. */
+@Composable
+private fun ExistingHolding(holding: Holding, onSave: (Holding) -> Unit, onDelete: (Holding) -> Unit) {
+    var price by remember { mutableStateOf(Money.toInput(holding.price)) }
+    var priceProblem by remember { mutableStateOf<String?>(null) }
+    // Asked only while unknown; once saved it's a figure like the rest.
+    val askPaid = holding.avgCost == null
+    var paid by remember { mutableStateOf("") }
+    var paidProblem by remember { mutableStateOf<String?>(null) }
+    var confirmRemove by remember { mutableStateOf(false) }
+    val preview = holding.copy(
+        price = Money.parseCents(price) ?: holding.price,
+        avgCost = holding.avgCost ?: Money.parseCents(paid),
+    )
+
+    Text(holding.ticker, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Figure("Shares", Shares.format(holding.microShares))
+        holding.avgCost?.let { Figure("Average cost", Money.format(it)) }
+        Figure("Worth", Money.format(preview.value))
+        preview.profit?.let { p ->
+            val cost = preview.cost ?: 0L
+            Figure(
+                "Profit", Money.format(p, showPlus = true) + if (cost > 0) " · ${percentOf(Math.abs(p), cost)}" else "",
+                if (p < 0) Kassa.colors.attention else Kassa.colors.positive,
+            )
+        }
+    }
+    AmountField(price, { price = it; priceProblem = null }, "Price today", Modifier.fillMaxWidth().padding(top = 8.dp), problem = priceProblem)
+    if (askPaid) {
+        AmountField(paid, { paid = it; paidProblem = null }, "Price you paid per share", Modifier.fillMaxWidth(), problem = paidProblem, placeholder = "Optional")
+        Text("Your broker's \"Average cost\".", style = KassaType.small, color = Kassa.colors.ink2)
+    }
+    Gap(12)
+    PrimaryButton(if (askPaid) "Save" else "Save price") {
+        val cents = Money.parseCents(price)
+        priceProblem = InputRules.amountProblem(cents)
+        val paidCents = if (paid.isBlank()) null else Money.parseCents(paid)
+        paidProblem = if (paid.isBlank()) null else InputRules.amountProblem(paidCents)
+        if (priceProblem == null && paidProblem == null) {
+            onSave(holding.copy(
+                price = cents!!,
+                // The price date says how fresh the price is, so it only moves when the price does.
+                priceMillis = if (cents != holding.price) System.currentTimeMillis() else holding.priceMillis,
+                avgCost = holding.avgCost ?: paidCents,
+            ))
+        }
+    }
+    TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
+    if (confirmRemove) ConfirmDialog(
+        title = "Remove ${holding.ticker}?",
+        body = "It comes off your holdings and net worth. No cash moves; trades stay as they are.",
+        confirm = "Remove", onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
+    )
+}
+
+/** One labelled figure in a holding's summary. */
+@Composable
+private fun Figure(label: String, value: String, color: androidx.compose.ui.graphics.Color = Kassa.colors.ink) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(label, style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1)
+    }
+}
+
+/** [part] as a percent of [whole] with one decimal, like "17.2%". */
+internal fun percentOf(part: Long, whole: Long): String =
+    java.math.BigDecimal.valueOf(part).multiply(java.math.BigDecimal.valueOf(100))
+        .divide(java.math.BigDecimal.valueOf(whole), 1, java.math.RoundingMode.HALF_UP).toPlainString() + "%"
+
 
 @Composable
 private fun Option(title: String, sub: String, onClick: () -> Unit) {

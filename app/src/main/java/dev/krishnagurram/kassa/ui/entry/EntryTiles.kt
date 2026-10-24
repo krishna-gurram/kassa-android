@@ -54,19 +54,18 @@ import java.util.Locale
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 
-/** The amount, big and centred, with the currency symbol smaller on the same baseline. */
+/**
+ * The amount, big and centred, with the currency symbol in the same size, weight and color, the way banking apps
+ * show it. A symbol made of letters (AED) gets a space before the number.
+ */
 @Composable
 internal fun AmountHero(amount: String, income: Boolean, large: Boolean, onClick: () -> Unit) {
     val size = if (large) 60f else 52f
     val color = when { amount.isEmpty() -> Kassa.colors.ink3; income -> Kassa.colors.positive; else -> Kassa.colors.ink }
-    val symbolColor = Kassa.colors.ink2
+    val symbol = Money.symbol.let { if (it.last().isLetter()) "$it\u00A0" else it }
     Box(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp, bottom = 10.dp), contentAlignment = Alignment.Center) {
         Text(
-            buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = (size * 0.6f).sp, color = symbolColor, letterSpacing = 0.sp)) { append(Money.symbol) }
-                append("\u2009")
-                append(displayAmount(amount))
-            },
+            symbol + displayAmount(amount),
             style = KassaType.hero.copy(fontSize = size.sp, letterSpacing = (-1.5).sp),
             color = color, maxLines = 1,
         )
