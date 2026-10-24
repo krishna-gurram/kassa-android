@@ -92,5 +92,12 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/** v6: holdings can carry an average cost per share, for profit and loss. Existing holdings start without one. */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `holdings` ADD COLUMN `avgCost` INTEGER")
+    }
+}
+
 /** Every migration, oldest first. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

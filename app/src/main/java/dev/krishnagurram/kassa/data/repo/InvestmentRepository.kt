@@ -29,21 +29,27 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
         db.investmentTransfers().insert(InvestmentTransfer(transactionId = transfer.id, accountId = account, amount = transfer.amount, epochMillis = transfer.epochMillis).toEntity())
     }
 
-    /** The transfer stays as cash in the account; nothing else changes. */
-    suspend fun keepAsCash(transferId: Long) = db.investmentTransfers().delete(transferId)
+    /**
+     * Stops waiting on a transfer. The money stays where it is: as cash in the account, or in holdings the user
+     * already recorded. Nothing else changes.
+     */
+    suspend fun settle(transferId: Long) = db.investmentTransfers().delete(transferId)
 
     /** Buys shares with cash in the account: a BUY entry, and the holding grows. Clears [transferId] when given. */
     suspend fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?) = db.withTransaction {
         val t = checkedTicker(ticker)
         val cost = checkedTrade(microShares, price)
         entries.insertRaw(Transaction(kind = TxKind.BUY, amount = cost, accountId = accountId, epochMillis = at, note = t))
-        val existing = db.holdings().find(accountId, t)
-        if (existing == null) db.holdings().insert(Holding(accountId = accountId, ticker = t, microShares = microShares, price = price, priceMillis = at).toEntity())
-        else db.holdings().update(existing.copy(microShares = existing.microShares + microShares, price = price, priceMillis = at))
+        val existing = db.holdings().find(accountId, t)?.toDomain()
+        if (existing == null) db.holdings().insert(Holding(accountId = accountId, ticker = t, microShares = microShares, price = price, priceMillis = at, avgCost = price).toEntity())
+        else db.holdings().update(existing.afterBuy(microShares, price, at).toEntity())
         transferId?.let { db.investmentTransfers().delete(it) }
     }
 
-    /** Sells shares: a SELL entry brings the cash into the account, and the holding shrinks (removed at zero). */
+    /**
+     * Sells shares: a SELL entry brings the cash into the account, and the holding shrinks (removed at zero).
+     * The average cost of what's left doesn't change.
+     */
     suspend fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) = db.withTransaction {
         val t = checkedTicker(ticker)
         val proceeds = checkedTrade(microShares, price)
@@ -54,11 +60,17 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
         if (left == 0L) db.holdings().delete(h.id) else db.holdings().update(h.copy(microShares = left, price = price, priceMillis = at))
     }
 
-    /** Saves a holding as typed (a new price, or a correction). */
+    /**
+     * Saves a holding as typed (a new price, shares or average cost, or a correction). A ticker saved before the
+     * ticker rules existed is kept as it is until the user changes it.
+     */
     suspend fun save(h: Holding) {
-        val clean = h.copy(ticker = checkedTicker(h.ticker))
+        val stored = if (h.id == 0L) null else db.holdings().byId(h.id)
+        val ticker = if (stored != null && stored.ticker == h.ticker) h.ticker else checkedTicker(h.ticker)
+        val clean = h.copy(ticker = ticker)
         require(clean.microShares >= 0) { "Shares can't be negative." }
         InputRules.amountProblem(clean.price, zeroAllowed = true)?.let { throw IllegalArgumentException(it) }
+        clean.avgCost?.let { c -> InputRules.amountProblem(c)?.let { throw IllegalArgumentException("Average cost: $it") } }
         if (clean.id == 0L) db.holdings().insert(clean.toEntity()) else db.holdings().update(clean.toEntity())
     }
 

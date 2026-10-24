@@ -1,5 +1,6 @@
 package dev.krishnagurram.kassa.ui.invest
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,8 +54,11 @@ import dev.krishnagurram.kassa.ui.theme.KassaType
  * Shares are parsed with [Shares] and prices with [Money]; the repository checks both again on save.
  */
 
-/** A trade as typed: ticker, shares and price, with each field's problem. */
-private class TradeInput(ticker: String = "", price: String = "") {
+/**
+ * A trade or holding as typed: ticker, shares and price, with each field's problem. [savedTicker] is the ticker
+ * already stored, which passes as it is even if it predates the ticker rules.
+ */
+private class TradeInput(ticker: String = "", price: String = "", private val savedTicker: String? = null) {
     var ticker by mutableStateOf(ticker)
     var shares by mutableStateOf("")
     var price by mutableStateOf(price)
@@ -69,7 +73,7 @@ private class TradeInput(ticker: String = "", price: String = "") {
 
     /** Checks every field; true when the trade can be saved. */
     fun check(): Boolean {
-        tickerProblem = InputRules.tickerProblem(ticker)
+        tickerProblem = if (ticker == savedTicker) null else InputRules.tickerProblem(ticker)
         sharesProblem = Shares.problem(microShares)
         priceProblem = InputRules.amountProblem(priceCents)
         return tickerProblem == null && sharesProblem == null && priceProblem == null
@@ -124,6 +128,8 @@ fun AllocateSheet(
     p: InvestmentTransfer,
     ledger: Ledger,
     onCash: () -> Unit,
+    /** The user already added what it bought; just stop asking. */
+    onRecorded: () -> Unit,
     onBuy: (ticker: String, microShares: Long, price: Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -137,6 +143,7 @@ fun AllocateSheet(
             if (!buying) {
                 Option("It's uninvested cash", "Stays as cash in the brokerage account", onCash)
                 Option("I bought something", "Add the ticker, shares and price") { buying = true }
+                Option("Already recorded", "You added the holding yourself. Nothing changes.", onRecorded)
                 Option("Decide later", "Stays on Overview until you answer", onDismiss)
                 return@Column
             }
@@ -160,7 +167,10 @@ fun AllocateSheet(
     }
 }
 
-/** Update a holding's price or share count, or add a new one. */
+/**
+ * One holding: ticker, shares, today's price and the average cost per share, with what it's worth and its profit
+ * as you type. Also adds a new holding.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HoldingSheet(
@@ -171,26 +181,66 @@ fun HoldingSheet(
 ) {
     val isNew = holding.id == 0L
     val input = remember {
-        TradeInput(holding.ticker, if (isNew) "" else Money.toInput(holding.price)).apply { if (!isNew) shares = Shares.format(holding.microShares) }
+        TradeInput(holding.ticker, if (isNew) "" else Money.toInput(holding.price), savedTicker = holding.ticker.takeIf { !isNew })
+            .apply { if (!isNew) shares = Shares.format(holding.microShares) }
     }
+    var avgCost by remember { mutableStateOf(holding.avgCost?.let(Money::toInput).orEmpty()) }
+    var avgProblem by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf(false) }
+    // What the typed values come to: the holding as it would be saved.
+    val preview = input.microShares?.let { s -> input.priceCents?.let { p -> holding.copy(microShares = s, price = p, avgCost = Money.parseCents(avgCost)) } }
+
     if (confirmRemove) ConfirmDialog(
         title = "Remove ${holding.ticker}?",
         body = "It comes off your holdings and net worth. Entries that moved money stay as they are.",
         confirm = "Remove", onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
     )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
-            Text(if (isNew) "Add a holding" else holding.ticker, style = KassaType.section, color = Kassa.colors.ink)
-            if (!isNew) Text("Type today's price to update its market value. Kassa never looks prices up.", style = KassaType.body, color = Kassa.colors.ink2)
-            if (isNew) TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
-            SharesAndPrice(input, "Price per share")
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
+            Text(if (isNew) "Add a holding" else holding.ticker, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
+            SharesAndPrice(input, "Price today")
+            AmountField(
+                avgCost, { avgCost = it; avgProblem = null }, "Average cost per share", Modifier.fillMaxWidth(),
+                problem = avgProblem, placeholder = "Optional",
+            )
+            Text("From your broker's \"Average cost\". Buys in Kassa keep it up to date.", style = KassaType.small, color = Kassa.colors.ink2)
+            if (preview != null) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Figure("Worth", Money.format(preview.value), Kassa.colors.ink, Modifier.weight(1f))
+                val profit = preview.profit
+                Figure(
+                    "Profit", profit?.let { Money.format(it, showPlus = true) } ?: "Add average cost",
+                    when { profit == null -> Kassa.colors.ink3; profit < 0 -> Kassa.colors.attention; else -> Kassa.colors.positive },
+                    Modifier.weight(1f),
+                )
+            }
             Gap(12)
             PrimaryButton(if (isNew) "Add holding" else "Save") {
-                if (input.check()) onSave(holding.copy(ticker = input.cleanTicker, microShares = input.microShares!!, price = input.priceCents!!, priceMillis = System.currentTimeMillis()))
+                val avg = if (avgCost.isBlank()) null else Money.parseCents(avgCost)
+                avgProblem = if (avgCost.isBlank()) null else InputRules.amountProblem(avg)
+                if (input.check() && avgProblem == null) {
+                    val price = input.priceCents!!
+                    onSave(holding.copy(
+                        ticker = input.cleanTicker.ifEmpty { holding.ticker },
+                        microShares = input.microShares!!,
+                        price = price,
+                        // The price date says how fresh the price is, so it only moves when the price does.
+                        priceMillis = if (price != holding.price || isNew) System.currentTimeMillis() else holding.priceMillis,
+                        avgCost = avg,
+                    ))
+                }
             }
             if (!isNew) TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
         }
+    }
+}
+
+/** A labelled figure in a quiet box. */
+@Composable
+private fun Figure(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp)) {
+        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2)
+        Text(value, style = KassaType.bodyStrong, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

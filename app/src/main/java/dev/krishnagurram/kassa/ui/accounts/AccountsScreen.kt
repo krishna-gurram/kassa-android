@@ -101,7 +101,6 @@ fun AccountsScreen(
     selectedAccount: Long?,
     onOpenAccount: (Long) -> Unit,
     onOpenPerson: (Long) -> Unit,
-    onImportAgain: () -> Unit,
     onAddAccount: (Account, String?, () -> Unit) -> Unit,
     onAddPerson: (String, Long, () -> Unit) -> Unit,
 ) {
@@ -222,7 +221,6 @@ fun AccountsScreen(
                 archivedPeople.forEach { personRow(it) }
             }
         }
-        TextButton(onClick = onImportAgain) { Text("Import again from Money Manager", color = Kassa.colors.ink2) }
     }
     val title: @Composable () -> Unit = { Text("Accounts", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 12.dp)) }
     val leftColumn: @Composable () -> Unit = {

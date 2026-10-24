@@ -11,6 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import dev.krishnagurram.kassa.domain.Shares
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,7 +40,6 @@ import dev.krishnagurram.kassa.domain.Transaction
 import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.domain.effectOn
 import dev.krishnagurram.kassa.ui.Ledger
-import dev.krishnagurram.kassa.ui.common.EntryRow
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.common.GlyphBadge
 import dev.krishnagurram.kassa.ui.common.PageTop
@@ -143,6 +151,43 @@ fun AccountPage(
     }
 }
 
+/**
+ * One holding: ticker and shares (with the average cost when known) on the left; what it's worth and its profit on
+ * the right. Opens the holding's sheet.
+ */
+@Composable
+private fun HoldingRow(h: Holding, showDivider: Boolean, onClick: () -> Unit) {
+    Column(Modifier.clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            GlyphBadge(h.ticker.take(2))
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(h.ticker, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${Shares.format(h.microShares)} shares" + (h.avgCost?.let { " · avg ${Money.format(it)}" } ?: ""),
+                    style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(Money.format(h.value), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+                val profit = h.profit
+                val cost = h.cost
+                if (profit == null || cost == null) Text("Add average cost", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1)
+                else Text(
+                    Money.format(profit, showPlus = true) + if (cost > 0) " · ${percentOf(Math.abs(profit), cost)}" else "",
+                    style = KassaType.small, maxLines = 1,
+                    color = if (profit < 0) Kassa.colors.attention else Kassa.colors.positive,
+                )
+            }
+            Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 4.dp).size(20.dp))
+        }
+        if (showDivider) HorizontalDivider(color = Kassa.colors.line)
+    }
+}
+
+/** [part] as a percent of [whole] with one decimal, like "17.2%". */
+private fun percentOf(part: Long, whole: Long): String =
+    BigDecimal.valueOf(part).multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(whole), 1, java.math.RoundingMode.HALF_UP).toPlainString() + "%"
+
 /** An investment account: total value, gain on what you put in, holdings, and its cash moves by month. */
 @Composable
 private fun InvestmentBody(
@@ -162,8 +207,9 @@ private fun InvestmentBody(
     val holdings = ledger.holdings.filter { it.accountId == account.id }.sortedByDescending { it.value }
     val holdingsValue = holdings.sumOf { it.value }
     val value = cash + holdingsValue
-    // What you put in: transfers in minus transfers out, plus income paid in. Trades move money inside and don't count.
-    val putIn = history.filter { it.kind == TxKind.TRANSFER }.sumOf {
+    // What you put in: the starting amount, transfers in minus transfers out, and income paid in.
+    // Trades move money inside the account and don't count.
+    val putIn = account.openingBalance + history.filter { it.kind == TxKind.TRANSFER }.sumOf {
         when (account.id) { it.toAccountId -> it.amount; it.accountId -> -it.amount; else -> 0L }
     } + history.filter { it.kind == TxKind.INCOME && it.accountId == account.id }.sumOf { it.amount }
     val gain = value - putIn
@@ -181,9 +227,8 @@ private fun InvestmentBody(
                     Text("Total value", style = KassaType.tiny, color = Kassa.colors.ink2)
                     BigMoney(value, sizeSp = 36f)
                     if (putIn > 0) {
-                        val percent = BigDecimal.valueOf(gain * 1000 / putIn).movePointLeft(1).toPlainString()
                         Text(
-                            "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} ($percent%) on what you put in",
+                            "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} (${percentOf(Math.abs(gain), putIn)}) on what you put in",
                             style = KassaType.bodyStrong, color = if (gain >= 0) Kassa.colors.positive else Kassa.colors.attention,
                         )
                     }
@@ -202,17 +247,7 @@ private fun InvestmentBody(
                     val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
                     SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${oldest.format(DateTimeFormatter.ofPattern("MMM d"))}")
-                    holdings.forEachIndexed { i, h ->
-                        EntryRow(
-                            badge = { GlyphBadge(h.ticker.take(2)) },
-                            title = h.ticker,
-                            subtitle = "${BigDecimal.valueOf(h.microShares).movePointLeft(6).stripTrailingZeros().toPlainString()} shares · ${Money.format(h.price)}",
-                            amount = Money.format(h.value),
-                            note = if (holdingsValue > 0) "${Math.round(h.value * 100.0 / holdingsValue)}%" else null,
-                            showDivider = i < holdings.lastIndex,
-                            modifier = Modifier.clickable { holdingOpen = h },
-                        )
-                    }
+                    holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
                     TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add a holding", color = Kassa.colors.ink) }
                 }
                 if (history.isEmpty()) Text("No money in or out yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))

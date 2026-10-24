@@ -65,7 +65,6 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
             selectedAccount = (selected as? Page.AccountDetail)?.accountId,
             onOpenAccount = { app.openFromList(Page.AccountDetail(it)) },
             onOpenPerson = { app.openFromList(Page.PersonDetail(it)) },
-            onImportAgain = { app.push(Page.Import) },
             onAddAccount = { account, group, done -> app.vm.addAccount(account, group, done) },
             onAddPerson = { name, opening, done -> app.vm.addPerson(name, opening, done) },
         )
@@ -117,7 +116,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
                 p, l.personBalances()[p.id] ?: 0, l, padding, onBack,
                 onSave = { draft, done -> vm.save(draft, onDone = done) },
                 onSplit = { txId -> app.openEntry(txId, fromPage = true, withPerson = p.id) },
-                onUpdate = { person, done -> vm.updatePerson(person, done) },
+                onUpdate = { person, starting, done -> vm.updatePerson(person, starting, done) },
                 onOpenEntry = { id -> app.openEntry(id, fromPage = true) },
             )
         }

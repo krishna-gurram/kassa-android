@@ -94,7 +94,8 @@ fun PersonPage(
     onSave: (EntryDraft, () -> Unit) -> Unit,
     onSplit: (Long) -> Unit,
     onOpenEntry: (Long) -> Unit,
-    onUpdate: (Person, () -> Unit) -> Unit,
+    /** Saves the person and, when it changed, their starting balance; then calls the callback. */
+    onUpdate: (Person, Long?, () -> Unit) -> Unit,
 ) {
     var editing by remember(p.id) { mutableStateOf(false) }
     var recording by remember(p.id) { mutableStateOf(false) }
@@ -144,8 +145,11 @@ fun PersonPage(
         Gap(24)
     }
 
-    if (editing) EditPersonSheet(p, balance, ledger.people.people, onDismiss = { editing = false }) { updated ->
-        onUpdate(updated) { editing = false }
+    if (editing) {
+        val starting = ledger.people.loans.filter { it.personId == p.id && it.transactionId == null }.sumOf { it.amount }
+        EditPersonSheet(p, balance, starting, ledger.people.people, onDismiss = { editing = false }) { updated, newStarting ->
+            onUpdate(updated, newStarting.takeIf { it != starting }) { editing = false }
+        }
     }
     if (recording) PaymentSheet(p, balance, ledger, onDismiss = { recording = false }) { draft -> onSave(draft) { recording = false } }
     if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { id -> splitting = false; onSplit(id) }

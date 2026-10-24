@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -39,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.krishnagurram.kassa.ui.activity.MonthBreakdown
 import dev.krishnagurram.kassa.ui.cards.PaySheet
 import dev.krishnagurram.kassa.ui.cards.cardsByDueDate
+import dev.krishnagurram.kassa.ui.common.MessageHost
 import dev.krishnagurram.kassa.ui.common.PanePlaceholder
 import dev.krishnagurram.kassa.ui.entry.EntryStart
 import dev.krishnagurram.kassa.ui.importer.ImportScreen
@@ -115,11 +115,11 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
             }
         }
 
-        // Messages sit above the Add button on the cover screen's tabs, so Add always works while one shows.
-        SnackbarHost(
+        // Messages sit bottom left, level with Add and stopping short of it, so Add always works while one shows.
+        MessageHost(
             snackbar,
-            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(bottom = if (!wide && top == null) 168.dp else 16.dp),
+            Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(start = 16.dp, end = ADD_BUTTON_CLEARANCE, bottom = if (!wide && top == null) NAV_BAR_HEIGHT + 16.dp else 16.dp),
         )
 
         if (l != null) {
@@ -127,6 +127,7 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
                 AllocateSheet(
                     t, l,
                     onCash = { app.vm.keepTransferAsCash(t.id); app.allocating = null },
+                    onRecorded = { app.vm.clearTransfer(t.id); app.allocating = null },
                     onBuy = { ticker, shares, price -> app.vm.buy(t.accountId, ticker, shares, price, t.id); app.allocating = null },
                     onDismiss = { app.allocating = null },
                 )

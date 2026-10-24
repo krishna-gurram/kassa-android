@@ -80,4 +80,20 @@ class MigrationTest {
             db.query("SELECT name FROM sqlite_master WHERE name IN ('pending_items', 'alert_rules')").use { c -> assertFalse(c.moveToFirst()) }
         }
     }
+
+    @Test
+    fun holdingsKeepTheirSharesAndStartWithoutAnAverageCost() {
+        helper.createDatabase("holdings-v5.db", 5).apply {
+            execSQL("INSERT INTO holdings (id, accountId, ticker, microShares, price, priceMillis) VALUES (1, 3, 'VTI', 15000000, 25000, 1760000000000)")
+            close()
+        }
+        helper.runMigrationsAndValidate("holdings-v5.db", DATABASE_VERSION, true, *ALL_MIGRATIONS).use { db ->
+            db.query("SELECT microShares, price, avgCost FROM holdings WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertEquals(15000000L, c.getLong(0))
+                assertEquals(25000L, c.getLong(1))
+                assertTrue(c.isNull(2))
+            }
+        }
+    }
 }

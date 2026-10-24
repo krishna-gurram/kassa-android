@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krishnagurram.kassa.ui.theme.Kassa
 
+/** The cover screen's bottom bar (Material's navigation bar height, before the system's own inset). */
+val NAV_BAR_HEIGHT = 80.dp
+
 /** Bottom padding that keeps a list's last row clear of the floating Add button. */
 val ADD_BUTTON_CLEARANCE = 88.dp
 

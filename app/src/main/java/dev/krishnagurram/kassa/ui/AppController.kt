@@ -93,6 +93,7 @@ class AppController(
         override fun approve(r: Recurring, amount: Long) { vm.approveBill(r, amount) }
         override fun skip(r: Recurring) { vm.skipBill(r) }
         override fun allocate(t: InvestmentTransfer) { allocating = t }
+        override fun dismiss(t: InvestmentTransfer) { vm.clearTransfer(t.id) }
         override fun editRecurring(r: Recurring, amount: Long) {
             val l = vm.ledger.value ?: return
             val due = RecurringRules.dueDate(r, YearMonth.from(l.today))

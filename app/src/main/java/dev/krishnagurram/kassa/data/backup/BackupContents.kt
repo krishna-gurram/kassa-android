@@ -66,7 +66,7 @@ data class BackupContents(
                 .putOpt("fixedAmount", it.fixedAmount).put("active", it.active).put("handledMonth", it.handledMonth)
         })
         .put("holdings", array(holdings) {
-            put("id", it.id).put("accountId", it.accountId).put("ticker", it.ticker).put("microShares", it.microShares).put("price", it.price).put("priceMillis", it.priceMillis)
+            put("id", it.id).put("accountId", it.accountId).put("ticker", it.ticker).put("microShares", it.microShares).put("price", it.price).put("priceMillis", it.priceMillis).putOpt("avgCost", it.avgCost)
         })
         .put("icons", JSONObject().also { o -> icons.forEach { (name, bytes) -> o.put(name, encodeBytes(bytes)) } })
         .toString()
@@ -101,7 +101,7 @@ data class BackupContents(
                         longOrNull("fixedAmount"), getBoolean("active"), getInt("handledMonth"))
                 },
                 holdings = j.rows("holdings") {
-                    HoldingEntity(getLong("id"), getLong("accountId"), getString("ticker"), getLong("microShares"), getLong("price"), getLong("priceMillis"))
+                    HoldingEntity(getLong("id"), getLong("accountId"), getString("ticker"), getLong("microShares"), getLong("price"), getLong("priceMillis"), longOrNull("avgCost"))
                 },
                 icons = j.optJSONObject("icons")?.let { o -> o.keys().asSequence().associateWith { decodeBytes(o.getString(it)) } }.orEmpty(),
             )

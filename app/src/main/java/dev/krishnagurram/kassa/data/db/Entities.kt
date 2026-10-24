@@ -132,6 +132,7 @@ data class HoldingEntity(
     val microShares: Long,
     val price: Long,
     val priceMillis: Long,
+    val avgCost: Long? = null,
 )
 
 /** Result row for the balance query. */
@@ -178,7 +179,7 @@ fun LoanEntry.toEntity() = LoanEntryEntity(id, personId, amount, epochMillis, no
 
 fun RecurringEntity.toDomain() = Recurring(id, name, categoryId, accountId, dayOfMonth, fixedAmount, active, handledMonth)
 fun Recurring.toEntity() = RecurringEntity(id, name, categoryId, accountId, dayOfMonth, fixedAmount, active, handledMonth)
-fun HoldingEntity.toDomain() = Holding(id, accountId, ticker, microShares, price, priceMillis)
-fun Holding.toEntity() = HoldingEntity(id, accountId, ticker, microShares, price, priceMillis)
+fun HoldingEntity.toDomain() = Holding(id, accountId, ticker, microShares, price, priceMillis, avgCost)
+fun Holding.toEntity() = HoldingEntity(id, accountId, ticker, microShares, price, priceMillis, avgCost)
 fun InvestmentTransferEntity.toDomain() = InvestmentTransfer(id, transactionId, accountId, amount, epochMillis)
 fun InvestmentTransfer.toEntity() = InvestmentTransferEntity(id, transactionId, accountId, amount, epochMillis)

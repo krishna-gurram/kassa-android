@@ -132,7 +132,8 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addPerson(name: String, opening: Long, onDone: () -> Unit = {}) = change("${name.trim()} added.", onDone) { kassa.people.add(name, opening) }
 
-    fun updatePerson(p: Person, onDone: () -> Unit = {}) = change("${p.name.trim()} saved.", onDone) { kassa.people.update(p) }
+    fun updatePerson(p: Person, startingBalance: Long? = null, onDone: () -> Unit = {}) =
+        change("${p.name.trim()} saved.", onDone) { kassa.people.update(p, startingBalance) }
 
     fun convertToPerson(account: Account, balance: Long, name: String) =
         change("${account.name} is now ${name.trim()} under People. The account is archived with its history.") { kassa.people.fromAccount(account, balance, name) }
@@ -177,7 +178,10 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ---------- investments ---------- */
 
-    fun keepTransferAsCash(transferId: Long) = change("Kept as cash in the account.") { kassa.investments.keepAsCash(transferId) }
+    fun keepTransferAsCash(transferId: Long) = change("Kept as cash in the account.") { kassa.investments.settle(transferId) }
+
+    /** Clears a transfer the user already accounted for (or no longer wants asked about). */
+    fun clearTransfer(transferId: Long) = change("Removed from pending review.") { kassa.investments.settle(transferId) }
 
     fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, transferId: Long?) =
         change("Added ${ticker.trim().uppercase()} to holdings.") { kassa.investments.buy(accountId, ticker, microShares, price, System.currentTimeMillis(), transferId) }
