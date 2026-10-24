@@ -8,7 +8,7 @@ import dev.krishnagurram.kassa.data.security.DatabaseKey
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 /** Bump with every schema change, and add the migration to [ALL_MIGRATIONS]. */
-const val DATABASE_VERSION = 5
+const val DATABASE_VERSION = 6
 
 /**
  * Kassa's database. Changing an entity means bumping [version] and adding a migration in Migrations.kt;

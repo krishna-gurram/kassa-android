@@ -161,7 +161,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
         lastAt > 0 -> "Last " + Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
         else -> "Not set up"
     }) { open(SettingsPage.Backup) }
-    NavRow("Import from Money Manager", "Replaces data") { actions.importAgain() }
+    NavRow("Import from another app", "Supported files: .mmbak") { actions.importAgain() }
     val splitwise = splitwiseAccounts(ledger)
     if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(SettingsPage.Splitwise) }
     CrashReportRow()

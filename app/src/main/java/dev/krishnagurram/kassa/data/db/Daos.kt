@@ -195,6 +195,13 @@ interface LoanDao {
 
     @Query("DELETE FROM loan_entries WHERE txId = :txId")
     suspend fun deleteForTransaction(txId: Long)
+
+    /** A person's starting balance: their lines not tied to any entry. */
+    @Query("SELECT * FROM loan_entries WHERE personId = :personId AND txId IS NULL ORDER BY epochMillis")
+    suspend fun startingFor(personId: Long): List<LoanEntryEntity>
+
+    @Query("DELETE FROM loan_entries WHERE personId = :personId AND txId IS NULL")
+    suspend fun deleteStarting(personId: Long)
 }
 
 @Dao
@@ -252,6 +259,9 @@ interface HoldingDao {
 
     @Query("SELECT * FROM holdings WHERE accountId = :accountId AND ticker = :ticker")
     suspend fun find(accountId: Long, ticker: String): HoldingEntity?
+
+    @Query("SELECT * FROM holdings WHERE id = :id")
+    suspend fun byId(id: Long): HoldingEntity?
 
     @Insert
     suspend fun insert(h: HoldingEntity): Long

@@ -19,6 +19,8 @@ data class PeopleState(
     val payments: List<Transaction>,
 )
 
+private const val STARTING_NOTE = "Starting balance"
+
 /** People you split costs with or lend to. */
 class PeopleRepository(private val db: KassaDatabase) {
 
@@ -34,15 +36,30 @@ class PeopleRepository(private val db: KassaDatabase) {
         InputRules.balanceProblem(opening)?.let { throw IllegalArgumentException(it) }
         val id = db.people().insert(Person(name = InputRules.clean(name)).toEntity())
         if (opening != 0L) db.loans().insertAll(listOf(
-            LoanEntry(personId = id, amount = opening, epochMillis = System.currentTimeMillis(), note = "Starting balance").toEntity()
+            LoanEntry(personId = id, amount = opening, epochMillis = System.currentTimeMillis(), note = STARTING_NOTE).toEntity()
         ))
         id
     }
 
-    /** Renames, archives or restores a person. Their history stays either way. */
-    suspend fun update(person: Person) = db.withTransaction {
+    /**
+     * Renames, archives or restores a person, and when [startingBalance] is given, replaces what was owed when
+     * they were added (positive: they owe you). Splits and payments stay as they are.
+     */
+    suspend fun update(person: Person, startingBalance: Long? = null) = db.withTransaction {
         checkName(person.name, exceptId = person.id)
         db.people().update(person.copy(name = InputRules.clean(person.name)).toEntity())
+        if (startingBalance != null) setStartingBalance(person.id, startingBalance)
+    }
+
+    /** Lines not tied to an entry make up the starting balance; they're replaced by one line (none when zero). */
+    private suspend fun setStartingBalance(personId: Long, amount: Long) {
+        InputRules.balanceProblem(amount)?.let { throw IllegalArgumentException(it) }
+        val old = db.loans().startingFor(personId)
+        if (old.sumOf { it.amount } == amount) return
+        db.loans().deleteStarting(personId)
+        if (amount != 0L) db.loans().insertAll(listOf(
+            LoanEntry(personId = personId, amount = amount, epochMillis = old.firstOrNull()?.epochMillis ?: System.currentTimeMillis(), note = STARTING_NOTE).toEntity()
+        ))
     }
 
     /**

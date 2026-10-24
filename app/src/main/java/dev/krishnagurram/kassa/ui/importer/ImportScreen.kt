@@ -77,7 +77,7 @@ fun ImportScreen(firstRun: Boolean, onFinished: () -> Unit, onCancel: (() -> Uni
 @Composable
 private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, onCancel: (() -> Unit)?) {
     Gap(if (firstRun) 48 else 8)
-    Text(if (firstRun) "Kassa" else "Import again", style = KassaType.title, color = Kassa.colors.ink)
+    Text(if (firstRun) "Kassa" else "Import from another app", style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
     Text(
         if (firstRun) "Your money, on this phone only. Kassa has no internet access, so nothing you enter can leave the device."
@@ -87,10 +87,10 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onFinished: () -> Unit, o
     Gap(28)
     Panel {
         Column {
-            Text("Bring your Money Manager history", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text("Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             Gap(4)
             Text(
-                "Make a backup in Money Manager the way you usually do, then pick that .mmbak file here. It's read on the phone and never uploaded.",
+                "Supported files: .mmbak. Make a backup in your old app, then pick the file here. It's read on the phone and never uploaded.",
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
             Gap(14)
@@ -145,7 +145,7 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
     val badMonths = r.months.filter { !it.matches }
     Check(
         ok = badAccounts.isEmpty(),
-        text = if (badAccounts.isEmpty()) "All ${r.accounts.size} account balances match Money Manager."
+        text = if (badAccounts.isEmpty()) "All ${r.accounts.size} account balances match the backup."
         else "${badAccounts.size} account balances differ: " + badAccounts.joinToString { "${it.name} (${Money.format(it.imported - it.source)})" },
     )
     Check(

@@ -12,8 +12,25 @@ data class Holding(
     val microShares: Long,
     val price: Long,
     val priceMillis: Long,
+    /** What one share cost on average, in minor units; null until the user enters it or buys through Kassa. */
+    val avgCost: Long? = null,
 ) {
     val value: Long get() = Shares.cost(microShares, price)
+
+    /** What the shares cost in total, when the average cost is known. */
+    val cost: Long? get() = avgCost?.let { Shares.cost(microShares, it) }
+
+    /** Unrealized profit (negative for a loss), when the average cost is known. */
+    val profit: Long? get() = cost?.let { value - it }
+
+    /** The holding after buying [microShares] more at [price] each: shares grow and the average cost blends in. */
+    fun afterBuy(microShares: Long, price: Long, at: Long): Holding = copy(
+        microShares = this.microShares + microShares,
+        price = price,
+        priceMillis = at,
+        // An unknown average stays unknown: blending a guess in would show a wrong profit.
+        avgCost = avgCost?.let { Shares.average(this.microShares, it, microShares, price) },
+    )
 }
 
 /** Share counts are kept in millionths ([Holding.microShares]) so fractional shares stay exact. */
@@ -45,6 +62,12 @@ object Shares {
         val dot = kept.indexOf('.')
         val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(WHOLE_DIGITS)
         return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(DECIMALS)
+    }
+
+    /** The average cost per share after adding [addShares] at [addPrice] to [shares] that averaged [avg]. */
+    fun average(shares: Long, avg: Long, addShares: Long, addPrice: Long): Long {
+        val total = BigDecimal.valueOf(shares).multiply(BigDecimal.valueOf(avg)) + BigDecimal.valueOf(addShares).multiply(BigDecimal.valueOf(addPrice))
+        return total.divide(BigDecimal.valueOf(shares + addShares), 0, RoundingMode.HALF_UP).toLong()
     }
 
     fun problem(microShares: Long?): String? = if (microShares == null) "Enter how many shares." else null

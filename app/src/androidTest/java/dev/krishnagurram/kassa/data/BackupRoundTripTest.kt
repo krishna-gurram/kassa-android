@@ -110,7 +110,7 @@ class BackupRoundTripTest {
             LoanEntryEntity(2, 1, -1_500, 1_760_000_200_000, "Dinner, Sam paid", 2),
         ),
         bills = listOf(RecurringEntity(1, "Rent", 1, 1, 1, 120_000, true, 202609)),
-        holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000)),
+        holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000, 21_333), HoldingEntity(2, 1, "SCHD", 80_000_000, 2_750, 1_760_000_000_000)),
         icons = emptyMap(),
     )
 }

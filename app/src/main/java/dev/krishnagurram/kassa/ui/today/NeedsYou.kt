@@ -10,7 +10,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +33,7 @@ import dev.krishnagurram.kassa.domain.Recurring
 import dev.krishnagurram.kassa.domain.RecurringRules
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.CategoryBadge
+import dev.krishnagurram.kassa.ui.common.ConfirmDialog
 import dev.krishnagurram.kassa.ui.common.GlyphBadge
 import dev.krishnagurram.kassa.ui.common.SectionHeader
 import dev.krishnagurram.kassa.ui.entry.Chip
@@ -38,7 +49,12 @@ interface NeedsYouActions {
     fun editRecurring(r: Recurring, amount: Long)
     fun skip(r: Recurring)
     fun allocate(t: InvestmentTransfer)
+    /** Stop asking about a transfer, changing nothing else. */
+    fun dismiss(t: InvestmentTransfer)
 }
+
+/** A ✕ on a card asks this first. */
+private class Dismissal(val title: String, val body: String, val confirm: String, val run: () -> Unit)
 
 /** Bills due today and investment transfers waiting to be explained. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -48,6 +64,8 @@ fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
     val due = ledger.dueBills()
     val count = transfers.size + due.size
     if (count == 0) return
+    var asking by remember { mutableStateOf<Dismissal?>(null) }
+    asking?.let { d -> ConfirmDialog(d.title, d.body, d.confirm, onConfirm = d.run, onDismiss = { asking = null }, destructive = false) }
     SectionHeader("Pending review", "$count to confirm")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
         due.forEach { r ->
@@ -63,6 +81,7 @@ fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
                 title = r.name,
                 subtitle = if (r.fixedAmount != null) "Fixed amount" else if (est != null) "Estimated, edit if the bill differs" else "No history yet, enter the amount",
                 amount = est?.let { Money.format(it) } ?: "",
+                onDismiss = { asking = Dismissal("Skip ${r.name} this month?", "It comes back next month. Nothing is added.", "Skip") { actions.skip(r) } },
             ) {
                 if (est != null) Chip("Add ${Money.format(est)}", selected = true) { actions.approve(r, est) }
                 Chip(if (est != null) "Edit amount" else "Enter amount", selected = est == null) { actions.editRecurring(r, est ?: 0) }
@@ -77,6 +96,7 @@ fun NeedsYou(ledger: Ledger, actions: NeedsYouActions) {
                 title = "Where did it go?",
                 subtitle = "${Money.format(p.amount, wholeDollars = true)} moved to ${acct?.name ?: "investments"}",
                 amount = Money.format(p.amount),
+                onDismiss = { asking = Dismissal("Remove from pending review?", "Nothing else changes: the account's cash and holdings stay as they are.", "Remove") { actions.dismiss(p) } },
             ) {
                 Chip("Answer", selected = true) { actions.allocate(p) }
             }
@@ -92,12 +112,18 @@ private fun Card(
     title: String,
     subtitle: String,
     amount: String,
+    onDismiss: () -> Unit,
     buttons: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(Kassa.colors.raised).border(1.dp, Kassa.colors.line, shape).padding(16.dp)) {
-        Text(kicker, style = KassaType.tiny, color = Kassa.colors.ink2)
-        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(kicker, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp).offset(x = 6.dp)) {
+                Icon(Icons.Outlined.Close, "Dismiss", tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
+            }
+        }
+        Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             badge()
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)

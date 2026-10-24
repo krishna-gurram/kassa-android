@@ -118,10 +118,18 @@ fun EditAccountPage(
                 Field("Credit limit", form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = InputRules.typedAmount(v)) } },
                     KeyboardType.Decimal, "Optional", problems[AccountField.LIMIT])
             }
-            Group("Balance") {
-                Field(if (form.type.isDebt) "Amount owed today" else "Balance today", form.balance,
-                    { v -> edit(AccountField.BALANCE) { it.copy(balance = InputRules.typedBalance(v)) } }, KeyboardType.Decimal, problem = problems[AccountField.BALANCE])
-                Text("Adjusts the starting balance. Entries stay as they are.", style = KassaType.tiny, color = Kassa.colors.ink2)
+            // An investment account's balance is its cash; holdings are valued separately.
+            val investing = form.type == AccountType.INVESTMENT
+            Group(if (investing) "Cash" else "Balance") {
+                Field(
+                    when { investing -> "Cash today"; form.type.isDebt -> "Amount owed today"; else -> "Balance today" }, form.balance,
+                    { v -> edit(AccountField.BALANCE) { it.copy(balance = InputRules.typedBalance(v)) } }, KeyboardType.Decimal, problem = problems[AccountField.BALANCE],
+                )
+                Text(
+                    if (investing) "Changing it counts as money you put in. Holdings aren't affected."
+                    else "Adjusts the starting balance. Entries stay as they are.",
+                    style = KassaType.tiny, color = Kassa.colors.ink2,
+                )
             }
             Group("Details") {
                 if (isCard) PickRow("Default payment account", payFromOptions.firstOrNull { it.id == form.payFromId }?.name ?: "None") { picking = Picker.PAY_FROM }

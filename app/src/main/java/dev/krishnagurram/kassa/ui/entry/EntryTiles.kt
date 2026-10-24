@@ -35,8 +35,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.BaselineShift
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -56,21 +54,29 @@ import java.util.Locale
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 
-/** The amount, big and centred, with the currency symbol smaller in front. Underlined while the pad is up. */
+/**
+ * The amount, big and centred, with the currency symbol smaller on the same baseline. A short bar under it shows
+ * the pad is typing into it. (An underline would break at the symbol, which sits lower and smaller.)
+ */
 @Composable
 internal fun AmountHero(amount: String, focused: Boolean, income: Boolean, large: Boolean, onClick: () -> Unit) {
     val size = if (large) 60f else 52f
     val color = when { amount.isEmpty() -> Kassa.colors.ink3; income -> Kassa.colors.positive; else -> Kassa.colors.ink }
     val symbolColor = Kassa.colors.ink2
-    Box(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
+    Column(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp, bottom = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = (size * 0.5f).sp, color = symbolColor, baselineShift = BaselineShift(0.6f))) { append(Money.symbol) }
+                withStyle(SpanStyle(fontSize = (size * 0.6f).sp, color = symbolColor, letterSpacing = 0.sp)) { append(Money.symbol) }
+                append("\u2009")
                 append(displayAmount(amount))
             },
-            style = KassaType.hero.copy(fontSize = size.sp, letterSpacing = (-1.5).sp, textDecoration = if (focused) TextDecoration.Underline else null),
+            style = KassaType.hero.copy(fontSize = size.sp, letterSpacing = (-1.5).sp),
             color = color, maxLines = 1,
         )
+        Box(Modifier.padding(top = 2.dp).size(width = 40.dp, height = 3.dp).clip(RoundedCornerShape(2.dp)).background(if (focused) Kassa.colors.ink else Color.Transparent))
     }
 }
 
