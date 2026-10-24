@@ -11,12 +11,12 @@ val keystorePath: String? = System.getenv("KASSA_KEYSTORE")
 
 android {
     namespace = "dev.krishnagurram.kassa"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.krishnagurram.kassa"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 100 + buildNumber
         versionName = "0.2.$buildNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
