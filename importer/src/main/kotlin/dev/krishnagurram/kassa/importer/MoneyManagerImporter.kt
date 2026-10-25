@@ -41,6 +41,8 @@ sealed interface ImportIssue {
     data class UnpairedTransfers(val count: Int) : ImportIssue
     data class ZeroAmountEntries(val count: Int) : ImportIssue
     data class SkippedRows(val count: Int, val reason: String) : ImportIssue
+    /** Categories whose names differ only in capitals ("Phone bill", "Phone Bill"), merged into the first. */
+    data class MergedCategories(val names: List<String>) : ImportIssue
 }
 
 /**
@@ -113,14 +115,25 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         val catIds = HashMap<String, Long>()
         val categories = mutableListOf<Category>()
         var nextCat = 1L
+        // Names are unique per parent ignoring case, as in Kassa; a repeat folds into the first one.
+        val merged = mutableListOf<String>()
+        fun sameName(kind: CategoryKind, parentId: Long?, name: String) =
+            categories.firstOrNull { it.kind == kind && it.parentId == parentId && it.name.equals(name, ignoreCase = true) }
+        fun fold(uid: String, into: Category, visible: Boolean) {
+            catIds[uid] = into.id
+            merged += into.name
+            if (visible && into.hidden) categories[categories.indexOf(into)] = into.copy(hidden = false)
+        }
         parents.forEachIndexed { i, c ->
             val (icon, name) = splitEmoji(c.name)
+            val kind = if (c.type == 0) CategoryKind.INCOME else CategoryKind.EXPENSE
+            sameName(kind, null, name)?.let { fold(c.uid, it, !c.deleted); return@forEachIndexed }
             val id = nextCat++
             catIds[c.uid] = id
             categories += Category(
                 id = id,
                 name = name,
-                kind = if (c.type == 0) CategoryKind.INCOME else CategoryKind.EXPENSE,
+                kind = kind,
                 icon = icon,
                 color = PALETTE[i % PALETTE.size],
                 countsTowardDaily = c.type != 0 && !looksLikeBill(name),
@@ -129,15 +142,15 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
                 externalId = c.uid,
             )
         }
-        val parentById = categories.associateBy { it.id }
         children.forEachIndexed { i, c ->
             val parentId = catIds[c.parentUid]
             if (parentId == null) {
                 skipped += ImportIssue.SkippedRows(1, "Subcategory \"${c.name.trim()}\" points at a missing parent")
                 return@forEachIndexed
             }
-            val parent = parentById.getValue(parentId)
+            val parent = categories.first { it.id == parentId }
             val (icon, name) = splitEmoji(c.name)
+            sameName(parent.kind, parentId, name)?.let { fold(c.uid, it, !(c.deleted || parent.hidden)); return@forEachIndexed }
             val id = nextCat++
             catIds[c.uid] = id
             categories += Category(
@@ -208,10 +221,11 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         val budgets = source.budgets().mapNotNull { b ->
             val cat = catIds[b.categoryUid] ?: return@mapNotNull null
             Budget(categoryId = cat, month = b.period, amount = Math.round(b.amount * 100))
-        }
+        }.distinctBy { it.categoryId to it.month } // merged categories keep the first budget
 
         // Review items
         val issues = mutableListOf<ImportIssue>()
+        if (merged.isNotEmpty()) issues += ImportIssue.MergedCategories(merged.distinct())
         // Only compare accounts of the same type: "SoFi" and "SoFi Savings" are different accounts.
         accountsWithPayFrom.groupBy { it.type }.values.forEach { sameType ->
             duplicateNames(sameType.map { it.name }).forEach { issues += ImportIssue.PossibleDuplicateAccounts(it) }

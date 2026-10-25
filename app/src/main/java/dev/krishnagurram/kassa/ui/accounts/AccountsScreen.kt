@@ -127,8 +127,9 @@ fun AccountsScreen(
     }
 
     val personBalances = ledger.personBalances()
-    val receivable = personBalances.values.filter { it > 0 }.sum()
-    val payable = -personBalances.values.filter { it < 0 }.sum()
+    val owed = ledger.openPersonBalances().values
+    val receivable = owed.filter { it > 0 }.sum()
+    val payable = -owed.filter { it < 0 }.sum()
     val active = state.accounts.filter { !it.archived }
     val assets = active.filter { !it.type.isDebt }.sumOf(valueOf) + receivable
     val liabilities = -active.filter { it.type.isDebt }.sumOf(balanceOf) + payable

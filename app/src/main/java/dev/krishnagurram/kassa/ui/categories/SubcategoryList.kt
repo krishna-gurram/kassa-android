@@ -145,7 +145,7 @@ fun SubcategoryList(
 
     confirmArchive?.let { s ->
         ConfirmDialog(
-            title = "Archive ${s.name}?", body = "It leaves the pickers. Past entries keep it, and you can restore it here.",
+            title = "Archive ${s.name}?", body = "It leaves the pickers. Its entries stay and still count under ${parent.name}, and you can restore it here. To move them instead, use Merge.",
             confirm = "Archive", onConfirm = { onSave(s.copy(hidden = true), false); confirmArchive = null }, onDismiss = { confirmArchive = null },
         )
     }

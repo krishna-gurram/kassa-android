@@ -173,3 +173,4 @@ fun FitColumn(modifier: Modifier = Modifier, spacing: androidx.compose.ui.unit.D
 
 /** Tall enough to lay a tab out to fit the screen instead of scrolling it (the cover screen in landscape isn't). */
 val FIT_MIN_HEIGHT = 560.dp
+

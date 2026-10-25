@@ -58,12 +58,15 @@ fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transac
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
 }
 
-/** Every visible expense category this week, largest first, against last week by the same day. */
-fun weekLines(ledger: Ledger): List<CatLine> {
-    val start = ledger.weekStart
-    val (from, to) = dev.krishnagurram.kassa.domain.Patterns.samePointBefore(start, ledger.today, start.minusWeeks(1))
-    val now = Spending.byTopCategory(ledger.recent, ledger.categoryById, start, ledger.today, ledger.zone)
-    val before = Spending.byTopCategory(ledger.recent, ledger.categoryById, from, to, ledger.zone)
+/**
+ * Every visible expense category in the week starting [start], largest first, against the week before: up to the
+ * same day for this week, the whole week for a past one. [txs] must cover both weeks.
+ */
+fun weekLines(ledger: Ledger, start: LocalDate = ledger.weekStart, txs: List<Transaction> = ledger.recent): List<CatLine> {
+    val end = minOf(start.plusDays(6), ledger.today)
+    val (from, to) = dev.krishnagurram.kassa.domain.Patterns.samePointBefore(start, end, start.minusWeeks(1))
+    val now = Spending.byTopCategory(txs, ledger.categoryById, start, end, ledger.zone)
+    val before = Spending.byTopCategory(txs, ledger.categoryById, from, to, ledger.zone)
     return top(ledger).filter { it.kind == CategoryKind.EXPENSE }
         .map { c -> val b = before[c.id] ?: 0L; CatLine(c, now[c.id] ?: 0L, b.takeIf { it > 0 }, "last wk ${Money.format(b, wholeDollars = true)}") }
         .dropIdleArchived()
@@ -71,9 +74,9 @@ fun weekLines(ledger: Ledger): List<CatLine> {
 }
 
 /** Every visible income category between two dates, largest first. Income has nothing to measure against. */
-fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate): List<CatLine> {
+fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transaction> = ledger.recent): List<CatLine> {
     val got = HashMap<Long, Long>()
-    for (t in ledger.recent) {
+    for (t in txs) {
         if (t.kind != TxKind.INCOME) continue
         val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
         if (d.isBefore(from) || d.isAfter(to)) continue
