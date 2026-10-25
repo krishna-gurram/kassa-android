@@ -6,7 +6,6 @@ import app.kassa.money.data.db.toDomain
 import app.kassa.money.data.db.toEntity
 import app.kassa.money.domain.Budget
 import app.kassa.money.domain.Category
-import app.kassa.money.domain.CategoryColors
 import app.kassa.money.domain.InputRules
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -26,7 +25,6 @@ class CategoryRepository(private val db: KassaDatabase) {
         val siblings = db.categories().all().filter { it.id != category.id && it.parentId == category.parentId && it.kind == category.kind.name }
         InputRules.nameProblem(category.name, if (category.parentId == null) "category" else "subcategory", InputRules.CATEGORY_NAME_MAX,
             taken = { n -> siblings.any { it.name.equals(n, ignoreCase = true) } })?.let { throw IllegalArgumentException(it) }
-        CategoryColors.problem(category, db.categories().all().map { it.toDomain() })?.let { throw IllegalArgumentException(it) }
         val clean = category.copy(name = InputRules.clean(category.name))
         if (clean.id == 0L) db.categories().insert(clean.copy(sortOrder = db.categories().maxSortOrder() + 1).toEntity())
         else clean.id.also { db.categories().update(clean.toEntity()) }
@@ -41,8 +39,6 @@ class CategoryRepository(private val db: KassaDatabase) {
         }
     }
 
-    suspend fun separateColors() = separateCategoryColors(db)
-
     /** Moves every entry from [from] into [into], then archives [from]. */
     suspend fun merge(from: Category, into: Long) = db.withTransaction {
         db.categories().moveEntries(from.id, into)
@@ -50,13 +46,3 @@ class CategoryRepository(private val db: KassaDatabase) {
     }
 }
 
-/**
- * Gives clashing categories their own colors ([CategoryColors.separate]). Runs at start and after a restore or
- * import, which can bring in categories that share one; it changes nothing when every color is already unique.
- */
-internal suspend fun separateCategoryColors(db: KassaDatabase) = db.withTransaction {
-    val all = db.categories().all().map { it.toDomain() }
-    val parentOf = all.associate { it.id to (it.parentId ?: it.id) }
-    val use = db.categories().totals().groupBy({ parentOf[it.categoryId] ?: it.categoryId }, { it.total }).mapValues { it.value.sum() }
-    CategoryColors.separate(all, use).forEach { db.categories().update(it.toEntity()) }
-}

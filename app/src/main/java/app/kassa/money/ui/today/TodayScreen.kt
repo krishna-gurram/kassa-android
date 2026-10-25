@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -246,29 +247,31 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
 }
 
 /**
- * The top three categories as one bar, each piece sized against the other two, with their amounts underneath.
- * The month's total is the big number above; everything else is in Where it went.
+ * The top three categories as tinted tiles, each as wide as its share of the three (with a floor so a small one
+ * still shows its name and amount): a stripe of the category's color, its icon, name and amount. Two categories
+ * may share a color; the tiles keep them apart. Spending and income use the same tiles.
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
     val sum = top.sumOf { it.second }.coerceAtLeast(1)
     val none = Kassa.colors.ink3
-    val colorOf = { c: app.kassa.money.domain.Category? -> c?.let { Color(it.color) } ?: none }
     Text("Top categories", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
-    // A thin gap between pieces keeps two similar colors from reading as one.
-    Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        top.forEach { (c, amt) -> Box(Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.01f)).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(colorOf(c))) }
-    }
-    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 4.dp)) {
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         top.forEach { (c, amt) ->
+            val color = c?.let { Color(it.color) } ?: none
+            val name = c?.name ?: "Uncategorized"
             Row(
-                Modifier.clip(RoundedCornerShape(8.dp)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(end = 12.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.3f)).fillMaxHeight().clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
             ) {
-                Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(colorOf(c)))
-                Text("${c?.name ?: "Uncategorized"} ${Money.format(amt, wholeDollars = true)}", style = KassaType.tiny, color = Kassa.colors.ink2,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp).widthIn(max = 160.dp))
+                Box(Modifier.width(3.dp).fillMaxHeight().background(color))
+                Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        app.kassa.money.ui.common.CategoryIconView(c?.icon, color, 30, fallback = name.take(1))
+                        Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                    }
+                    Text(Money.format(amt, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

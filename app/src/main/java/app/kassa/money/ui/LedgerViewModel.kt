@@ -82,11 +82,6 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    init {
-        // Older versions let two categories share a color; give each its own once per launch.
-        viewModelScope.launch(Dispatchers.IO) { runCatching { kassa.categories.separateColors() } }
-    }
-
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
@@ -289,13 +284,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             holdings = d.holdings.map { it.toEntity() }, icons = emptyMap(),
         )
         runCatching { kassa.backups.restore(contents) }
-            .onSuccess { settings.setMonthStartDay(1); runCatching { kassa.categories.separateColors() }; _messages.tryEmit("Demo data loaded.") }
+            .onSuccess { settings.setMonthStartDay(1); _messages.tryEmit("Demo data loaded.") }
             .onFailure { _messages.tryEmit("Demo data couldn't be loaded. ${it.message}") }
     }
 
     fun restore(contents: BackupContents) = viewModelScope.launch(Dispatchers.IO) {
         runCatching { kassa.backups.restore(contents) }
-            .onSuccess { runCatching { kassa.categories.separateColors() }; _messages.tryEmit("Backup restored.") }
+            .onSuccess { _messages.tryEmit("Backup restored.") }
             .onFailure { _messages.tryEmit("Nothing was changed. ${it.message}") }
     }
 

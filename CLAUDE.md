@@ -68,7 +68,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with a top-categories bar, Upcoming (three rows; five unfolded), and up to six pinned account tiles. It always scrolls; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to six pinned account tiles, all the same height. It always scrolls; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
@@ -115,7 +115,8 @@ investment loss, you owe someone, over budget, a card payment due or overdue, a 
 worth below zero), **ink** for everything else (expenses, transfers, balances, totals). A minus sign is always orange, so
 one only appears when it's against you: cards and loans show what you owe with no minus (`cardMoney`,
 `cardTint`, a credit as a green +), payments to or from a person show no sign, and changes over time use ↑ and ↓.
-Category colors are unique among the top-level categories of a kind (`CategoryColors`): the picker fades taken ones,
-the repository refuses a taken one while a free one exists, and clashes are separated at start and after a restore or
-import (the busier category keeps its color).
+Of card figures only payable is orange (`payableTint`: Balance payable, Payable, due lines); outstanding, total
+balance and Liabilities stay ink. Categories may share a color (`CategoryColors`): Overview's top categories are tinted
+tiles sized by share, with icons, so a shared color never reads as one; the picker marks colors in use and names who
+shares the picked one; a new category gets an unused color while one is free.
 Every screen works on the Fold's cover screen and switches to two panes at 600dp+ (720dp for list-detail).

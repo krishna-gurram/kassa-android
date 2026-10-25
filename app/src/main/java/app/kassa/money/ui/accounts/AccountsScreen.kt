@@ -187,9 +187,9 @@ fun AccountsScreen(
                 "Credit cards", cardMoney(owed),
                 Section.CARDS in open, { toggle(Section.CARDS) },
                 listOf("Payable" to cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to cardMoney(cards.sumOf { it.snapshot.outstanding })),
-                // A card in credit is in your favour; an ordinary card balance is plain.
+                // A card in credit is in your favour; an ordinary card balance is plain. Only payable is orange.
                 totalFavour = if (owed < 0) 1 else 0,
-                figureFavour = listOf(if (cards.sumOf { it.snapshot.balancePayable } < 0) 1 else 0, if (cards.sumOf { it.snapshot.outstanding } < 0) 1 else 0),
+                figureFavour = listOf(-cards.sumOf { it.snapshot.balancePayable }, if (cards.sumOf { it.snapshot.outstanding } < 0) 1 else 0),
             )
             if (Section.CARDS in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }

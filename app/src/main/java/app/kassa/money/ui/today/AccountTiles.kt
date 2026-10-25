@@ -137,7 +137,8 @@ private fun Tile(name: String, amount: String, note: String?, modifier: Modifier
     Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp)) {
         Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)
-        if (note != null) Text(note, style = KassaType.tiny, color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Every tile keeps the due line's space, so tiles are the same height whichever accounts are pinned.
+        Text(note ?: "", style = KassaType.tiny, color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
