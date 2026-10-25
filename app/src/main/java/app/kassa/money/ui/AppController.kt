@@ -151,5 +151,6 @@ class AppController(
         override fun refreshDailyJobs() = DailyJobs.refresh(context)
         override fun restore(contents: BackupContents) { vm.restore(contents) }
         override fun loadDemo() { vm.loadDemo() }
+        override fun openPins() = openFromList(Page.PinAccounts)
     }
 }

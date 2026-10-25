@@ -78,6 +78,16 @@ class Settings(context: Context) {
     val tip: StateFlow<Int> = _tip
     fun setTip(n: Int) { prefs.edit().putInt(TIP, n).apply(); _tip.value = n }
 
+    private val _openTab = MutableStateFlow(prefs.getString(OPEN_TAB, "TODAY")!!)
+    /** The tab Kassa shows on a fresh start: TODAY (Overview), ACTIVITY, INSIGHTS or ACCOUNTS. */
+    val openTab: StateFlow<String> = _openTab
+    fun setOpenTab(v: String) { prefs.edit().putString(OPEN_TAB, v).apply(); _openTab.value = v }
+
+    private val _pins = MutableStateFlow(prefs.getStringSet(PINS, null)?.toSet())
+    /** Tiles on Overview, as keys ("acct:<id>", "people"); null until the user picks, meaning the first six A to Z. */
+    val pins: StateFlow<Set<String>?> = _pins
+    fun setPins(keys: Set<String>) { prefs.edit().putStringSet(PINS, keys).apply(); _pins.value = keys }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -105,5 +115,7 @@ class Settings(context: Context) {
         const val CURRENCY = "currency"
         const val CLEARED = "cleared_notifications"
         const val TIP = "first_run_tip"
+        const val OPEN_TAB = "open_tab"
+        const val PINS = "overview_pins"
     }
 }

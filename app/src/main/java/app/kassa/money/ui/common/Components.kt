@@ -160,3 +160,19 @@ fun SearchBox(value: String, onChange: (String) -> Unit, hint: String) {
         ),
     )
 }
+
+/**
+ * The one rule for coloring money everywhere: green when it's in your favour, orange when it's against you, ink for
+ * ordinary amounts like spending and transfers. [favour] is positive in your favour, negative against, zero neither.
+ */
+@Composable
+fun favourColor(favour: Long, plain: Color = Kassa.colors.ink): Color = when {
+    favour > 0 -> Kassa.colors.positive
+    favour < 0 -> Kassa.colors.attention
+    else -> plain
+}
+
+/** An account's balance: orange only when money you own (a bank, cash, investments) goes below zero. */
+@Composable
+fun balanceColor(type: app.kassa.money.domain.AccountType, balance: Long): Color =
+    if (!type.isDebt && balance < 0) Kassa.colors.attention else Kassa.colors.ink

@@ -40,6 +40,8 @@ import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.effectOn
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
 import app.kassa.money.ui.common.PageTop
@@ -125,7 +127,7 @@ fun AccountPage(
                     if (account.type == AccountType.CREDIT_CARD) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-                        BigMoney(-balance, sizeSp = 36f)
+                        BigMoney(-balance, sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-balance))
                         Text("Add the statement day and due day to split this into balance payable and outstanding.", style = KassaType.small, color = Kassa.colors.ink2)
                         TextButton(onClick = onEditAccount) { Text("Add statement days", color = Kassa.colors.ink) }
                     } else {
@@ -137,7 +139,7 @@ fun AccountPage(
                             },
                             style = KassaType.tiny, color = Kassa.colors.ink2,
                         )
-                        BigMoney(if (debt) -endBalance else endBalance, sizeSp = 36f)
+                        BigMoney(if (debt) -endBalance else endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
                         TwoBoxes("In" to Money.format(moneyIn), "Out" to Money.format(moneyOut), aColor = Kassa.colors.positive)
                     }
                 }
@@ -224,7 +226,7 @@ private fun InvestmentBody(
                 top()
                 RaisedPanel {
                     Text("Total value", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    BigMoney(value, sizeSp = 36f)
+                    BigMoney(value, sizeSp = 36f, color = if (value < 0) Kassa.colors.attention else Kassa.colors.ink)
                     if (putIn > 0) {
                         Text(
                             "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} (${percentOf(Math.abs(gain), putIn)}) on what you put in",

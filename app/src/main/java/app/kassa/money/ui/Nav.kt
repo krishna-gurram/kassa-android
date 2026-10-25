@@ -38,6 +38,8 @@ sealed interface Page {
     data object Upcoming : Page
     /** Bank alerts, bills and investment transfers waiting to be confirmed. */
     data object Notifications : Page
+    /** The account tiles pinned on Overview. */
+    data object PinAccounts : Page
     data object Import : Page { override val besideList: Boolean get() = false }
     /** Add or edit a recurring bill; built like the entry page, so it takes the full screen too. */
     data class Bill(val bill: app.kassa.money.domain.Recurring?) : Page { override val besideList: Boolean get() = false }
@@ -50,6 +52,10 @@ sealed interface Page {
 class NavViewModel : ViewModel() {
     var tab by mutableStateOf(Tab.TODAY)
         private set
+    private var started = false
+
+    /** Picks the opening tab once per launch; folding the phone or returning to the app keeps the current one. */
+    fun start(t: Tab) { if (!started) { started = true; if (stack.isEmpty()) tab = t } }
     val stack = mutableStateListOf<Page>()
     val top: Page? get() = stack.lastOrNull()
 

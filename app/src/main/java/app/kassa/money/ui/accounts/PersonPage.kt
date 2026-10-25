@@ -38,6 +38,8 @@ import app.kassa.money.domain.Person
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
@@ -57,7 +59,8 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 /** One line of a person's history: a split share or a payment. [amount] is positive when it adds to what they owe you. */
-private data class PersonHistoryLine(val millis: Long, val note: String, val amount: Long, val transactionId: Long?)
+/** [payment] lines settle up; the rest (splits, starting balance) change what's owed. */
+private data class PersonHistoryLine(val millis: Long, val note: String, val amount: Long, val transactionId: Long?, val payment: Boolean = false)
 
 /** Splits and payments with [p], newest first. */
 private fun historyOf(p: Person, ledger: Ledger): List<PersonHistoryLine> {
@@ -65,7 +68,7 @@ private fun historyOf(p: Person, ledger: Ledger): List<PersonHistoryLine> {
         .map { PersonHistoryLine(it.epochMillis, it.note.ifBlank { "Split" }, it.amount, it.transactionId) }
     val payments = ledger.people.payments.filter { it.personId == p.id }.map { t ->
         val fallback = if (t.kind == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}"
-        PersonHistoryLine(t.epochMillis, t.note.ifBlank { fallback }, if (t.kind == TxKind.PERSON_OUT) t.amount else -t.amount, t.id)
+        PersonHistoryLine(t.epochMillis, t.note.ifBlank { fallback }, if (t.kind == TxKind.PERSON_OUT) t.amount else -t.amount, t.id, payment = true)
     }
     return (splits + payments).sortedByDescending { it.millis }
 }
@@ -117,7 +120,7 @@ fun PersonPage(
                 when { balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
                 style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            BigMoney(Math.abs(balance), sizeSp = 36f, color = if (balance > 0) Kassa.colors.positive else Kassa.colors.ink)
+            BigMoney(Math.abs(balance), sizeSp = 36f, color = favourColor(balance))
             if (balance != 0L) since?.let {
                 Text("Since ${Instant.ofEpochMilli(it).atZone(ledger.zone).format(shortDate)}", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
@@ -141,7 +144,8 @@ fun PersonPage(
                     Text(Instant.ofEpochMilli(line.millis).atZone(ledger.zone).format(longDate), style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 Text(Money.format(line.amount, showPlus = true), style = KassaType.bodyStrong, maxLines = 1,
-                    color = if (line.amount > 0) Kassa.colors.positive else Kassa.colors.ink)
+                    // Owing more is against you; being paid back only settles up, so it stays plain.
+                    color = favourColor(if (line.payment && line.amount < 0) 0 else line.amount))
             }
             HorizontalDivider(color = Kassa.colors.line)
         }

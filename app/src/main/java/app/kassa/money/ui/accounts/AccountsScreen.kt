@@ -51,6 +51,8 @@ import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.cards.CardRow
 import app.kassa.money.ui.cards.cardMoney
 import app.kassa.money.ui.cards.cardsByDueDate
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.accountIcon
@@ -147,21 +149,22 @@ fun AccountsScreen(
     val archivedPeople = ledger.people.people.filter { it.archived }
 
     val accountRow: @Composable (Account, Long) -> Unit = { a, amount ->
-        OneLineRow(iconTile(accountIcon(a.type)), a.name, a.last4, Money.format(amount), selected = a.id == selectedAccount) { onOpenAccount(a.id) }
+        OneLineRow(iconTile(accountIcon(a.type)), a.name, a.last4, Money.format(amount), selected = a.id == selectedAccount,
+            amountColor = balanceColor(a.type, valueOf(a))) { onOpenAccount(a.id) }
     }
     val personRow: @Composable (Person) -> Unit = { p ->
         val b = personBalances[p.id] ?: 0
         OneLineRow(
             letterTile(p.name), p.name, null, Money.format(Math.abs(b)),
             suffix = when { b > 0 -> "owes you"; b < 0 -> "you owe"; else -> "settled" },
-            amountColor = if (b > 0) Kassa.colors.positive else Kassa.colors.ink,
+            amountColor = favourColor(b),
         ) { onOpenPerson(p.id) }
     }
 
     val hero: @Composable () -> Unit = {
         RaisedPanel {
             Text("Net worth", style = KassaType.tiny, color = Kassa.colors.ink2)
-            BigMoney(assets - liabilities, sizeSp = 36f)
+            BigMoney(assets - liabilities, sizeSp = 36f, color = if (assets < liabilities) Kassa.colors.attention else Kassa.colors.ink)
             HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
             TwoFigures("Assets" to Money.format(assets), "Liabilities" to Money.format(liabilities))
         }
@@ -182,6 +185,9 @@ fun AccountsScreen(
                 "Credit cards", if (owed < 0) Money.format(-owed, showPlus = true) else "−" + Money.format(owed),
                 Section.CARDS in open, { toggle(Section.CARDS) },
                 listOf("Payable" to cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to Money.format(cards.sumOf { it.snapshot.outstanding })),
+                // A card in credit is in your favour; an ordinary card balance is plain.
+                totalFavour = if (owed < 0) 1 else 0,
+                figureFavour = listOf(if (cards.sumOf { it.snapshot.balancePayable } < 0) 1 else 0, 0),
             )
             if (Section.CARDS in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }
@@ -192,7 +198,7 @@ fun AccountsScreen(
     val accountSection: @Composable (String, List<Account>, Boolean) -> Unit = { key, list, debt ->
         if (list.isNotEmpty()) {
             val shown: (Account) -> Long = { if (debt) -balanceOf(it) else valueOf(it) }
-            GroupHead(key, Money.format(list.sumOf(shown)), key in open, { toggle(key) })
+            GroupHead(key, Money.format(list.sumOf(shown)), key in open, { toggle(key) }, totalFavour = if (!debt && list.sumOf(shown) < 0) -1 else 0)
             if (key in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { accountRow(it, shown(it)) } }
         }
     }
@@ -200,6 +206,7 @@ fun AccountsScreen(
         GroupHead(
             "Loans and splits", Money.format(receivable - payable), Section.PEOPLE in open, { toggle(Section.PEOPLE) },
             if (people.isEmpty()) null else listOf("Owed to you" to Money.format(receivable), "You owe" to Money.format(payable)),
+            totalFavour = receivable - payable, figureFavour = listOf(receivable, -payable),
         )
         if (Section.PEOPLE in open) {
             if (people.isEmpty()) Text("Add people you split costs with or lend to.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 6.dp))
@@ -300,21 +307,24 @@ private fun SortHeader(sort: AccountSort, desc: Boolean, onSort: (AccountSort) -
 
 /** A section title with its total. Tap to open or fold it; its key figures show while it's open. */
 @Composable
-private fun GroupHead(title: String, total: String, open: Boolean, onToggle: () -> Unit, figures: List<Pair<String, String>>? = null) {
+private fun GroupHead(
+    title: String, total: String, open: Boolean, onToggle: () -> Unit,
+    figures: List<Pair<String, String>>? = null, totalFavour: Long = 0, figureFavour: List<Long> = emptyList(),
+) {
     Row(
         Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onToggle).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.ChevronRight, if (open) "Fold" else "Open", tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
         Text(title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
-        Text(total, style = KassaType.bodyStrong, maxLines = 1, color = if (total.startsWith("+")) Kassa.colors.positive else Kassa.colors.ink)
+        Text(total, style = KassaType.bodyStrong, maxLines = 1, color = favourColor(totalFavour))
     }
     if (open && figures != null) Row(Modifier.padding(start = 26.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        figures.forEach { (label, value) ->
+        figures.forEachIndexed { i, (label, value) ->
             Row {
                 Text("$label ", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
                 Text(value, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1,
-                    color = if (value.startsWith("+")) Kassa.colors.positive else Kassa.colors.ink)
+                    color = favourColor(figureFavour.getOrElse(i) { 0 }))
             }
         }
     }
