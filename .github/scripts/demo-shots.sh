@@ -47,6 +47,10 @@ tap "Overview"
 adb shell wm size 1248x1972; adb shell wm density 420
 shot 03b-cover 6
 scroll; shot 03c-cover-after-swipe
+# Most people have closed the tips: with them gone, Overview should fit with no scrolling.
+adb shell input swipe 600 400 600 1600 400; sleep 1
+tap "Close tips"; shot 03d-cover-no-tips
+scroll; shot 03e-cover-no-tips-after-swipe
 adb shell wm size reset; adb shell wm density reset
 sleep 3
 # The Fold's inner screen.
