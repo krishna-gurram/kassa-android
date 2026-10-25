@@ -109,4 +109,9 @@ several people, who paid, equal or exact shares; a person's "Split a transaction
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
+Money has one color rule (`favourColor`, `balanceColor` in `ui/common/Components.kt`): **green** when it's in your favour
+(income, profit, someone owes you, a card in credit), **orange** when it's against you beyond ordinary spending (an
+investment loss, you owe someone, over budget, a card payment due or overdue, a bank or cash balance below zero, net
+worth below zero), **ink** for everything else (expenses, transfers, balances, totals). A negative number alone is not a
+reason to color it.
 Every screen works on the Fold's cover screen and switches to two panes at 600dp+ (720dp for list-detail).

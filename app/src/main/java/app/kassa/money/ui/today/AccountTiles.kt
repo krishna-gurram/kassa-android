@@ -32,6 +32,8 @@ import app.kassa.money.domain.Names
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.balanceColor
+import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -103,15 +105,17 @@ fun AccountTiles(
                                     if (a.type == AccountType.INVESTMENT) ledger.holdingsValue(a.id) else 0
                                 val due = cards[a.id]?.snapshot?.takeIf { it.payable > 0 }
                                     ?.let { "${Money.format(it.payable, wholeDollars = true)} due ${it.due.format(DateTimeFormatter.ofPattern("MMM d"))}" }
-                                Tile(a.name, Money.format(balance), due, m) { onOpenAccount(a.id) }
+                                val color = if (a.type == AccountType.CREDIT_CARD && balance > 0) Kassa.colors.positive else balanceColor(a.type, balance)
+                                Tile(a.name, Money.format(balance), due, m, color) { onOpenAccount(a.id) }
                             }
                             Pin.People -> {
                                 val owed = ledger.openPersonBalances().values
                                 val theyOwe = owed.filter { it > 0 }.sum()
                                 val youOwe = -owed.filter { it < 0 }.sum()
+                                val net = if (theyOwe > 0 || youOwe == 0L) theyOwe else -youOwe
                                 Tile(
-                                    "People", if (theyOwe > 0 || youOwe == 0L) Money.format(theyOwe) else "−" + Money.format(youOwe),
-                                    if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, onPeople,
+                                    "People", (if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
+                                    if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, favourColor(net), onPeople,
                                 )
                             }
                         }
@@ -123,10 +127,10 @@ fun AccountTiles(
 }
 
 @Composable
-private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, onClick: () -> Unit) {
+private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
     Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp)) {
         Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(amount, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+        Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)
         if (note != null) Text(note, style = KassaType.tiny, color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
