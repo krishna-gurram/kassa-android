@@ -196,7 +196,7 @@ private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChan
         options.forEach { (v, label) ->
             val on = v == value
             Text(
-                label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold),
+                label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, softWrap = false,
                 color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
                     .clickable { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -209,6 +209,7 @@ private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChan
  * Spending or income, this week or this month, in the same layout: the total and the top three categories.
  * The title itself switches between spending and income.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) -> Unit, month: Boolean, setMonth: (Boolean) -> Unit, roomy: Boolean, onOpen: () -> Unit, onOpenCategory: (Long) -> Unit) {
     val from = if (month) ledger.period.start else weekPace(ledger).start
@@ -218,16 +219,22 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val top = rows.take(3)
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
-    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(false to "Spending", true to "Income").forEach { (v, label) ->
-            Text(
-                label, style = KassaType.section,
-                color = if (v == income) Kassa.colors.ink else Kassa.colors.ink3,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { setIncome(v) }.padding(end = 14.dp, top = 2.dp, bottom = 2.dp),
-            )
+    // Titles on the left, the period switch on the right; on a narrow screen or a large font the switch moves
+    // under the titles instead of squeezing its words onto several lines.
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(Modifier.align(Alignment.CenterVertically)) {
+            listOf(false to "Spending", true to "Income").forEach { (v, label) ->
+                Text(
+                    label, style = KassaType.section, maxLines = 1, softWrap = false,
+                    color = if (v == income) Kassa.colors.ink else Kassa.colors.ink3,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { setIncome(v) }.padding(end = 14.dp, top = 2.dp, bottom = 2.dp),
+                )
+            }
         }
-        Box(Modifier.weight(1f))
-        Switch2(listOf(true to monthName, false to "This week"), month, setMonth)
+        Box(Modifier.align(Alignment.CenterVertically)) { Switch2(listOf(true to monthName, false to "This week"), month, setMonth) }
     }
     val link = if (income) "Where it came from" else "Where it went"
     Row(verticalAlignment = Alignment.Bottom) {

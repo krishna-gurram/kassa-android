@@ -33,21 +33,23 @@ PY
 }
 adb shell am start -W -n $ACT --ez demo true > /dev/null 2>&1
 shot 01-overview 14
-adb shell input swipe 540 1700 540 500 300
+adb shell input swipe 540 1300 540 400 800
 shot 02-overview-scrolled
 tap "Accounts"; shot 03-accounts
 tap "Overview"
 # The Fold's inner screen.
-adb shell wm size 1812x2176; adb shell wm density 420
+adb shell wm size 1812x2176; adb shell wm density 360
 shot 04-unfolded 6
 tap "Where it went"; shot 05-unfolded-page
 adb shell input keyevent KEYCODE_BACK
+sleep 2; adb shell input swipe 900 1600 900 600 800; shot 04b-unfolded-scrolled
 tap "Accounts"; shot 06-unfolded-accounts
 tap "Overview"
 adb shell wm size reset; adb shell wm density reset
 adb shell cmd uimode night yes
 shot 07-dark 5
-tap "Settings"; sleep 2; tap "Expense categories"; sleep 2; tap "Dining"; shot 08-category-colors
+adb shell settings put system font_scale 1.6; shot 07b-large-font 5; adb shell settings put system font_scale 1.0; sleep 3
+tap "Settings"; sleep 2; tap "Expense categories"; sleep 2; tap "Dining"; sleep 2; adb shell input swipe 540 1500 540 500 800; shot 08-category-colors
 adb shell cmd uimode night no
 adb shell am force-stop $DPKG
 rm -f ci-output/ui.xml
