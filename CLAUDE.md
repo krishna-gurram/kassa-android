@@ -1,6 +1,6 @@
 # Kassa: notes for working on this repo
 
-Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCipher. Owner: Krishna.
+Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCipher.
 
 ## Rules that matter
 - **No network, ever.** The manifest removes `INTERNET`; CI fails if it appears. Don't add libraries that need it.
@@ -57,7 +57,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 - `./gradlew :domain:test :importer:test :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
 - `app/src/androidTest` holds device tests: upgrades from every database version (`app/schemas`; 1 to 3 were rebuilt
   from 4.json by undoing each migration), entries with splits, and backup round trips. CI runs them on the emulator
-  after the smoke test. The debug build is `dev.krishnagurram.kassa.debug`, so it installs beside the real app.
+  after the smoke test. The debug build is `app.kassa.money.debug`, so it installs beside the real app.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
   certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
   as a GitHub release. Only the newest commit on `main` is published.
