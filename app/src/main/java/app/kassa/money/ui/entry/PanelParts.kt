@@ -3,6 +3,11 @@ package app.kassa.money.ui.entry
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,7 +124,7 @@ internal fun PickTile(on: Boolean, minHeight: Dp = 54.dp, onClick: () -> Unit, c
 internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Box(
-        modifier.height(44.dp).clip(shape).background(Kassa.colors.ground)
+        modifier.height(48.dp).clip(shape).background(Kassa.colors.ground)
             .border(1.5.dp, if (on) Kassa.colors.ink else Color.Transparent, shape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -158,13 +163,21 @@ fun Chip(
 ) {
     val shape = RoundedCornerShape(50)
     val bg = when { selected -> Kassa.colors.ink; outlined || dashed -> Color.Transparent; else -> Kassa.colors.chip }
-    var m = Modifier.padding(end = 8.dp, bottom = 8.dp).clip(shape).background(bg)
+    // The pill stays its size, but taps land up to 8dp above and below it, so even a small chip has a 48dp touch
+    // area. The press ripple stays on the pill.
+    val press = remember { MutableInteractionSource() }
+    var m = Modifier.clip(shape).background(bg)
     if (outlined || dashed) m = m.border(1.dp, if (dashed) Kassa.colors.ink3 else Kassa.colors.line, shape)
-    Box(m.clickable(onClick = onClick).padding(horizontal = if (small) 12.dp else 14.dp, vertical = if (small) 7.dp else 9.dp)) {
+    Box(
+        Modifier.padding(end = 8.dp).clickable(interactionSource = press, indication = null, role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp),
+    ) {
+        Box(m.indication(press, ripple()).padding(horizontal = if (small) 12.dp else 14.dp, vertical = if (small) 7.dp else 9.dp)) {
         Text(
             label, style = if (small) KassaType.small else KassaType.body,
             color = if (selected) Kassa.colors.onInk else if (dashed) Kassa.colors.ink2 else Kassa.colors.ink,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp),
         )
+        }
     }
 }
