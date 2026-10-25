@@ -43,8 +43,8 @@ scroll
 shot 02-overview-scrolled
 tap "Accounts"; shot 03-accounts
 tap "Overview"
-# The Fold's cover screen: Overview should fit with no scrolling.
-adb shell wm size 1248x1972; adb shell wm density 420
+# The Fold's cover screen at the density its screenshots show (about 320 dpi): Overview should fit.
+adb shell wm size 1248x1972; adb shell wm density 320
 shot 03b-cover 6
 scroll; shot 03c-cover-after-swipe
 # Most people have closed the tips: with them gone, Overview should fit with no scrolling.
