@@ -14,29 +14,65 @@ scroll() {
 }
 shot() { sleep "${2:-3}"; adb exec-out screencap -p > "ci-output/demo-$1.png"; }
 # Taps the first clickable element whose text or description (or a child's) is exactly $1.
-tap() {
+# tap_prefix taps the first whose text starts with $1; tap_all taps every on-screen match of $1.
+find_xy() {
   adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
   adb pull /sdcard/ui.xml ci-output/ui.xml > /dev/null 2>&1
-  local xy
-  xy=$(python3 - "$1" <<'PY'
+  python3 - "$1" "$2" <<'PY'
 import re, sys, xml.etree.ElementTree as ET
-want = sys.argv[1]
-root = ET.parse('ci-output/ui.xml').getroot()
+want, mode = sys.argv[1], sys.argv[2]
+try:
+    root = ET.parse('ci-output/ui.xml').getroot()
+except Exception:
+    sys.exit(0)
 parent = {c: p for p in root.iter() for c in p}
-best = None
+hits = []
 for n in root.iter('node'):
-    if want not in (n.get('text'), n.get('content-desc')): continue
+    vals = [v for v in (n.get('text'), n.get('content-desc')) if v]
+    ok = any(v.startswith(want) for v in vals) if mode == 'prefix' else want in vals
+    if not ok: continue
     m = n
     while m is not None and m.get('clickable') != 'true': m = parent.get(m)
-    if m is not None: best = m; break
-    best = best or n
-if best is not None:
-    a, b, c, d = map(int, re.findall(r'\d+', best.get('bounds')))
-    print((a + c) // 2, (b + d) // 2)
+    t = m if m is not None else n
+    a, b, c, d = map(int, re.findall(r'\d+', t.get('bounds')))
+    if c > a and d > b and (a + c) // 2 >= 0 and (b + d) // 2 >= 0: hits.append(((a + c) // 2, (b + d) // 2, m is not None))
+hits.sort(key=lambda h: not h[2])
+for x, y, _ in (hits if mode == 'all' else hits[:1]):
+    print(x, y)
 PY
-)
-  [ -n "$xy" ] && adb shell input tap $xy || echo "No \"$1\" on screen"
 }
+tap_mode() {
+  local found=0
+  while read -r x y; do [ -n "$x" ] && { adb shell input tap "$x" "$y"; found=1; sleep 0.4; }; done < <(find_xy "$1" "$2")
+  [ $found = 1 ] || echo "No \"$1\" on screen"
+}
+tap() { tap_mode "$1" exact; }
+tap_prefix() { tap_mode "$1" prefix; }
+tap_all() { tap_mode "$1" all; }
+
+# Cashew import, end to end on a fresh install: a made-up Cashew backup is opened on the first-run Import page
+# (debug builds take it from an intent extra instead of the system file picker), every question answered, imported.
+FIX=cashew-fixture.sql
+python3 .github/scripts/make-cashew-fixture.py ci-output/$FIX > ci-output/cashew-fixture.txt 2>&1
+adb push ci-output/$FIX /data/local/tmp/$FIX > /dev/null 2>&1
+adb shell "run-as $DPKG mkdir -p files" ; adb shell "run-as $DPKG cp /data/local/tmp/$FIX files/$FIX"
+adb shell am start -W -n $ACT --es importFile $FIX > /dev/null 2>&1
+shot cashew-1-found 10
+tap "Next"; shot cashew-2-accounts
+tap_all "Checking"; scroll; tap_all "Checking"; shot cashew-3-accounts-picked
+tap "Next"; shot cashew-4-loans
+tap_all "A person"; tap "A loan account"; scroll; shot cashew-5-loans-picked
+tap "Next"; shot cashew-6-currency
+tap "Next"; shot cashew-7-review 4
+scroll; shot cashew-8-review-more
+scroll; scroll; shot cashew-9-review-end
+tap_prefix "Import "; shot cashew-10-done 6
+tap "Open Kassa"; shot cashew-11-overview 5
+tap "Accounts"; shot cashew-12-accounts
+adb logcat -d | grep -A 30 "FATAL EXCEPTION" | grep -A 30 "$DPKG" > ci-output/cashew-crash.txt || true
+adb shell am force-stop $DPKG
+adb shell pm clear $DPKG > /dev/null 2>&1
+
 adb shell am start -W -n $ACT --ez demo true > /dev/null 2>&1
 shot 01-overview 14
 scroll

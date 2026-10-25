@@ -52,6 +52,7 @@ fun ImportScreen(
     val state by vm.state.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::read) }
     val pick = { picker.launch(arrayOf("*/*")) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (app.kassa.money.BuildConfig.DEBUG) DebugImport.take()?.let(vm::read) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
@@ -67,11 +68,24 @@ fun ImportScreen(
                     Gap(12)
                     Text(s.message, style = KassaType.body, color = Kassa.colors.attention)
                 }
+                is ImportState.Cashew -> {
+                    androidx.activity.compose.BackHandler(onBack = vm::back)
+                    CashewSteps(s, vm)
+                }
                 is ImportState.Review -> Review(s.plan, firstRun, onImport = vm::confirm, onPickAgain = { vm.reset(); pick() })
                 is ImportState.Done -> {
-                    Text("Imported", style = KassaType.title, color = Kassa.colors.ink)
+                    Text(if (s.plan.sourceName == "Cashew backup") "Imported from Cashew" else "Imported", style = KassaType.title, color = Kassa.colors.ink)
                     Gap(8)
                     Text("${count(s.entries)} entries are now in Kassa, on this phone only.", style = KassaType.body, color = Kassa.colors.ink2)
+                    val next = buildList {
+                        s.plan.accounts.filter { it.type == app.kassa.money.domain.AccountType.CREDIT_CARD && it.statementDay == null }
+                            .forEach { add("Add statement and due days to ${it.name} so Kassa can show what's payable.") }
+                        if (s.plan.people.isNotEmpty()) add("Check ${s.plan.people.joinToString { it.name }} in People.")
+                        if (s.plan.bills.isNotEmpty()) add("Check the ${count(s.plan.bills.size)} bills in Upcoming.")
+                        add("Pick the accounts to show on Overview in Settings › Home screen.")
+                    }
+                    Gap(16)
+                    Panel { Column { next.forEach { Bullet(it) } } }
                     Gap(24)
                     PrimaryButton("Open Kassa") { vm.reset(); onFinished() }
                 }
@@ -111,7 +125,7 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
             Text(if (firstRun) "Have a backup?" else "Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             Gap(4)
             Text(
-                "Supported files: .mmbak. It's read on the phone and never uploaded.",
+                "Money Manager backups (.mmbak) and Cashew backups (.sql). Kassa works out which one you picked, reads it on the phone and never uploads it.",
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
             Gap(14)
@@ -138,15 +152,17 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
     val byKind = plan.transactions.groupingBy { it.kind }.eachCount()
     Text("Review before importing", style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("Nothing is saved until you tap Import.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text("From a ${plan.sourceName}. Nothing is saved until you tap Import.", style = KassaType.body, color = Kassa.colors.ink2)
 
-    SectionHeader("What's in the backup")
+    SectionHeader("What comes over")
     Fact("Expenses", count(byKind[TxKind.EXPENSE] ?: 0))
     Fact("Income", count(byKind[TxKind.INCOME] ?: 0))
     Fact("Transfers", count(byKind[TxKind.TRANSFER] ?: 0))
     Fact("Accounts", count(plan.accounts.size))
     Fact("Categories", "${count(plan.categories.count { !it.hidden })} active, ${count(plan.categories.count { it.hidden })} retired")
     Fact("Budgets", count(plan.budgets.size))
+    if (plan.people.isNotEmpty()) Fact("People", count(plan.people.size))
+    if (plan.bills.isNotEmpty()) Fact("Bills", count(plan.bills.size))
 
     SectionHeader("Checks", if (r.allMatch) "All match" else "Needs a look")
     val badAccounts = r.accounts.filter { !it.matches }
@@ -156,22 +172,31 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
         text = if (badAccounts.isEmpty()) "All ${r.accounts.size} account balances match the backup."
         else "${badAccounts.size} account balances differ: " + badAccounts.joinToString { "${it.name} (${Money.format(it.imported - it.source)})" },
     )
-    Check(
+    if (r.months.isNotEmpty()) Check(
         ok = badMonths.isEmpty(),
         text = if (badMonths.isEmpty()) "Spending and income match for all ${r.months.size} months."
         else "${badMonths.size} months differ, starting ${badMonths.first().month}.",
     )
 
-    if (plan.issues.isNotEmpty()) {
+    val (left, other) = plan.issues.partition { it is ImportIssue.LeftBehind }
+    if (left.isNotEmpty()) {
+        SectionHeader(if (plan.sourceName == "Cashew backup") "Stays in Cashew" else "Stays behind")
+        left.forEach { Issue(it) }
+    }
+    if (other.isNotEmpty()) {
         SectionHeader("Worth knowing", "You can fix these later")
-        plan.issues.forEach { Issue(it) }
+        other.forEach { Issue(it) }
     }
 
     Gap(28)
     PrimaryButton("Import ${count(plan.transactions.size)} entries", onImport)
     if (!firstRun) {
         Gap(6)
-        Text("This replaces what's in Kassa now.", style = KassaType.small, color = Kassa.colors.attention)
+        Text(
+            if (plan.people.isEmpty() && plan.bills.isEmpty()) "This replaces what's in Kassa now."
+            else "This replaces your accounts, categories, entries and budgets. People and bills you already have are kept; these are added.",
+            style = KassaType.small, color = Kassa.colors.attention,
+        )
     }
     Gap(4)
     TextButton(onClick = onPickAgain, modifier = Modifier.fillMaxWidth()) { Text("Choose a different file", color = Kassa.colors.ink2) }
@@ -184,9 +209,14 @@ private fun Issue(issue: ImportIssue) {
         is ImportIssue.SplitwiseRows -> "${issue.entries} entries use Splitwise accounts or categories (${(issue.accountNames + issue.categoryNames).joinToString()}). They import as they are now; turning them into money owed by people comes with the next update."
         is ImportIssue.MismatchedTransfers -> "${issue.count} transfer's two halves didn't agree. Kassa kept the sending side; balances still match."
         is ImportIssue.UnpairedTransfers -> "${issue.count} transfers had only one half. They were kept so balances match."
-        is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of $0. They were kept."
+        is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of ${Money.format(0)}. They were kept."
         is ImportIssue.SkippedRows -> "${issue.count} skipped: ${issue.reason}."
         is ImportIssue.MergedCategories -> "Categories with the same name in different capitals were combined: ${issue.names.joinToString()}."
+        is ImportIssue.LeftBehind -> "${count(issue.count)} ${issue.what}."
+        is ImportIssue.RefundsAsIncome -> "${count(issue.count)} refunds (money back in a spending category) come in as income in that category."
+        is ImportIssue.BalanceCorrections -> "${count(issue.count)} balance corrections became their account's starting balance, so balances match."
+        is ImportIssue.TransfersAsEntries -> "${count(issue.count)} transfers with an account you left out come in as plain entries, so balances still match."
+        is ImportIssue.OtherCurrency -> "${issue.accounts.joinToString()} come in with their amounts unchanged, in this phone's currency."
     }
     Row(Modifier.padding(vertical = 8.dp)) {
         Text("•", style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 10.dp))

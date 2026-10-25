@@ -37,7 +37,12 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 ## Layout
 - `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares).
   Fast JVM tests.
-- `importer/`: Money Manager `.mmbak` mapping and reconcile. Names and notes are cleaned and capped on the way in. JVM tests.
+- `importer/`: imports from other apps, plain Kotlin so the same rules can serve an iOS app later: Money Manager `.mmbak`
+  (`MoneyManagerImporter`) and Cashew backups (`CashewImporter`: scan, then a plan from the user's answers about account
+  kinds, loans and other currencies). Each reads through a source interface that the Android side implements over
+  SQLite (`data/mm`, `data/cashew`); `data/PickedFile` works out which kind of file was picked from its contents. Every
+  plan checks each account's balance against the source. Names and notes are cleaned and capped on the way in. JVM tests,
+  plus a device test on a real SQLite file and a CI walkthrough of the Cashew screens (`.github/scripts/demo-shots.sh`).
 - `app/data/db`: Room entities, DAOs, `KassaDatabase` (`DATABASE_VERSION`), `Migrations.kt`.
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.

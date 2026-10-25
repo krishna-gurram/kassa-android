@@ -28,6 +28,14 @@ data class ImportPlan(
     val budgets: List<Budget>,
     val issues: List<ImportIssue>,
     val reconcile: Reconcile,
+    /** People made from the backup (Cashew loans). Matched by name to people already in Kassa; ids here are the plan's own. */
+    val people: List<app.kassa.money.domain.Person> = emptyList(),
+    /** Starting balances for [people]. */
+    val personLoans: List<app.kassa.money.domain.LoanEntry> = emptyList(),
+    /** Monthly bills made from the backup (Cashew subscriptions); added next to the bills already in Kassa. */
+    val bills: List<app.kassa.money.domain.Recurring> = emptyList(),
+    /** What the review calls the file, like "Money Manager backup". */
+    val sourceName: String = "backup",
 )
 
 sealed interface ImportIssue {
@@ -43,6 +51,21 @@ sealed interface ImportIssue {
     data class SkippedRows(val count: Int, val reason: String) : ImportIssue
     /** Categories whose names differ only in capitals ("Phone bill", "Phone Bill"), merged into the first. */
     data class MergedCategories(val names: List<String>) : ImportIssue
+
+    /** Something in the backup that doesn't come into Kassa, and how many. */
+    data class LeftBehind(val count: Int, val what: String) : ImportIssue
+
+    /** Money back into a spending category (a refund) comes in as income in that category. */
+    data class RefundsAsIncome(val count: Int) : ImportIssue
+
+    /** Balance corrections folded into each account's starting balance. */
+    data class BalanceCorrections(val count: Int) : ImportIssue
+
+    /** Transfers whose other account was left out, kept as plain entries so balances still match. */
+    data class TransfersAsEntries(val count: Int) : ImportIssue
+
+    /** Accounts brought over in another currency, with their numbers unchanged. */
+    data class OtherCurrency(val accounts: List<String>) : ImportIssue
 }
 
 /**
@@ -254,6 +277,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
             budgets = budgets,
             issues = issues,
             reconcile = reconcile(rows, accountsWithPayFrom, accountIds, transactions),
+            sourceName = "Money Manager backup",
         )
     }
 

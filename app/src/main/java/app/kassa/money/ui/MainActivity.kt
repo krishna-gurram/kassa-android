@@ -48,6 +48,9 @@ class MainActivity : FragmentActivity() {
         // Debug builds only: starting with `--ez demo true` loads the demo household, for CI screenshots.
         if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
             androidx.lifecycle.ViewModelProvider(this)[LedgerViewModel::class.java].loadDemo()
+        // Debug builds only: `--es importFile name` opens that file from the app's files folder on the Import page.
+        if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null)
+            intent?.getStringExtra("importFile")?.let { app.kassa.money.ui.importer.DebugImport.pending = android.net.Uri.fromFile(java.io.File(filesDir, it)) }
         val app = application as KassaApplication
         if (app.settings.lockEnabled.value) locked.value = true
         setContent {
