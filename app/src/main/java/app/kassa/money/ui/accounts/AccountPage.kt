@@ -127,7 +127,8 @@ fun AccountPage(
                     if (account.type == AccountType.CREDIT_CARD) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
-                        BigMoney(-balance, sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-balance))
+                        // What's owed, never with a minus; a credit shows green.
+                        BigMoney(Math.abs(balance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-balance))
                         Text("Add the statement day and due day to split this into balance payable and outstanding.", style = KassaType.small, color = Kassa.colors.ink2)
                         TextButton(onClick = onEditAccount) { Text("Add statement days", color = Kassa.colors.ink) }
                     } else {
@@ -139,7 +140,8 @@ fun AccountPage(
                             },
                             style = KassaType.tiny, color = Kassa.colors.ink2,
                         )
-                        BigMoney(if (debt) -endBalance else endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
+                        if (debt) BigMoney(Math.abs(endBalance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-endBalance))
+                        else BigMoney(endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
                         TwoBoxes("In" to Money.format(moneyIn), "Out" to Money.format(moneyOut), aColor = Kassa.colors.positive)
                     }
                 }
@@ -149,7 +151,7 @@ fun AccountPage(
         }
         items(rows, key = { it.first.id }) { (t, balanceAfter) ->
             Column(Modifier.widthIn(max = 720.dp)) {
-                TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = "Balance ${Money.format(balanceAfter)}", onClick = onEditEntry, showDate = true)
+                TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = "Balance ${if (debt) app.kassa.money.ui.cards.cardMoney(-balanceAfter) else Money.format(balanceAfter)}", onClick = onEditEntry, showDate = true)
             }
         }
     }

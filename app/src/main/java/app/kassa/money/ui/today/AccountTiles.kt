@@ -31,6 +31,8 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
+import app.kassa.money.ui.cards.cardMoney
+import app.kassa.money.ui.cards.cardTint
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.favourColor
@@ -103,10 +105,14 @@ fun AccountTiles(
                                 val a = pin.account
                                 val balance = (ledger.accounts.balances[a.id] ?: 0) +
                                     if (a.type == AccountType.INVESTMENT) ledger.holdingsValue(a.id) else 0
-                                val due = cards[a.id]?.snapshot?.takeIf { it.payable > 0 }
-                                    ?.let { "${Money.format(it.payable, wholeDollars = true)} due ${it.due.format(DateTimeFormatter.ofPattern("MMM d"))}" }
-                                val color = if (a.type == AccountType.CREDIT_CARD && balance > 0) Kassa.colors.positive else balanceColor(a.type, balance)
-                                Tile(a.name, Money.format(balance), due, m, color) { onOpenAccount(a.id) }
+                                val due = cards[a.id]?.snapshot?.takeIf { it.payable > 0 }?.let {
+                                    val amount = Money.format(it.payable, wholeDollars = true)
+                                    if (it.due.isBefore(ledger.today)) "$amount overdue" else "$amount due ${it.due.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                                }
+                                // Cards and loans show what you owe, with no minus; a credit shows as a green plus.
+                                val (text, color) = if (a.type.isDebt) cardMoney(-balance) to cardTint(-balance)
+                                else Money.format(balance) to balanceColor(a.type, balance)
+                                Tile(a.name, text, due, m, color) { onOpenAccount(a.id) }
                             }
                             Pin.People -> {
                                 val owed = ledger.openPersonBalances().values

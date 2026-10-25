@@ -45,6 +45,9 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (intent?.action == DailyJobs.ACTION_ADD) openAdd.value = true
+        // Debug builds only: starting with `--ez demo true` loads the demo household, for CI screenshots.
+        if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
+            androidx.lifecycle.ViewModelProvider(this)[LedgerViewModel::class.java].loadDemo()
         val app = application as KassaApplication
         if (app.settings.lockEnabled.value) locked.value = true
         setContent {

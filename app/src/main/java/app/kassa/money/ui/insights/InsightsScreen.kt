@@ -276,9 +276,9 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
     val dues = duesThisWeek(ledger)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "+" + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention,
+            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "↑ " + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention,
                 Modifier.weight(1f).then(if (up != null) Modifier.clickable { actions.openCategory(up.category) } else Modifier))
-            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "\u2212" + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, 
+            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "↓ " + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, 
                 Modifier.weight(1f).then(if (down != null) Modifier.clickable { actions.openCategory(down.category) } else Modifier))
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

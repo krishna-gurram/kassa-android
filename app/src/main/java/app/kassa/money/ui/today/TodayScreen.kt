@@ -52,7 +52,6 @@ import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.IconBadge
 import app.kassa.money.ui.common.ValueRow
 import app.kassa.money.ui.common.accountIcon
-import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
@@ -92,8 +91,8 @@ fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
 }
 
 /**
- * The Overview: spending this week or this month, what's coming up, and net worth. Built to fit the
- * cover screen without scrolling; everything else is a tap away.
+ * The Overview: spending this week or this month with its top three categories, what's coming up, and the
+ * pinned account tiles. The same pieces on every screen; unfolded, they sit in two columns.
  */
 @Composable
 fun TodayScreen(
@@ -113,16 +112,13 @@ fun TodayScreen(
     var income by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
-        // The unfolded inner screen is both wide and tall: a list of categories fills the height that
-        // tiles would leave empty. The cover screen in landscape is wide but short, so it keeps tiles.
+        // The unfolded inner screen is wide and tall enough for a larger total.
         val roomy = wide && maxHeight >= 560.dp
         val waiting = remember(ledger) { notices(ledger) }
         val banner: @Composable () -> Unit = {
             TipCard(Modifier.padding(bottom = 14.dp))
             NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 14.dp))
         }
-        // Tall screens fit with no scrolling: Upcoming lists as many as there's room for.
-        val fit = maxHeight >= app.kassa.money.ui.common.FIT_MIN_HEIGHT
         val spending: @Composable () -> Unit = {
             // Swipe the spending card between this week and this month, the same as its toggle.
             // The month is on the left of the toggle, so a swipe back shows it.
@@ -130,25 +126,23 @@ fun TodayScreen(
                 FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
             }
         }
-        // Phones show three upcoming rows so Overview fits without scrolling; wide screens fill the column.
-        val coming: @Composable (Modifier) -> Unit = { m -> UpcomingSection(ledger, if (!wide) 3 else if (fit) null else 5, onOpenCard, onUpcoming, m) }
+        // Phones show three upcoming rows; the unfolded screen's left column has room for five.
+        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
         val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts) }
 
-        Column(Modifier.fillMaxSize().then(if (fit) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(contentPadding)) {
+        // Same pieces on every screen. It scrolls when they run past the bottom, so nothing is ever cut off.
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
             Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
             if (wide) {
                 banner()
-                Row(if (fit) Modifier.weight(1f) else Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Column(Modifier.weight(1f)) { spending() }
-                    androidx.compose.material3.VerticalDivider(color = Kassa.colors.line)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) {
-                        coming(if (fit) Modifier.weight(1f) else Modifier); worth()
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) { spending(); coming() }
+                    Column(Modifier.weight(1f)) { worth() }
                 }
             } else {
-                Column(Modifier.widthIn(max = 640.dp).then(if (fit) Modifier.weight(1f) else Modifier), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column { banner(); spending() }
-                    coming(Modifier); worth()
+                    coming(); worth()
                 }
             }
         }
@@ -221,7 +215,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
     val rows = spendingByCategory(ledger, from, kind)
     val total = rows.sumOf { it.second }
-    val top = rows.take(if (roomy) 6 else 3)
+    val top = rows.take(3)
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -238,24 +232,10 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val link = if (income) "Where it came from" else "Where it went"
     Row(verticalAlignment = Alignment.Bottom) {
         Box(Modifier.weight(1f)) { BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink) }
-        if (!roomy) Box(Modifier.padding(bottom = 6.dp)) { LinkText(link, onOpen) }
+        Box(Modifier.padding(bottom = 6.dp)) { LinkText(link, onOpen) }
     }
     if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
-    else if (!roomy) TopBar(top, onOpenCategory, onOpen)
-    else {
-        // The unfolded screen has room for two rows of three category tiles.
-        top.chunked(3).forEach { rowItems -> Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            rowItems.forEach { (c, amt) ->
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(14.dp)) {
-                    CategoryBadge(c, size = 26)
-                    Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
-                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
-                }
-            }
-            repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
-        } }
-        Box(Modifier.padding(top = 6.dp)) { LinkText(link, onOpen) }
-    }
+    else TopBar(top, onOpenCategory, onOpen)
 }
 
 /**
@@ -269,8 +249,9 @@ private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOp
     val none = Kassa.colors.ink3
     val colorOf = { c: app.kassa.money.domain.Category? -> c?.let { Color(it.color) } ?: none }
     Text("Top categories", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
-    Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50))) {
-        top.forEach { (c, amt) -> Box(Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.01f)).fillMaxHeight().background(colorOf(c))) }
+    // A thin gap between pieces keeps two similar colors from reading as one.
+    Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        top.forEach { (c, amt) -> Box(Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.01f)).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(colorOf(c))) }
     }
     androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 4.dp)) {
         top.forEach { (c, amt) ->
@@ -287,14 +268,12 @@ private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOp
 }
 
 @Composable
-private fun UpcomingSection(ledger: Ledger, show: Int?, onOpenCard: (Long) -> Unit, onAll: () -> Unit, modifier: Modifier = Modifier) {
+private fun UpcomingSection(ledger: Ledger, show: Int, onOpenCard: (Long) -> Unit, onAll: () -> Unit) {
     val items = upcoming(ledger, 30)
-    Column(modifier) {
+    Column {
         SectionTop("Upcoming", "Next 30 days", onAll)
         if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        // With no fixed count, as many as fit the space left on the screen.
-        else if (show != null) items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
-        else app.kassa.money.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) } }
+        else items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
     }
 }
 

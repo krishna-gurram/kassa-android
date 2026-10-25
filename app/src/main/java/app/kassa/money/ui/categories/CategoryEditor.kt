@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -158,16 +160,23 @@ fun CategoryEditor(
 
         if (isTop) {
             SectionHeader("Color")
+            // Each color belongs to one category of this kind; ones in use are faded and can't be picked,
+            // unless every color is taken.
+            val taken = app.kassa.money.domain.CategoryColors.taken(ledger.categories, original.kind, original.id)
+            val anyFree = IconCatalog.colors.any { it !in taken }
             FlowRow {
                 IconCatalog.colors.forEach { c ->
                     val on = c == color
+                    val used = anyFree && c in taken && !on
                     Box(
-                        Modifier.padding(4.dp).size(34.dp).clip(CircleShape).background(Color(c))
+                        Modifier.padding(4.dp).size(40.dp).clip(CircleShape).background(Color(c).copy(alpha = if (used) 0.22f else 1f))
                             .then(if (on) Modifier.border(3.dp, Kassa.colors.ink, CircleShape) else Modifier)
-                            .clickable { color = c },
+                            .clickable(enabled = !used) { color = c }
+                            .semantics { contentDescription = if (on) "Picked color" else if (used) "Color in use" else "Color" },
                     )
                 }
             }
+            if (anyFree && taken.isNotEmpty()) Text("Faded colors belong to other categories.", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(top = 4.dp))
         }
 
         if (isTop && original.kind == CategoryKind.EXPENSE) {

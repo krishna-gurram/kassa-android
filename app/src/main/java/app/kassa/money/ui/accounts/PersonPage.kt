@@ -143,9 +143,10 @@ fun PersonPage(
                     Text(line.note, style = KassaType.body, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(Instant.ofEpochMilli(line.millis).atZone(ledger.zone).format(longDate), style = KassaType.small, color = Kassa.colors.ink2)
                 }
-                Text(Money.format(line.amount, showPlus = true), style = KassaType.bodyStrong, maxLines = 1,
-                    // Owing more is against you; being paid back only settles up, so it stays plain.
-                    color = favourColor(if (line.payment && line.amount < 0) 0 else line.amount))
+                // A payment either way only settles up, so it's plain with no sign. A split or starting balance shows
+                // which way it moved: + green when they owe you more, − orange when you owe them more.
+                Text(if (line.payment) Money.format(Math.abs(line.amount)) else Money.format(line.amount, showPlus = true), style = KassaType.bodyStrong, maxLines = 1,
+                    color = if (line.payment) Kassa.colors.ink else favourColor(line.amount))
             }
             HorizontalDivider(color = Kassa.colors.line)
         }
