@@ -62,7 +62,9 @@ class CashewImportTest {
 
     private fun SQLiteDatabase.row(table: String, vararg values: Pair<String, Any?>) {
         insertOrThrow(table, null, ContentValues().apply {
-            values.forEach { (k, v) ->
+            values.forEach { (key, v) ->
+                // "order" is an SQL keyword; Cashew's column has that name, so it has to be quoted.
+                val k = if (key == "order") "\"order\"" else key
                 when (v) {
                     null -> putNull(k); is String -> put(k, v); is Int -> put(k, v); is Long -> put(k, v); is Double -> put(k, v); is Boolean -> put(k, if (v) 1 else 0)
                     else -> error("unsupported $v")
