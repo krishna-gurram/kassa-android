@@ -127,26 +127,57 @@ fun TodayScreen(
                 FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
             }
         }
-        // Phones show three upcoming rows; the unfolded screen's left column has room for five.
-        val coming: @Composable () -> Unit = { UpcomingSection(ledger, if (wide) 5 else 3, onOpenCard, onUpcoming) }
+        val most = if (wide) 5 else 3
         val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts) }
 
-        // Same pieces on every screen. It scrolls when they run past the bottom, so nothing is ever cut off.
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
-            Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
-            if (wide) {
-                banner()
-                Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 28.dp else 18.dp)) { spending(); coming() }
-                    Column(Modifier.weight(1f)) { worth() }
-                }
-            } else {
-                Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column { banner(); spending() }
-                    coming(); worth()
+        // One layout, three ways to run it. PROBE measures with a single Upcoming row; FIT fills the screen with no
+        // scrolling, Upcoming showing as many rows (up to [most]) as the space left allows; SCROLL is the last resort
+        // when even one row doesn't fit (very large text, a small phone, landscape), so nothing is ever cut off.
+        val page: @Composable (Fit) -> Unit = { mode ->
+            val coming: @Composable (Modifier) -> Unit = { m ->
+                UpcomingSection(ledger, if (mode == Fit.PROBE) 1 else most, fill = mode == Fit.FIT, onOpenCard, onUpcoming, m)
+            }
+            val outer = when (mode) {
+                Fit.FIT -> Modifier.fillMaxSize()
+                Fit.SCROLL -> Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                Fit.PROBE -> Modifier
+            }
+            Column(outer.padding(contentPadding)) {
+                Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
+                if (wide) {
+                    banner()
+                    Row(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 24.dp else 14.dp)) {
+                            spending(); coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier)
+                        }
+                        Column(Modifier.weight(1f)) { worth() }
+                    }
+                } else {
+                    Column(Modifier.widthIn(max = 640.dp).then(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column { banner(); spending() }
+                        coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier); worth()
+                    }
                 }
             }
         }
+        FitOrScroll(page)
+    }
+}
+
+private enum class Fit { PROBE, FIT, SCROLL }
+
+/**
+ * Measures [page] with one Upcoming row; if that fits the screen, shows the page filled to fit with no scrolling,
+ * otherwise as a scrolling page.
+ */
+@Composable
+private fun FitOrScroll(page: @Composable (Fit) -> Unit) {
+    androidx.compose.ui.layout.SubcomposeLayout(Modifier.fillMaxSize()) { constraints ->
+        val loose = constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+        val need = subcompose(Fit.PROBE) { page(Fit.PROBE) }.maxOfOrNull { it.measure(loose).height } ?: 0
+        val mode = if (need <= constraints.maxHeight) Fit.FIT else Fit.SCROLL
+        val placeables = subcompose(mode) { page(mode) }.map { it.measure(constraints) }
+        layout(constraints.maxWidth, constraints.maxHeight) { placeables.forEach { it.place(0, 0) } }
     }
 }
 
@@ -265,7 +296,7 @@ private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOp
                     .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
             ) {
                 Box(Modifier.width(3.dp).fillMaxHeight().background(color))
-                Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp)) {
+                Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         app.kassa.money.ui.common.CategoryIconView(c?.icon, color, 30, fallback = name.take(1))
                         Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
@@ -278,12 +309,14 @@ private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOp
 }
 
 @Composable
-private fun UpcomingSection(ledger: Ledger, show: Int, onOpenCard: (Long) -> Unit, onAll: () -> Unit) {
-    val items = upcoming(ledger, 30)
-    Column {
+private fun UpcomingSection(ledger: Ledger, show: Int, fill: Boolean, onOpenCard: (Long) -> Unit, onAll: () -> Unit, modifier: Modifier = Modifier) {
+    val items = upcoming(ledger, 30).take(show)
+    Column(modifier) {
         SectionTop("Upcoming", "Next 30 days", onAll)
         if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
-        else items.take(show).forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
+        // Filling the screen, the rows that don't fit whole are left out; Next 30 days lists them all.
+        else if (fill) app.kassa.money.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) } }
+        else items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
     }
 }
 

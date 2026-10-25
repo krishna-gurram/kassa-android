@@ -43,6 +43,12 @@ scroll
 shot 02-overview-scrolled
 tap "Accounts"; shot 03-accounts
 tap "Overview"
+# The Fold's cover screen: Overview should fit with no scrolling.
+adb shell wm size 1248x1972; adb shell wm density 420
+shot 03b-cover 6
+scroll; shot 03c-cover-after-swipe
+adb shell wm size reset; adb shell wm density reset
+sleep 3
 # The Fold's inner screen.
 adb shell wm size 1812x2176; adb shell wm density 360
 shot 04-unfolded 6
