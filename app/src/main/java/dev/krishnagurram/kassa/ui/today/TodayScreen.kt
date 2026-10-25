@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.krishnagurram.kassa.domain.AccountType
@@ -287,7 +288,7 @@ private fun NetWorthSection(ledger: Ledger, onAccounts: () -> Unit, onCards: () 
     val cardOwed = -active.filter { it.type == AccountType.CREDIT_CARD }.sumOf { bal[it.id] ?: 0 }
     val investAccts = active.filter { it.type == AccountType.INVESTMENT }
     val invest = investAccts.sumOf { (bal[it.id] ?: 0) + ledger.holdingsValue(it.id) }
-    val people = ledger.personBalances().values
+    val people = ledger.openPersonBalances().values
     val receivable = people.filter { it > 0 }.sum()
     val payable = -people.filter { it < 0 }.sum()
     val holdings = ledger.holdings.filter { h -> active.any { it.id == h.accountId } }.sumOf { it.value }
@@ -350,7 +351,8 @@ private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: 
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
 
 /**
- * The one page for "this week" or "this month": the total and every category (the same lines Insights uses). Overview's "Where it went" and Insights' "All" open this same page.
+ * The one page for a month's or a week's spending (or income): the total and every category (the same lines Insights
+ * uses). It opens on the current month or week; ‹ › or a swipe steps through earlier ones, loaded as needed.
  */
 @Composable
 fun SpendingPage(
@@ -359,35 +361,63 @@ fun SpendingPage(
     income: Boolean,
     contentPadding: PaddingValues,
     onBack: (() -> Unit)?,
-    onEdit: (Transaction) -> Unit,
-    onOpenCategory: (Long) -> Unit,
-    onOpenDay: (java.time.LocalDate) -> Unit,
+    load: (Long, Long) -> kotlinx.coroutines.flow.Flow<List<Transaction>>,
+    /** A category and how many months back the page was showing, so it opens on the same month. */
+    onOpenCategory: (Long, Int) -> Unit,
 ) {
-    val from = if (month) ledger.period.start else ledger.weekStart
+    var back by androidx.compose.runtime.saveable.rememberSaveable(month) { androidx.compose.runtime.mutableIntStateOf(0) }
+    val period = dev.krishnagurram.kassa.domain.Period.startingIn(ledger.period.yearMonth.minusMonths(back.toLong()), ledger.monthStartDay)
+    val from = if (month) period.start else ledger.weekStart.minusWeeks(back.toLong())
+    val to = minOf(if (month) period.endInclusive else from.plusDays(6), ledger.today)
+    // The week before is loaded too, for the weekly comparison.
+    val loadFrom = if (month) from else from.minusWeeks(1)
+    val loaded by remember(loadFrom, to) {
+        load(loadFrom.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), to.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+    }.collectAsState(initial = null)
+    val txs = loaded ?: ledger.recent
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
-    val entries = ledger.recent.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
-        .sortedWith(compareByDescending<Transaction> { it.epochMillis }.thenByDescending { it.id })
+    val entries = txs.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(to) } }
     val lines = when {
-        income -> dev.krishnagurram.kassa.ui.common.incomeLines(ledger, from, ledger.today)
-        month -> dev.krishnagurram.kassa.ui.common.monthLines(ledger)
-        else -> dev.krishnagurram.kassa.ui.common.weekLines(ledger)
+        income -> dev.krishnagurram.kassa.ui.common.incomeLines(ledger, from, to, txs)
+        month -> dev.krishnagurram.kassa.ui.common.monthLines(ledger, period, txs)
+        else -> dev.krishnagurram.kassa.ui.common.weekLines(ledger, from, txs)
     }
     val total = entries.sumOf { it.categoryAmount }
     val what = if (income) "income" else "spending"
-    val title = if (month) ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " " + what else "This week's $what"
+    val monthName = period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val short = DateTimeFormatter.ofPattern("MMM d")
+    val title = when {
+        month -> "$monthName $what"
+        back == 0 -> "This week's $what"
+        else -> "Week of ${from.format(short)}"
+    }
+    val label = if (month) "$monthName ${period.yearMonth.year}" else "${from.format(short)} to ${from.plusDays(6).format(short)}"
+    val span = "${from.format(short)} to " + if (to == ledger.today) "today" else to.format(short)
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(title, onBack)
+    Column(
+        Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }
+            .verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp),
+    ) {
+        PageTop(title, onBack) {
+            if (back > 0) androidx.compose.material3.TextButton(onClick = { back = 0 }) {
+                Text(if (month) "This month" else "This week", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            }
+        }
+        dev.krishnagurram.kassa.ui.common.PeriodSwitcher(label, onBack = { back++ }, onForward = if (back > 0) { { back-- } } else null)
         RaisedPanel {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-                Text("${from.format(DateTimeFormatter.ofPattern("MMM d"))} to today", style = KassaType.tiny, color = Kassa.colors.ink3)
+                Text(span, style = KassaType.tiny, color = Kassa.colors.ink3)
             }
             BigMoney(total, sizeSp = 34f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
             Text(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"), style = KassaType.small, color = Kassa.colors.ink2)
         }
         SectionHeader("By category")
-        dev.krishnagurram.kassa.ui.common.CategoryLinesAll(lines, if (income) "Nothing received yet" else "No spending yet") { onOpenCategory(it.id) }
+        // A category opens on the month shown here; from a week, on the month that week starts in.
+        val categoryBack = if (month) back else java.time.temporal.ChronoUnit.MONTHS.between(
+            dev.krishnagurram.kassa.domain.Period.containing(from, ledger.monthStartDay).yearMonth, ledger.period.yearMonth,
+        ).toInt()
+        dev.krishnagurram.kassa.ui.common.CategoryLinesAll(lines, if (income) "Nothing received" else "No spending") { onOpenCategory(it.id, categoryBack) }
         Gap(24)
     }
 }

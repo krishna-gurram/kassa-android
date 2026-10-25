@@ -122,7 +122,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
         }
         is Page.CategoryDetail -> {
             val c = l.categoryById[page.categoryId]
-            if (c == null) Gone(padding, onBack) else CategoryPage(l, c, padding, onBack, onEdit = app.editFromPage, load = vm::between)
+            if (c == null) Gone(padding, onBack) else CategoryPage(l, c, padding, onBack, onEdit = app.editFromPage, load = vm::between, monthsBack = page.monthsBack)
         }
         is Page.Insight -> InsightDetailPage(
             l, page.page, padding, onBack,
@@ -132,8 +132,8 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
         is Page.Store -> InsightStorePage(l, page.name, padding, onBack, onEdit = app.editFromPage)
         is Page.Day -> DayPage(l, LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::between)
         is Page.Spending -> SpendingPage(
-            l, page.month, page.income, padding, onBack, onEdit = app.editFromPage,
-            onOpenCategory = { app.push(Page.CategoryDetail(it)) }, onOpenDay = { app.push(Page.Day(it.toEpochDay())) },
+            l, page.month, page.income, padding, onBack, load = vm::between,
+            onOpenCategory = { id, monthsBack -> app.push(Page.CategoryDetail(id, monthsBack)) },
         )
         Page.Upcoming -> UpcomingPage(l, padding, onBack, onOpenCard = { app.push(Page.CardDetail(it)) })
         Page.Notifications -> NotificationsPage(l, padding, onBack, app.notices)

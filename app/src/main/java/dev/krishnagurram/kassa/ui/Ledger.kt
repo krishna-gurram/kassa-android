@@ -69,6 +69,9 @@ data class Ledger(
     /** Person id to what they owe you (positive) or you owe them (negative). */
     fun personBalances(): Map<Long, Long> = people.people.associate { it.id to personBalance(it.id, people.loans, people.payments) }
 
+    /** What active people owe or are owed: the Receivable and Payable totals. Archived people are left out, like archived accounts. */
+    fun openPersonBalances(): Map<Long, Long> = people.people.filter { !it.archived }.associate { it.id to personBalance(it.id, people.loans, people.payments) }
+
     /** "Groceries: $412 of $600. On pace." Shown after saving an expense. */
     fun spendingLine(categoryId: Long?): String? {
         val top = Spending.topOf(categoryId, categoryById) ?: return null

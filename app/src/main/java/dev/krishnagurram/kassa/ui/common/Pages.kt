@@ -173,3 +173,26 @@ fun FitColumn(modifier: Modifier = Modifier, spacing: androidx.compose.ui.unit.D
 
 /** Tall enough to lay a tab out to fit the screen instead of scrolling it (the cover screen in landscape isn't). */
 val FIT_MIN_HEIGHT = 560.dp
+
+/**
+ * ‹ label › for stepping through months or weeks. [onBack] goes earlier; [onForward] is null at the current one.
+ * The category page and the spending page both use it, with a swipe on the page doing the same.
+ */
+@androidx.compose.runtime.Composable
+fun PeriodSwitcher(label: String, onBack: () -> Unit, onForward: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        RoundArrow(left = true, enabled = true, onClick = onBack)
+        Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        RoundArrow(left = false, enabled = onForward != null) { onForward?.invoke() }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun RoundArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
+        Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
+            Icon(Chevron(left = left), if (left) "Earlier" else "Later", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
+        }
+    }
+}

@@ -114,13 +114,17 @@ internal fun EditPersonSheet(
             }
             Gap(8)
             if (p.archived) SecondaryButton("Restore", { onSave(p.copy(archived = false), starting) })
+            // Archived people don't count in Receivable or Payable, so only a settled person can be archived.
+            else if (balance != 0L) Text(
+                "To archive ${p.name}, settle the ${Money.format(Math.abs(balance))} first or set the starting balance so nothing is open.",
+                style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
+            )
             else SecondaryButton("Archive", { confirmArchive = true })
         }
     }
     if (confirmArchive) ConfirmDialog(
         title = "Archive ${p.name}?",
-        body = if (balance != 0L) "${Money.format(Math.abs(balance))} is still open between you. ${p.name} leaves the people list and the pickers; the history and balance stay."
-        else "${p.name} leaves the people list and the pickers. The history stays.",
+        body = "${p.name} leaves the people list and the pickers. The history stays.",
         confirm = "Archive",
         onConfirm = { onSave(p.copy(archived = true), starting) },
         onDismiss = { confirmArchive = false },

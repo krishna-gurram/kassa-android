@@ -25,7 +25,7 @@ sealed interface Page {
     /** Edit an account or card: name, last 4 digits, statement days, balance and details. */
     data class EditAccount(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
-    data class CategoryDetail(val categoryId: Long) : Page
+    data class CategoryDetail(val categoryId: Long, val monthsBack: Int = 0) : Page
     /** The full view behind an Insights tile or "All" link. */
     data class Insight(val page: dev.krishnagurram.kassa.ui.insights.InsightPage) : Page
     /** One day's entries, from any day in the app: the week strip, Activity's day headers, the spending page. */

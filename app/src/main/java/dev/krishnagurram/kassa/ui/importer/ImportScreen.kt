@@ -186,6 +186,7 @@ private fun Issue(issue: ImportIssue) {
         is ImportIssue.UnpairedTransfers -> "${issue.count} transfers had only one half. They were kept so balances match."
         is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of $0. They were kept."
         is ImportIssue.SkippedRows -> "${issue.count} skipped: ${issue.reason}."
+        is ImportIssue.MergedCategories -> "Categories with the same name in different capitals were combined: ${issue.names.joinToString()}."
     }
     Row(Modifier.padding(vertical = 8.dp)) {
         Text("•", style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 10.dp))

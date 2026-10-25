@@ -124,4 +124,31 @@ class MoneyManagerImporterTest {
         assertEquals(40, MoneyManagerImporter.fit("x".repeat(90), 40).length)
         assertEquals(listOf("Cash", "cash 2", "Wallet", "Cash 3"), MoneyManagerImporter.uniqueNames(listOf("Cash", "cash", "Wallet", "Cash")))
     }
+
+    @Test
+    fun categoriesDifferingOnlyInCapitalsAreCombined() {
+        val dupes = object : MoneyManagerSource by source {
+            override fun categories() = listOf(
+                MmCategory("c-ph1", "Phone bill", 1, null, true, 1),
+                MmCategory("c-ph2", "Phone Bill", 1, null, false, 2),
+                MmCategory("c-shop", "Shopping", 1, null, false, 3),
+                MmCategory("c-b1", "Beauty", 1, "c-shop", false, 1),
+                MmCategory("c-b2", "beauty", 1, "c-shop", false, 2),
+                MmCategory("c-pay", "Paycheck", 0, null, false, 0),
+            )
+            override fun transactions() = listOf(
+                MmTransaction("t1", 1, "a-chk", null, "c-ph1", "50", t0, "", null),
+                MmTransaction("t2", 1, "a-chk", null, "c-ph2", "55", t0 + day, "", null),
+                MmTransaction("t3", 1, "a-chk", null, "c-b2", "20", t0 + day, "", null),
+            )
+            override fun budgets() = listOf(MmBudget("c-ph1", 0, 60.0), MmBudget("c-ph2", 0, 70.0))
+        }
+        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(dupes)
+        val phone = p.categories.filter { it.name.equals("phone bill", ignoreCase = true) }.single()
+        assertTrue(!phone.hidden, "a visible duplicate keeps the merged category visible")
+        assertEquals(1, p.categories.count { it.name.equals("beauty", ignoreCase = true) })
+        assertEquals(2, p.transactions.count { it.categoryId == phone.id })
+        assertEquals(1, p.budgets.count { it.categoryId == phone.id })
+        assertTrue(p.issues.any { it is ImportIssue.MergedCategories })
+    }
 }

@@ -48,6 +48,7 @@ import dev.krishnagurram.kassa.domain.TxKind
 import dev.krishnagurram.kassa.ui.Ledger
 import dev.krishnagurram.kassa.ui.common.Gap
 import dev.krishnagurram.kassa.ui.common.PageTop
+import dev.krishnagurram.kassa.ui.common.PeriodSwitcher
 import dev.krishnagurram.kassa.ui.common.RaisedPanel
 import dev.krishnagurram.kassa.ui.common.SectionHeader
 import dev.krishnagurram.kassa.ui.common.TransactionRow
@@ -70,8 +71,10 @@ import dev.krishnagurram.kassa.ui.entry.Chip
 fun CategoryPage(
     ledger: Ledger, c: Category, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (Transaction) -> Unit,
     load: (Long, Long) -> kotlinx.coroutines.flow.Flow<List<Transaction>>,
+    /** How many months before the current one it opens on, e.g. from a past month's spending page. */
+    monthsBack: Int = 0,
 ) {
-    var back by rememberSaveable(c.id) { mutableIntStateOf(0) }
+    var back by rememberSaveable(c.id) { mutableIntStateOf(monthsBack) }
     val current = ledger.period
     val p = Period.startingIn(current.yearMonth.minusMonths(back.toLong()), ledger.monthStartDay)
     // Six months ending at the one shown, so the bars and the month before are always loaded.
@@ -96,11 +99,7 @@ fun CategoryPage(
 
     Column(Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(c.name, onBack)
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundArrow("\u2039", enabled = true) { back++ }
-            Text("${monthName(p)} ${p.yearMonth.year}", style = KassaType.bodyStrong, color = Kassa.colors.ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-            RoundArrow("\u203a", enabled = back > 0) { back-- }
-        }
+        PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", onBack = { back++ }, onForward = if (back > 0) { { back-- } } else null)
         val over = budget != null && spent > budget
         Row(verticalAlignment = Alignment.Bottom) {
             dev.krishnagurram.kassa.ui.today.BigMoney(spent, sizeSp = 34f, color = if (over) Kassa.colors.attention else Kassa.colors.ink)
@@ -180,10 +179,3 @@ private fun SubcategoryGroups(entries: List<Transaction>, ledger: Ledger, c: Cat
     }
 }
 
-@Composable
-private fun RoundArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(36.dp).clip(CircleShape).background(Kassa.colors.chip).clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(glyph, style = KassaType.body.copy(fontSize = 20.sp), color = if (enabled) Kassa.colors.ink else Kassa.colors.ink3) }
-}

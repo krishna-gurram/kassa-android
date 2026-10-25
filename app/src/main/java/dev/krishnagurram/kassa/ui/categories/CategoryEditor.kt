@@ -228,7 +228,7 @@ fun CategoryEditor(
         }
         if (confirmArchive) ConfirmDialog(
             title = "Archive ${original.name}?",
-            body = "It leaves the pickers, budgets and category lists. Past entries keep it, and you can restore it from Archived.",
+            body = "It leaves the pickers and budgets. Its entries stay and still show in reports, marked archived, and you can restore it from Archived. To move its entries into another category instead, use Merge.",
             confirm = "Archive", onConfirm = { confirmArchive = false; submit(archive = true) }, onDismiss = { confirmArchive = false },
         )
         Gap(24)
