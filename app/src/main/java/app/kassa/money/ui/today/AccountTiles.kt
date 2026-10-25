@@ -87,7 +87,7 @@ fun AccountTiles(
     val pins = pinned(ledger, saved)
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Accounts", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
             LinkText("All accounts", onAll)
         }
@@ -95,9 +95,9 @@ fun AccountTiles(
             Text("No accounts pinned.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
             LinkText("Pin accounts", onPin)
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             pins.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     pair.forEach { pin ->
                         val m = Modifier.weight(1f)
                         when (pin) {
@@ -134,7 +134,7 @@ fun AccountTiles(
 
 @Composable
 private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp)) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp)) {
         Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)
         // Every tile keeps the due line's space, so tiles are the same height whichever accounts are pinned.
