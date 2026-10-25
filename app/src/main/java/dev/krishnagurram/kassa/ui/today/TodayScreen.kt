@@ -403,7 +403,7 @@ fun SpendingPage(
                 Text(if (month) "This month" else "This week", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
         }
-        dev.krishnagurram.kassa.ui.common.PeriodSwitcher(label, onBack = { back++ }, onForward = if (back > 0) { { back-- } } else null)
+        dev.krishnagurram.kassa.ui.common.PeriodSwitcher(label, sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         RaisedPanel {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))

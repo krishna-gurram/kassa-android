@@ -99,7 +99,7 @@ fun CategoryPage(
 
     Column(Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(c.name, onBack)
-        PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", onBack = { back++ }, onForward = if (back > 0) { { back-- } } else null)
+        PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         val over = budget != null && spent > budget
         Row(verticalAlignment = Alignment.Bottom) {
             dev.krishnagurram.kassa.ui.today.BigMoney(spent, sizeSp = 34f, color = if (over) Kassa.colors.attention else Kassa.colors.ink)
