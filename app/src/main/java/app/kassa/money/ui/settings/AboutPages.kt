@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -95,7 +96,7 @@ internal fun FeedbackPage() {
     )
 
     Label("Screenshots")
-    if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+    if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)) {
         shots.forEach { f -> Thumbnail(f) { f.delete(); shots = shots - f } }
     }
     if (shots.size < MAX_SCREENSHOTS) SecondaryButton(if (shots.isEmpty()) "Add screenshots" else "Add more", {
@@ -183,10 +184,15 @@ private fun Thumbnail(file: File, onRemove: () -> Unit) {
     }
     Box(Modifier.size(64.dp)) {
         if (image != null) Image(image, "Screenshot", contentScale = ContentScale.Crop, modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)))
+        // A 24dp badge with a 48dp touch target, overlapping the corner.
         Box(
-            Modifier.align(Alignment.TopEnd).size(24.dp).clip(CircleShape).background(Kassa.colors.ink).clickable(onClick = onRemove),
+            Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-12).dp).size(48.dp).clip(CircleShape).clickable(onClick = onRemove),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.Close, "Remove screenshot", tint = Kassa.colors.onInk, modifier = Modifier.size(14.dp)) }
+        ) {
+            Box(Modifier.size(24.dp).clip(CircleShape).background(Kassa.colors.ink), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Close, "Remove screenshot", tint = Kassa.colors.onInk, modifier = Modifier.size(14.dp))
+            }
+        }
     }
 }
 

@@ -150,5 +150,6 @@ class AppController(
         override suspend fun backupNow(): String = withContext(Dispatchers.IO) { DailyJobs.backupNow(context) }
         override fun refreshDailyJobs() = DailyJobs.refresh(context)
         override fun restore(contents: BackupContents) { vm.restore(contents) }
+        override fun loadDemo() { vm.loadDemo() }
     }
 }

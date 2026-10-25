@@ -130,10 +130,15 @@ fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Bo
 
 @Composable
 private fun RoundArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    // A 34dp circle inside a 48dp touch target.
     androidx.compose.foundation.layout.Box(
-        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip).clickable(enabled = enabled, onClick = onClick),
+        Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp)) }
+    ) {
+        androidx.compose.foundation.layout.Box(Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
+            Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
+        }
+    }
 }
 
 /** Swipe left or right across the content to step [onShift] by -1 (back in time) or +1. */
