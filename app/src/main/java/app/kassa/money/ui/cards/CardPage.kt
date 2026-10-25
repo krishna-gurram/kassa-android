@@ -97,6 +97,10 @@ fun cardsByDueDate(ledger: Ledger): List<CardSnapshotFor> {
  */
 fun cardMoney(v: Long): String = if (v < 0) Money.format(-v, showPlus = true) else Money.format(v)
 
+/** Balance payable: orange while anything is due, green once paid past it, plain at zero. Only payable is orange. */
+@Composable
+fun payableTint(v: Long): androidx.compose.ui.graphics.Color = cardTint(v, owed = if (v > 0) Kassa.colors.attention else Kassa.colors.ink)
+
 @Composable
 fun cardTint(v: Long, owed: androidx.compose.ui.graphics.Color = Kassa.colors.ink): androidx.compose.ui.graphics.Color = if (v < 0) Kassa.colors.positive else owed
 
@@ -153,7 +157,7 @@ fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, onC
                 Text(
                     androidx.compose.ui.text.buildAnnotatedString {
                         append("Payable ")
-                        pushStyle(androidx.compose.ui.text.SpanStyle(color = cardTint(s.balancePayable), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        pushStyle(androidx.compose.ui.text.SpanStyle(color = payableTint(s.balancePayable), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
                         append(cardMoney(s.balancePayable)); pop()
                     },
                     style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1,
@@ -197,7 +201,7 @@ fun CardPage(
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    app.kassa.money.ui.today.BigMoney(Math.abs(s.balancePayable), sizeSp = 36f, color = cardTint(s.balancePayable))
+                    app.kassa.money.ui.today.BigMoney(Math.abs(s.balancePayable), sizeSp = 36f, color = payableTint(s.balancePayable))
                     Text(
                         when {
                             s.balancePayable < 0 -> "Paid ${Money.format(-s.balancePayable)} extra"

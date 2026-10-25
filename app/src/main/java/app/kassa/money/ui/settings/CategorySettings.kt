@@ -32,7 +32,7 @@ internal fun CategoryList(ledger: Ledger, kind: CategoryKind, open: (Category) -
         val total = active.sumOf { Budgets.amountFor(it.id, month, ledger.budgets) ?: 0 }
         Text("Budgets this month add up to ${Money.format(total, wholeDollars = true)}.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp))
     }
-    SecondaryButton("New category", { open(Category(name = "", kind = kind, color = app.kassa.money.domain.CategoryColors.free(app.kassa.money.domain.CategoryColors.taken(ledger.categories, kind)))) })
+    SecondaryButton("New category", { open(Category(name = "", kind = kind, color = app.kassa.money.domain.CategoryColors.next(ledger.categories, kind))) })
     Gap(8)
     active.forEachIndexed { i, c -> CategoryRow(ledger, c, last = i == active.lastIndex) { open(c) } }
     if (archived.isNotEmpty()) {

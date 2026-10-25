@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -160,23 +161,31 @@ fun CategoryEditor(
 
         if (isTop) {
             SectionHeader("Color")
-            // Each color belongs to one category of this kind; ones in use are faded and can't be picked,
-            // unless every color is taken.
-            val taken = app.kassa.money.domain.CategoryColors.taken(ledger.categories, original.kind, original.id)
-            val anyFree = IconCatalog.colors.any { it !in taken }
+            // Any color can be picked. A dot marks colors other categories of this kind use, and the line under
+            // the colors names who shares the picked one.
+            val usedBy = app.kassa.money.domain.CategoryColors.usedBy(ledger.categories, original.kind, original.id)
             FlowRow {
                 IconCatalog.colors.forEach { c ->
                     val on = c == color
-                    val used = anyFree && c in taken && !on
-                    Box(
-                        Modifier.padding(4.dp).size(40.dp).clip(CircleShape).background(Color(c).copy(alpha = if (used) 0.22f else 1f))
-                            .then(if (on) Modifier.border(3.dp, Kassa.colors.ink, CircleShape) else Modifier)
-                            .clickable(enabled = !used) { color = c }
-                            .semantics { contentDescription = if (on) "Picked color" else if (used) "Color in use" else "Color" },
-                    )
+                    val used = c in usedBy
+                    Box(Modifier.padding(4.dp).size(40.dp)) {
+                        Box(
+                            Modifier.fillMaxSize().clip(CircleShape).background(Color(c))
+                                .then(if (on) Modifier.border(3.dp, Kassa.colors.ink, CircleShape) else Modifier)
+                                .clickable { color = c }
+                                .semantics { contentDescription = (if (on) "Picked color" else "Color") + if (used) ", also used by ${usedBy[c].orEmpty().joinToString()}" else "" },
+                        )
+                        if (used) Box(
+                            Modifier.align(Alignment.BottomEnd).size(12.dp).clip(CircleShape).background(Kassa.colors.ground)
+                                .padding(2.dp).clip(CircleShape).background(Kassa.colors.ink3),
+                        )
+                    }
                 }
             }
-            if (anyFree && taken.isNotEmpty()) Text("Faded colors belong to other categories.", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(top = 4.dp))
+            usedBy[color]?.let { names ->
+                Text("Also used by ${names.sortedWith(app.kassa.money.domain.Names.order<String> { it }).joinToString()}", style = KassaType.small, color = Kassa.colors.ink2,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            }
         }
 
         if (isTop && original.kind == CategoryKind.EXPENSE) {
