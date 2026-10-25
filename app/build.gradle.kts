@@ -10,11 +10,11 @@ val buildNumber = System.getenv("KASSA_BUILD")?.toIntOrNull() ?: 1
 val keystorePath: String? = System.getenv("KASSA_KEYSTORE")
 
 android {
-    namespace = "dev.krishnagurram.kassa"
+    namespace = "app.kassa.money"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.krishnagurram.kassa"
+        applicationId = "app.kassa.money"
         minSdk = 29
         targetSdk = 36
         versionCode = 100 + buildNumber

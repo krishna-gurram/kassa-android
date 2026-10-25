@@ -2,7 +2,7 @@
 # Installs the release APK on the emulator, launches it, and fails if the app crashes or isn't running.
 # Saves screenshots and logcat to ci-output/ for the diagnostics release.
 set -u
-PKG=dev.krishnagurram.kassa
+PKG=app.kassa.money
 mkdir -p ci-output
 adb logcat -c
 # Upgrade path: start from the last published release so its database exists, then install this build over it.

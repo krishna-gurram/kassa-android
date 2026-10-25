@@ -11,7 +11,7 @@ permissions:
 
 env:
   # SHA-256 of the Kassa release certificate. Every published APK must match, so updates always install in place.
-  KASSA_CERT_SHA256: 6bcfac9641a5b727b9f24a2dfb7efa4dd59724130a026c82b79131567af0714f
+  KASSA_CERT_SHA256: d2b3f2e3b40ead4e86a20dbe4575f470945e9d9a87a6ab751924aa29dbd8dcfe
 
 # One run per commit. Push events can arrive late, so never let a late run cancel a newer one.
 concurrency:
