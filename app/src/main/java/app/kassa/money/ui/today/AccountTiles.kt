@@ -87,7 +87,7 @@ fun AccountTiles(
     val pins = pinned(ledger, saved)
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Accounts", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
             LinkText("All accounts", onAll)
         }
@@ -95,9 +95,9 @@ fun AccountTiles(
             Text("No accounts pinned.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
             LinkText("Pin accounts", onPin)
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             pins.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     pair.forEach { pin ->
                         val m = Modifier.weight(1f)
                         when (pin) {

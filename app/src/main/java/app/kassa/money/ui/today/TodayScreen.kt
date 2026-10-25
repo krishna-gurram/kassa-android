@@ -117,8 +117,8 @@ fun TodayScreen(
         val roomy = wide && maxHeight >= 560.dp
         val waiting = remember(ledger) { notices(ledger) }
         val banner: @Composable () -> Unit = {
-            TipCard(Modifier.padding(bottom = 14.dp))
-            NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 14.dp))
+            TipCard(Modifier.padding(bottom = 10.dp))
+            NotificationsRow(waiting, onNotifications, Modifier.padding(bottom = 10.dp))
         }
         val spending: @Composable () -> Unit = {
             // Swipe the spending card between this week and this month, the same as its toggle.
@@ -143,7 +143,7 @@ fun TodayScreen(
                 Fit.PROBE -> Modifier
             }
             Column(outer.padding(contentPadding)) {
-                Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
+                Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 6.dp))
                 if (wide) {
                     banner()
                     Row(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -153,7 +153,7 @@ fun TodayScreen(
                         Column(Modifier.weight(1f)) { worth() }
                     }
                 } else {
-                    Column(Modifier.widthIn(max = 640.dp).then(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.widthIn(max = 640.dp).then(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Column { banner(); spending() }
                         coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier); worth()
                     }
