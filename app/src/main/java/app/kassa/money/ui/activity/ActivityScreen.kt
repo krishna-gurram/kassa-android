@@ -301,10 +301,15 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
                 }
             },
         )
+        // A 26dp circle inside a 48dp touch target.
         if (active) Box(
-            Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip).clickable { onChange(""); focus.clearFocus() },
+            Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { onChange(""); focus.clearFocus() },
             contentAlignment = Alignment.Center,
-        ) { Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink2, modifier = Modifier.size(14.dp)) }
+        ) {
+            Box(Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
+                Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink2, modifier = Modifier.size(14.dp))
+            }
+        }
     }
 }
 

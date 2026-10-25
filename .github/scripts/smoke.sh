@@ -24,6 +24,16 @@ adb exec-out screencap -p > ci-output/unfolded.png
 adb shell wm size reset
 adb shell wm density reset
 sleep 3
+# Accessibility and theme checks: the largest font size the phone offers, then dark mode.
+adb shell settings put system font_scale 2.0
+sleep 5
+adb exec-out screencap -p > ci-output/large-font.png
+adb shell settings put system font_scale 1.0
+adb shell cmd uimode night yes
+sleep 5
+adb exec-out screencap -p > ci-output/dark.png
+adb shell cmd uimode night no
+sleep 3
 adb logcat -d > ci-output/logcat.txt
 PID=$(adb shell pidof $PKG | tr -d '\r')
 if grep -q "FATAL EXCEPTION" ci-output/logcat.txt || [ -z "$PID" ]; then

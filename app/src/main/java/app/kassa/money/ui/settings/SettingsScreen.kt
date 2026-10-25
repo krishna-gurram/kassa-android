@@ -66,6 +66,8 @@ interface SettingsActions {
     /** Books or cancels the daily backup and reminder to match Settings. */
     fun refreshDailyJobs()
     fun restore(contents: BackupContents)
+    /** Debug builds only: replaces everything with the made-up household in [app.kassa.money.domain.Demo]. */
+    fun loadDemo()
 }
 
 /** The pages inside the Settings tab. They stack on the tab itself; Back returns to the list. */
@@ -185,6 +187,16 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     NavRow("Show tips again", if (tip == 0) "On Overview" else "") { settings.setTip(0) }
     NavRow("Privacy", "") { open(SettingsPage.Privacy) }
     NavRow("Open source licences", "") { open(SettingsPage.Licences) }
+    // Screenshots and walkthroughs use made-up data; the debug build installs beside the real app.
+    if (app.kassa.money.BuildConfig.DEBUG) {
+        var confirmDemo by remember { mutableStateOf(false) }
+        NavRow("Load demo data", "Debug build") { confirmDemo = true }
+        if (confirmDemo) app.kassa.money.ui.common.ConfirmDialog(
+            "Replace everything with demo data?",
+            "This debug build's data is replaced with a made-up household for screenshots. The real Kassa app isn't touched.",
+            "Load demo data", onConfirm = { actions.loadDemo() }, onDismiss = { confirmDemo = false },
+        )
+    }
 
     Gap(20)
     Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)

@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.kassa.money.KassaApplication
 import app.kassa.money.data.backup.BackupContents
+import app.kassa.money.data.db.toEntity
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.data.repo.PeopleState
 import app.kassa.money.domain.Trade
@@ -269,6 +270,22 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun readBackup(uri: Uri, password: CharArray?): Result<BackupContents> = withContext(Dispatchers.IO) {
         runCatching { getApplication<Application>().contentResolver.openInputStream(uri)!!.use { kassa.backups.read(it, password) } }
+    }
+
+    /** Debug builds only: the made-up household from [Demo], for screenshots and walkthroughs. */
+    fun loadDemo() = viewModelScope.launch(Dispatchers.IO) {
+        if (!app.kassa.money.BuildConfig.DEBUG) return@launch
+        val d = app.kassa.money.domain.Demo.data(LocalDate.now(zone), zone)
+        val contents = BackupContents(
+            createdAt = System.currentTimeMillis(), monthStartDay = 1, currency = null, groups = emptyList(),
+            accounts = d.accounts.map { it.toEntity() }, categories = d.categories.map { it.toEntity() },
+            transactions = d.transactions.map { it.toEntity() }, budgets = d.budgets.map { it.toEntity() },
+            people = d.people.map { it.toEntity() }, loans = d.loans.map { it.toEntity() }, bills = d.bills.map { it.toEntity() },
+            holdings = d.holdings.map { it.toEntity() }, icons = emptyMap(),
+        )
+        runCatching { kassa.backups.restore(contents) }
+            .onSuccess { settings.setMonthStartDay(1); _messages.tryEmit("Demo data loaded.") }
+            .onFailure { _messages.tryEmit("Demo data couldn't be loaded. ${it.message}") }
     }
 
     fun restore(contents: BackupContents) = viewModelScope.launch(Dispatchers.IO) {
