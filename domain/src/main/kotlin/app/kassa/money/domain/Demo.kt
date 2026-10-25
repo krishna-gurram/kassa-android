@@ -42,10 +42,9 @@ object Demo {
 
         val cats = mutableListOf<Category>()
         var nextCat = 1L
-        val colors = listOf(0xFF3F9A5E, 0xFF2B8A99, 0xFF4570D6, 0xFFC98A1E, 0xFFC4487F, 0xFF7A5BD4, 0xFFE07B53, 0xFF9C6B3F, 0xFF3D8FC7, 0xFF2E9C8A, 0xFFA0527A)
         fun top(name: String, icon: String, kind: CategoryKind = CategoryKind.EXPENSE, fixed: Boolean = false, vararg subs: String): Long {
             val id = nextCat++
-            val color = colors[(id.toInt() - 1) % colors.size].toInt()
+            val color = CategoryColors.palette[(id.toInt() - 1) % CategoryColors.palette.size]
             cats += Category(id, name, kind, icon = CategoryIcon.Symbol(icon), color = color, countsTowardDaily = !fixed)
             subs.forEach { s -> cats += Category(nextCat++, s, kind, parentId = id, icon = CategoryIcon.Symbol(icon), color = color, countsTowardDaily = !fixed) }
             return id

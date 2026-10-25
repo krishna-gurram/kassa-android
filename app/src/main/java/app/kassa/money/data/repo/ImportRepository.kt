@@ -9,7 +9,12 @@ import app.kassa.money.importer.ImportPlan
 class ImportRepository(private val db: KassaDatabase) {
 
     /** All of it lands, or none of it: one database transaction. People, bills and holdings are kept. */
-    suspend fun replaceWith(plan: ImportPlan) = db.withTransaction {
+    suspend fun replaceWith(plan: ImportPlan) {
+        replace(plan)
+        separateCategoryColors(db)
+    }
+
+    private suspend fun replace(plan: ImportPlan) = db.withTransaction {
         db.transactions().deleteAll()
         db.budgets().deleteAll()
         db.categories().deleteAll()

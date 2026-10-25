@@ -97,7 +97,8 @@ fun InsightDetailPage(
                 BarChart(months.map { short(it.month) to maxOf(0L, it.saved) }, months.lastIndex, Kassa.colors.positive, labels = months.map { m -> m.rate?.let { "$it%" } ?: "" })
                 Column {
                     months.reversed().forEachIndexed { i, m ->
-                        ListRow(short(m.month), m.rate?.let { "$it%" } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex)
+                        ListRow(short(m.month), m.rate?.let { "$it%" } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex,
+                            valueColor = if (m.saved < 0) Kassa.colors.attention else Kassa.colors.ink)
                     }
                 }
             }
@@ -195,7 +196,9 @@ private fun RepeatRow(x: app.kassa.money.domain.Repeat, ledger: Ledger, onOpen: 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(x.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 when {
-                    x.change != 0L -> Tag((if (x.change > 0) "+" else "−") + Money.format(Math.abs(x.change)), if (x.change > 0) Kassa.colors.attention else Kassa.colors.positive)
+                    // An arrow, not a sign: a cheaper charge is good news, and a minus always means against you.
+                    x.change != 0L -> Tag((if (x.change > 0) "↑ " else "↓ ") + Money.format(Math.abs(x.change)),
+                        app.kassa.money.ui.common.favourColor(if (income) x.change else -x.change))
                     !x.fixed -> Tag("varies", Kassa.colors.ink2)
                 }
             }
@@ -252,11 +255,11 @@ private fun RankRow(c: Category?, name: String, value: Long, max: Long, count: S
 }
 
 @Composable
-private fun ListRow(title: String, middle: String, value: String, showDivider: Boolean) {
+private fun ListRow(title: String, middle: String, value: String, showDivider: Boolean, valueColor: Color = Kassa.colors.ink) {
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
         Text(middle, style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 12.dp))
-        Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink)
+        Text(value, style = KassaType.bodyStrong, color = valueColor)
     }
     if (showDivider) HorizontalDivider(color = Kassa.colors.line)
 }

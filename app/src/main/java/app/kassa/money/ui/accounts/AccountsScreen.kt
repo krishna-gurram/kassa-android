@@ -50,6 +50,7 @@ import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.cards.CardRow
 import app.kassa.money.ui.cards.cardMoney
+import app.kassa.money.ui.cards.cardTint
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.balanceColor
@@ -149,8 +150,9 @@ fun AccountsScreen(
     val archivedPeople = ledger.people.people.filter { it.archived }
 
     val accountRow: @Composable (Account, Long) -> Unit = { a, amount ->
-        OneLineRow(iconTile(accountIcon(a.type)), a.name, a.last4, Money.format(amount), selected = a.id == selectedAccount,
-            amountColor = balanceColor(a.type, valueOf(a))) { onOpenAccount(a.id) }
+        // [amount] is as shown: what's owed for cards and loans (a credit as a green plus), the balance otherwise.
+        OneLineRow(iconTile(accountIcon(a.type)), a.name, a.last4, if (a.type.isDebt) cardMoney(amount) else Money.format(amount), selected = a.id == selectedAccount,
+            amountColor = if (a.type.isDebt) cardTint(amount) else balanceColor(a.type, valueOf(a))) { onOpenAccount(a.id) }
     }
     val personRow: @Composable (Person) -> Unit = { p ->
         val b = personBalances[p.id] ?: 0
@@ -182,12 +184,12 @@ fun AccountsScreen(
             // The cards' real balances, the same figure Liabilities adds up: an overpaid card's credit counts too.
             val owed = -(cards.map { it.account } + unsetCards).sumOf(balanceOf)
             GroupHead(
-                "Credit cards", if (owed < 0) Money.format(-owed, showPlus = true) else "−" + Money.format(owed),
+                "Credit cards", cardMoney(owed),
                 Section.CARDS in open, { toggle(Section.CARDS) },
-                listOf("Payable" to cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to Money.format(cards.sumOf { it.snapshot.outstanding })),
+                listOf("Payable" to cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to cardMoney(cards.sumOf { it.snapshot.outstanding })),
                 // A card in credit is in your favour; an ordinary card balance is plain.
                 totalFavour = if (owed < 0) 1 else 0,
-                figureFavour = listOf(if (cards.sumOf { it.snapshot.balancePayable } < 0) 1 else 0, 0),
+                figureFavour = listOf(if (cards.sumOf { it.snapshot.balancePayable } < 0) 1 else 0, if (cards.sumOf { it.snapshot.outstanding } < 0) 1 else 0),
             )
             if (Section.CARDS in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }
@@ -198,7 +200,10 @@ fun AccountsScreen(
     val accountSection: @Composable (String, List<Account>, Boolean) -> Unit = { key, list, debt ->
         if (list.isNotEmpty()) {
             val shown: (Account) -> Long = { if (debt) -balanceOf(it) else valueOf(it) }
-            GroupHead(key, Money.format(list.sumOf(shown)), key in open, { toggle(key) }, totalFavour = if (!debt && list.sumOf(shown) < 0) -1 else 0)
+            val total = list.sumOf(shown)
+            // Loans show what's owed like cards; a group of your own money below zero is orange.
+            GroupHead(key, if (debt) cardMoney(total) else Money.format(total), key in open, { toggle(key) },
+                totalFavour = if (debt) (if (total < 0) 1 else 0) else if (total < 0) -1 else 0)
             if (key in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { accountRow(it, shown(it)) } }
         }
     }
@@ -225,7 +230,7 @@ fun AccountsScreen(
                 Text(if (showArchived) "Hide archived ($archivedCount)" else "Show archived ($archivedCount)", color = Kassa.colors.ink2)
             }
             if (showArchived) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                archived.forEach { accountRow(it, balanceOf(it)) }
+                archived.forEach { accountRow(it, if (it.type.isDebt) -balanceOf(it) else balanceOf(it)) }
                 archivedPeople.forEach { personRow(it) }
             }
         }

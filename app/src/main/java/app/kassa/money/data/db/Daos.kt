@@ -88,6 +88,10 @@ interface CategoryDao {
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
     suspend fun maxSortOrder(): Int
 
+    /** Money through each category, all time: which of two clashing categories keeps its color. */
+    @Query("SELECT categoryId, SUM(amount) AS total FROM transactions WHERE categoryId IS NOT NULL GROUP BY categoryId")
+    suspend fun totals(): List<CategoryTotal>
+
     @Query("UPDATE transactions SET categoryId = :to WHERE categoryId = :from")
     suspend fun moveEntries(from: Long, to: Long)
 
@@ -320,3 +324,6 @@ interface TradeDao {
     @Query("DELETE FROM trades")
     suspend fun deleteAll()
 }
+
+/** One row of [CategoryDao.totals]. */
+data class CategoryTotal(val categoryId: Long, val total: Long)

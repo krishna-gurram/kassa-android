@@ -77,8 +77,11 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
     var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
     BackHandler { if (step == 1) step = 0 else onBack() }
 
-    fun categories(): List<Category> = starters.filter { it.name in picked }.mapIndexed { i, s ->
-        Category(name = s.name, kind = s.kind, icon = CategoryIcon.Symbol(s.icon), color = IconCatalog.colors[i % IconCatalog.colors.size], countsTowardDaily = !s.fixed)
+    // Colors count up separately for expense and income, so no two of a kind share one.
+    fun categories(): List<Category> = starters.filter { it.name in picked }.groupBy { it.kind }.values.flatMap { list ->
+        list.mapIndexed { i, s ->
+            Category(name = s.name, kind = s.kind, icon = CategoryIcon.Symbol(s.icon), color = IconCatalog.colors[i % IconCatalog.colors.size], countsTowardDaily = !s.fixed)
+        }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).imePadding().widthIn(max = 560.dp)) {

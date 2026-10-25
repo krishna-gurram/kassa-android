@@ -15,3 +15,4 @@ if [ $STATUS -ne 0 ]; then
   exit $STATUS
 fi
 echo "Device tests passed."
+bash .github/scripts/demo-shots.sh || echo "Demo screenshots failed (not a test failure)."

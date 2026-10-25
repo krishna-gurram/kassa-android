@@ -164,8 +164,5 @@ object IconCatalog {
     )
 
     /** The same palette the importer uses, readable on light and dark backgrounds. */
-    val colors: List<Int> = listOf(
-        0xFF3F9A5E, 0xFF2B8A99, 0xFF4570D6, 0xFFC98A1E, 0xFFC4487F, 0xFF7A5BD4, 0xFFE07B53,
-        0xFF9C6B3F, 0xFF3D8FC7, 0xFF2E9C8A, 0xFFA0527A, 0xFF8A9F35, 0xFFC2453F, 0xFF6F7C8F,
-    ).map { it.toInt() }
+    val colors: List<Int> get() = app.kassa.money.domain.CategoryColors.palette
 }

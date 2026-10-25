@@ -124,6 +124,8 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
             merged += into.name
             if (visible && into.hidden) categories[categories.indexOf(into)] = into.copy(hidden = false)
         }
+        // Each kind starts at the first palette color, so the first 24 of each get distinct colors.
+        val perKind = mutableMapOf<CategoryKind, Int>()
         parents.forEachIndexed { i, c ->
             val (icon, name) = splitEmoji(c.name)
             val kind = if (c.type == 0) CategoryKind.INCOME else CategoryKind.EXPENSE
@@ -135,7 +137,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
                 name = name,
                 kind = kind,
                 icon = icon,
-                color = PALETTE[i % PALETTE.size],
+                color = PALETTE[perKind.merge(kind, 1, Int::plus)!!.minus(1) % PALETTE.size],
                 countsTowardDaily = c.type != 0 && !looksLikeBill(name),
                 hidden = c.deleted,
                 sortOrder = i,
@@ -298,12 +300,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
 
     companion object {
         /** Category colors, chosen to read on both light and dark backgrounds. */
-        val PALETTE = intArrayOf(
-            0xFF3F9A5E.toInt(), 0xFF2B8A99.toInt(), 0xFF4570D6.toInt(), 0xFFC98A1E.toInt(),
-            0xFFC4487F.toInt(), 0xFF7A5BD4.toInt(), 0xFFE07B53.toInt(), 0xFF9C6B3F.toInt(),
-            0xFF3D8FC7.toInt(), 0xFF2E9C8A.toInt(), 0xFFA0527A.toInt(), 0xFF8A9F35.toInt(),
-            0xFFC2453F.toInt(), 0xFF6F7C8F.toInt(),
-        )
+        val PALETTE: List<Int> = app.kassa.money.domain.CategoryColors.palette
 
         private val BILL_WORDS = listOf("mortgage", "home standard", "phone", "subscription", "bill", "insurance", "hoa", "rent", "utilit")
 
