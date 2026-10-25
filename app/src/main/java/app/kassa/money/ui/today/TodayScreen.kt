@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -104,7 +105,8 @@ fun TodayScreen(
     onUpcoming: () -> Unit,
     onNotifications: () -> Unit,
     onAccounts: () -> Unit,
-    onCards: () -> Unit,
+    onOpenAccount: (Long) -> Unit,
+    onPinAccounts: () -> Unit,
 ) {
     // The month comes first: it's what budgets and statements are measured in.
     var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(true) }
@@ -128,8 +130,9 @@ fun TodayScreen(
                 FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
             }
         }
-        val coming: @Composable (Modifier) -> Unit = { m -> UpcomingSection(ledger, if (fit) null else if (wide) 5 else 3, onOpenCard, onUpcoming, m) }
-        val worth: @Composable () -> Unit = { NetWorthSection(ledger, onAccounts, onCards) }
+        // Phones show three upcoming rows so Overview fits without scrolling; wide screens fill the column.
+        val coming: @Composable (Modifier) -> Unit = { m -> UpcomingSection(ledger, if (!wide) 3 else if (fit) null else 5, onOpenCard, onUpcoming, m) }
+        val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts) }
 
         Column(Modifier.fillMaxSize().then(if (fit) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(contentPadding)) {
             Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 10.dp))
@@ -145,7 +148,7 @@ fun TodayScreen(
             } else {
                 Column(Modifier.widthIn(max = 640.dp).then(if (fit) Modifier.weight(1f) else Modifier), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column { banner(); spending() }
-                    coming(if (fit) Modifier.weight(1f) else Modifier); worth()
+                    coming(Modifier); worth()
                 }
             }
         }
@@ -164,7 +167,7 @@ private fun SectionTop(title: String, link: String? = null, onLink: (() -> Unit)
 }
 
 @Composable
-private fun LinkText(text: String, onClick: () -> Unit) {
+internal fun LinkText(text: String, onClick: () -> Unit) {
     Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
         androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
@@ -232,20 +235,54 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
         Box(Modifier.weight(1f))
         Switch2(listOf(true to monthName, false to "This week"), month, setMonth)
     }
-    BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
-    // Tiles in rows of three: one row on the cover screen, two on the taller inner screen.
+    val link = if (income) "Where it came from" else "Where it went"
+    Row(verticalAlignment = Alignment.Bottom) {
+        Box(Modifier.weight(1f)) { BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink) }
+        if (!roomy) Box(Modifier.padding(bottom = 6.dp)) { LinkText(link, onOpen) }
+    }
     if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
-    top.chunked(3).forEach { rowItems -> Row(Modifier.fillMaxWidth().padding(top = if (roomy) 12.dp else 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        rowItems.forEach { (c, amt) ->
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(if (roomy) 14.dp else 10.dp)) {
-                CategoryBadge(c, size = 26)
-                Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
-                Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+    else if (!roomy) TopBar(top, onOpenCategory, onOpen)
+    else {
+        // The unfolded screen has room for two rows of three category tiles.
+        top.chunked(3).forEach { rowItems -> Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            rowItems.forEach { (c, amt) ->
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(14.dp)) {
+                    CategoryBadge(c, size = 26)
+                    Text(c?.name ?: "Uncategorized", style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+                    Text(Money.format(amt), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+                }
+            }
+            repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
+        } }
+        Box(Modifier.padding(top = 6.dp)) { LinkText(link, onOpen) }
+    }
+}
+
+/**
+ * The top three categories as one bar, each piece sized against the other two, with their amounts underneath.
+ * The month's total is the big number above; everything else is in Where it went.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
+    val sum = top.sumOf { it.second }.coerceAtLeast(1)
+    val colorOf = { c: app.kassa.money.domain.Category? -> c?.let { Color(it.color) } ?: Kassa.colors.ink3 }
+    Text("Top categories", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
+    Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50))) {
+        top.forEach { (c, amt) -> Box(Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.01f)).fillMaxHeight().background(colorOf(c))) }
+    }
+    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 4.dp)) {
+        top.forEach { (c, amt) ->
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(end = 12.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(colorOf(c)))
+                Text("${c?.name ?: "Uncategorized"} ${Money.format(amt, wholeDollars = true)}", style = KassaType.tiny, color = Kassa.colors.ink2,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp).widthIn(max = 160.dp))
             }
         }
-        repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
-    } }
-    Box(Modifier.padding(top = 6.dp)) { LinkText(if (income) "Where it came from" else "Where it went", onOpen) }
+    }
 }
 
 @Composable
@@ -276,52 +313,6 @@ fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
                 Text(u.kind, style = KassaType.tiny, color = Kassa.colors.ink2)
             }
             Text(u.amount?.let { Money.format(it) } ?: "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-        }
-    }
-}
-
-@Composable
-private fun NetWorthSection(ledger: Ledger, onAccounts: () -> Unit, onCards: () -> Unit) {
-    val active = ledger.accounts.accounts.filter { !it.archived }
-    val bal = ledger.accounts.balances
-    val cash = active.filter { it.type in CASH_TYPES }.sumOf { bal[it.id] ?: 0 }
-    val cardOwed = -active.filter { it.type == AccountType.CREDIT_CARD }.sumOf { bal[it.id] ?: 0 }
-    val investAccts = active.filter { it.type == AccountType.INVESTMENT }
-    val invest = investAccts.sumOf { (bal[it.id] ?: 0) + ledger.holdingsValue(it.id) }
-    val people = ledger.openPersonBalances().values
-    val receivable = people.filter { it > 0 }.sum()
-    val payable = -people.filter { it < 0 }.sum()
-    val holdings = ledger.holdings.filter { h -> active.any { it.id == h.accountId } }.sumOf { it.value }
-    val worth = active.sumOf { bal[it.id] ?: 0 } + holdings + receivable - payable
-
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Net worth", style = KassaType.section, color = Kassa.colors.ink)
-        Box(Modifier.padding(start = 10.dp)) { BigMoney(worth, sizeSp = 18f) }
-        Box(Modifier.weight(1f))
-        LinkText("Accounts", onAccounts)
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            WorthTile(Modifier.weight(1f), accountIcon(AccountType.CHECKING), "Cash and bank", Money.format(cash), onAccounts)
-            WorthTile(Modifier.weight(1f), accountIcon(AccountType.CREDIT_CARD), "Card balances", Money.format(-cardOwed), onCards)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            WorthTile(Modifier.weight(1f), accountIcon(AccountType.INVESTMENT), "Investments", Money.format(invest), onAccounts)
-            WorthTile(Modifier.weight(1f), androidx.compose.material.icons.Icons.Outlined.People, "Receivable", Money.format(receivable), onAccounts)
-        }
-    }
-}
-
-@Composable
-private fun WorthTile(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, onClick: () -> Unit) {
-    Row(
-        modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconBadge(icon, size = 30)
-        Column(Modifier.padding(start = 10.dp)) {
-            Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
-            Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
         }
     }
 }

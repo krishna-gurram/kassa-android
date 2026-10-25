@@ -68,7 +68,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with a top-categories bar, Upcoming (three rows on phones), and up to six pinned account tiles (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 

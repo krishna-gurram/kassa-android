@@ -2,6 +2,7 @@ package app.kassa.money.ui.settings
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -66,6 +67,8 @@ interface SettingsActions {
     /** Books or cancels the daily backup and reminder to match Settings. */
     fun refreshDailyJobs()
     fun restore(contents: BackupContents)
+    /** Opens the page for choosing Overview's account tiles. */
+    fun openPins()
     /** Debug builds only: replaces everything with the made-up household in [app.kassa.money.domain.Demo]. */
     fun loadDemo()
 }
@@ -86,6 +89,7 @@ private sealed interface SettingsPage {
     data object BudgetMonth : SettingsPage { override val title = "Budget month" }
     data object Currency : SettingsPage { override val title = "Currency" }
     data object Feedback : SettingsPage { override val title = "Send feedback" }
+    data object OpenOn : SettingsPage { override val title = "Open Kassa on" }
     data object Privacy : SettingsPage { override val title = "Privacy" }
     data object Licences : SettingsPage { override val title = "Open source licences" }
     data class LicenceDetail(val licence: Licence) : SettingsPage { override val title get() = licence.name }
@@ -131,6 +135,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
             SettingsPage.BudgetMonth -> BudgetMonthPage(ledger)
             SettingsPage.Currency -> CurrencyPage(ledger)
             SettingsPage.Feedback -> FeedbackPage()
+            SettingsPage.OpenOn -> OpenOnPage()
             SettingsPage.Privacy -> PrivacyPage()
             SettingsPage.Licences -> LicencesPage(open = { page = SettingsPage.LicenceDetail(it) })
             is SettingsPage.LicenceDetail -> LicenceText(p.licence)
@@ -155,6 +160,12 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     HorizontalDivider(color = Kassa.colors.line)
     val cur = Currencies.byCode(currency)
     NavRow("Currency", "${cur.name}, ${Money.format(123_450, style = cur)}") { open(SettingsPage.Currency) }
+
+    SectionHeader("Home screen")
+    val openTab by settings.openTab.collectAsState()
+    NavRow("Open Kassa on", app.kassa.money.ui.Tab.entries.firstOrNull { it.name == openTab }?.label ?: "Overview") { open(SettingsPage.OpenOn) }
+    val pins by settings.pins.collectAsState()
+    NavRow("Accounts on Overview", "${app.kassa.money.ui.today.pinned(ledger, pins).size} pinned") { actions.openPins() }
 
     SectionHeader("Budgeting")
     NavRow("Expense categories", "${topLevel(CategoryKind.EXPENSE)}") { open(SettingsPage.Categories(CategoryKind.EXPENSE)) }
@@ -200,5 +211,23 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
 
     Gap(20)
     Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)
+    Gap(24)
+}
+
+/** The tab Kassa starts on. Settings isn't offered: it's never where you'd want to land. */
+@Composable
+private fun OpenOnPage() {
+    val settings = LocalSettings.current
+    val selected by settings.openTab.collectAsState()
+    Text("The tab Kassa shows when it starts.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
+    app.kassa.money.ui.Tab.entries.filter { it != app.kassa.money.ui.Tab.SETTINGS }.forEach { t ->
+        Column(Modifier.clickable { settings.setOpenTab(t.name) }) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(t.label, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+                Text(if (t.name == selected) "✓" else "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            }
+            HorizontalDivider(color = Kassa.colors.line)
+        }
+    }
     Gap(24)
 }

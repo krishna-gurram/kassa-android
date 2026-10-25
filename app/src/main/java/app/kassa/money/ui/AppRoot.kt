@@ -57,6 +57,8 @@ import app.kassa.money.ui.theme.Kassa
 @Composable
 fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, openAdd: Boolean, onAddOpened: () -> Unit) {
     val nav: NavViewModel = viewModel()
+    val openTab = LocalSettings.current.openTab.value
+    remember(nav) { nav.start(Tab.entries.firstOrNull { it.name == openTab } ?: Tab.TODAY); true }
     val vm: LedgerViewModel = viewModel()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
