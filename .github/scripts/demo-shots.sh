@@ -6,6 +6,12 @@ DPKG=app.kassa.money.debug
 ACT=$DPKG/app.kassa.money.ui.MainActivity
 mkdir -p ci-output
 ./gradlew --no-daemon :app:installDebug > ci-output/demo-install.log 2>&1 || { tail -20 ci-output/demo-install.log; exit 1; }
+# Drags up from 3/4 to 1/4 of the screen's height, whatever size the emulator is.
+scroll() {
+  local wh w h
+  wh=$(adb shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*'); w=${wh%x*}; h=${wh#*x}
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 800
+}
 shot() { sleep "${2:-3}"; adb exec-out screencap -p > "ci-output/demo-$1.png"; }
 # Taps the first clickable element whose text or description (or a child's) is exactly $1.
 tap() {
@@ -33,7 +39,7 @@ PY
 }
 adb shell am start -W -n $ACT --ez demo true > /dev/null 2>&1
 shot 01-overview 14
-adb shell input swipe 540 1300 540 400 800
+scroll
 shot 02-overview-scrolled
 tap "Accounts"; shot 03-accounts
 tap "Overview"
@@ -42,14 +48,14 @@ adb shell wm size 1812x2176; adb shell wm density 360
 shot 04-unfolded 6
 tap "Where it went"; shot 05-unfolded-page
 adb shell input keyevent KEYCODE_BACK
-sleep 2; adb shell input swipe 900 1600 900 600 800; shot 04b-unfolded-scrolled
+sleep 2; scroll; shot 04b-unfolded-scrolled
 tap "Accounts"; shot 06-unfolded-accounts
 tap "Overview"
 adb shell wm size reset; adb shell wm density reset
 adb shell cmd uimode night yes
 shot 07-dark 5
 adb shell settings put system font_scale 1.6; shot 07b-large-font 5; adb shell settings put system font_scale 1.0; sleep 3
-tap "Settings"; sleep 2; tap "Expense categories"; sleep 2; tap "Dining"; sleep 2; adb shell input swipe 540 1500 540 500 800; shot 08-category-colors
+tap "Settings"; sleep 2; tap "Expense categories"; sleep 2; tap "Dining"; sleep 2; scroll; shot 08-category-colors
 adb shell cmd uimode night no
 adb shell am force-stop $DPKG
 rm -f ci-output/ui.xml
