@@ -32,6 +32,7 @@ import app.kassa.money.ui.settings.SettingsScreen
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.NotificationsPage
+import app.kassa.money.ui.today.PinAccountsPage
 import app.kassa.money.ui.today.SpendingPage
 import app.kassa.money.ui.today.TodayScreen
 import app.kassa.money.ui.today.UpcomingPage
@@ -138,7 +139,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
         )
         Page.Upcoming -> UpcomingPage(l, padding, onBack, onOpenCard = { app.push(Page.CardDetail(it)) })
         Page.Notifications -> NotificationsPage(l, padding, onBack, app.notices)
-        Page.PinAccounts -> app.kassa.money.ui.today.PinAccountsPage(l, padding, onBack)
+        Page.PinAccounts -> PinAccountsPage(l, padding, onBack)
         Page.Import -> Box(Modifier.padding(padding)) {
             ImportScreen(firstRun = false, onFinished = { app.nav.select(Tab.TODAY) }, onCancel = back)
         }

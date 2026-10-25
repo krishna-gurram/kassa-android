@@ -266,7 +266,8 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
 @Composable
 private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
     val sum = top.sumOf { it.second }.coerceAtLeast(1)
-    val colorOf = { c: app.kassa.money.domain.Category? -> c?.let { Color(it.color) } ?: Kassa.colors.ink3 }
+    val none = Kassa.colors.ink3
+    val colorOf = { c: app.kassa.money.domain.Category? -> c?.let { Color(it.color) } ?: none }
     Text("Top categories", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
     Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50))) {
         top.forEach { (c, amt) -> Box(Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.01f)).fillMaxHeight().background(colorOf(c))) }
