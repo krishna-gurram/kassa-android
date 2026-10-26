@@ -33,8 +33,9 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - Privacy is the product: still no network, no analytics, no crash upload. Crash reports stay on the phone
   and the user chooses to share them.
 - Third-party libraries need licenses compatible with a public app, and their notices shown in the app.
-- Android comes first. A native iOS app (SwiftUI) is planned for later, not a shared UI. Keep `domain/` and
-  `importer/` free of Android APIs so their rules can be shared with it or ported exactly.
+- Android comes first. A native iOS app (SwiftUI) is planned for later. One set of rules for every app: `domain/`
+  and `importer/` become a Kotlin Multiplatform library the iOS app calls, with native screens on each platform (no
+  shared UI). Keep them free of Android APIs, and prefer `kotlinx-datetime` over `java.time` in new rule code.
 - Screen text moves into `strings.xml` in one pass right before the Play Store launch; until then, keep new copy plain
   and easy to move.
 
