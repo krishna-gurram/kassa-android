@@ -112,7 +112,7 @@ class CashewImporterTest {
             tx("-20", paid = true, skip = true),
         )), allTypes)
         assertEquals(1, plan.transactions.size)
-        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 1 && it.what.startsWith("upcoming") })
+        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 1 && it.what.startsWith("Upcoming") })
         assertTrue(plan.reconcile.allMatch)
     }
 
@@ -128,7 +128,7 @@ class CashewImporterTest {
         assertEquals("Streaming", bill.name)
         assertEquals(14, bill.dayOfMonth)
         assertEquals(1549L, bill.fixedAmount)
-        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 3 && it.what.startsWith("repeating") })
+        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 3 && it.what.startsWith("Repeating") })
     }
 
     @Test fun aLoanToAFriendBecomesAPersonWhoOwesTheRest() {
@@ -232,7 +232,7 @@ class CashewImporterTest {
         assertEquals(25000L, plan.budgets.first { it.categoryId == fun_.id }.amount)
         assertEquals(2, plan.budgets.size)
         assertEquals(CategoryIcon.Emoji("🎉"), fun_.icon)
-        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 2 && it.what.startsWith("budget limits") })
+        assertTrue(plan.issues.any { it is ImportIssue.LeftBehind && it.count == 2 && it.what.startsWith("Budget limits") })
     }
 
     @Test fun namesColoursAndIconsAreCleanedUp() {

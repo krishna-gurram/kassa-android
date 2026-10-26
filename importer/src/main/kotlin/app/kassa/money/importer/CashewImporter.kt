@@ -329,11 +329,11 @@ class CashewImporter(private val zone: java.time.ZoneId = java.time.ZoneId.syste
 
         // What the review says
         val goals = objectives.count { it.type == GOAL }
-        if (stillUpcoming > 0) issues += ImportIssue.LeftBehind(stillUpcoming, "upcoming entries not marked paid yet")
-        if (otherRepeats > 0) issues += ImportIssue.LeftBehind(otherRepeats, "repeating entries that aren't a monthly expense (Kassa's bills are monthly)")
-        if (goals > 0) issues += ImportIssue.LeftBehind(goals, "goals; their entries still come in as normal entries")
-        if (otherLimits > 0) issues += ImportIssue.LeftBehind(otherLimits, "budget limits that aren't on a main spending category of a monthly budget")
-        if (source.budgets().isNotEmpty()) issues += ImportIssue.LeftBehind(source.budgets().size, "budget totals; only their category limits come over")
+        if (stillUpcoming > 0) issues += ImportIssue.LeftBehind(stillUpcoming, "Upcoming entries not marked paid yet")
+        if (otherRepeats > 0) issues += ImportIssue.LeftBehind(otherRepeats, "Repeating entries that aren't a monthly expense (Kassa's bills are monthly)")
+        if (goals > 0) issues += ImportIssue.LeftBehind(goals, "Goals (their entries still come in as normal entries)")
+        if (otherLimits > 0) issues += ImportIssue.LeftBehind(otherLimits, "Budget limits not on a main spending category of a monthly budget")
+        if (source.budgets().isNotEmpty()) issues += ImportIssue.LeftBehind(source.budgets().size, "Budget totals (only their category limits come over)")
         if (corrections > 0) issues += ImportIssue.BalanceCorrections(corrections)
         if (transfersAsEntries > 0) issues += ImportIssue.TransfersAsEntries(transfersAsEntries)
         if (mismatched > 0) issues += ImportIssue.MismatchedTransfers(mismatched)

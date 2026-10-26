@@ -211,15 +211,15 @@ private fun Issue(issue: ImportIssue) {
     val text = when (issue) {
         is ImportIssue.PossibleDuplicateAccounts -> "These look like the same account: ${issue.names.joinToString(" and ")}. You can archive one after importing."
         is ImportIssue.SplitwiseRows -> "${issue.entries} entries use Splitwise accounts or categories (${(issue.accountNames + issue.categoryNames).joinToString()}). They import as they are now; turning them into money owed by people comes with the next update."
-        is ImportIssue.MismatchedTransfers -> "${issue.count} transfer's two halves didn't agree. Kassa kept the sending side; balances still match."
+        is ImportIssue.MismatchedTransfers -> "Transfers whose two sides didn't agree (Kassa kept the sending side; balances still match): ${count(issue.count)}"
         is ImportIssue.UnpairedTransfers -> "${issue.count} transfers had only one half. They were kept so balances match."
         is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of ${Money.format(0)}. They were kept."
         is ImportIssue.SkippedRows -> "${issue.count} skipped: ${issue.reason}."
         is ImportIssue.MergedCategories -> "Categories with the same name in different capitals were combined: ${issue.names.joinToString()}."
-        is ImportIssue.LeftBehind -> "${count(issue.count)} ${issue.what}."
-        is ImportIssue.RefundsAsIncome -> "${count(issue.count)} refunds (money back in a spending category) come in as income in that category."
-        is ImportIssue.BalanceCorrections -> "${count(issue.count)} balance corrections became their account's starting balance, so balances match."
-        is ImportIssue.TransfersAsEntries -> "${count(issue.count)} transfers with an account you left out come in as plain entries, so balances still match."
+        is ImportIssue.LeftBehind -> "${issue.what}: ${count(issue.count)}"
+        is ImportIssue.RefundsAsIncome -> "Refunds (money back in a spending category) come in as income in that category: ${count(issue.count)}"
+        is ImportIssue.BalanceCorrections -> "Balance corrections that became a starting balance, so balances match: ${count(issue.count)}"
+        is ImportIssue.TransfersAsEntries -> "Transfers with an account you left out, kept as plain entries so balances match: ${count(issue.count)}"
         is ImportIssue.OtherCurrency -> "${issue.accounts.joinToString()} come in with their amounts unchanged, in this phone's currency."
     }
     Row(Modifier.padding(vertical = 8.dp)) {
