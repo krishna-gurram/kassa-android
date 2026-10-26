@@ -167,6 +167,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -d ci-output ] || exit 0
+          # GitHub refuses empty files and stops the whole upload, so drop them first.
+          find ci-output -maxdepth 1 -type f -empty -delete
           gh release create "ci-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
             --draft --title "Emulator check ${{ github.run_number }}" --notes "Screenshots and logcat from the emulator." || true
 
