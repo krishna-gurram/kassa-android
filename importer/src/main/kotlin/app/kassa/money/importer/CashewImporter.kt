@@ -355,6 +355,7 @@ class CashewImporter(private val zone: java.time.ZoneId = java.time.ZoneId.syste
             personLoans = personLoans,
             bills = bills,
             sourceName = "Cashew backup",
+            appName = "Cashew",
         )
     }
 

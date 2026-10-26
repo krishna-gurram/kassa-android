@@ -78,12 +78,14 @@ fun ImportScreen(
                 }
                 is ImportState.Review -> Review(s.plan, firstRun, onImport = vm::confirm, onPickAgain = { vm.reset(); pick() })
                 is ImportState.Done -> {
-                    Text(if (s.plan.sourceName == "Cashew backup") "Imported from Cashew" else "Imported", style = KassaType.title, color = Kassa.colors.ink)
+                    Text(if (s.plan.appName.isNotBlank()) "Imported from ${s.plan.appName}" else "Imported", style = KassaType.title, color = Kassa.colors.ink)
                     Gap(8)
                     Text("${count(s.entries)} entries are now in Kassa, on this phone only.", style = KassaType.body, color = Kassa.colors.ink2)
                     val next = buildList {
                         s.plan.accounts.filter { it.type == app.kassa.money.domain.AccountType.CREDIT_CARD && it.statementDay == null }
                             .forEach { add("Add statement and due days to ${it.name} so Kassa can show what's payable.") }
+                        s.plan.accounts.filter { it.type == app.kassa.money.domain.AccountType.CREDIT_CARD && it.payFromId == null }
+                            .forEach { add("Pick the account ${it.name} is paid from.") }
                         if (s.plan.people.isNotEmpty()) add("Check ${s.plan.people.joinToString { it.name }} in People.")
                         if (s.plan.bills.isNotEmpty()) add("Check the ${count(s.plan.bills.size)} bills in Upcoming.")
                         add("Pick the accounts to show on Overview in Settings › Home screen.")
@@ -184,7 +186,7 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
 
     val (left, other) = plan.issues.partition { it is ImportIssue.LeftBehind }
     if (left.isNotEmpty()) {
-        SectionHeader(if (plan.sourceName == "Cashew backup") "Stays in Cashew" else "Stays behind")
+        SectionHeader(if (plan.appName.isNotBlank()) "Stays in ${plan.appName}" else "Stays behind")
         left.forEach { Issue(it) }
     }
     if (other.isNotEmpty()) {
@@ -219,8 +221,10 @@ private fun Issue(issue: ImportIssue) {
         is ImportIssue.LeftBehind -> "${issue.what}: ${count(issue.count)}"
         is ImportIssue.RefundsAsIncome -> "Refunds (money back in a spending category) come in as income in that category: ${count(issue.count)}"
         is ImportIssue.BalanceCorrections -> "Balance corrections that became a starting balance, so balances match: ${count(issue.count)}"
-        is ImportIssue.TransfersAsEntries -> "Transfers with an account you left out, kept as plain entries so balances match: ${count(issue.count)}"
+        is ImportIssue.TransfersAsEntries -> "Transfers with an account that didn't come over, kept as plain entries so balances match: ${count(issue.count)}"
         is ImportIssue.OtherCurrency -> "${issue.accounts.joinToString()} come in with their amounts unchanged, in this phone's currency."
+        is ImportIssue.DeletedAccounts -> "Accounts deleted in the backup, left out with their entries: ${count(issue.count)}"
+        is ImportIssue.CardsWithoutPayFrom -> "Cards with no pay-from account; set one on the card: ${count(issue.count)}"
     }
     Row(Modifier.padding(vertical = 8.dp)) {
         Text("•", style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 10.dp))

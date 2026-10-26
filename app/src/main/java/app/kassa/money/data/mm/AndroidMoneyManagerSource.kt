@@ -7,6 +7,7 @@ import android.net.Uri
 import app.kassa.money.importer.MmAsset
 import app.kassa.money.importer.MmBudget
 import app.kassa.money.importer.MmCategory
+import app.kassa.money.importer.MmExtras
 import app.kassa.money.importer.MmGroup
 import app.kassa.money.importer.MmTransaction
 import app.kassa.money.importer.MoneyManagerSource
@@ -30,11 +31,27 @@ class AndroidMoneyManagerSource private constructor(
         "SELECT uid, ACC_GROUP_NAME, TYPE, ORDERSEQ FROM ASSETGROUP WHERE IS_DEL IS NULL OR IS_DEL = 0"
     ) { MmGroup(it.str(0)!!, it.str(1).orEmpty(), it.int(2) ?: 7, it.int(3) ?: 0) }
 
-    override fun assets(): List<MmAsset> = if (ios) query(
-        "SELECT ZUID, ZNICNAME, ZGROUPUID, ZORDER, ZCARD_DAYFIN, ZCARD_DAYPAY, ZZDATA FROM ZASSET"
-    ) { MmAsset(it.str(0)!!, it.str(1).orEmpty(), it.str(2), it.int(3) ?: 0, it.int(4), it.int(5), it.str(6)) } else query(
-        "SELECT uid, NIC_NAME, groupUid, ORDERSEQ, CARD_DAY_FIN, CARD_DAY_PAY, ZDATA FROM ASSETS"
-    ) { MmAsset(it.str(0)!!, it.str(1).orEmpty(), it.str(2), it.int(3) ?: 0, it.int(4), it.int(5), it.str(6)) }
+    override fun assets(): List<MmAsset> {
+        val base = if (ios) query(
+            "SELECT ZUID, ZNICNAME, ZGROUPUID, ZORDER, ZCARD_DAYFIN, ZCARD_DAYPAY, ZZDATA FROM ZASSET"
+        ) { MmAsset(it.str(0)!!, it.str(1).orEmpty(), it.str(2), it.int(3) ?: 0, it.int(4), it.int(5), it.str(6)) } else query(
+            "SELECT uid, NIC_NAME, groupUid, ORDERSEQ, CARD_DAY_FIN, CARD_DAY_PAY, ZDATA FROM ASSETS"
+        ) { MmAsset(it.str(0)!!, it.str(1).orEmpty(), it.str(2), it.int(3) ?: 0, it.int(4), it.int(5), it.str(6)) }
+        // Columns older backups may not have, read on their own so a missing one changes nothing else.
+        val table = if (ios) "ZASSET" else "ASSETS"
+        val uid = if (ios) "ZUID" else "uid"
+        val currency = column(table, uid, if (ios) "ZCURRENCYUID" else "currencyUid")
+        val payFrom = column(table, uid, if (ios) "ZCARDASSETUID" else "cardAssetUid")
+        // Only the iPhone layout marks deleted accounts.
+        val deleted = if (ios) column(table, uid, "ZISDEL") else emptyMap()
+        return base.map { a ->
+            a.copy(
+                currencyUid = currency[a.uid]?.takeIf { it.isNotBlank() },
+                payFromUid = payFrom[a.uid]?.takeIf { it.isNotBlank() && it != "0" },
+                deleted = deleted[a.uid]?.trim()?.toDoubleOrNull() == 1.0,
+            )
+        }
+    }
 
     override fun categories(): List<MmCategory> = if (ios) query(
         "SELECT ZUID, ZNAME, ZDOTYPE, ZPUID, ZISDEL, ZORDER FROM ZCATEGORY"
@@ -52,7 +69,7 @@ class AndroidMoneyManagerSource private constructor(
             categoryUid = it.str(4), amount = it.decimal(5), epochMillis = if (it.isNull(6)) 0L else Math.round((it.getDouble(6) + CORE_DATA_EPOCH) * 1000),
             note = it.str(7), pairKey = it.str(8),
         )
-    } else query(
+    }.withCurrency("ZINOUTCOME", "ZUID", "ZCURRENCYUID", "ZAMOUNTACCOUNT") else query(
         """SELECT uid, DO_TYPE, assetUid, toAssetUid, ctgUid, ZMONEY, ZDATE, ZCONTENT, txUidTrans
            FROM INOUTCOME WHERE IS_DEL IS NULL OR IS_DEL = 0"""
     ) {
@@ -61,21 +78,80 @@ class AndroidMoneyManagerSource private constructor(
             categoryUid = it.str(4), amount = it.str(5) ?: "0", epochMillis = it.str(6)?.toLongOrNull() ?: 0L,
             note = it.str(7), pairKey = it.str(8),
         )
+    }.withCurrency("INOUTCOME", "uid", "currencyUid", "AMOUNT_ACCOUNT")
+
+    /** Adds each entry's currency and account amount, when the backup has those columns. */
+    private fun List<MmTransaction>.withCurrency(table: String, uid: String, currencyCol: String, amountCol: String): List<MmTransaction> {
+        val currency = column(table, uid, currencyCol)
+        val amount = column(table, uid, amountCol, decimal = true)
+        if (currency.isEmpty() && amount.isEmpty()) return this
+        return map { it.copy(currencyUid = currency[it.uid]?.takeIf { c -> c.isNotBlank() }, accountAmount = amount[it.uid]) }
     }
 
-    override fun budgets(): List<MmBudget> = if (ios) query(
-        """SELECT b.ZTARGETUID, a.ZBUDGETPERIOD, a.ZAMOUNT FROM ZBUDGET b JOIN ZBUDGETAMOUNT a ON a.ZBUDGETUID = b.ZUID
-           WHERE COALESCE(a.ZISDEL, 0) = 0 AND COALESCE(b.ZISDEL, 0) = 0"""
-    ) { MmBudget(it.str(0).orEmpty(), it.int(1) ?: 0, it.getDouble(2)) } else query(
-        """SELECT b.targetUid, a.BUDGET_PERIOD, a.AMOUNT FROM BUDGET b JOIN BUDGET_AMOUNT a ON a.budgetUid = b.uid
-           WHERE COALESCE(a.IS_DEL, 0) = 0 AND COALESCE(b.IS_DEL, 0) = 0"""
-    ) { MmBudget(it.str(0).orEmpty(), it.int(1) ?: 0, it.getDouble(2)) }
+    override fun budgets(): List<MmBudget> {
+        val rows = if (ios) query(
+            """SELECT b.ZTARGETUID, a.ZBUDGETPERIOD, a.ZAMOUNT, b.ZUID FROM ZBUDGET b JOIN ZBUDGETAMOUNT a ON a.ZBUDGETUID = b.ZUID
+               WHERE COALESCE(a.ZISDEL, 0) = 0 AND COALESCE(b.ZISDEL, 0) = 0"""
+        ) { MmBudget(it.str(0).orEmpty(), it.int(1) ?: 0, it.getDouble(2), budgetUid = it.str(3).orEmpty()) } else query(
+            """SELECT b.targetUid, a.BUDGET_PERIOD, a.AMOUNT, b.uid FROM BUDGET b JOIN BUDGET_AMOUNT a ON a.budgetUid = b.uid
+               WHERE COALESCE(a.IS_DEL, 0) = 0 AND COALESCE(b.IS_DEL, 0) = 0"""
+        ) { MmBudget(it.str(0).orEmpty(), it.int(1) ?: 0, it.getDouble(2), budgetUid = it.str(3).orEmpty()) }
+        val table = if (ios) "ZBUDGET" else "BUDGET"
+        val uid = if (ios) "ZUID" else "uid"
+        val total = column(table, uid, if (ios) "ZTOTALTYPEINT" else "IS_TOTAL")
+        val period = column(table, uid, if (ios) "ZPERIODTYPEINT" else "PERIOD_TYPE")
+        return rows.map { b ->
+            b.copy(
+                isTotal = total[b.budgetUid]?.trim()?.toDoubleOrNull()?.let { it != 0.0 } ?: false,
+                periodType = period[b.budgetUid]?.trim()?.toDoubleOrNull()?.toInt() ?: MmBudget.MONTHLY,
+            )
+        }
+    }
+
+    override fun mainCurrencyUid(): String? = runCatching {
+        if (ios) query("SELECT ZUID FROM ZCURRENCY WHERE ZISMAINCURRENCY = 1 AND COALESCE(ZISDEL, 0) = 0") { it.str(0) }.firstOrNull()
+        else query("SELECT uid FROM CURRENCY WHERE IS_MAIN_CURRENCY = 1 AND COALESCE(IS_DEL, 0) = 0") { it.str(0) }.firstOrNull()
+    }.getOrNull()
 
     /** The backup's main currency code (like AED), when the backup records one. */
     fun mainCurrency(): String? = runCatching {
         if (ios) query("SELECT ZISO FROM ZCURRENCY WHERE ZISMAINCURRENCY = 1 AND COALESCE(ZISDEL, 0) = 0") { it.str(0) }.firstOrNull()
-        else null
+        else query("SELECT ISO FROM CURRENCY WHERE IS_MAIN_CURRENCY = 1 AND COALESCE(IS_DEL, 0) = 0") { it.str(0) }.firstOrNull()
     }.getOrNull()
+
+    override fun extras(): MmExtras = if (ios) MmExtras(
+        repeating = count("SELECT COUNT(*) FROM ZREPEATTRANSACTION WHERE COALESCE(ZISDEL, 0) = 0"),
+        bookmarks = count("SELECT COUNT(*) FROM ZFAVTRANSACTION WHERE COALESCE(ZISDEL, 0) = 0"),
+        photos = count("SELECT COUNT(*) FROM ZPHOTO"),
+        installmentPlans = count("SELECT COUNT(DISTINCT ZCARDDIVIDEUID) FROM ZINOUTCOME WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZCARDDIVIDEUID, '')) NOT IN ('', '0')"),
+        descriptions = count("SELECT COUNT(*) FROM ZINOUTCOME WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZMEMO, '')) <> ''"),
+        tags = count("SELECT COUNT(DISTINCT ZTAGUID) FROM ZTXTAG WHERE COALESCE(ZISDEL, 0) = 0"),
+        taggedEntries = count("SELECT COUNT(DISTINCT ZTXUID) FROM ZTXTAG WHERE COALESCE(ZISDEL, 0) = 0"),
+        accountNotes = count("SELECT COUNT(*) FROM ZASSET WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZMEMO, '')) <> ''"),
+        notificationRules = count("SELECT COUNT(*) FROM ZMESSAGEMACRO2"),
+        memos = count("SELECT COUNT(*) FROM ZMEMO WHERE COALESCE(ZISDEL, 0) = 0"),
+    ) else MmExtras(
+        repeating = count("SELECT COUNT(*) FROM REPEATTRANSACTION WHERE COALESCE(IS_DEL, 0) = 0"),
+        bookmarks = count("SELECT COUNT(*) FROM FAVTRANSACTION WHERE COALESCE(IS_DEL, 0) = 0"),
+        photos = count("SELECT COUNT(*) FROM PHOTO"),
+        installmentPlans = count("SELECT COUNT(DISTINCT cardDivideUid) FROM INOUTCOME WHERE COALESCE(IS_DEL, 0) = 0 AND TRIM(COALESCE(cardDivideUid, '')) NOT IN ('', '0')"),
+        descriptions = count("SELECT COUNT(*) FROM INOUTCOME WHERE COALESCE(IS_DEL, 0) = 0 AND TRIM(COALESCE(ZDATA, '')) <> ''"),
+        tags = count("SELECT COUNT(DISTINCT tagUid) FROM TX_TAG WHERE COALESCE(isDel, 0) = 0"),
+        taggedEntries = count("SELECT COUNT(DISTINCT txUid) FROM TX_TAG WHERE COALESCE(isDel, 0) = 0"),
+        accountNotes = count("SELECT COUNT(*) FROM ASSETS WHERE TRIM(COALESCE(ZDATA1, '')) <> ''"),
+        notificationRules = count("SELECT COUNT(*) FROM MESSAGEMACRO2"),
+        memos = count("SELECT COUNT(*) FROM MEMO WHERE COALESCE(isDel, 0) = 0"),
+    )
+
+    /** A single count, or 0 when an older backup lacks the table or column. */
+    private fun count(sql: String): Int = runCatching { query(sql) { it.getInt(0) }.firstOrNull() ?: 0 }.getOrDefault(0)
+
+    /** One column by row uid, or nothing when an older backup lacks it. */
+    private fun column(table: String, uid: String, col: String, decimal: Boolean = false): Map<String, String> = runCatching {
+        query("SELECT $uid, $col FROM $table WHERE $col IS NOT NULL") { c ->
+            c.str(0) to if (decimal) c.decimal(1) else c.str(1)
+        }.mapNotNull { (k, v) -> if (k != null && v != null) k to v else null }.toMap()
+    }.getOrDefault(emptyMap())
 
     override fun close() {
         db.close()

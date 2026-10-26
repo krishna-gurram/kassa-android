@@ -36,6 +36,8 @@ data class ImportPlan(
     val bills: List<app.kassa.money.domain.Recurring> = emptyList(),
     /** What the review calls the file, like "Money Manager backup". */
     val sourceName: String = "backup",
+    /** The app the backup came from, like "Money Manager", for "Stays in …"; blank when unknown. */
+    val appName: String = "",
 )
 
 sealed interface ImportIssue {
@@ -66,6 +68,12 @@ sealed interface ImportIssue {
 
     /** Accounts brought over in another currency, with their numbers unchanged. */
     data class OtherCurrency(val accounts: List<String>) : ImportIssue
+
+    /** Accounts deleted in the source app, left out with their entries. */
+    data class DeletedAccounts(val count: Int) : ImportIssue
+
+    /** Credit cards that came over without an account to pay them from; the user sets one on the card. */
+    data class CardsWithoutPayFrom(val count: Int) : ImportIssue
 }
 
 /**
@@ -106,11 +114,14 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         }
         val groupType = mmGroups.associate { it.uid to it.type }
 
-        // Accounts
+        // Accounts. Ones deleted in Money Manager stay out; their entries are skipped like any with a missing account.
+        val allAssets = source.assets()
+        val mmAssets = allAssets.filter { !it.deleted }.sortedBy { it.order }
+        val deletedAccounts = allAssets.size - mmAssets.size
         val accountIds = HashMap<String, Long>()
         // Kassa needs every account name to be unique, so a repeated Money Manager name gets " 2", " 3" and so on.
-        val accountNames = uniqueNames(source.assets().sortedBy { it.order }.map { fit(it.name, InputRules.NAME_MAX - 3) })
-        val accounts = source.assets().sortedBy { it.order }.mapIndexed { i, a ->
+        val accountNames = uniqueNames(mmAssets.map { fit(it.name, InputRules.NAME_MAX - 3) })
+        val accounts = mmAssets.mapIndexed { i, a ->
             val id = (i + 1).toLong()
             accountIds[a.uid] = id
             val type = accountTypeFor(groupType[a.groupUid], a.name)
@@ -126,10 +137,16 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
                 externalId = a.uid,
             )
         }
-        val defaultPayFrom = accounts.firstOrNull { it.type == AccountType.CHECKING }?.id
-        val accountsWithPayFrom = accounts.map {
-            if (it.type == AccountType.CREDIT_CARD && it.payFromId == null) it.copy(payFromId = defaultPayFrom) else it
+        // A card is paid from the account Money Manager links to it, when that account came over and isn't a card.
+        // Nothing is guessed: a card without one is left for the user to set.
+        val accountsWithPayFrom = accounts.mapIndexed { i, acc ->
+            if (acc.type != AccountType.CREDIT_CARD) acc
+            else acc.copy(payFromId = mmAssets[i].payFromUid?.let { accountIds[it] }?.takeIf { id -> accounts[id.toInt() - 1].type != AccountType.CREDIT_CARD })
         }
+        val cardsWithoutPayFrom = accountsWithPayFrom.count { it.type == AccountType.CREDIT_CARD && it.payFromId == null }
+        val assetCurrency = mmAssets.associate { it.uid to it.currencyUid }
+        val deletedUids = allAssets.filter { it.deleted }.map { it.uid }.toSet()
+        val deletedNames = allAssets.filter { it.deleted }.associate { it.uid to fit(it.name, InputRules.NAME_MAX) }
 
         // Categories: parents first so children can point at them.
         val mmCats = source.categories()
@@ -200,10 +217,14 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         var unpaired = 0
         var zero = 0
         var badRows = 0
+        var otherKinds = 0
+        val transfersAsEntries = HashSet<String>()
         val transactions = mutableListOf<Transaction>()
         var nextTx = 1L
         for (r in rows) {
-            val amount = Money.parseCents(r.amount)
+            if (r.assetUid in deletedUids) continue // counted with the deleted accounts
+            if (r.doType !in KNOWN_TYPES) { otherKinds++; continue }
+            val amount = amountOf(r, assetCurrency)
             val accountId = accountIds[r.assetUid]
             if (amount == null || accountId == null) { badRows++; continue }
             if (amount == 0L) zero++
@@ -220,30 +241,46 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
                     val partner = r.pairKey?.let { inByPair[it] }
                     if (partner != null && !mirrors(r, partner)) mismatched++
                     val to = r.toAssetUid?.let { accountIds[it] } ?: partner?.assetUid?.let { accountIds[it] }
-                    if (to == null) { badRows++; null } else {
+                    val gone = (r.toAssetUid ?: partner?.assetUid)?.takeIf { it in deletedUids }
+                    if (to == null && gone != null) {
+                        // The other account was deleted: keep this side as a plain entry so this balance matches.
+                        transfersAsEntries += r.uid
+                        Transaction(id = nextTx, kind = TxKind.EXPENSE, amount = amount, accountId = accountId, epochMillis = r.epochMillis,
+                            note = transferNote(note, deletedNames[gone]), externalId = r.uid)
+                    } else if (to == null) { badRows++; null } else {
                         if (partner == null) unpaired++
                         Transaction(id = nextTx, kind = TxKind.TRANSFER, amount = amount, accountId = accountId, toAccountId = to,
                             epochMillis = r.epochMillis, note = note, externalId = r.uid)
                     }
                 }
                 4 -> {
-                    if (r.pairKey != null && outByPair.containsKey(r.pairKey)) null // the "out" half carries it
+                    val out = r.pairKey?.let { outByPair[it] }
+                    if (out != null && out.assetUid !in deletedUids) null // the "out" half carries it
                     else {
                         val from = r.toAssetUid?.let { accountIds[it] }
-                        if (from == null) { badRows++; null } else {
+                        val gone = (r.toAssetUid ?: out?.assetUid)?.takeIf { it in deletedUids }
+                        if (from == null && gone != null) {
+                            transfersAsEntries += r.uid
+                            Transaction(id = nextTx, kind = TxKind.INCOME, amount = amount, accountId = accountId, epochMillis = r.epochMillis,
+                                note = transferNote(note, deletedNames[gone]), externalId = r.uid)
+                        } else if (from == null) { badRows++; null } else {
                             unpaired++
                             Transaction(id = nextTx, kind = TxKind.TRANSFER, amount = amount, accountId = from, toAccountId = accountId,
                                 epochMillis = r.epochMillis, note = note, externalId = r.uid)
                         }
                     }
                 }
-                else -> { badRows++; null }
+                else -> null
             }
             if (tx != null) { transactions += tx; nextTx++ }
         }
 
-        // Budgets
-        val budgets = source.budgets().mapNotNull { b ->
+        // Budgets: only monthly category budgets come over. Totals and other periods are counted once per budget.
+        val mmBudgets = source.budgets()
+        fun budgetCount(rows: List<MmBudget>) = rows.distinctBy { it.budgetUid.ifEmpty { it.categoryUid } }.size
+        val totalBudgets = budgetCount(mmBudgets.filter { it.isTotal })
+        val otherPeriodBudgets = budgetCount(mmBudgets.filter { !it.isTotal && it.periodType != MmBudget.MONTHLY })
+        val budgets = mmBudgets.filter { !it.isTotal && it.periodType == MmBudget.MONTHLY }.mapNotNull { b ->
             val cat = catIds[b.categoryUid] ?: return@mapNotNull null
             Budget(categoryId = cat, month = b.period, amount = Math.round(b.amount * 100))
         }.distinctBy { it.categoryId to it.month } // merged categories keep the first budget
@@ -267,7 +304,29 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         if (unpaired > 0) issues += ImportIssue.UnpairedTransfers(unpaired)
         if (zero > 0) issues += ImportIssue.ZeroAmountEntries(zero)
         if (badRows > 0) issues += ImportIssue.SkippedRows(badRows, "Rows with an unreadable amount or a missing account")
+        if (otherKinds > 0) issues += ImportIssue.SkippedRows(otherKinds, "Entries of a kind Kassa doesn't have")
+        if (transfersAsEntries.isNotEmpty()) issues += ImportIssue.TransfersAsEntries(transfersAsEntries.size)
         issues += skipped
+        if (deletedAccounts > 0) issues += ImportIssue.DeletedAccounts(deletedAccounts)
+        if (cardsWithoutPayFrom > 0) issues += ImportIssue.CardsWithoutPayFrom(cardsWithoutPayFrom)
+        val main = source.mainCurrencyUid()
+        val otherCurrency = mmAssets.filter { main != null && it.currencyUid != null && it.currencyUid != main }.map { accountIds.getValue(it.uid) }
+        if (otherCurrency.isNotEmpty()) issues += ImportIssue.OtherCurrency(accountsWithPayFrom.filter { it.id in otherCurrency }.map { it.name })
+
+        // What stays in Money Manager
+        val x = source.extras()
+        fun left(n: Int, what: String) { if (n > 0) issues += ImportIssue.LeftBehind(n, what) }
+        left(x.repeating, "Repeating entries")
+        left(x.bookmarks, "Bookmarked entries")
+        left(x.photos, "Photos on entries")
+        left(x.installmentPlans, "Installment plans (each month's charge still comes over)")
+        left(x.descriptions, "Descriptions on entries (their short note comes over)")
+        left(x.tags, "Tags, used on ${x.taggedEntries} entries")
+        left(x.accountNotes, "Account notes")
+        left(totalBudgets, "Budget totals (only their category budgets come over)")
+        left(otherPeriodBudgets, "Budgets that aren't monthly")
+        left(x.notificationRules, "Rules that add entries from bank texts and app alerts")
+        left(x.memos, "Memos")
 
         return ImportPlan(
             groups = groups,
@@ -276,8 +335,9 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
             transactions = transactions,
             budgets = budgets,
             issues = issues,
-            reconcile = reconcile(rows, accountsWithPayFrom, accountIds, transactions),
+            reconcile = reconcile(rows, accountsWithPayFrom, accountIds, assetCurrency, transactions, transfersAsEntries),
             sourceName = "Money Manager backup",
+            appName = "Money Manager",
         )
     }
 
@@ -285,7 +345,10 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         rows: List<MmTransaction>,
         accounts: List<Account>,
         accountIds: Map<String, Long>,
+        assetCurrency: Map<String, String?>,
         imported: List<Transaction>,
+        /** Transfer halves kept as plain entries; Money Manager doesn't count them as spending or income. */
+        notSpending: Set<String>,
     ): Reconcile {
         // Money Manager's own rule: every row moves its own account; transfers are already two rows.
         val sourceBalance = HashMap<Long, Long>()
@@ -293,7 +356,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         val srcInc = HashMap<YearMonth, Long>()
         for (r in rows) {
             val id = accountIds[r.assetUid] ?: continue
-            val amt = Money.parseCents(r.amount) ?: continue
+            val amt = amountOf(r, assetCurrency) ?: continue
             val delta = when (r.doType) { 0, 4 -> amt; 1, 3 -> -amt; else -> 0 }
             sourceBalance[id] = (sourceBalance[id] ?: 0) + delta
             val m = monthOf(r.epochMillis)
@@ -306,6 +369,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         val impExp = HashMap<YearMonth, Long>()
         val impInc = HashMap<YearMonth, Long>()
         for (t in imported) {
+            if (t.externalId in notSpending) continue
             val m = monthOf(t.epochMillis)
             if (t.kind == TxKind.EXPENSE) impExp[m] = (impExp[m] ?: 0) + t.amount
             if (t.kind == TxKind.INCOME) impInc[m] = (impInc[m] ?: 0) + t.amount
@@ -316,6 +380,20 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         return Reconcile(accountChecks, months)
     }
 
+    /**
+     * What a row moves its account by, in cents. An entry made in another currency than its account's moves the
+     * account by its account amount, as in Money Manager.
+     */
+    private fun amountOf(r: MmTransaction, assetCurrency: Map<String, String?>): Long? {
+        val own = assetCurrency[r.assetUid]
+        val foreign = r.currencyUid != null && own != null && r.currencyUid != own
+        val inAccount = if (foreign) r.accountAmount?.let { Money.parseCents(it) } else null
+        return inAccount ?: Money.parseCents(r.amount)
+    }
+
+    private fun transferNote(note: String, other: String?): String =
+        fit(listOf(note, "Transfer with ${other ?: "a deleted account"}").filter { it.isNotBlank() }.joinToString(" · "), InputRules.NOTE_MAX)
+
     private fun monthOf(millis: Long): YearMonth = YearMonth.from(Instant.ofEpochMilli(millis).atZone(zone))
 
     private fun mirrors(out: MmTransaction, inRow: MmTransaction): Boolean =
@@ -325,6 +403,9 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
     companion object {
         /** Category colors, chosen to read on both light and dark backgrounds. */
         val PALETTE: List<Int> = app.kassa.money.domain.CategoryColors.palette
+
+        /** DO_TYPE values Kassa maps: income, expense, transfer out, transfer in. */
+        private val KNOWN_TYPES = setOf(0, 1, 3, 4)
 
         private val BILL_WORDS = listOf("mortgage", "home standard", "phone", "subscription", "bill", "insurance", "hoa", "rent", "utilit")
 
