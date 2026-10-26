@@ -43,7 +43,7 @@ PY
 }
 tap_mode() {
   local found=0
-  while read -r x y; do [ -n "$x" ] && { adb shell input tap "$x" "$y"; found=1; sleep 0.4; }; done < <(find_xy "$1" "$2")
+  while read -r x y; do [ -n "$x" ] && { adb shell input tap "$x" "$y" < /dev/null; found=1; sleep 0.4; }; done < <(find_xy "$1" "$2")
   [ $found = 1 ] || echo "No \"$1\" on screen"
 }
 tap() { tap_mode "$1" exact; }
