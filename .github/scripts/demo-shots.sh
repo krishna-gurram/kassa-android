@@ -53,8 +53,8 @@ tap_all() { tap_mode "$1" all; }
 # Cashew import, end to end on a fresh install: a made-up Cashew backup is opened on the first-run Import page
 # (debug builds take it from an intent extra instead of the system file picker), every question answered, imported.
 FIX=cashew-fixture.sql
-python3 .github/scripts/make-cashew-fixture.py ci-output/$FIX > ci-output/cashew-fixture.txt 2>&1
-adb push ci-output/$FIX /data/local/tmp/$FIX > /dev/null 2>&1
+python3 .github/scripts/make-cashew-fixture.py /tmp/$FIX > ci-output/cashew-fixture.txt 2>&1
+adb push /tmp/$FIX /data/local/tmp/$FIX > /dev/null 2>&1
 adb shell "run-as $DPKG mkdir -p files" ; adb shell "run-as $DPKG cp /data/local/tmp/$FIX files/$FIX"
 adb shell am start -W -n $ACT --es importFile $FIX > /dev/null 2>&1
 shot cashew-1-found 10
