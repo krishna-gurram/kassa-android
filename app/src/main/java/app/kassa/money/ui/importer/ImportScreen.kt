@@ -54,8 +54,12 @@ fun ImportScreen(
     val pick = { picker.launch(arrayOf("*/*")) }
     androidx.compose.runtime.LaunchedEffect(Unit) { if (app.kassa.money.BuildConfig.DEBUG) DebugImport.take()?.let(vm::read) }
 
+    // Each step opens at its top, not wherever the last one was scrolled to.
+    val scroll = rememberScrollState()
+    val stepKey = when (val st = state) { is ImportState.Cashew -> st.step; else -> st::class }
+    androidx.compose.runtime.LaunchedEffect(stepKey) { scroll.scrollTo(0) }
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
+        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth()) {
