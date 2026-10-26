@@ -119,27 +119,29 @@ class AndroidMoneyManagerSource private constructor(
         else query("SELECT ISO FROM CURRENCY WHERE IS_MAIN_CURRENCY = 1 AND COALESCE(IS_DEL, 0) = 0") { it.str(0) }.firstOrNull()
     }.getOrNull()
 
+    // Notification rules: Money Manager ships hundreds of bank and app templates; only ones the user turned on
+    // and linked to an account are their own.
     override fun extras(): MmExtras = if (ios) MmExtras(
         repeating = count("SELECT COUNT(*) FROM ZREPEATTRANSACTION WHERE COALESCE(ZISDEL, 0) = 0"),
         bookmarks = count("SELECT COUNT(*) FROM ZFAVTRANSACTION WHERE COALESCE(ZISDEL, 0) = 0"),
-        photos = count("SELECT COUNT(*) FROM ZPHOTO"),
+        photos = count("SELECT COUNT(*) FROM ZPHOTO WHERE COALESCE(ZISDEL, 0) = 0"),
         installmentPlans = count("SELECT COUNT(DISTINCT ZCARDDIVIDEUID) FROM ZINOUTCOME WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZCARDDIVIDEUID, '')) NOT IN ('', '0')"),
         descriptions = count("SELECT COUNT(*) FROM ZINOUTCOME WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZMEMO, '')) <> ''"),
         tags = count("SELECT COUNT(DISTINCT ZTAGUID) FROM ZTXTAG WHERE COALESCE(ZISDEL, 0) = 0"),
         taggedEntries = count("SELECT COUNT(DISTINCT ZTXUID) FROM ZTXTAG WHERE COALESCE(ZISDEL, 0) = 0"),
         accountNotes = count("SELECT COUNT(*) FROM ZASSET WHERE COALESCE(ZISDEL, 0) = 0 AND TRIM(COALESCE(ZMEMO, '')) <> ''"),
-        notificationRules = count("SELECT COUNT(*) FROM ZMESSAGEMACRO2"),
+        notificationRules = count("SELECT COUNT(*) FROM ZMESSAGEMACRO2 WHERE ZUSEYN = 'Y' AND TRIM(COALESCE(ZCONASSETUID, '')) NOT IN ('', '0')"),
         memos = count("SELECT COUNT(*) FROM ZMEMO WHERE COALESCE(ZISDEL, 0) = 0"),
     ) else MmExtras(
         repeating = count("SELECT COUNT(*) FROM REPEATTRANSACTION WHERE COALESCE(IS_DEL, 0) = 0"),
         bookmarks = count("SELECT COUNT(*) FROM FAVTRANSACTION WHERE COALESCE(IS_DEL, 0) = 0"),
-        photos = count("SELECT COUNT(*) FROM PHOTO"),
+        photos = count("SELECT COUNT(*) FROM PHOTO WHERE COALESCE(IS_DEL, 0) = 0"),
         installmentPlans = count("SELECT COUNT(DISTINCT cardDivideUid) FROM INOUTCOME WHERE COALESCE(IS_DEL, 0) = 0 AND TRIM(COALESCE(cardDivideUid, '')) NOT IN ('', '0')"),
         descriptions = count("SELECT COUNT(*) FROM INOUTCOME WHERE COALESCE(IS_DEL, 0) = 0 AND TRIM(COALESCE(ZDATA, '')) <> ''"),
         tags = count("SELECT COUNT(DISTINCT tagUid) FROM TX_TAG WHERE COALESCE(isDel, 0) = 0"),
         taggedEntries = count("SELECT COUNT(DISTINCT txUid) FROM TX_TAG WHERE COALESCE(isDel, 0) = 0"),
         accountNotes = count("SELECT COUNT(*) FROM ASSETS WHERE TRIM(COALESCE(ZDATA1, '')) <> ''"),
-        notificationRules = count("SELECT COUNT(*) FROM MESSAGEMACRO2"),
+        notificationRules = count("SELECT COUNT(*) FROM MESSAGEMACRO2 WHERE USEYN = 'Y' AND TRIM(COALESCE(conAssetUid, '')) NOT IN ('', '0')"),
         memos = count("SELECT COUNT(*) FROM MEMO WHERE COALESCE(isDel, 0) = 0"),
     )
 
