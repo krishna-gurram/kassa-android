@@ -13,7 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -40,11 +40,11 @@ private fun List<Person>.hasName(name: String, except: Long? = null) = any { it.
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun AddPersonSheet(people: List<Person>, onDismiss: () -> Unit, onAdd: (String, Long, () -> Unit) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var theyOwe by remember { mutableStateOf(true) }
-    var amount by remember { mutableStateOf("") }
-    var nameProblem by remember { mutableStateOf<String?>(null) }
-    var amountProblem by remember { mutableStateOf<String?>(null) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var theyOwe by rememberSaveable { mutableStateOf(true) }
+    var amount by rememberSaveable { mutableStateOf("") }
+    var nameProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -85,12 +85,12 @@ internal fun EditPersonSheet(
     onDismiss: () -> Unit,
     onSave: (Person, Long) -> Unit,
 ) {
-    var name by remember { mutableStateOf(p.name.take(InputRules.NAME_MAX)) }
-    var theyOwe by remember { mutableStateOf(starting >= 0) }
-    var amount by remember { mutableStateOf(if (starting == 0L) "" else Money.toInput(Math.abs(starting))) }
-    var nameProblem by remember { mutableStateOf<String?>(null) }
-    var amountProblem by remember { mutableStateOf<String?>(null) }
-    var confirmArchive by remember { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf(p.name.take(InputRules.NAME_MAX)) }
+    var theyOwe by rememberSaveable { mutableStateOf(starting >= 0) }
+    var amount by rememberSaveable { mutableStateOf(if (starting == 0L) "" else Money.toInput(Math.abs(starting))) }
+    var nameProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmArchive by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {

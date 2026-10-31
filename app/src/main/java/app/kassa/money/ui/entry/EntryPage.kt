@@ -64,6 +64,8 @@ fun EntryPage(
     onBack: () -> Unit,
 ) {
     val s = rememberSaveable(saver = EntryState.saver(start, ledger.zone, ledger.today)) { EntryState(start, ledger.zone, ledger.today) }
+    // Left open past midnight, or carried to another time zone: "today" and the zone follow the phone.
+    LaunchedEffect(ledger.zone, ledger.today) { s.updateClock(ledger.zone, ledger.today) }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }

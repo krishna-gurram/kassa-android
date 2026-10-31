@@ -18,6 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.kassa.money.data.Failures
+import app.kassa.money.data.Failures.Doing
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.backup.BackupFile
 import app.kassa.money.domain.InputRules
@@ -30,6 +32,7 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
@@ -38,12 +41,18 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
- * Backups the Money Manager way: no password, one file per backup in a folder you pick, every one kept, once a day
+ * Backups the Money Manager way: no password, one file per backup in a folder you pick, the newest 30 kept, once a day
  * at your time or right now. Restoring, and a copy with a password for sharing or storing somewhere you don't control.
  */
 @Composable
 internal fun BackupPage(actions: SettingsActions) {
     var status by remember { mutableStateOf<String?>(null) }
+    val settings = LocalSettings.current
+    val noteSeen by settings.backupNoteSeen.collectAsState()
+    if (!noteSeen) {
+        Text(BACKUP_NOTE, style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 4.dp))
+        TextButton(onClick = { settings.dismissBackupNote() }) { Text("Got it", color = Kassa.colors.ink) }
+    }
     DailyBackup(actions, onStatus = { status = it })
     SectionHeader("Restore")
     Restore(actions, onStatus = { status = it })
@@ -52,6 +61,9 @@ internal fun BackupPage(actions: SettingsActions) {
     status?.let { Text(it, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp)) }
     Gap(24)
 }
+
+/** Shown once, here and before the folder picker first opens: a folder's backups have no password. */
+internal const val BACKUP_NOTE = "Backups in this folder aren't encrypted. Add a password when you save one anywhere you don't control."
 
 @Composable
 private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
@@ -66,11 +78,16 @@ private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
     var pickTime by remember { mutableStateOf(false) }
     // What to do once a folder is picked, when picking it was the first step of something else.
     var afterFolder by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var explainFolder by remember { mutableStateOf(false) }
+    val noteSeen by settings.backupNoteSeen.collectAsState()
 
     val backUpNow: () -> Unit = {
         busy = true; onStatus(null)
         scope.launch {
-            onStatus(runCatching { actions.backupNow() }.fold({ "Saved $it." }, { it.message ?: "The backup couldn't be saved." }))
+            onStatus(runCatching { actions.backupNow() }.fold({ "Saved $it." }, { e ->
+                // The job's own failures already carry plain wording; anything else is mapped here, never shown raw.
+                if (e is Failures.UserFacing) e.message.orEmpty() else Failures.message(e, Doing.WRITE_BACKUP)
+            }))
             busy = false
         }
     }
@@ -84,13 +101,23 @@ private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
         }
         afterFolder = null
     }
-    val pickFolderThen: (() -> Unit) -> Unit = { next -> afterFolder = next; folderPicker.launch(null) }
+    // The first time, a short note about encryption comes before the picker; it is never asked again once seen.
+    val openPicker: () -> Unit = { if (noteSeen) folderPicker.launch(null) else explainFolder = true }
+    val pickFolderThen: (() -> Unit) -> Unit = { next -> afterFolder = next; openPicker() }
+    if (explainFolder) ConfirmDialog(
+        title = "Before you choose a folder",
+        body = BACKUP_NOTE,
+        confirm = "Choose folder",
+        destructive = false,
+        onConfirm = { explainFolder = false; settings.dismissBackupNote(); folderPicker.launch(null) },
+        onDismiss = { explainFolder = false; afterFolder = null },
+    )
 
-    SwitchRow("Back up every day", "No password. Every backup is kept.", auto) { on ->
+    SwitchRow("Back up every day", "No password. Kassa keeps the latest 30.", auto) { on ->
         if (on && folder == null) pickFolderThen { settings.setAutoBackup(true); actions.refreshDailyJobs() }
         else { settings.setAutoBackup(on); actions.refreshDailyJobs() }
     }
-    NavRow("Folder", folder?.let(::folderName) ?: "Choose") { folderPicker.launch(null) }
+    NavRow("Folder", folder?.let(::folderName) ?: "Choose") { openPicker() }
     NavRow("Time", timeLabel(minute)) { pickTime = true }
     val (lastAt, problem) = last
     Text(
@@ -125,20 +152,21 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
     var password by remember { mutableStateOf("") }
     var contents by remember { mutableStateOf<BackupContents?>(null) }
     var confirm by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf(false) }
 
     fun read(uri: Uri, pw: CharArray?) = scope.launch {
         actions.readBackup(uri, pw)
             .onSuccess { contents = it; needsPassword = false; password = ""; onStatus(null) }
             .onFailure { e ->
                 needsPassword = e is BackupFile.NeedsPassword || e is BackupFile.WrongPassword
-                onStatus(if (e is BackupFile.NeedsPassword) null else e.message ?: "Couldn't open that file.")
+                onStatus(if (e is BackupFile.NeedsPassword) null else Failures.message(e, Doing.READ_BACKUP))
             }
     }
     val opener = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { file = uri; contents = null; needsPassword = false; read(uri, null) }
     }
 
-    SecondaryButton("Restore from a backup", { opener.launch(arrayOf("*/*")) })
+    SecondaryButton(if (restoring) "Restoring..." else "Restore from a backup", { if (!restoring) opener.launch(arrayOf("*/*")) })
     if (needsPassword) {
         PasswordField(password, { password = it }, "This backup's password", Modifier.fillMaxWidth().padding(top = 10.dp))
         Gap(8)
@@ -149,9 +177,19 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
         BackupSummary(c)
         Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
         Gap(8)
-        PrimaryButton("Replace with this backup") { confirm = true }
-        TextButton(onClick = { contents = null }) { Text("Cancel", color = Kassa.colors.ink2) }
-        if (confirm) RestoreConfirm(onConfirm = { actions.restore(c); contents = null; onStatus("Restoring...") }, onDismiss = { confirm = false })
+        PrimaryButton(if (restoring) "Restoring..." else "Replace with this backup") { if (!restoring) confirm = true }
+        TextButton(onClick = { if (!restoring) contents = null }) { Text("Cancel", color = Kassa.colors.ink2) }
+        if (confirm) RestoreConfirm(
+            onConfirm = {
+                confirm = false; restoring = true; onStatus("Restoring...")
+                scope.launch {
+                    // The result is plain wording either way, so the "Restoring..." line is always replaced.
+                    val result = try { actions.restore(c) } catch (e: CancellationException) { throw e } catch (e: Exception) { Failures.message(e, Doing.RESTORE) }
+                    restoring = false; contents = null; onStatus(result)
+                }
+            },
+            onDismiss = { confirm = false },
+        )
     }
 }
 

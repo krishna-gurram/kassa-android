@@ -27,6 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +53,7 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.momentOn
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.rememberSavedDate
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
@@ -94,7 +98,28 @@ private class TradeInput(ticker: String = "", price: String = "", private val sa
     fun pick(h: Holding) { ticker = h.ticker; price = Money.toInput(h.price); tickerProblem = null; priceProblem = null }
 
     val cleanTicker get() = ticker.trim().uppercase()
+
+    val hasSavedTicker get() = savedTicker != null
+    val savedTickerOrBlank get() = savedTicker.orEmpty()
 }
+
+/**
+ * Keeps a [TradeInput] through folding or rotating the phone. A problem is stored as its text, with "" for none (a
+ * saved list can't hold a null), and a ticker the entry already had is stored with a flag.
+ */
+private val TradeInputSaver: Saver<TradeInput, Any> = listSaver(
+    save = { t ->
+        listOf(t.ticker, t.shares, t.price, t.savedTickerOrBlank, t.hasSavedTicker, t.tickerProblem.orEmpty(), t.sharesProblem.orEmpty(), t.priceProblem.orEmpty())
+    },
+    restore = { v ->
+        TradeInput(v[0] as String, v[2] as String, if (v[4] as Boolean) v[3] as String else null).also { t ->
+            t.shares = v[1] as String
+            t.tickerProblem = (v[5] as String).ifEmpty { null }
+            t.sharesProblem = (v[6] as String).ifEmpty { null }
+            t.priceProblem = (v[7] as String).ifEmpty { null }
+        }
+    },
+)
 
 @Composable
 private fun TickerField(input: TradeInput, modifier: Modifier = Modifier.fillMaxWidth()) {
@@ -145,10 +170,10 @@ fun AllocateSheet(
     onBuy: (TradeOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var buying by remember { mutableStateOf(false) }
-    val input = remember { TradeInput() }
+    var buying by rememberSaveable { mutableStateOf(false) }
+    val input = rememberSaveable(saver = TradeInputSaver) { TradeInput() }
     // Most buys happen the day the money arrives, so the date starts there.
-    var date by remember { mutableStateOf(Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).toLocalDate()) }
+    var date by rememberSavedDate { Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).toLocalDate() }
     val existing = ledger.holdings.filter { it.accountId == p.accountId }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
@@ -212,7 +237,7 @@ fun HoldingSheet(
 /** Shares you already own: ticker, shares and what you paid. */
 @Composable
 private fun NewHolding(holding: Holding, onSave: (Holding) -> Unit) {
-    val input = remember { TradeInput() }
+    val input = rememberSaveable(saver = TradeInputSaver) { TradeInput() }
     Text("Add shares you own", style = KassaType.section, color = Kassa.colors.ink)
     TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
     SharesField(input.shares, { input.shares = it; input.sharesProblem = null }, input.sharesProblem, Modifier.fillMaxWidth())
@@ -230,13 +255,13 @@ private fun NewHolding(holding: Holding, onSave: (Holding) -> Unit) {
 /** A holding you have: its figures, and today's price to type. */
 @Composable
 private fun ExistingHolding(holding: Holding, onSave: (Holding) -> Unit, onDelete: (Holding) -> Unit) {
-    var price by remember { mutableStateOf(Money.toInput(holding.price)) }
-    var priceProblem by remember { mutableStateOf<String?>(null) }
+    var price by rememberSaveable { mutableStateOf(Money.toInput(holding.price)) }
+    var priceProblem by rememberSaveable { mutableStateOf<String?>(null) }
     // Asked only while unknown; once saved it's a figure like the rest.
     val askPaid = holding.avgCost == null
-    var paid by remember { mutableStateOf("") }
-    var paidProblem by remember { mutableStateOf<String?>(null) }
-    var confirmRemove by remember { mutableStateOf(false) }
+    var paid by rememberSaveable { mutableStateOf("") }
+    var paidProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
     val preview = holding.copy(
         price = Money.parseCents(price) ?: holding.price,
         avgCost = holding.avgCost ?: Money.parseCents(paid),
@@ -348,9 +373,9 @@ fun TradeSheet(
     onSell: (TradeOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var buy by remember { mutableStateOf(true) }
-    var date by remember { mutableStateOf(today) }
-    val input = remember { TradeInput().apply { holdings.firstOrNull()?.let { pick(it) } } }
+    var buy by rememberSaveable { mutableStateOf(true) }
+    var date by rememberSavedDate { today }
+    val input = rememberSaveable(saver = TradeInputSaver) { TradeInput().apply { holdings.firstOrNull()?.let { pick(it) } } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
             Text("Buy or sell", style = KassaType.section, color = Kassa.colors.ink)
@@ -404,12 +429,12 @@ fun TradeEditSheet(
     val buy = entry.kind == TxKind.BUY
     val ticker = trade?.ticker ?: entry.note
     val originalDate = Instant.ofEpochMilli(entry.epochMillis).atZone(zone).toLocalDate()
-    var date by remember { mutableStateOf(originalDate) }
-    val input = remember {
+    var date by rememberSavedDate { originalDate }
+    val input = rememberSaveable(saver = TradeInputSaver) {
         TradeInput(ticker, trade?.let { Money.toInput(it.price) }.orEmpty(), savedTicker = ticker)
             .apply { trade?.let { shares = Shares.format(it.microShares) } }
     }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     // An unchanged date keeps the original time of day, so the entry doesn't jump within its day.
     val at = { if (date == originalDate) entry.epochMillis else momentOn(date, today, zone) }
 

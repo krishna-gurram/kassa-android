@@ -7,7 +7,9 @@ import app.kassa.money.data.db.toEntity
 import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.LoanEntry
+import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.SearchText
 import app.kassa.money.domain.Split
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
@@ -47,7 +49,8 @@ class EntryRepository(private val db: KassaDatabase) {
     fun search(text: String): Flow<List<Transaction>> {
         val t = text.trim()
         val cents = Money.parseCents(t)?.takeIf { it > 0 } ?: -1L
-        return db.transactions().search("%$t%", cents).map { rows -> rows.map { it.toDomain() } }
+        // What was typed is text, never a pattern: "50%" finds "50%", not everything that starts with 50.
+        return db.transactions().search(SearchText.contains(t), cents).map { rows -> rows.map { it.toDomain() } }
     }
 
     /** Every entry that moved money in or out of one account, newest first. */
@@ -65,7 +68,8 @@ class EntryRepository(private val db: KassaDatabase) {
     /**
      * Saves a new or edited entry and rewrites its split, in one database transaction. A split stores your share
      * on the entry and one loan entry per person. Throws [IllegalArgumentException] with a message to show when
-     * the draft breaks an input rule.
+     * the draft breaks an input rule, or would put an entry on a closed account (an edit that keeps the accounts it
+     * already had is fine). An edited transfer that still waits to be explained keeps its waiting row in step.
      */
     suspend fun save(draft: EntryDraft): Transaction = db.withTransaction {
         check(draft)
@@ -89,7 +93,12 @@ class EntryRepository(private val db: KassaDatabase) {
             note = InputRules.clean(draft.note),
             myShare = outcome?.myShare,
         )
+        val before = draft.id?.let { db.transactions().byId(it) }
+        // Only the accounts this save newly touches must be open: an old entry on an account closed since can still be edited.
+        val touched = setOfNotNull(tx.accountId, tx.toAccountId) - setOfNotNull(before?.accountId, before?.toAccountId)
+        db.requireOpen(*touched.toTypedArray())
         val id = if (draft.id == null) db.transactions().insert(tx.toEntity()) else draft.id.also { db.transactions().update(tx.toEntity()) }
+        if (before != null) syncWaitingTransfer(tx.copy(id = id))
         db.loans().deleteForTransaction(id)
         outcome?.owed?.takeIf { it.isNotEmpty() }?.let { owed ->
             db.loans().insertAll(owed.map { (person, amount) ->
@@ -108,7 +117,9 @@ class EntryRepository(private val db: KassaDatabase) {
      */
     suspend fun correctBalance(accountId: Long, target: Long, epochMillis: Long, editingId: Long? = null): Transaction = db.withTransaction {
         InputRules.balanceProblem(target)?.let { throw IllegalArgumentException(it) }
-        require(db.accounts().all().any { it.id == accountId }) { "That account isn't there any more." }
+        require(db.accounts().byId(accountId) != null) { "That account isn't there any more." }
+        // A new correction is a new entry; changing one that is already there is not.
+        if (editingId == null) db.requireOpen(accountId)
         val old = editingId?.let { db.transactions().byId(it)?.toDomain() }
         require(editingId == null || (old != null && BalanceCorrection.isCorrection(old.kind) && old.accountId == accountId)) { "That correction isn't there any more." }
         val without = (db.accounts().balanceOf(accountId) ?: 0) - (old?.effectOn(accountId) ?: 0)
@@ -121,9 +132,22 @@ class EntryRepository(private val db: KassaDatabase) {
     /** Inserts an entry as is, for buys and sales that the investment repository records. */
     internal suspend fun insertRaw(t: Transaction): Long = db.transactions().insert(t.toEntity())
 
+    /** Deletes an entry with its split, and stops waiting for it to be explained when it was a transfer into investments. */
     suspend fun delete(id: Long) = db.withTransaction {
         db.loans().deleteForTransaction(id)
+        db.investmentTransfers().deleteForTransaction(id)
         db.transactions().delete(id)
+    }
+
+    /**
+     * After an edit: a transfer into an investment account that still waits to be explained takes the entry's new amount, date
+     * and account; one that no longer is such a transfer (another kind, or paid to a different kind of account) stops waiting.
+     */
+    private suspend fun syncWaitingTransfer(tx: Transaction) {
+        val to = tx.toAccountId
+        val stillAnInvestment = tx.kind == TxKind.TRANSFER && to != null && db.accounts().byId(to)?.type == AccountType.INVESTMENT.name
+        if (stillAnInvestment) db.investmentTransfers().updateForTransaction(tx.id, to!!, tx.amount, tx.epochMillis)
+        else db.investmentTransfers().deleteForTransaction(tx.id)
     }
 
     private fun check(d: EntryDraft) {

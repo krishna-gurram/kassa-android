@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Support Kassa</title><meta name="description" content="Kassa is free with no ads. Buy the developer a coffee if it helped.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{--ground:#f6f6f3;--surface:#fff;--ink:#1b1d1c;--ink2:#5e6461;--ink3:#9aa09c;--line:#e3e4df;--well:#eef0eb;--green:#1f8a4c;--orange:#c85a12;
+--sans:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#111312;--surface:#1a1d1b;--ink:#eceeea;--ink2:#a3a9a5;--ink3:#6c726e;--line:#2b2f2c;--well:#222623;--green:#4cc27f;--orange:#f08a45;color-scheme:dark}}
+:root[data-theme="dark"]{--ground:#111312;--surface:#1a1d1b;--ink:#eceeea;--ink2:#a3a9a5;--ink3:#6c726e;--line:#2b2f2c;--well:#222623;--green:#4cc27f;--orange:#f08a45;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--ground);color:var(--ink)}
+body{margin:0;font-family:var(--sans);font-size:16px;line-height:1.55;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto}
+a{color:var(--ink);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--ink2);outline-offset:3px;border-radius:6px}
+header.site{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-block:18px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.01em;text-decoration:none}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav a{text-decoration:none;color:var(--ink2);font-weight:600;font-size:14.5px;padding:10px 12px;border-radius:10px;min-height:44px;display:inline-flex;align-items:center}
+nav a:hover,nav a[aria-current="page"]{background:var(--well);color:var(--ink)}
+h1{font-size:clamp(30px,6vw,46px);line-height:1.08;letter-spacing:-.02em;margin:28px 0 14px;text-wrap:balance;max-width:18ch}
+h2{font-size:22px;letter-spacing:-.01em;margin:36px 0 10px;text-wrap:balance}
+h3{font-size:16px;margin:0 0 4px}
+p{margin:0 0 14px;max-width:66ch}
+.lead{font-size:19px;color:var(--ink2);max-width:52ch}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 22px;border-radius:14px;font:700 16px var(--sans);text-decoration:none;border:1px solid var(--ink);background:var(--ink);color:var(--ground);cursor:pointer}
+.btn.alt{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px}
+.note{font-size:14px;color:var(--ink2)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:14px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}
+.card p{font-size:15px;color:var(--ink2);margin:0}
+.mono{font-family:var(--mono);font-size:.92em}
+.proof{background:var(--well);border-radius:16px;padding:16px 18px;margin:18px 0}
+.proof b{font-family:var(--mono);font-size:13.5px}
+ul.clean{padding-left:20px;margin:0 0 14px;max-width:66ch}ul.clean li{margin-bottom:6px}
+table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:10px 12px;border-top:1px solid var(--line);vertical-align:top}th{color:var(--ink2);font-weight:600;border-top:0}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+footer.site{border-top:1px solid var(--line);margin-top:48px;padding-block:24px 40px;color:var(--ink2);font-size:14px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+footer.site a{color:var(--ink2)}
+</style></head><body><div class="wrap">
+<header class="site"><a class="brand" href="index.html">Kassa</a><nav aria-label="Main"><a href="index.html">Home</a><a href="privacy.html">Privacy</a><a href="support.html" aria-current="page">Support Kassa</a></nav></header>
+<main>
+<h1>Support Kassa</h1>
+<p class="lead">Kassa is free, has no ads and never will track you. If it saved you time or a headache, you can buy me a coffee. It's never required, and nothing in the app depends on it.</p>
+<div class="row"><a class="btn" id="coffee" href="#" aria-disabled="true">Buy me a coffee</a></div>
+<p class="note" id="coffee-note">Payments are handled by Stripe. You choose the amount. I never see your card details.</p>
+
+<h2>Other ways to help</h2>
+<ul class="clean">
+<li><b>Leave an honest review</b> on Google Play once it's live. It helps other people find a private option.</li>
+<li><b>Tell one person</b> who is tired of handing their bank login to an app.</li>
+<li><b>Send ideas and bugs</b> to <a href="mailto:support@kassamoney.com">support@kassamoney.com</a>. I read everything.</li>
+</ul>
+
+<h2>Where support goes</h2>
+<p>Time to keep Kassa updated, fix bugs and add features, plus the usual costs of publishing an app. Kassa is built and maintained by one person.</p>
+<script>
+// Put the Stripe Payment Link here. While it is empty, the button stays off and says so.
+var STRIPE_URL = "";
+(function(){
+  var a = document.getElementById("coffee"), n = document.getElementById("coffee-note");
+  if (STRIPE_URL) { a.href = STRIPE_URL; a.removeAttribute("aria-disabled"); a.target = "_blank"; a.rel = "noopener"; }
+  else { a.textContent = "Opening soon"; a.addEventListener("click", function(e){ e.preventDefault(); }); n.textContent = "The coffee link isn't live yet. Thank you for the thought."; }
+})();
+</script>
+</main>
+<footer class="site"><span>Built by <a href="https://www.krishnagurram.dev">Krishna Gurram</a></span><span><a href="mailto:support@kassamoney.com">support@kassamoney.com</a> · <a href="privacy.html">Privacy</a></span></footer>
+</div></body></html>

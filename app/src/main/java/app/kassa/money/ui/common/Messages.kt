@@ -33,6 +33,11 @@ import kotlinx.coroutines.launch
  * scope, so leaving the tab doesn't take the message, or its action, away.
  */
 class Messages(private val host: SnackbarHostState, private val scope: CoroutineScope) {
+    /** A short message with no action. */
+    fun say(message: String) {
+        scope.launch { host.showSnackbar(message, duration = SnackbarDuration.Short) }
+    }
+
     fun withAction(message: String, action: String, onAction: () -> Unit) {
         scope.launch {
             if (host.showSnackbar(message, actionLabel = action, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed) onAction()

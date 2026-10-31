@@ -39,6 +39,7 @@ import app.kassa.money.data.jobs.DailyJobs
 import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.domain.DueKind
 import app.kassa.money.ui.start.CantOpenScreen
+import app.kassa.money.ui.start.StartingScreen
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaTheme
 import app.kassa.money.ui.theme.KassaType
@@ -53,10 +54,16 @@ class MainActivity : FragmentActivity() {
      * only a cold start or a minute away locks; see [onStart].
      */
     private val locked = mutableStateOf(false)
-    /** Set when the daily reminder is tapped: open Add once the app is showing. */
+    /**
+     * Set when the daily reminder is tapped: open Add once the app is showing, then cleared. It is part of the saved state while
+     * it waits, and it is read from the intent only on a real start (see [onCreate]), so folding, rotating or restoring the app
+     * never opens Add a second time.
+     */
     private val openAdd = mutableStateOf(false)
-    /** Set when a payment-due notification is tapped: open that card, loan or bill once the app is showing. */
+    /** Set when a payment-due notification is tapped: open that card, loan or bill once the app is showing. Saved like [openAdd]. */
     private val openDue = mutableStateOf<DueTarget?>(null)
+    /** Set when the "Backup needs attention" notification is tapped: open Settings > Backup once the app is showing. Saved like [openAdd]. */
+    private val openBackup = mutableStateOf(false)
     private var hiddenAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,8 +71,19 @@ class MainActivity : FragmentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (intent?.action == DailyJobs.ACTION_ADD) openAdd.value = true
-        if (savedInstanceState == null) openDue.value = dueTarget(intent)
+        if (savedInstanceState == null) {
+            // Only a real start reads the intent that opened the app. After recreation (fold, rotate, theme change, process
+            // restore) Android hands the same intent back, and acting on it again would reopen what was already dealt with.
+            openAdd.value = intent?.action == DailyJobs.ACTION_ADD
+            openBackup.value = intent?.action == DailyJobs.ACTION_OPEN_BACKUP
+            openDue.value = dueTarget(intent)
+        } else {
+            openAdd.value = savedInstanceState.getBoolean(STATE_OPEN_ADD)
+            openBackup.value = savedInstanceState.getBoolean(STATE_OPEN_BACKUP)
+            val kind = DueKind.entries.firstOrNull { it.name == savedInstanceState.getString(STATE_DUE_KIND) }
+            val id = savedInstanceState.getLong(STATE_DUE_ID)
+            openDue.value = if (kind != null && id != 0L) DueTarget(kind, id) else null
+        }
         // Debug builds only: starting with `--ez demo true` loads the demo household, for CI screenshots.
         if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
             androidx.lifecycle.ViewModelProvider(this)[LedgerViewModel::class.java].loadDemo()
@@ -112,15 +130,16 @@ class MainActivity : FragmentActivity() {
                             LockScreen(onUnlock = ::unlock)
                             LaunchedEffect(Unit) { unlock() }
                         } else when (val db = database) {
-                            null, is DatabaseOpen.Ready -> {
-                                if (db != null) {
-                                    val count by app.entries.count.collectAsState(initial = -1)
-                                    AppRoot(
-                                        entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
-                                        openAdd = openAdd.value, onAddOpened = { openAdd.value = false },
-                                        openDue = openDue.value, onDueOpened = { openDue.value = null },
-                                    )
-                                }
+                            // Calm, not blank, while the database opens.
+                            null -> StartingScreen()
+                            is DatabaseOpen.Ready -> {
+                                val count by app.entries.count.collectAsState(initial = -1)
+                                AppRoot(
+                                    entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
+                                    openAdd = openAdd.value, onAddOpened = { openAdd.value = false },
+                                    openDue = openDue.value, onDueOpened = { openDue.value = null },
+                                    openBackup = openBackup.value, onBackupOpened = { openBackup.value = false },
+                                )
                             }
                             is DatabaseOpen.Failed -> CantOpenScreen(
                                 db.problem,
@@ -138,6 +157,7 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == DailyJobs.ACTION_ADD) openAdd.value = true
+        if (intent.action == DailyJobs.ACTION_OPEN_BACKUP) openBackup.value = true
         dueTarget(intent)?.let { openDue.value = it }
     }
 
@@ -158,11 +178,16 @@ class MainActivity : FragmentActivity() {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_LOCKED, locked.value)
         outState.putLong(STATE_HIDDEN_AT, hiddenAt)
+        outState.putBoolean(STATE_OPEN_ADD, openAdd.value)
+        outState.putBoolean(STATE_OPEN_BACKUP, openBackup.value)
+        openDue.value?.let { outState.putString(STATE_DUE_KIND, it.kind.name); outState.putLong(STATE_DUE_ID, it.id) }
     }
 
     override fun onStart() {
         super.onStart()
         val app = application as KassaApplication
+        // Back on screen: a date or time zone that changed meanwhile is read again, so "today" is never yesterday's.
+        app.clock.refresh()
         // Lock again after a minute away.
         if (app.settings.lockEnabled.value && hiddenAt > 0 && System.currentTimeMillis() - hiddenAt > 60_000) locked.value = true
     }
@@ -170,9 +195,23 @@ class MainActivity : FragmentActivity() {
     private companion object {
         const val STATE_LOCKED = "locked"
         const val STATE_HIDDEN_AT = "hiddenAt"
+        const val STATE_OPEN_ADD = "openAdd"
+        const val STATE_OPEN_BACKUP = "openBackup"
+        const val STATE_DUE_KIND = "dueKind"
+        const val STATE_DUE_ID = "dueId"
+    }
+
+    /**
+     * App lock can only work while the phone has a screen lock. If it has none (the person removed it after turning App lock
+     * on), the setting is turned off and they are told once, instead of the app opening while Settings still says it is locked.
+     */
+    private fun lockUnavailable() {
+        (application as KassaApplication).settings.lockTurnedOff(AppLock.TURNED_OFF)
+        locked.value = false
     }
 
     private fun unlock() {
+        if (AppLock.check(this) == AppLock.Status.NO_SCREEN_LOCK) return lockUnavailable()
         val auth = Authenticators.BIOMETRIC_WEAK or Authenticators.DEVICE_CREDENTIAL
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock Kassa")
@@ -185,8 +224,9 @@ class MainActivity : FragmentActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { locked.value = false }
                 override fun onAuthenticationError(code: Int, msg: CharSequence) {
-                    // No screen lock set up at all: don't trap the user out of their own data.
-                    if (code == BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL || code == BiometricPrompt.ERROR_HW_NOT_PRESENT) locked.value = false
+                    // No screen lock set up at all: the lock can't work, so it is turned off and the person told, not trapped out of
+                    // their own data and not let in silently. Any other error (cancelled, too many tries) leaves Kassa locked.
+                    if (code == BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL || code == BiometricPrompt.ERROR_HW_NOT_PRESENT) lockUnavailable()
                 }
             })
         prompt.authenticate(info)

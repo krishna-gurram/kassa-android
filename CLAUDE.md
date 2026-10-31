@@ -81,6 +81,12 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.
 - `app/data/backup`: the `.kassa` file format (`BackupFile`), its JSON (`BackupContents`), and `BackupRepository`.
+  Backups stream: `JsonStream.kt` is a small pull parser and writer (plain Kotlin, no `org.json`), `BackupContents.writeJson` and
+  `readJson` go table by table, and `BackupRepository.write` reads inside one transaction in pages of 2000 entries into a
+  compressed buffer, so 50,000 entries never sit in memory as one string. The JSON has `"version"` (now 1); a file with a higher
+  one is refused everywhere with "This backup is from a newer version of Kassa. Update Kassa to open it." (`NewerVersion`).
+  Unknown keys are skipped, so adding an optional field never breaks older files. Gunzip is bounded to 256 MB (`TooLarge`).
+  A protected file releases nothing until its authentication tag has checked (`CheckedDecryptStream`).
   Every table is in it, including waiting investment transfers (optional in the file, so older backups read none). A new table
   or column that holds user data needs a `BackupContents` field (optional) and a line in the round-trip tests.
   An import over existing data (`ImportRepository.replaceWith`) replaces everything that points at the old accounts and entries
@@ -92,6 +98,23 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - Big screens keep their state in a plain state holder next to them (`EntryState` for the entry page,
   `AccountForm` for the account forms) so the composables only lay things out.
 
+## Failures and what the person is told
+Raw exception text never reaches the screen. `data/Failures.kt` is the one place that words a failure for each thing being done
+(`Failures.Doing`: save, write or read a backup, restore, import a file, save an import): wrong password, newer version, damaged
+or cut-short file, wrong kind of file, no space, a folder or file that is no longer reachable, too large. Only a message the
+repository wrote itself (an `IllegalArgumentException` while saving) passes through. `LedgerViewModel.change` catches every
+`Exception` (rethrowing cancellation) and shows "Couldn't save. Try again."; only a short code (`Failures.code`, a class name)
+is logged. `UserFacing` carries a message that is already safe. New single `catch` blocks that show text use `Failures`.
+
+## Closed accounts and waiting transfers
+A closed account takes nothing new: `EntryRepository.save` (entries, transfers, card payments), `correctBalance`, buys and sales,
+loan payments and bill approvals call `requireOpen` (`data/repo/ClosedAccounts.kt`) inside their transaction with only the
+accounts the change newly touches, and refuse with "<name> is closed. Reopen it first to add to it." Existing entries and edits
+that keep their accounts, and deletes, are unaffected. A waiting investment transfer (`investment_transfers`) follows its entry:
+deleting the entry removes the row, editing it updates amount, date and account while it is still a transfer into an investment
+account, and otherwise removes it. Approving a bill (`BillRepository.approve`) saves the entry and marks the month handled in one
+transaction. Activity search escapes `%`, `_` and `\` (`SearchText`, `ESCAPE` in `Daos.kt`), so typed text is never a pattern.
+
 ## Database changes
 Schema 9 added `accounts.maturityDay` and `closedDay` (nullable epoch days); older backups read them as null. Schema 10
 added `loan_terms.countAllAsSpending` (NOT NULL DEFAULT 0, so the entity says `@ColumnInfo(defaultValue = "0")`) and
@@ -102,6 +125,13 @@ Bump `DATABASE_VERSION` and add a `Migration` to `ALL_MIGRATIONS`. Columns must 
 first and upgrades over it, so a bad migration fails the build instead of reaching the phone.
 
 ## Build and release
+- **Daily backups** (`data/jobs/DailyJobs.kt`) write `Kassa_yyyyMMdd_HHmmss.kassa` into the chosen folder, then keep the newest
+  30 of Kassa's own files there and delete older ones (`BackupNames`: a file must match the pattern exactly; anything else is never
+  touched). A failed write deletes the half-written document and leaves a plain status. After 3 failed days in a row
+  (`BackupStreak`) one private notification, "Backup needs attention" (no amounts), opens Settings > Backup and restore; it is
+  offered again the next failed day if notifications were off, and a working backup ends the streak. A one-time note says
+  "Backups in this folder aren't encrypted. Add a password when you save one anywhere you don't control." before the folder picker
+  and on the Backup page until dismissed. Restoring shows "Restoring..." until the result message replaces it.
 - `./gradlew :domain:test :importer:test :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
 - `app/src/androidTest` holds device tests: upgrades from every database version (`app/schemas`; 1 to 3 were rebuilt
   from 4.json by undoing each migration), entries with splits, and backup round trips. CI runs them on the emulator
@@ -120,13 +150,29 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   main thread and shows `ui/start/CantOpenScreen.kt` ("Kassa can't open its data": Try again, Restore from a backup, Start over;
   the last two ask first and erase the unreadable database and its key, then the first-run screen follows). `DatabaseKey.get`
   never makes a new key over an existing database (`KeyPolicy.decide`, JVM tests); it throws `KeyUnreadable` instead.
+- **While the database opens** (`AppRoot` count -1 or ledger null, and before `MainActivity` has the database) Kassa shows
+  `ui/start/StartingScreen.kt`: the app name on the ground colour and a small progress, with no balances, in light and dark.
 - **App lock** state survives recreation (saved instance state), so folding, rotating or a theme change never re-prompts; a
   cold start locks, and so does coming back after more than a minute (`hiddenAt` is saved too, for a killed process).
+  The switch in Settings only turns on when the phone has a screen lock (`ui/AppLock.check`: `BiometricManager` with weak
+  biometrics or device credential on API 30+, `KeyguardManager.isDeviceSecure` below); without one it says "Set a screen lock on
+  this phone first." If the lock stops being possible while it is on (`ERROR_NO_DEVICE_CREDENTIAL`, `ERROR_HW_NOT_PRESENT`,
+  or no screen lock at unlock time) Kassa turns the setting off and tells the person once (`Settings.lockTurnedOff`,
+  `takeLockNotice`). It never opens silently while the setting is on and the lock is working.
+- **Intents act once.** The reminder's `openAdd`, a due notification and the backup notification are read from the launching
+  intent only when `savedInstanceState` is null (otherwise they come back from saved state), so rotating never repeats them.
+- **The day is not cached.** `DayClock` (Application, one receiver for date, time and zone changes, plus `refresh()` from
+  `MainActivity.onStart`) holds today and the zone; the ledger's recent and repeats windows (`domain/QueryWindows`), the
+  Activity month (it follows the calendar while the current month is shown) and `EntryState` read it. Never keep `LocalDate.now()`
+  or `ZoneId.systemDefault()` in a long-lived object.
 - **FLAG_SECURE** is set on the window while App lock or Hide balances is on (reactive, all Android versions), so recents
   thumbnails and screenshots never show balances. Screenshots are blocked while it is set.
 - **Typed input survives recreation:** `EntryState` has a saver (`EntryState.saver`), the first-run account form and the pay-card
   and loan-payment sheets use `rememberSaveable` (`AccountFormSaver`, `LoanPaymentFormSaver`), and which sheet is open lives in
-  `NavViewModel` (`AppController` only forwards to it). Other sheets reopen empty after a fold. New forms should do the same.
+  `NavViewModel` (`AppController` only forwards to it). The trade, holding, person payment, add and edit person, balance
+  correction, add terms (`LoanFormSaver`) and loan details (`LoanDetailsFormSaver`) sheets do too, and the Import page's confirm
+  step; dates use `rememberSavedDate` (`ui/common/Saveable.kt`). Not saved on purpose: passwords. Not saved: the all-prices
+  sheet. New forms should do the same.
 - **Crash file** (`last-crash.txt`, attached to feedback if the user ticks it) holds exception class names and stack frames only,
   never message text (`CrashReport.describe`).
 
@@ -216,7 +262,7 @@ amount three times is suggested as a bill; ones that vary are added by the user.
 ## Wording
 Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the
 statement date, **Total balance** is both. A statement covers everything up to the day before its statement date; the
-statement date itself starts the next cycle. Card figures are never clamped: paying past zero shows a green credit. Accounts show Assets, Liabilities and Net worth; people are Receivable or
+statement date itself starts the next cycle. A due day is clamped to the month's length but always lands after the statement date (`CardCycle.dueFor`). Card figures are never clamped: paying past zero shows a green credit. Accounts show Assets, Liabilities and Net worth; people are Receivable or
 Payable.
 
 ## Entries

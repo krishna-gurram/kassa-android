@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -179,7 +180,7 @@ private fun KassaPassword(problem: String?, onOpen: (CharArray) -> Unit, onCance
 /** A Kassa backup, read: what's in it, then restore. Over existing data it asks first, like the Backup page. */
 @Composable
 private fun KassaReady(contents: BackupContents, firstRun: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
-    var confirm by remember { mutableStateOf(false) }
+    var confirm by rememberSaveable { mutableStateOf(false) }
     Text("Restore this backup?", style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
     BackupSummary(contents)

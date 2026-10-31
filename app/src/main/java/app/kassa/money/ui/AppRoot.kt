@@ -58,6 +58,7 @@ import app.kassa.money.ui.common.PanePlaceholder
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.importer.ImportScreen
 import app.kassa.money.ui.start.StartFresh
+import app.kassa.money.ui.start.StartingScreen
 import app.kassa.money.ui.accounts.PaymentSheet
 import app.kassa.money.ui.invest.AllocateSheet
 import app.kassa.money.ui.invest.TradeEditSheet
@@ -68,12 +69,13 @@ import app.kassa.money.ui.theme.Kassa
  * list when unfolded), messages and the sheets that float over everything.
  *
  * [entryCount] is -1 while the database opens. [openAdd] asks for a new entry (from the daily reminder); [openDue]
- * asks for a card, loan or bill (from a payment-due notification).
+ * asks for a card, loan or bill (from a payment-due notification); [openBackup] asks for Settings > Backup (from the
+ * "Backup needs attention" notification).
  */
 @Composable
 fun AppRoot(
     entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, openAdd: Boolean, onAddOpened: () -> Unit,
-    openDue: DueTarget?, onDueOpened: () -> Unit,
+    openDue: DueTarget?, onDueOpened: () -> Unit, openBackup: Boolean = false, onBackupOpened: () -> Unit = {},
 ) {
     val nav: NavViewModel = viewModel()
     val openTab = LocalSettings.current.openTab.value
@@ -90,6 +92,15 @@ fun AppRoot(
     val messages = remember(snackbar, scope) { Messages(snackbar, scope) }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
+    // If Kassa had to turn App lock off (the phone's screen lock is gone), say so once the app is showing.
+    val settings = LocalSettings.current
+    LaunchedEffect(Unit) { settings.takeLockNotice()?.let { snackbar.showSnackbar(it) } }
+    LaunchedEffect(openBackup, ledger != null) {
+        if (openBackup && ledger != null) {
+            app.openBackup()
+            onBackupOpened()
+        }
+    }
     LaunchedEffect(openDue, ledger != null) {
         if (openDue != null && ledger != null) {
             app.openDue(openDue)
@@ -129,7 +140,7 @@ fun AppRoot(
             val top = nav.top
 
             when {
-                entryCount < 0 || l == null -> Unit
+                entryCount < 0 || l == null -> StartingScreen()
                 entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                     if (settingUp) StartFresh(
                         onDone = { categories, account -> vm.startFresh(categories, account); fresh = true; onStartFresh() },

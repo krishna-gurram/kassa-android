@@ -20,6 +20,20 @@ class Settings(context: Context) {
     val lockEnabled: StateFlow<Boolean> = _lock
     fun setLock(on: Boolean) { prefs.edit().putBoolean(LOCK, on).apply(); _lock.value = on }
 
+    /**
+     * App lock was turned off by Kassa itself because the phone has no screen lock any more (the person removed it, or the
+     * hardware went away). Kept until it has been shown once, so the person is told and the lock never silently stays "on"
+     * while the app opens without it.
+     */
+    fun lockTurnedOff(reason: String) { prefs.edit().putBoolean(LOCK, false).putString(LOCK_NOTICE, reason).apply(); _lock.value = false }
+
+    /** The message from [lockTurnedOff], once; null when there is none. */
+    fun takeLockNotice(): String? {
+        val notice = prefs.getString(LOCK_NOTICE, null) ?: return null
+        prefs.edit().remove(LOCK_NOTICE).apply()
+        return notice
+    }
+
     private val _theme = MutableStateFlow(prefs.getString(THEME, "SYSTEM")!!)
     /** SYSTEM follows the phone; LIGHT or DARK fix it. */
     val theme: StateFlow<String> = _theme
@@ -103,6 +117,17 @@ class Settings(context: Context) {
     val lastBackup: StateFlow<Pair<Long, String?>> = _lastBackup
     fun backupDone(millis: Long) { prefs.edit().putLong(LAST_BACKUP, millis).remove(BACKUP_PROBLEM).apply(); _lastBackup.value = millis to null }
     fun backupFailed(problem: String) { prefs.edit().putString(BACKUP_PROBLEM, problem).apply(); _lastBackup.value = _lastBackup.value.first to problem }
+
+    /** How many days in a row the daily backup has failed, and whether the person was told (see [BackupStreak]). */
+    fun backupStreak() = app.kassa.money.data.jobs.BackupStreak(prefs.getInt(BACKUP_FAIL_DAYS, 0), prefs.getLong(BACKUP_FAIL_LAST, -1L), prefs.getBoolean(BACKUP_ALERTED, false))
+    fun setBackupStreak(s: app.kassa.money.data.jobs.BackupStreak) {
+        prefs.edit().putInt(BACKUP_FAIL_DAYS, s.failedDays).putLong(BACKUP_FAIL_LAST, s.lastFailedDay).putBoolean(BACKUP_ALERTED, s.alerted).apply()
+    }
+
+    private val _backupNoteSeen = MutableStateFlow(prefs.getBoolean(BACKUP_NOTE_SEEN, false))
+    /** The one-time note that backups in the folder aren't encrypted has been read and dismissed. */
+    val backupNoteSeen: StateFlow<Boolean> = _backupNoteSeen
+    fun dismissBackupNote() { prefs.edit().putBoolean(BACKUP_NOTE_SEEN, true).apply(); _backupNoteSeen.value = true }
 
     // The daily reminder: on or off and its time of day in minutes.
     private val _reminder = MutableStateFlow(prefs.getBoolean(REMINDER, false))
@@ -188,6 +213,11 @@ class Settings(context: Context) {
         const val REMINDER_MINUTE = "daily_reminder_minute"
         const val STARTED_FRESH = "started_fresh"
         const val LOCK = "app_lock"
+        const val LOCK_NOTICE = "app_lock_notice"
+        const val BACKUP_FAIL_DAYS = "backup_fail_days"
+        const val BACKUP_FAIL_LAST = "backup_fail_last"
+        const val BACKUP_ALERTED = "backup_alerted"
+        const val BACKUP_NOTE_SEEN = "backup_note_seen"
         const val THEME = "theme"
         const val CURRENCY = "currency"
         const val NOTIFY_ASKED = "notify_asked"

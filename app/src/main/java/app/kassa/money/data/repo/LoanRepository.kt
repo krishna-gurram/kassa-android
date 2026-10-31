@@ -280,6 +280,9 @@ class LoanRepository(
         // Take the payment being edited out first, so the balance and the next date are as they were before it.
         var next = terms.nextPaymentDay
         val old = d.id?.let { db.loanPayments().byId(it)?.toDomain() }
+        // A new payment can't land on a closed loan or be paid from a closed account. Editing one keeps the accounts it already has.
+        val before = old?.let { p -> setOfNotNull(p.accountId) + p.entryIds.mapNotNull { id -> db.transactions().byId(id)?.accountId } }.orEmpty()
+        db.requireOpen(*(setOf(d.accountId, from) - before).toTypedArray())
         if (old != null) {
             if (old.scheduled) next = LoanDates.addMonths(next, -1, terms.dueDay)
             old.entryIds.forEach { db.transactions().delete(it) }

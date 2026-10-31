@@ -40,6 +40,12 @@ val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings is
 /** A balance correction being made on [accountId], or [editing] an earlier one. */
 data class Correcting(val accountId: Long, val editing: Transaction? = null)
 
+/** What a tapped payment-due notification says when the card, loan or bill it was about no longer exists. */
+const val PAYMENT_GONE = "That payment is no longer there."
+
+/** The value of [NavViewModel.settingsRequest] that opens Settings > Backup and restore. */
+const val SETTINGS_BACKUP = "backup"
+
 /** Where a payment-due notification was tapped to go: a card, a loan or a bill by id. */
 data class DueTarget(val kind: DueKind, val id: Long)
 
@@ -79,18 +85,32 @@ class AppController(
 
     /**
      * A tapped payment-due notification: the card's page, the loan's page with its payment sheet open (when something
-     * is owed), or the bill. Opening pays and adds nothing.
+     * is owed), or the bill. Opening pays and adds nothing. When what it names is gone (the card or loan was deleted, the
+     * bill removed), the tab it belongs to opens and a message says so, rather than nothing happening.
      */
     fun openDue(target: DueTarget) {
         val l = vm.ledger.value ?: return
+        val account = l.accountById[target.id]
         when (target.kind) {
-            DueKind.CARD -> if (l.accountById[target.id] != null) openFromList(Page.CardDetail(target.id))
-            DueKind.LOAN -> if (l.accountById[target.id] != null) {
+            DueKind.CARD -> if (account != null && account.type.hasStatement) openFromList(Page.CardDetail(target.id)) else dueIsGone(Tab.ACCOUNTS)
+            DueKind.LOAN -> if (account != null) {
                 openFromList(Page.AccountDetail(target.id))
                 if (l.loans.terms[target.id] != null && (l.accounts.balances[target.id] ?: 0L) < 0) payingLoan = target.id
-            }
-            DueKind.BILL -> l.bills.firstOrNull { it.id == target.id }?.let { openFromList(Page.Bill(it)) }
+            } else dueIsGone(Tab.ACCOUNTS)
+            DueKind.BILL -> l.bills.firstOrNull { it.id == target.id }?.let { openFromList(Page.Bill(it)) } ?: dueIsGone(Tab.TODAY)
         }
+    }
+
+    /** What a tapped notification named is no longer there: show the tab it would have been on, and say so. */
+    private fun dueIsGone(tab: Tab) {
+        nav.select(tab)
+        vm.say(PAYMENT_GONE)
+    }
+
+    /** The Settings > Backup page, from the "Backup needs attention" notification. */
+    fun openBackup() {
+        nav.select(Tab.SETTINGS)
+        nav.settingsRequest = SETTINGS_BACKUP
     }
 
     /** From a list: beside it when unfolded, over it on the cover screen. */
@@ -195,7 +215,9 @@ class AppController(
         override suspend fun readBackup(uri: Uri, password: CharArray?): Result<BackupContents> = vm.readBackup(uri, password)
         override suspend fun backupNow(): String = withContext(Dispatchers.IO) { DailyJobs.backupNow(context) }
         override fun refreshDailyJobs() = DailyJobs.refresh(context)
-        override fun restore(contents: BackupContents) { vm.restore(contents) }
+        override suspend fun restore(contents: BackupContents): String = vm.restore(contents).await()
+        override val wantsBackupPage: Boolean get() = nav.settingsRequest == SETTINGS_BACKUP
+        override fun backupPageOpened() { if (nav.settingsRequest == SETTINGS_BACKUP) nav.settingsRequest = null }
         override fun loadDemo() { vm.loadDemo() }
         override fun openPins() = openFromList(Page.PinAccounts)
     }

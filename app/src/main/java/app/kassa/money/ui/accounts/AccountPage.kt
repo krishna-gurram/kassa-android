@@ -269,8 +269,8 @@ private fun InvestmentBody(
     val gain = value - putIn
     val newHolding = { Holding(accountId = account.id, ticker = "", microShares = 0, price = 0, priceMillis = 0) }
     var holdingOpen by remember { mutableStateOf<Holding?>(null) }
-    var pricing by remember { mutableStateOf(false) }
-    var trading by remember { mutableStateOf(false) }
+    var pricing by rememberSaveable { mutableStateOf(false) }
+    var trading by rememberSaveable { mutableStateOf(false) }
     val months = after.groupBy { (t, _) -> YearMonth.from(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone)) }.toList()
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
