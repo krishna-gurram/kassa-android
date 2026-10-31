@@ -10,6 +10,8 @@ sqlcipher = "4.6.1"
 sqlite = "2.4.0"
 coroutines = "1.9.0"
 coreKtx = "1.15.0"
+# Apache 2.0, part of the Android Jetpack libraries listed in the in-app notices.
+coreSplashscreen = "1.0.1"
 junit = "4.13.2"
 biometric = "1.1.0"
 # Biometric pulls in fragment 1.2.5, whose FragmentActivity rejects the request codes file pickers use. Keep this newer.
@@ -20,6 +22,7 @@ orgJson = "20240303"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }

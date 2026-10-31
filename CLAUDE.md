@@ -39,7 +39,9 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
   `Money.hideAmounts`, so every composable that formats money redraws at once. So don't split or measure formatted text,
   and give any color or sign that follows a figure (over budget, a loss, net worth below zero) through `figureColor`,
   `favourColor`, `balanceColor` or `cardTint`, which turn plain ink while hidden. The eye lives in `PageTop` and
-  `TabTop` (`amounts = false` only where a page shows none), so a new screen gets it free.
+  `TabTop` (`amounts = false` only where a page shows none), so a new screen gets it free. While hidden, wording must not give
+  the size or state away either: no "Paid in full", "extra", "over budget", "N% ahead" or arrows and plus signs next to a masked
+  figure, and no zero shown as blank where others show the mask.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 
 ## Built for public release
@@ -48,7 +50,13 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   Defaults must make sense for someone starting fresh.
 - Locale-aware: dates, weekdays and numbers come from the phone's locale (never a hardcoded `Locale.US`);
   currencies cover what real users need. New UI copy should be easy to move into `strings.xml` later.
-- Accessible: content descriptions on icon buttons, layouts that survive large font sizes, 48dp touch targets.
+- Accessible: content descriptions on icon buttons and glyph buttons (a "‹", "⋯" or "⌫" text glyph gets
+  `clearAndSetSemantics { contentDescription = ... }` or is an `IconButton` with an `Icon`), and **every tap target at least
+  48dp** (`IconButton`, `heightIn(min = 48.dp)`, or a 48dp cell with the smaller visual drawn inside it, as in the calendar days,
+  the bill day grid and the color swatches). Layouts survive 200% fonts: no fixed height on anything that holds text (use
+  `heightIn(min = ...)` and let it wrap or ellipsize); a chart whose labels grow with the text uses `scaledDp`; big numerals and
+  the pad keys use `scaledSp` (follows the font setting up to 130% because their box can't grow); fixed widths are `widthIn(min = ...)`.
+  Overview may scroll at large fonts, which is fine; it still fits without scrolling at the default size.
 - Works on ordinary phones and tablets, not only the Fold; light and dark.
 - Privacy is the product: still no network, no analytics, no crash upload. Crash reports stay on the phone
   and the user chooses to share them.
@@ -100,7 +108,8 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   after the smoke test. The debug build is `app.kassa.money.debug`, so it installs beside the real app.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
   certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
-  as a GitHub release. Only the newest commit on `main` is published.
+  as a GitHub release. The app's `versionName` is `1.0.<build number>` and `versionCode` is `100 + build number` (the release tag
+  stays `v0.2.<count>` until the workflow changes; the tag is not the version people see). Only the newest commit on `main` is published.
 - Pushes from the Claude GitHub App sometimes don't trigger a run; start one with a `workflow_dispatch`.
 - Build logs aren't readable through the API from Claude sessions, so failures upload logs to a draft release
   `diag-<run>`, and emulator screenshots/logcat go to `ci-<run>`.
@@ -120,6 +129,11 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   `NavViewModel` (`AppController` only forwards to it). Other sheets reopen empty after a fold. New forms should do the same.
 - **Crash file** (`last-crash.txt`, attached to feedback if the user ticks it) holds exception class names and stack frames only,
   never message text (`CrashReport.describe`).
+
+## Starting screen
+`Theme.Kassa.Starting` (parent `Theme.SplashScreen` from `androidx.core:core-splashscreen`, Apache 2.0, covered by the "Android
+Jetpack libraries" notice) shows the icon on a disc over the ground color, light and dark (`drawable/ic_splash.xml`,
+`splash_disc`), and `MainActivity` calls `installSplashScreen()` before `super.onCreate` to switch to `Theme.Kassa`.
 
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
@@ -169,7 +183,11 @@ order, then row order; People last). It rides in the `.kassa` backup beside the 
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before
 writing a new control, find the existing one; if it doesn't fit, change it rather than adding a second version.
 - Dates: `MonthCalendar` (the entry page's date panel) and `DateRow` (Today, Yesterday, Other day; opens the same
-  calendar). Never Material's `DatePicker`.
+  calendar). Never Material's `DatePicker`. **Writing a date for people goes through `ui/common/Dates.kt`** (`shortDate`,
+  `shortDateYear`, `weekdayDate`, `weekdayDateLong`, `monthYear`, `monthYearShort`, `monthShort`), which asks the phone for its
+  own best pattern ("14 Nov" in the UK, India and the Gulf, "Nov 14" in the US). Never `DateTimeFormatter.ofPattern("MMM d")`,
+  a hardcoded `Locale`, or a month name glued to a year; whole dates use `ofLocalizedDate`. No ordinals ("5th") or other
+  English-only grammar in new copy.
 - Amounts `AmountField`, names `NameField`, short numbers `DigitsField` (`ui/common/Fields.kt`); the entry and bill
   pages use `NumberPad`.
 - Categories: one picker everywhere (`ui/common/CategoryPicker.kt`). `CategoryPickerPanel` (search, icon grid) and
