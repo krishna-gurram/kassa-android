@@ -117,7 +117,7 @@ fun PersonPage(
         PageTop(p.name + if (p.archived) " (archived)" else "", onBack) {
             TextButton(onClick = { editing = true }) { Text("Edit", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
         }
-        RaisedPanel {
+        RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             Text(
                 when { balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
                 style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,

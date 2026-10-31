@@ -85,10 +85,10 @@ fun HideBalancesButton() {
     }
 }
 
-/** The one raised surface on a screen, for its summary. */
+/** The one summary block on a screen: a tonal hero (see [TonalHero]); grey unless the caller gives it a tone. */
 @Composable
-fun RaisedPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Kassa.colors.raised).padding(18.dp), content = content)
+fun RaisedPanel(modifier: Modifier = Modifier, tone: HeroTone = HeroTone.GREY, content: @Composable ColumnScope.() -> Unit) {
+    TonalHero(tone, modifier, content)
 }
 
 enum class Tone { NEUTRAL, ATTENTION, POSITIVE }

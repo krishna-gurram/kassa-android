@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -101,9 +102,9 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
         val grow: ColumnScope.() -> Modifier = { if (fit) Modifier.weight(1f) else Modifier }
         val head: @Composable () -> Unit = {
             // The toggle shares the title row when there's room; on a narrow screen it sits under it, so the title stays whole.
-            val toggle: @Composable () -> Unit = { Toggle(listOf(false to monthName, true to "This week"), week) { week = it } }
-            app.kassa.money.ui.common.TabTop("Insights", Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle() }
-            if (!wide) Box(Modifier.padding(bottom = 12.dp)) { toggle() }
+            val toggle: @Composable (Modifier) -> Unit = { m -> Toggle(listOf(false to monthName, true to "This week"), week, m) { week = it } }
+            app.kassa.money.ui.common.TabTop("Insights", Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle(Modifier.widthIn(min = 240.dp)) }
+            if (!wide) Box(Modifier.padding(bottom = 12.dp)) { toggle(Modifier.fillMaxWidth()) }
         }
         if (wide) {
             Column(Modifier.fillMaxSize().padding(contentPadding)) {
@@ -317,9 +318,9 @@ private fun LargestBuys(ledger: Ledger, actions: InsightActions, limit: Int?, mo
 
 @Composable
 private fun Hero(label: String, amount: Long, extra: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Kassa.colors.raised).padding(14.dp)) {
-        Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
-        BigMoney(amount, sizeSp = 34f)
+    app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
+        app.kassa.money.ui.common.HeroLabel(label)
+        BigMoney(amount, sizeSp = 40f)
         extra()
     }
 }
@@ -327,20 +328,15 @@ private fun Hero(label: String, amount: Long, extra: @Composable ColumnScope.() 
 @Composable
 private fun Compare(label: String, amount: Long) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = KassaType.small, color = Kassa.colors.ink2)
+        Text(label, style = KassaType.small, color = app.kassa.money.ui.common.heroInk())
         Text("  " + Money.format(amount, wholeDollars = true), style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink)
     }
 }
 
+/** A section title with an optional link on the right: the shared section header, so Insights reads like every other list. */
 @Composable
 internal fun Head(title: String, link: String? = null, onLink: () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 34.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-        if (link != null) Box(
-            Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onLink).padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text("$link  ›", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2) }
-    }
+    app.kassa.money.ui.common.SectionHeader(title, link, onClick = if (link != null) onLink else null)
 }
 
 @Composable
@@ -384,15 +380,19 @@ internal fun Figure(label: String, value: String, sub: String?, subColor: Color,
     }
 }
 
+/** A two-way segmented control: an ink pill on a tinted track, each segment at least 44dp tall. */
 @Composable
-private fun Toggle(options: List<Pair<Boolean, String>>, value: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
+private fun Toggle(options: List<Pair<Boolean, String>>, value: Boolean, modifier: Modifier, onChange: (Boolean) -> Unit) {
+    Row(modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
         options.forEach { (v, label) ->
             val on = v == value
-            Text(
-                label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent).clickable { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+            Box(
+                Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
+                    .clickable(role = Role.Tab) { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.onInk else Kassa.colors.ink2, maxLines = 1, softWrap = false)
+            }
         }
     }
 }

@@ -161,7 +161,7 @@ fun CardPage(
         PageTop(a.name + (a.last4?.let { "  ··$it" } ?: ""), onBack) {
             androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
-        RaisedPanel {
+        RaisedPanel(tone = if (s.payable > 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             val dueTone = dueTone(c, ledger.today)
             val days = s.daysUntilDue(ledger.today)
             Row(verticalAlignment = Alignment.Top) {
@@ -244,7 +244,7 @@ fun CardPage(
 /** A quieter box inside the raised panel. */
 @Composable
 private fun Box2(modifier: Modifier, content: @Composable () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp)) { content() }
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised.copy(alpha = 0.55f)).padding(12.dp)) { content() }
 }
 
 private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
