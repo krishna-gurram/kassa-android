@@ -101,6 +101,7 @@ fun BillPage(
     val leave: () -> Unit = { if (dirty) confirmDiscard = true else onBack() }
     BackHandler(enabled = dirty) { confirmDiscard = true }
 
+    var categoryQuery by remember { mutableStateOf("") }
     val focus = LocalFocusManager.current
     val nameFocus = remember { FocusRequester() }
     LaunchedEffect(field) { categoryQuery = ""; if (field == BillField.NAME) runCatching { nameFocus.requestFocus() } else focus.clearFocus() }
@@ -108,7 +109,6 @@ fun BillPage(
     val cents = Money.parseCents(amount) ?: 0L
     val cat = categoryId?.let { ledger.categoryById[it] }
     val topCat = cat?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-    var categoryQuery by remember { mutableStateOf("") }
     val accountChoices = remember(ledger.recent.size, ledger.accounts.accounts.size) { openAccounts(ledger) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val estimate = if (cents > 0 || name.isBlank() || categoryId == null) null else RecurringRules.estimate(
