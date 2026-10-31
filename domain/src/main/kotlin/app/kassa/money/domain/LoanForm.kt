@@ -18,6 +18,19 @@ enum class IslamicContract(val label: String, val type: InterestType) {
     IJARA("Ijara (rent on balance)", InterestType.REDUCING),
 }
 
+/**
+ * What the typed payment amount means. [PRINCIPAL_AND_INTEREST] is the loan's own payment with escrow on top;
+ * [INCLUDES_ESCROW] is the total the person pays each month, so the loan's payment is that total less the escrow.
+ * Nothing is chosen for the person: the first is the default.
+ */
+enum class PaymentBasis(val label: String) {
+    PRINCIPAL_AND_INTEREST("Principal and interest"),
+    INCLUDES_ESCROW("Total including escrow"),
+}
+
+/** A typed total split the way it is stored: the loan's payment and the escrow on top of it. */
+data class PaymentSplit(val principalAndInterest: Long, val escrow: Long)
+
 /** The fields of the loan form that can have a problem. */
 enum class LoanField { NAME, AMOUNT, RATE, TERM, BALANCE, PAYMENT, PAYMENTS_LEFT, ORIGINAL, DUE_DAY, ESCROW, FEE, EARLY_CHARGE }
 
@@ -74,6 +87,8 @@ data class LoanForm(
     val countAllAsSpending: Boolean = false,
     /** Where the principal counts when [countAllAsSpending]; null means the same category as the interest. */
     val principalCategoryId: Long? = null,
+    /** What [payment] means; only matters while an escrow amount is typed. */
+    val paymentBasis: PaymentBasis = PaymentBasis.PRINCIPAL_AND_INTEREST,
 ) {
     val type: InterestType
         get() = when (kind) {
@@ -96,6 +111,22 @@ data class LoanForm(
     private val left: Int? get() = paymentsLeft.toIntOrNull()
     private fun optional(text: String): Long? = if (text.isBlank()) 0L else Money.parseCents(text)
     private fun optionalRate(text: String): Long? = if (text.isBlank()) 0L else InputRules.parseRate(text)
+
+    private val escrowCents: Long get() = optional(escrow)?.takeIf { it > 0 } ?: 0L
+
+    /** The payment is a total with escrow in it. With no escrow typed the choice has no effect. */
+    private val includesEscrow: Boolean get() = paymentBasis == PaymentBasis.INCLUDES_ESCROW && escrowCents > 0
+
+    /** The loan's own payment (principal and interest) from what was typed: the total less escrow when it includes it. */
+    private val typedPayment: Long? get() = Money.parseCents(payment)?.let { if (includesEscrow) it - escrowCents else it }
+
+    /** The typed total split into principal and interest and escrow, or null unless the payment includes escrow and is valid. */
+    fun paymentSplit(): PaymentSplit? {
+        if (!includesEscrow) return null
+        val total = Money.parseCents(payment) ?: return null
+        if (InputRules.amountProblem(total) != null || total <= escrowCents) return null
+        return PaymentSplit(total - escrowCents, escrowCents)
+    }
 
     /** The amount owed once the loan is added: what was borrowed, or today's balance. Null until it is valid. */
     val owed: Long? get() = if (stage == LoanStage.NEW) newAmount else balanceValue
@@ -125,6 +156,10 @@ data class LoanForm(
                 InputRules.monthsProblem(left, "the payments left")?.let { put(LoanField.PAYMENTS_LEFT, it) }
             }
         }
+        if (LoanField.PAYMENT !in this && includesEscrow) {
+            val total = Money.parseCents(payment)
+            if (total != null && total <= escrowCents) put(LoanField.PAYMENT, "The total payment has to be more than the escrow.")
+        }
         sharedRate?.let { put(LoanField.RATE, it) }
         if (dueDay.isNotBlank()) InputRules.dayProblem(dueDay.toIntOrNull(), "due day")?.let { put(LoanField.DUE_DAY, it) }
         InputRules.amountProblem(optional(escrow), zeroAllowed = true)?.let { put(LoanField.ESCROW, it) }
@@ -139,7 +174,7 @@ data class LoanForm(
     /** The original amount of a flat loan under way, worked out from what is left when it wasn't typed. */
     private fun derivedFlatBase(): Long? {
         val b = balanceValue ?: return null
-        val p = Money.parseCents(payment) ?: return null
+        val p = typedPayment ?: return null
         val n = left ?: return null
         val r = rateValue ?: return null
         return LoanEngine.flatBaseFrom(b, p, r, n)
@@ -162,12 +197,12 @@ data class LoanForm(
             val amount = checkNotNull(newAmount)
             val n = checkNotNull(months)
             return shared.copy(
-                payment = Money.parseCents(payment) ?: LoanEngine.suggestedPayment(type, amount, rate, n),
+                payment = typedPayment ?: LoanEngine.suggestedPayment(type, amount, rate, n),
                 termMonths = n, originalAmount = amount, nextPaymentDay = firstDay,
             )
         }
         val owed = checkNotNull(balanceValue)
-        val typed = Money.parseCents(payment)
+        val typed = typedPayment
         val originalAmount = Money.parseCents(original)?.takeIf { original.isNotBlank() }
             ?: if (type == InterestType.FLAT) derivedFlatBase() else null
         return shared.copy(
@@ -182,8 +217,8 @@ data class LoanForm(
      */
     fun preview(): LoanPreview? {
         val problems = problems()
-        val needed = if (stage == LoanStage.NEW) listOf(LoanField.AMOUNT, LoanField.RATE, LoanField.TERM, LoanField.PAYMENT)
-        else listOf(LoanField.BALANCE, LoanField.RATE, LoanField.PAYMENT, LoanField.PAYMENTS_LEFT, LoanField.ORIGINAL)
+        val needed = if (stage == LoanStage.NEW) listOf(LoanField.AMOUNT, LoanField.RATE, LoanField.TERM, LoanField.PAYMENT, LoanField.ESCROW)
+        else listOf(LoanField.BALANCE, LoanField.RATE, LoanField.PAYMENT, LoanField.PAYMENTS_LEFT, LoanField.ORIGINAL, LoanField.ESCROW)
         if (needed.any { it in problems }) return null
         val terms = toTerms(0)
         val owed = checkNotNull(owed)
