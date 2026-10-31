@@ -86,7 +86,7 @@ private fun openSince(history: List<PersonHistoryLine>): Long? {
 }
 
 /**
- * One person, Splitwise style: what's owed and since when, then two things you can do. Record a payment covers money
+ * One person, ledger style: what's owed and since when, then two things you can do. Record a payment covers money
  * either way (they paid you, you paid or lent them). Split a transaction takes an expense you already added and
  * opens it on the entry page with this person in its split.
  */

@@ -87,7 +87,7 @@ private sealed interface SettingsPage {
     data class EditCategory(val category: Category, val back: SettingsPage) : SettingsPage {
         override val title get() = if (category.id == 0L) "New category" else "Edit category"
     }
-    data object Splitwise : SettingsPage { override val title = "Splitwise accounts"; override val amounts = true }
+    data object PersonAccounts : SettingsPage { override val title = "Account to person"; override val amounts = true }
     data object Bills : SettingsPage { override val title = "Recurring bills"; override val amounts = true }
     data object Notifications : SettingsPage { override val title = "Notifications" }
     data object Backup : SettingsPage { override val title = "Backup and restore" }
@@ -134,7 +134,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
                     onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
                 )
             }
-            SettingsPage.Splitwise -> SplitwiseCleanup(ledger, actions)
+            SettingsPage.PersonAccounts -> AccountsToPeople(ledger, actions)
             SettingsPage.Bills -> BillsPage(ledger, actions)
             SettingsPage.Notifications -> NotificationSettingsPage(actions)
             SettingsPage.Backup -> BackupPage(actions)
@@ -195,8 +195,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
         else -> "Not set up"
     }) { open(SettingsPage.Backup) }
     NavRow("Import from another app", "Kassa, Money Manager (.mmbak) and Cashew (.sql) backups") { actions.importAgain() }
-    val splitwise = splitwiseAccounts(ledger)
-    if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(SettingsPage.Splitwise) }
+    if (convertibleAccounts(ledger).isNotEmpty()) NavRow("Account to person", "Turn an account that stands in for someone into a person") { open(SettingsPage.PersonAccounts) }
 
     SectionHeader("About")
     NavRow("Send feedback", "") { open(SettingsPage.Feedback) }

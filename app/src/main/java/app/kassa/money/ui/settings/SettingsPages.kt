@@ -2,7 +2,9 @@ package app.kassa.money.ui.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -17,16 +19,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
+import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.CurrencyStyle
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.Names
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.common.ConfirmDialog
@@ -89,42 +94,57 @@ internal fun CurrencyPage(ledger: Ledger) {
     Gap(24)
 }
 
-internal fun splitwiseAccounts(ledger: Ledger): List<Account> =
-    ledger.accounts.accounts.filter { it.isActive && it.name.contains("splitwise", ignoreCase = true) }
+/**
+ * The accounts that can be turned into a person: open accounts that are plain balances. Cards, loans and investments
+ * have their own pages, holdings and terms, so they stay out. Nothing is guessed from a name; the user picks.
+ */
+internal fun convertibleAccounts(ledger: Ledger): List<Account> =
+    ledger.accounts.accounts.filter {
+        it.isActive && it.type !in setOf(AccountType.CREDIT_CARD, AccountType.LOAN, AccountType.INVESTMENT)
+    }.sortedWith(Names.order { it.name })
 
 /**
- * Money Manager had no idea of people, so Splitwise balances lived in pretend accounts. Each one becomes a
- * person carrying the same balance; the account is archived with its history, so past months stay as they were.
+ * For an account that stands in for money between you and someone (an app that had no idea of people kept their
+ * balances in pretend accounts). The user picks it; it becomes a person carrying the same balance, and the account is
+ * archived with its history, so past months stay as they were.
  */
 @Composable
-internal fun SplitwiseCleanup(ledger: Ledger, actions: SettingsActions) {
+internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
     Text(
-        "Each account becomes a person with the same balance. A positive balance means they owe you. The account is archived and keeps its history, so past months don't change.",
+        "Pick an account that stands in for a person. It becomes a person with the same balance. A positive balance means they owe you. The account is archived and keeps its history, so past months don't change.",
         style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp),
     )
-    val accounts = splitwiseAccounts(ledger)
+    val accounts = convertibleAccounts(ledger)
+    var pickedId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var typed by rememberSaveable { mutableStateOf("") }
     var converting by remember { mutableStateOf<Pair<Account, String>?>(null) }
-    if (accounts.isEmpty()) Text("Nothing left to clean up.", style = KassaType.body, color = Kassa.colors.ink2)
+    if (accounts.isEmpty()) Text("There are no accounts to convert.", style = KassaType.body, color = Kassa.colors.ink2)
     accounts.forEach { a ->
         val balance = ledger.accounts.balances[a.id] ?: 0
-        var name by remember(a.id) { mutableStateOf("Splitwise friends") }
-        val problem = InputRules.nameProblem(name, "person", taken = { n -> ledger.people.people.any { it.name.equals(n, ignoreCase = true) } })
-        Column(Modifier.padding(vertical = 10.dp)) {
-            EntryRow(
-                badge = { GlyphBadge(a.name.take(1)) },
-                title = a.name,
-                subtitle = when { balance > 0 -> "Receivable, they owe you"; balance < 0 -> "Payable, you owe them"; else -> "Settled" },
-                amount = Money.format(Math.abs(balance)), showDivider = false,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    name, { name = InputRules.typed(it, InputRules.NAME_MAX) }, singleLine = true, label = { Text("Person name") },
-                    isError = problem != null, supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
-                    modifier = Modifier.weight(1f),
+        val open = pickedId == a.id
+        Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { pickedId = if (open) null else a.id; typed = a.name.take(InputRules.NAME_MAX) }) {
+                EntryRow(
+                    badge = { GlyphBadge(a.name.take(1)) },
+                    title = a.name,
+                    subtitle = when { balance > 0 -> "Receivable, they would owe you"; balance < 0 -> "Payable, you would owe them"; else -> "Settled" },
+                    amount = Money.format(Math.abs(balance)), showDivider = false,
                 )
-                TextButton(onClick = { if (problem == null) converting = a to InputRules.clean(name) }) { Text("Convert", color = Kassa.colors.ink) }
             }
-            HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 10.dp))
+            if (open) {
+                val problem = InputRules.nameProblem(typed, "person", taken = { n -> ledger.people.people.any { it.name.equals(n, ignoreCase = true) } })
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        typed, { typed = InputRules.typed(it, InputRules.NAME_MAX) }, singleLine = true, label = { Text("Person name") },
+                        isError = problem != null, supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { if (problem == null) converting = a to InputRules.clean(typed) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text("Convert", color = Kassa.colors.ink)
+                    }
+                }
+            }
+            HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(top = 6.dp))
         }
     }
     converting?.let { (a, name) ->
@@ -133,7 +153,7 @@ internal fun SplitwiseCleanup(ledger: Ledger, actions: SettingsActions) {
             title = "Turn ${a.name} into $name?",
             body = "$name starts with a balance of ${Money.format(Math.abs(balance))} ${if (balance >= 0) "receivable" else "payable"}. ${a.name} is archived with its history.",
             confirm = "Convert", destructive = false,
-            onConfirm = { actions.convertToPerson(a, balance, name); converting = null }, onDismiss = { converting = null },
+            onConfirm = { actions.convertToPerson(a, balance, name); converting = null; pickedId = null }, onDismiss = { converting = null },
         )
     }
     Gap(24)

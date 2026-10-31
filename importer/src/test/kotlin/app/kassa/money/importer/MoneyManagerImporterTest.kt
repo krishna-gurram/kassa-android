@@ -26,7 +26,7 @@ class MoneyManagerImporterTest {
             MmAsset("a-chk", "Chase checking", "g-acc", 1, null, null, "1000"),
             MmAsset("a-amex", "Amex Platinum", "g-card", 2, 2, 27, "0", payFromUid = "a-chk"),
             MmAsset("a-amex2", "amex plat", "g-card", 3, 1, 1, "0"),
-            MmAsset("a-sw", "Splitwise debt", "g-card", 4, null, null, "0"),
+            MmAsset("a-sw", "Friends debt", "g-card", 4, null, null, "0"),
             MmAsset("a-rh", "Robinhood", "g-inv", 5, 1, 1, "0"),
             MmAsset("a-cash", "Cash", "g-cash", 0, null, null, "40.5"),
         )
@@ -34,7 +34,7 @@ class MoneyManagerImporterTest {
             MmCategory("c-gro", "🛒Groceries ", 1, null, false, 1),
             MmCategory("c-gro-costco", "🛒Costco", 1, "c-gro", false, 1),
             MmCategory("c-home", "🏡 Home Standard Expenses", 1, null, false, 2),
-            MmCategory("c-sw", "Short term loan/Splitwise", 1, null, false, 3),
+            MmCategory("c-sw", "Short term loan/Friends", 1, null, false, 3),
             MmCategory("c-old", "Old stuff", 1, null, true, 4),
             MmCategory("c-pay", "Paycheck", 0, null, false, 0),
         )
@@ -98,12 +98,11 @@ class MoneyManagerImporterTest {
     }
 
     @Test
-    fun reviewFlagsDuplicatesSplitwiseAndZeroAmounts() {
+    fun reviewFlagsDuplicatesAndZeroAmounts() {
         val dupes = plan.issues.filterIsInstance<ImportIssue.PossibleDuplicateAccounts>()
         assertEquals(listOf(listOf("Amex Platinum", "amex plat")), dupes.map { it.names })
-        val sw = plan.issues.filterIsInstance<ImportIssue.SplitwiseRows>().single()
-        assertEquals(listOf("Splitwise debt"), sw.accountNames)
-        assertEquals(1, sw.entries)
+        // Nothing is recognised by name: an account that stands in for a person is converted by the user, in Settings.
+        assertEquals(listOf("Friends debt"), plan.accounts.map { it.name }.filter { it.startsWith("Friends") })
         assertEquals(1, plan.issues.filterIsInstance<ImportIssue.ZeroAmountEntries>().single().count)
     }
 

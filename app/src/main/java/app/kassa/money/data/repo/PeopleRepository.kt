@@ -63,8 +63,8 @@ class PeopleRepository(private val db: KassaDatabase) {
     }
 
     /**
-     * Turns an account that stood in for money between you and someone (a Splitwise account, say) into a person
-     * carrying the same balance. The account is archived with its history, so past months don't change.
+     * Turns an account that stood in for money between you and someone (an account the user picks in Settings) into a
+     * person carrying the same balance. The account is archived with its history, so past months don't change.
      */
     suspend fun fromAccount(account: Account, balance: Long, personName: String): Long = db.withTransaction {
         val id = add(personName, opening = 0)
