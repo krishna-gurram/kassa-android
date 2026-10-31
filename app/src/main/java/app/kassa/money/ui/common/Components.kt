@@ -61,8 +61,8 @@ fun GlyphBadge(text: String, size: Int = 40) {
  * [onClick] the whole line is a 48dp target and the note carries a chevron ("Next 30 days ›").
  */
 @Composable
-fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().padding(top = 20.dp)) {
+fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, top: androidx.compose.ui.unit.Dp = 20.dp) {
+    Column(modifier.fillMaxWidth().padding(top = top)) {
         Row(
             Modifier.fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick) else Modifier)

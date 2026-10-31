@@ -106,7 +106,15 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
             app.kassa.money.ui.common.TabTop("Insights", Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle(Modifier.widthIn(min = 240.dp)) }
             if (!wide) Box(Modifier.padding(bottom = 12.dp)) { toggle(Modifier.fillMaxWidth()) }
         }
-        if (wide) {
+        if (wide && !week) {
+            // Unfolded month: a compact hero strip, the six Patterns in one row, then By category in two columns.
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding)) {
+                head()
+                MonthHero(ledger, strip = true)
+                PatternTiles(ledger, actions, oneRow = true)
+                BudgetColumns(ledger, actions)
+            }
+        } else if (wide) {
             Column(Modifier.fillMaxSize().padding(contentPadding)) {
                 head()
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -141,15 +149,45 @@ private fun FittedLines(lines: List<app.kassa.money.ui.common.CatLine>, limit: I
 internal fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
 
 @Composable
-private fun MonthHero(ledger: Ledger) {
+private fun MonthHero(ledger: Ledger, strip: Boolean = false) {
     val p = ledger.period
     val spent = Patterns.spent(ledger.counted, p.start, ledger.today, ledger.zone)
     val prev = Period.startingIn(p.yearMonth.minusMonths(1), ledger.monthStartDay)
     val (from, to) = Patterns.samePointBefore(p.start, ledger.today, prev.start)
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
-    Hero("Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}", spent) {
+    val label = "Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}"
+    if (strip) {
+        // Unfolded: the total on the left and the comparison on the right, at the strip's natural height.
+        app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREY) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    app.kassa.money.ui.common.HeroLabel(label)
+                    BigMoney(spent, sizeSp = 40f)
+                }
+                if (hasBefore) Compare("Up to ${shortDate(to)}", before)
+            }
+        }
+        return
+    }
+    Hero(label, spent) {
         if (hasBefore) Compare("Up to ${shortDate(to)}", before)
+    }
+}
+
+/** Unfolded By category: the lines split into two columns, left first, with the same "All N" link. */
+@Composable
+private fun BudgetColumns(ledger: Ledger, actions: InsightActions) {
+    val lines = monthLines(ledger)
+    val spent = lines.filter { it.spent > 0 }.take(8)
+    val half = (spent.size + 1) / 2
+    Column {
+        Head("By category", "All ${lines.size}") { actions.openSpending(true) }
+        if (spent.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
+        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            Column(Modifier.weight(1f)) { CategoryLines(spent.take(half), actions::openCategory) }
+            Column(Modifier.weight(1f)) { CategoryLines(spent.drop(half), actions::openCategory) }
+        }
     }
 }
 
@@ -165,7 +203,7 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int?, mod
 }
 
 @Composable
-private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
+private fun PatternTiles(ledger: Ledger, actions: InsightActions, oneRow: Boolean = false) {
     val p = ledger.period
     val monthBiggest = remember(ledger) { bigPurchases(ledger, week = false) }
     val stores = remember(ledger) { Patterns.stores(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone) }
@@ -177,38 +215,58 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
     val busiest = weekdays.maxByOrNull { it.second }
     val changed = repeating.count { it.change != 0L }
 
+    val visual = if (oneRow) 44.dp else 22.dp
+    val tiles = listOf<@Composable (Modifier) -> Unit>(
+        { m ->
+            PatternTile("Big purchases", monthBiggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
+                if (monthBiggest.isEmpty()) "" else "Top ${monthBiggest.size}",
+                modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.BIG_MONTH) }) {
+                MiniBars(monthBiggest.map { it.categoryAmount }, 0, Kassa.colors.ink)
+            }
+        },
+        { m ->
+            PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
+                modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.STORES) }) {
+                MiniBars(stores.take(5).map { it.total }, 0, stores.firstOrNull()?.category?.let { Color(it.color) } ?: Kassa.colors.ink)
+            }
+        },
+        { m ->
+            PatternTile("Small purchases", Money.format(small.total, wholeDollars = true), "${small.count} buys",
+                modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.SMALL) }) {
+                MiniBars(smallMonths.map { it.second }, smallMonths.lastIndex, Kassa.colors.ink)
+            }
+        },
+        { m ->
+            val top = creep.firstOrNull()
+            PatternTile("Creeping up", top?.category?.name ?: "None", top?.let { "${it.months.size} months" } ?: "Steady",
+                modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.CREEP) }) {
+                MiniBars(top?.months?.map { it.second } ?: listOf(1L, 1L, 1L), (top?.months?.size ?: 3) - 1, if (top != null) Kassa.colors.attention else Kassa.colors.track)
+            }
+        },
+        { m ->
+            PatternTile("Repeating", Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
+                subColor = if (changed > 0) Kassa.colors.attention else null, modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.REPEATING) }) {
+                RepeatLines(repeating.take(4).map { r -> Spending.topOf(r.categoryId, ledger.categoryById)?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
+            }
+        },
+        { m ->
+            PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
+                modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.WEEKDAYS) }) {
+                MiniBars(weekdays.map { it.second }, busiest?.let { weekdays.indexOf(it) } ?: -1, Kassa.colors.ink)
+            }
+        },
+    )
+
     Column {
         Head("Patterns")
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (oneRow) {
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val biggest = monthBiggest
-                PatternTile("Big purchases", biggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
-                    if (biggest.isEmpty()) "" else "Top ${biggest.size}",
-                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.BIG_MONTH) }) {
-                    MiniBars(biggest.map { it.categoryAmount }, 0, Kassa.colors.ink)
-                }
-                PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
-                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.STORES) }) {
-                    MiniBars(stores.take(5).map { it.total }, 0, stores.firstOrNull()?.category?.let { Color(it.color) } ?: Kassa.colors.ink)
-                }
-                PatternTile("Small purchases", Money.format(small.total, wholeDollars = true), "${small.count} buys",
-                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.SMALL) }) {
-                    MiniBars(smallMonths.map { it.second }, smallMonths.lastIndex, Kassa.colors.ink)
-                }
+                tiles.forEach { t -> t(Modifier.weight(1f)) }
             }
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val top = creep.firstOrNull()
-                PatternTile("Creeping up", top?.category?.name ?: "None", top?.let { "${it.months.size} months" } ?: "Steady",
-                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.CREEP) }) {
-                    MiniBars(top?.months?.map { it.second } ?: listOf(1L, 1L, 1L), (top?.months?.size ?: 3) - 1, if (top != null) Kassa.colors.attention else Kassa.colors.track)
-                }
-                PatternTile("Repeating", Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
-                    subColor = if (changed > 0) Kassa.colors.attention else null, modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.REPEATING) }) {
-                    RepeatLines(repeating.take(4).map { r -> Spending.topOf(r.categoryId, ledger.categoryById)?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
-                }
-                PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
-                    modifier = Modifier.weight(1f), onClick = { actions.open(InsightPage.WEEKDAYS) }) {
-                    MiniBars(weekdays.map { it.second }, busiest?.let { weekdays.indexOf(it) } ?: -1, Kassa.colors.ink)
+        } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            tiles.chunked(3).forEach { row ->
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { t -> t(Modifier.weight(1f)) }
                 }
             }
         }
@@ -342,10 +400,10 @@ internal fun Head(title: String, link: String? = null, onLink: () -> Unit = {}) 
 @Composable
 private fun PatternTile(
     label: String, value: String, sub: String, modifier: Modifier, onClick: () -> Unit,
-    valueColor: Color = Kassa.colors.ink, subColor: Color? = null, visual: @Composable () -> Unit,
+    valueColor: Color = Kassa.colors.ink, subColor: Color? = null, visualHeight: androidx.compose.ui.unit.Dp = 22.dp, visual: @Composable () -> Unit,
 ) {
     Column(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp)) {
-        Box(Modifier.fillMaxWidth().height(22.dp)) { visual() }
+        Box(Modifier.fillMaxWidth().height(visualHeight)) { visual() }
         Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
         Text(value, style = KassaType.bodyStrong, color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (sub.isNotEmpty()) Text(sub, style = KassaType.tiny, color = subColor ?: Kassa.colors.ink3, maxLines = 2)
