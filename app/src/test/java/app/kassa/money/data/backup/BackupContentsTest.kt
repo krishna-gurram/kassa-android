@@ -5,6 +5,7 @@ import app.kassa.money.data.db.BudgetEntity
 import app.kassa.money.data.db.CategoryEntity
 import app.kassa.money.data.db.GroupEntity
 import app.kassa.money.data.db.HoldingEntity
+import app.kassa.money.data.db.InvestmentTransferEntity
 import app.kassa.money.data.db.LoanEntryEntity
 import app.kassa.money.data.db.LoanPaymentEntity
 import app.kassa.money.data.db.LoanTermChangeEntity
@@ -65,11 +66,20 @@ internal fun sampleContents() = BackupContents(
     ),
     icons = mapOf("photo_1.jpg" to byteArrayOf(1, 2, 3, -1)),
     accountArrangement = "CREDIT_CARDS,CASH_AND_BANK|CREDIT_CARDS=2;CASH_AND_BANK=1",
+    investmentTransfers = listOf(InvestmentTransferEntity(1, 3, 1, 10_000, 1_760_000_300_000)),
 )
 
 class BackupContentsTest {
     private val encode: (ByteArray) -> String = { Base64.getEncoder().encodeToString(it) }
     private val decode: (String) -> ByteArray = { Base64.getDecoder().decode(it) }
+
+    @Test
+    fun waitingInvestmentTransfersSurviveAndOlderBackupsReadNone() {
+        val back = BackupContents.fromJson(sampleContents().toJson(encode), decode)
+        assertEquals(sampleContents().investmentTransfers, back.investmentTransfers)
+        val old = org.json.JSONObject(sampleContents().toJson(encode)).apply { remove("investmentTransfers") }
+        assertTrue(BackupContents.fromJson(old.toString(), decode).investmentTransfers.isEmpty())
+    }
 
     @Test
     fun aBackupWithoutAnArrangementReadsItAsAbsent() {

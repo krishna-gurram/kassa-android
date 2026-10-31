@@ -11,6 +11,7 @@ import app.kassa.money.data.db.BudgetEntity
 import app.kassa.money.data.db.CategoryEntity
 import app.kassa.money.data.db.GroupEntity
 import app.kassa.money.data.db.HoldingEntity
+import app.kassa.money.data.db.InvestmentTransferEntity
 import app.kassa.money.data.db.KassaDatabase
 import app.kassa.money.data.db.LoanEntryEntity
 import app.kassa.money.data.db.LoanPaymentEntity
@@ -87,6 +88,7 @@ class BackupRoundTripTest {
         assertEquals(a.recurring().all(), b.recurring().all())
         assertEquals(a.holdings().all(), b.holdings().all())
         assertEquals(a.trades().all(), b.trades().all())
+        assertEquals(a.investmentTransfers().all(), b.investmentTransfers().all())
         assertEquals(a.loanTerms().all(), b.loanTerms().all())
         assertEquals(a.loanChanges().all(), b.loanChanges().all())
         assertEquals(a.loanPayments().all(), b.loanPayments().all())
@@ -132,5 +134,6 @@ class BackupRoundTripTest {
         loanChanges = listOf(LoanTermChangeEntity(1, 3, 21_000, 72_500, null, null, null)),
         loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true, countAllAsSpending = false, principalCategoryId = 2)),
         icons = emptyMap(),
+        investmentTransfers = listOf(InvestmentTransferEntity(1, 3, 1, 10_000, 1_760_000_300_000)),
     )
 }

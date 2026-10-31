@@ -1,10 +1,12 @@
 package app.kassa.money
 
 import android.app.Application
+import app.kassa.money.data.CrashReport
 import app.kassa.money.data.Settings
 import app.kassa.money.data.backup.BackupRepository
 import app.kassa.money.data.db.KassaDatabase
 import app.kassa.money.data.jobs.DailyJobs
+import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.data.repo.AccountRepository
 import app.kassa.money.data.repo.BillRepository
 import app.kassa.money.data.repo.CategoryRepository
@@ -14,8 +16,6 @@ import app.kassa.money.data.repo.InvestmentRepository
 import app.kassa.money.data.repo.LoanRepository
 import app.kassa.money.data.repo.PeopleRepository
 import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
 import java.time.LocalDateTime
 
 /** The app's single instances, wired by hand: few enough that a DI framework would cost more than it saves. */
@@ -33,6 +33,16 @@ class KassaApplication : Application() {
     val imports by lazy { ImportRepository(database) }
     val backups by lazy { BackupRepository(this, database, settings) }
 
+    /**
+     * Forgets what the phone remembers by account id (Overview pins, account order, cleared and already-notified
+     * payments). Called when accounts are replaced wholesale.
+     */
+    fun forgetAccountReferences() {
+        settings.forgetAccountReferences()
+        DueNotifier.forgetPosted(this)
+        DueNotifier.refresh(this)
+    }
+
     /** The last crash, kept on the phone for Settings to copy. Nothing is sent anywhere. */
     val crashFile: File get() = File(filesDir, "last-crash.txt")
 
@@ -41,8 +51,8 @@ class KassaApplication : Application() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, e ->
             runCatching {
-                val trace = StringWriter().also { e.printStackTrace(PrintWriter(it)) }
-                crashFile.writeText("${LocalDateTime.now()} ${BuildConfigInfo.versionName}\n$trace")
+                // Class names and stack frames only: exception messages can hold the user's names, notes or amounts.
+                crashFile.writeText("${LocalDateTime.now()} ${BuildConfigInfo.versionName}\n${CrashReport.describe(e)}")
             }
             previous?.uncaughtException(thread, e)
         }

@@ -210,6 +210,10 @@ interface LoanDao {
     @Query("DELETE FROM loan_entries WHERE txId = :txId")
     suspend fun deleteForTransaction(txId: Long)
 
+    /** Every line tied to an entry (a split share), for when all entries are replaced. Starting balances stay. */
+    @Query("DELETE FROM loan_entries WHERE txId IS NOT NULL")
+    suspend fun deleteTiedToEntries()
+
     /** A person's starting balance: their lines not tied to any entry. */
     @Query("SELECT * FROM loan_entries WHERE personId = :personId AND txId IS NULL ORDER BY epochMillis")
     suspend fun startingFor(personId: Long): List<LoanEntryEntity>
@@ -244,6 +248,12 @@ interface RecurringDao {
 
 @Dao
 interface InvestmentTransferDao {
+    @Query("SELECT * FROM investment_transfers")
+    suspend fun all(): List<InvestmentTransferEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(t: List<InvestmentTransferEntity>)
+
     @Query("SELECT * FROM investment_transfers ORDER BY epochMillis DESC")
     fun observeAll(): Flow<List<InvestmentTransferEntity>>
 

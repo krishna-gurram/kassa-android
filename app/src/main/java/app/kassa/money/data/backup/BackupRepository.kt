@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.room.withTransaction
 import app.kassa.money.data.Settings
 import app.kassa.money.data.db.KassaDatabase
+import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.domain.Currencies
 import java.io.File
 import java.io.InputStream
@@ -35,6 +36,7 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
             bills = db.recurring().all(),
             holdings = db.holdings().all(),
             trades = db.trades().all(),
+            investmentTransfers = db.investmentTransfers().all(),
             loanTerms = db.loanTerms().all(),
             loanChanges = db.loanChanges().all(),
             loanPayments = db.loanPayments().all(),
@@ -63,11 +65,15 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
             db.recurring().insertAll(c.bills)
             db.holdings().insertAll(c.holdings)
             db.trades().insertAll(c.trades)
+            db.investmentTransfers().insertAll(c.investmentTransfers)
             db.loanTerms().insertAll(c.loanTerms)
             db.loanChanges().insertAll(c.loanChanges)
             db.loanPayments().insertAll(c.loanPayments)
         }
         if (c.icons.isNotEmpty()) iconDir.apply { mkdirs() }.let { dir -> c.icons.forEach { (name, bytes) -> File(dir, File(name).name).writeBytes(bytes) } }
+        // Pins, cleared notifications and notified due dates name the old accounts' ids.
+        settings.forgetAccountReferences()
+        DueNotifier.forgetPosted(context)
         settings.setMonthStartDay(c.monthStartDay)
         c.currency?.takeIf { code -> Currencies.all.any { it.code == code } }?.let(settings::setCurrency)
         // An older backup has none: keep whatever order this phone has.
