@@ -53,7 +53,20 @@ internal fun DailyReminder(actions: SettingsActions) {
         }
     }
     if (on) NavRow("Time", timeLabel(minute)) { pickTime = true }
-    // Android 12+ can turn off exact alarms; then the reminder may come late. Checked again on return from Settings.
+    if (denied) Text(
+        "Notifications are off for Kassa. Allow them in the phone's Settings > Apps > Kassa > Notifications, then turn this on again.",
+        style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp),
+    )
+    if (pickTime) TimeDialog(minute, onDismiss = { pickTime = false }) { m -> settings.setReminderMinute(m); actions.refreshDailyJobs(); pickTime = false }
+}
+
+/**
+ * The "Remind on time" row, shared by every notification that has a time. Android 12+ can turn off exact alarms; then
+ * they may come a little late. Shown only when [show] and the permission is off; checked again on return from Settings.
+ */
+@Composable
+internal fun RemindOnTimeRow(show: Boolean, actions: SettingsActions) {
+    val context = LocalContext.current
     var onTime by remember { mutableStateOf(DailyJobs.canRemindOnTime(context)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -66,14 +79,9 @@ internal fun DailyReminder(actions: SettingsActions) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    if (on && Build.VERSION.SDK_INT >= 31 && !onTime) NavRow("Remind on time", "Allow Alarms & reminders so the reminder isn't late") {
+    if (show && Build.VERSION.SDK_INT >= 31 && !onTime) NavRow("Remind on time", "Allow Alarms & reminders so notifications aren't late") {
         runCatching {
             context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + context.packageName)))
         }
     }
-    if (denied) Text(
-        "Notifications are off for Kassa. Allow them in the phone's Settings > Apps > Kassa > Notifications, then turn this on again.",
-        style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp),
-    )
-    if (pickTime) TimeDialog(minute, onDismiss = { pickTime = false }) { m -> settings.setReminderMinute(m); actions.refreshDailyJobs(); pickTime = false }
 }

@@ -85,6 +85,7 @@ private sealed interface SettingsPage {
     }
     data object Splitwise : SettingsPage { override val title = "Splitwise accounts" }
     data object Bills : SettingsPage { override val title = "Recurring bills" }
+    data object Notifications : SettingsPage { override val title = "Notifications" }
     data object Backup : SettingsPage { override val title = "Backup and restore" }
     data object BudgetMonth : SettingsPage { override val title = "Budget month" }
     data object Currency : SettingsPage { override val title = "Currency" }
@@ -131,6 +132,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
             }
             SettingsPage.Splitwise -> SplitwiseCleanup(ledger, actions)
             SettingsPage.Bills -> BillsPage(ledger, actions)
+            SettingsPage.Notifications -> NotificationSettingsPage(actions)
             SettingsPage.Backup -> BackupPage(actions)
             SettingsPage.BudgetMonth -> BudgetMonthPage(ledger)
             SettingsPage.Currency -> CurrencyPage(ledger)
@@ -175,8 +177,8 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     SectionHeader("Bills")
     NavRow("Recurring bills", "${ledger.bills.size}") { open(SettingsPage.Bills) }
 
-    SectionHeader("Reminder")
-    DailyReminder(actions)
+    SectionHeader("Reminders")
+    NavRow("Notifications", notificationsSummary()) { open(SettingsPage.Notifications) }
 
     SectionHeader("Security")
     SwitchRow("App lock", "Fingerprint, face or screen lock", lock, settings::setLock)

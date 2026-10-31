@@ -8,9 +8,10 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 - **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
   are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
   and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
-- **Nothing posts by itself.** Bills due within 5 days or overdue, card payments due, investment transfers and suggested
-  bills wait on the Notifications page (`ui/today/Notifications.kt`, linked from Overview only when something waits)
-  until the user acts or clears them. Clearing never adds or pays anything.
+- **Nothing posts by itself.** Bills, card payments and loan payments wait on the Notifications page
+  (`ui/today/Notifications.kt`, linked from Overview only when something waits) from their due day, never before, and
+  stay while overdue; so do investment transfers and suggested bills. They wait until the user acts or clears them.
+  Clearing never adds or pays anything. Phone notifications only tell; they never pay or add.
 - **Nothing guesses an account.** A new entry, payment or card payment starts with no account unless the user set one
   (a card's own "pay from"). Nothing is preselected from a category or merchant.
 - **Lists of names are A to Z** (`Names.order`, the phone's language): categories, subcategories, accounts, people,
@@ -136,7 +137,7 @@ pay from), `loan_term_changes` (a new rate, payment, term or type from a date; e
 - **The maths is `domain/Loans.kt`** (`LoanEngine`: split suggestion, forecast, payoff, rate changes, flat-to-reducing rate),
   `LoanDates.kt` (epoch-day calendar), and the state holders `LoanForm` (setup) and `LoanPaymentForm` (payment sheet), all plain
   Kotlin with JVM tests. Interest rounds half-up to the cent, principal is the remainder, never negative or above the balance,
-  and the last payment clears it. Nothing posts by itself; due loan payments will wait on Notifications from `nextPaymentDay`.
+  and the last payment clears it. Nothing posts by itself; a due loan payment waits on Notifications from `nextPaymentDay`.
 - **Escrow category:** one shared "Escrow" expense category is made the first time a loan with escrow is saved (like Loan
   interest). The escrow (and early repayment charge) entry of a payment goes there unless the payment sheet names another; a
   loan starts its next payment from the category its last escrow entry went to (`LoansState.escrowCategory`), since a stored
@@ -165,6 +166,22 @@ pay from), `loan_term_changes` (a new rate, payment, term or type from a date; e
   first; any account can.
 - Screens are in `ui/loans/` (setup and details fields, payment sheet, loan page, change terms); `LoanForm`, `LoanPaymentForm`,
   `LoanChangeForm` and `LoanDetailsForm` hold the state, all plain Kotlin with JVM tests.
+
+## Payments due and notifications
+`domain/DueNotices.kt` decides everything (epoch days, minutes of day, no Android): `DueItems.build` lists what is due (a card
+with balance payable on its due date, a loan on `nextPaymentDay` unless a payment on or after it is recorded, an unhandled bill
+with no matching entry), `DueNotices` gives the day a notification goes out (due day minus 0 to 14, a due day of 31 clamped
+to the month's last), what rings now (3 hour grace, never twice for one key), the next alarm, and `text` (the one function
+that words a notification, with `showAmount` for a future Hide balances switch). The Notifications page uses the same list,
+filtered to due today or overdue. Settings keeps one `DueRule` per kind (cards and loans on, bills off; due day, 1 or 3 days
+before, or 0 to 14; time, default 9:00); the daily reminder keeps its own switch and time.
+`data/jobs/DueNotifier.kt` reads the database, posts what rings (one notification per item, one summary when two or more),
+and sets ONE alarm (request code 103, exact when allowed, else allow-while-idle) for the earliest next one, or a daily look
+at 00:05 so a card's new statement is noticed. `refresh` is called at boot, update, time and zone change, app start, Settings
+changes, `LedgerViewModel.change` and restore. Posted keys live in the private `kassa_due` prefs. A tap opens the card page,
+the loan's page with its payment sheet, or the bill (`MainActivity` `ACTION_OPEN_DUE` to `AppController.openDue`). Android's
+permission is asked once, with an explanation, after the first card with a due day or loan with terms is saved
+(`LedgerViewModel.askNotifications`); if refused, Settings > Notifications shows "Notifications are off for Kassa".
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.

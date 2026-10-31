@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.kassa.money.KassaApplication
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.db.toEntity
+import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.data.repo.LoanPaymentDetail
 import app.kassa.money.data.repo.LoanPaymentDraft
@@ -36,6 +37,7 @@ import app.kassa.money.ui.today.Notice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -96,10 +98,29 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
+    private val _askNotifications = MutableStateFlow(false)
+    /** True when Kassa should explain why it wants to notify and then ask Android for permission (once, in context). */
+    val askNotifications: StateFlow<Boolean> = _askNotifications
+
+    /** The explanation was answered, either way: never ask again. */
+    fun askedNotifications() { settings.notifyAsked = true; _askNotifications.value = false }
+
+    /** After saving a card with a due day or a loan with terms: offers the permission once, and only where Android asks for one. */
+    private fun offerNotifications() {
+        if (settings.notifyAsked || android.os.Build.VERSION.SDK_INT < 33) return
+        val nm = kassa.getSystemService(android.app.NotificationManager::class.java)
+        if (nm == null || nm.areNotificationsEnabled()) return
+        _askNotifications.value = true
+    }
+
+    private fun hasDueDay(a: Account) = a.type.hasStatement && a.statementDay != null && a.dueDay != null
+
     /** Runs [block] in the background; on success shows [done] (if any) and calls [onDone], otherwise shows why. */
     private fun change(done: String? = null, onDone: () -> Unit = {}, block: suspend () -> Unit) = viewModelScope.launch {
         try {
             block()
+            // Cards, loans, bills and payments may have moved: the payments-due alarm follows.
+            DueNotifier.refresh(kassa)
             done?.let(_messages::tryEmit)
             onDone()
         } catch (e: IllegalArgumentException) {
@@ -161,10 +182,10 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     /* ---------- accounts and people ---------- */
 
     fun addAccount(account: Account, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} added.", onDone) { kassa.accounts.add(account, newGroupName) }
+        change("${account.name.trim()} added.", { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.add(account, newGroupName) }
 
     fun updateAccount(account: Account, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} saved.", onDone) { kassa.accounts.update(account, newGroupName) }
+        change("${account.name.trim()} saved.", { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.update(account, newGroupName) }
 
     fun setArchived(account: Account, archived: Boolean) =
         change(if (archived) "${account.name} archived. Its history stays." else "${account.name} restored.") { kassa.accounts.update(account.copy(archived = archived)) }
@@ -181,11 +202,11 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Adds a new loan account with its terms; [onDone] runs once it is saved, so a sheet stays open on a problem. */
     fun addLoan(account: Account, terms: LoanTerms, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} added.", onDone) { kassa.loans.addLoan(account, terms, newGroupName) }
+        change("${account.name.trim()} added.", { onDone(); offerNotifications() }) { kassa.loans.addLoan(account, terms, newGroupName) }
 
     /** Adds terms to an existing loan account, keeping its entries. */
     fun addLoanTerms(account: Account, terms: LoanTerms, onDone: () -> Unit = {}) =
-        change("Terms added to ${account.name.trim()}.", onDone) { kassa.loans.addTerms(account, terms) }
+        change("Terms added to ${account.name.trim()}.", { onDone(); offerNotifications() }) { kassa.loans.addTerms(account, terms) }
 
     /** Records a loan payment (or saves an edit of one) as its linked entries. */
     fun recordLoanPayment(draft: LoanPaymentDraft, onDone: () -> Unit = {}) =
@@ -260,17 +281,17 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Clears notifications without adding or paying anything: a bill skips that month, a transfer stops asking,
-     * and a card payment or suggested bill is hidden by its key.
+     * and a card or loan payment or a suggested bill is hidden by its key.
      */
     fun clear(notices: List<Notice>) = change(if (notices.size == 1) "Cleared." else "Cleared ${notices.size} notifications.") {
         notices.forEach { n ->
             when (n) {
                 is Notice.Bill -> kassa.bills.markHandled(n.bill, Budgets.key(YearMonth.from(n.due)))
                 is Notice.Transfer -> kassa.investments.settle(n.transfer.id)
-                is Notice.Card, is Notice.Suggestion -> Unit
+                is Notice.Card, is Notice.Loan, is Notice.Suggestion -> Unit
             }
         }
-        settings.clear(notices.filter { it is Notice.Card || it is Notice.Suggestion }.map { it.key })
+        settings.clear(notices.filter { it is Notice.Card || it is Notice.Loan || it is Notice.Suggestion }.map { it.key })
     }
 
     /* ---------- investments ---------- */
@@ -333,13 +354,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             holdings = d.holdings.map { it.toEntity() }, icons = emptyMap(),
         )
         runCatching { kassa.backups.restore(contents) }
-            .onSuccess { settings.setMonthStartDay(1); _messages.tryEmit("Demo data loaded.") }
+            .onSuccess { settings.setMonthStartDay(1); DueNotifier.refresh(kassa); _messages.tryEmit("Demo data loaded.") }
             .onFailure { _messages.tryEmit("Demo data couldn't be loaded. ${it.message}") }
     }
 
     fun restore(contents: BackupContents) = viewModelScope.launch(Dispatchers.IO) {
         runCatching { kassa.backups.restore(contents) }
-            .onSuccess { _messages.tryEmit("Backup restored.") }
+            .onSuccess { DueNotifier.refresh(kassa); _messages.tryEmit("Backup restored.") }
             .onFailure { _messages.tryEmit("Nothing was changed. ${it.message}") }
     }
 

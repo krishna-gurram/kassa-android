@@ -27,24 +27,29 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import app.kassa.money.KassaApplication
 import app.kassa.money.data.jobs.DailyJobs
+import app.kassa.money.data.jobs.DueNotifier
+import app.kassa.money.domain.DueKind
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaTheme
 import app.kassa.money.ui.theme.KassaType
 
 /**
- * The only activity: theme, app lock and the reminder's "open Add" intent. Everything else is [AppRoot].
+ * The only activity: theme, app lock and the intents that open Add (daily reminder) or a due payment (its notification). Everything else is [AppRoot].
  * A FragmentActivity because the biometric prompt needs one.
  */
 class MainActivity : FragmentActivity() {
     private val locked = mutableStateOf(false)
     /** Set when the daily reminder is tapped: open Add once the app is showing. */
     private val openAdd = mutableStateOf(false)
+    /** Set when a payment-due notification is tapped: open that card, loan or bill once the app is showing. */
+    private val openDue = mutableStateOf<DueTarget?>(null)
     private var hiddenAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (intent?.action == DailyJobs.ACTION_ADD) openAdd.value = true
+        if (savedInstanceState == null) openDue.value = dueTarget(intent)
         // Debug builds only: starting with `--ez demo true` loads the demo household, for CI screenshots.
         if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
             androidx.lifecycle.ViewModelProvider(this)[LedgerViewModel::class.java].loadDemo()
@@ -77,6 +82,7 @@ class MainActivity : FragmentActivity() {
                             AppRoot(
                                 entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
                                 openAdd = openAdd.value, onAddOpened = { openAdd.value = false },
+                                openDue = openDue.value, onDueOpened = { openDue.value = null },
                             )
                         }
                     }
@@ -89,6 +95,15 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == DailyJobs.ACTION_ADD) openAdd.value = true
+        dueTarget(intent)?.let { openDue.value = it }
+    }
+
+    /** The card, loan or bill a payment-due notification asks to open, if this intent is one. */
+    private fun dueTarget(intent: Intent?): DueTarget? {
+        if (intent?.action != DueNotifier.ACTION_OPEN_DUE) return null
+        val kind = DueKind.entries.firstOrNull { it.name == intent.getStringExtra(DueNotifier.EXTRA_KIND) } ?: return null
+        val id = intent.getLongExtra(DueNotifier.EXTRA_ID, 0L)
+        return if (id != 0L) DueTarget(kind, id) else null
     }
 
     override fun onStop() {

@@ -1,6 +1,9 @@
 package app.kassa.money.ui
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -35,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.ui.activity.MonthBreakdown
 import app.kassa.money.ui.cards.PaySheet
 import app.kassa.money.ui.accounts.BalanceCorrectionSheet
@@ -42,6 +46,7 @@ import app.kassa.money.ui.loans.LoanDetailsSheet
 import app.kassa.money.ui.loans.LoanPaymentSheet
 import app.kassa.money.ui.loans.LoanTermsSheet
 import app.kassa.money.ui.cards.cardsByDueDate
+import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.MessageHost
 import app.kassa.money.ui.common.PanePlaceholder
 import app.kassa.money.ui.entry.EntryStart
@@ -56,10 +61,14 @@ import app.kassa.money.ui.theme.Kassa
  * Everything inside the activity: first-run import, the tabs, pages (over the tabs on the cover screen, beside the
  * list when unfolded), messages and the sheets that float over everything.
  *
- * [entryCount] is -1 while the database opens. [openAdd] asks for a new entry (from the daily reminder).
+ * [entryCount] is -1 while the database opens. [openAdd] asks for a new entry (from the daily reminder); [openDue]
+ * asks for a card, loan or bill (from a payment-due notification).
  */
 @Composable
-fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, openAdd: Boolean, onAddOpened: () -> Unit) {
+fun AppRoot(
+    entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, openAdd: Boolean, onAddOpened: () -> Unit,
+    openDue: DueTarget?, onDueOpened: () -> Unit,
+) {
     val nav: NavViewModel = viewModel()
     val openTab = LocalSettings.current.openTab.value
     remember(nav) { nav.start(Tab.entries.firstOrNull { it.name == openTab } ?: Tab.TODAY); true }
@@ -74,6 +83,22 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(openDue, ledger != null) {
+        if (openDue != null && ledger != null) {
+            app.openDue(openDue)
+            onDueOpened()
+        }
+    }
+    // Asked once, after the first card with a due day or loan with terms is saved: explain, then Android's prompt.
+    val askNotifications by vm.askNotifications.collectAsState()
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { DueNotifier.refresh(context) }
+    if (askNotifications) ConfirmDialog(
+        "Remind you of payments due?",
+        "Kassa can notify you when a card or loan payment is due. Android asks for permission next. " +
+            "Reminders are made on this phone and nothing leaves it. Change this any time in Settings > Notifications.",
+        "Continue", onConfirm = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }, onDismiss = vm::askedNotifications,
+        dismiss = "Not now", destructive = false,
+    )
     LaunchedEffect(openAdd, entryCount) {
         if (openAdd && (entryCount > 0 || startedFresh)) {
             if (nav.top !is Page.Entry) nav.push(Page.Entry(EntryStart()))
