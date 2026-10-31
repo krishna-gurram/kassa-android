@@ -19,7 +19,7 @@ enum class IslamicContract(val label: String, val type: InterestType) {
 }
 
 /** The fields of the loan form that can have a problem. */
-enum class LoanField { AMOUNT, RATE, TERM, BALANCE, PAYMENT, PAYMENTS_LEFT, ORIGINAL, DUE_DAY, ESCROW, FEE, EARLY_CHARGE }
+enum class LoanField { NAME, AMOUNT, RATE, TERM, BALANCE, PAYMENT, PAYMENTS_LEFT, ORIGINAL, DUE_DAY, ESCROW, FEE, EARLY_CHARGE }
 
 /** What the live calculation under the form shows. Null fields are not worked out yet or not known. */
 data class LoanPreview(
@@ -236,5 +236,12 @@ object LoanCategories {
     fun interestCategory(categories: List<Category>): Category? =
         categories.firstOrNull { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden && it.name.equals(NAME, ignoreCase = true) }
 
+    /** The "Escrow" category: the top-level expense category with that name, if it exists and isn't archived. */
+    fun escrowCategory(categories: List<Category>): Category? =
+        categories.firstOrNull { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden && it.name.equals(ESCROW_NAME, ignoreCase = true) }
+
     const val NAME = "Loan interest"
+
+    /** Shared by every loan with escrow, made the first time one is saved; any category can stand in for it. */
+    const val ESCROW_NAME = "Escrow"
 }

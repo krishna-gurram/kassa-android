@@ -119,7 +119,31 @@ data class LoanTermChange(
     val payment: Long? = null,
     val termMonths: Int? = null,
     val type: InterestType? = null,
-)
+) {
+    /**
+     * The first thing wrong with this change for [terms], as a message, or null. Repositories throw it as
+     * [IllegalArgumentException]. A change can't start before the loan did, and must change something. Interest only is
+     * the one type whose payment may be zero, since it pays the interest alone.
+     */
+    fun problem(terms: LoanTerms, changes: List<LoanTermChange> = emptyList()): String? {
+        if (rate == null && payment == null && termMonths == null && type == null) return "Nothing has changed."
+        val after = type ?: terms.effective(changes, effectiveDay).type
+        val word = terms.interestWord.lowercase()
+        return rate?.let { InputRules.rateProblem(it, "$word rate") }
+            ?: payment?.let { InputRules.amountProblem(it, zeroAllowed = after == InterestType.INTEREST_ONLY) }
+            ?: termMonths?.let { InputRules.monthsProblem(it, "a term in months") }
+            ?: terms.startDay?.takeIf { effectiveDay < it }?.let { "The change can't start before the loan did." }
+            ?: if (type == InterestType.FLAT && terms.originalAmount == null) "A flat rate loan needs its original amount. Add it under Edit details first." else null
+    }
+
+    /** What changed, for the history list: "Rate 7.25%, Payment 600.00". [profit] says "Profit rate" for Islamic loans. */
+    fun summary(profit: Boolean = false): String = listOfNotNull(
+        rate?.let { (if (profit) "Profit rate " else "Rate ") + LoanRate.display(it) },
+        payment?.let { "Payment " + Money.format(it) },
+        termMonths?.let { "Term $it months" },
+        type?.let { "Interest type: " + it.label },
+    ).joinToString(", ")
+}
 
 /**
  * The link that makes entries one payment: the principal part is a transfer to the loan, the interest part an
@@ -147,6 +171,43 @@ data class LoanPayment(
     val scheduled: Boolean,
 ) {
     val entryIds: List<Long> get() = listOfNotNull(principalEntryId, interestEntryId, otherEntryId)
+}
+
+/** Which entry of a loan payment an entry is. */
+enum class LoanPart { PRINCIPAL, INTEREST, OTHER }
+
+/** Which part of this payment [entryId] is, or null when it isn't one of its entries. */
+fun LoanPayment.partOf(entryId: Long): LoanPart? = when (entryId) {
+    principalEntryId -> LoanPart.PRINCIPAL
+    interestEntryId -> LoanPart.INTEREST
+    otherEntryId -> LoanPart.OTHER
+    else -> null
+}
+
+/** The small tag an Activity row carries: "principal", "interest" (or "profit"), "escrow", "charge", or both of the last two. */
+fun LoanPayment.tag(part: LoanPart, interestWord: String): String = when (part) {
+    LoanPart.PRINCIPAL -> "principal"
+    LoanPart.INTEREST -> interestWord.lowercase()
+    LoanPart.OTHER -> when {
+        escrow > 0 && charge > 0 -> "escrow, charge"
+        escrow > 0 -> "escrow"
+        else -> "charge"
+    }
+}
+
+/** The notes a payment's entries get, so they read the same everywhere and Kassa can tell them from the user's own. */
+object LoanNotes {
+    fun principal(loan: String) = "$loan principal"
+
+    fun interest(loan: String, word: String) = "$loan ${word.lowercase()}"
+
+    fun other(loan: String, escrow: Long, charge: Long) =
+        "$loan " + when { escrow > 0 && charge > 0 -> "escrow and early repayment charge"; escrow > 0 -> "escrow"; else -> "early repayment charge" }
+
+    /** The `Repeats.key`s of every note [loan]'s payments can carry: a steady escrow is not a bill to suggest. */
+    fun repeatKeys(loan: String): Set<String> =
+        listOf(principal(loan), interest(loan, "interest"), interest(loan, "profit"), other(loan, 1, 0), other(loan, 0, 1), other(loan, 1, 1))
+            .map { Repeats.key(it) }.toSet()
 }
 
 /** How a rate field is shown and typed. */
@@ -423,6 +484,10 @@ object LoanEngine {
         )
     }
 
+    /** What is owed on [day] if nothing changes but the schedule: the balance after the last forecast payment before it. */
+    fun balanceOn(terms: LoanTerms, changes: List<LoanTermChange>, from: LoanCursor, day: Int): Long =
+        (project(terms, changes, from).lastOrNull { it.day < day }?.balance ?: from.balance).coerceAtLeast(0)
+
     /**
      * What a rate change from [effectiveDay] does, for the change-terms screen. Paying on as before and the payment
      * the lender asks for are both worked out from the balance on that date.
@@ -446,5 +511,55 @@ object LoanEngine {
             payment = if (kept == LenderKept.TERM && payment != eff.payment) payment else null,
         )
         return RateChangeOutcome(change, payment, outlook(terms, changes + change, from), left)
+    }
+}
+
+/**
+ * Everything the loan page shows, worked out in one place: what is owed, the progress when the original amount is
+ * known, the next payment, the payoff month, interest paid and still to pay, and the forecast rows of the schedule.
+ * [rows] and [outlook] come from the terms in effect on each date, so a rate change shows in both.
+ */
+data class LoanSummary(
+    /** Outstanding balance: what is owed, never negative here (a credit is shown as nothing owed). */
+    val owed: Long,
+    val originalAmount: Long?,
+    /** The scheduled payment due next, principal, interest and escrow. */
+    val payment: Long,
+    val dueDay: Int,
+    val nextPaymentDay: Int,
+    /** The interest (profit) in the payments recorded so far. */
+    val interestPaid: Long,
+    val rows: List<LoanRow>,
+    val outlook: LoanOutlook,
+) {
+    /** Share of the original amount repaid, 0 to 100; null when the original amount isn't known, so there is no bar. */
+    val percentRepaid: Int?
+        get() = originalAmount?.takeIf { it > 0 }?.let { o ->
+            val repaid = (o - owed).coerceIn(0, o)
+            (repaid * 100 / o).toInt()
+        }
+
+    /** The same share as 0.0 to 1.0, for the bar. */
+    val fractionRepaid: Float?
+        get() = originalAmount?.takeIf { it > 0 }?.let { o -> ((o - owed).coerceIn(0, o).toDouble() / o).toFloat() }
+
+    val payoffDay: Int? get() = outlook.payoffDay
+
+    /** Interest still to pay until the loan is paid off; null when it isn't within a hundred years. */
+    val interestLeft: Long? get() = outlook.interestLeft
+
+    companion object {
+        /** [owed] is positive; [interestPaid] is the sum of the loan's linked interest entries. */
+        fun of(terms: LoanTerms, changes: List<LoanTermChange>, payments: List<LoanPayment>, owed: Long, interestPaid: Long): LoanSummary {
+            val balance = owed.coerceAtLeast(0)
+            val last = LoanEngine.lastDay(terms, payments)
+            val cursor = LoanCursor(balance, terms.nextPaymentDay, last)
+            return LoanSummary(
+                owed = balance, originalAmount = terms.originalAmount,
+                payment = LoanEngine.amountDue(terms, changes, balance, last, terms.nextPaymentDay),
+                dueDay = terms.dueDay, nextPaymentDay = terms.nextPaymentDay, interestPaid = interestPaid,
+                rows = LoanEngine.project(terms, changes, cursor), outlook = LoanEngine.outlook(terms, changes, cursor),
+            )
+        }
     }
 }
