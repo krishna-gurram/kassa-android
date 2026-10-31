@@ -83,7 +83,8 @@ internal fun LoanHero(summary: LoanSummary, terms: LoanTerms, balance: Long) {
         val fraction = summary.fractionRepaid
         val percent = summary.percentRepaid
         val original = summary.originalAmount
-        if (fraction != null && percent != null && original != null) {
+        // Hidden: the bar and percentage would give the balance away, so they wait.
+        if (fraction != null && percent != null && original != null && !Money.isHidden) {
             Gap(10)
             Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Kassa.colors.line)) {
                 Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(Kassa.colors.positive))

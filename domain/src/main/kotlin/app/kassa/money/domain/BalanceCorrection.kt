@@ -55,6 +55,8 @@ object BalanceCorrection {
 
     /** "↑ " for a rise, "↓ " for a fall, "" for none; followed by the amount through `Money.format`. */
     fun arrow(shown: Long): String = when {
+        // The direction would give the figure away while balances are hidden.
+        Money.isHidden -> ""
         shown > 0 -> "↑ "
         shown < 0 -> "↓ "
         else -> ""
