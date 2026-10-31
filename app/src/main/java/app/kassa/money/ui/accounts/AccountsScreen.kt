@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
+import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
@@ -105,6 +106,7 @@ fun AccountsScreen(
     onOpenAccount: (Long) -> Unit,
     onOpenPerson: (Long) -> Unit,
     onAddAccount: (Account, String?, () -> Unit) -> Unit,
+    onAddLoan: (Account, LoanTerms, String?, () -> Unit) -> Unit,
     onAddPerson: (String, Long, () -> Unit) -> Unit,
 ) {
     val settings = LocalSettings.current
@@ -262,8 +264,11 @@ fun AccountsScreen(
         groups = state.groups,
         payFromOptions = active.filter { it.type in listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) },
         takenNames = state.accounts.map { it.name },
+        categories = ledger.categories,
+        today = ledger.today,
         onDismiss = { addingAccount = false },
         onSave = { account, newGroup -> onAddAccount(account, newGroup) { addingAccount = false } },
+        onSaveLoan = { account, terms, newGroup -> onAddLoan(account, terms, newGroup) { addingAccount = false } },
     )
     if (addingPerson) AddPersonSheet(ledger.people.people, onDismiss = { addingPerson = false }) { name, opening, done -> onAddPerson(name, opening, done) }
 }

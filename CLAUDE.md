@@ -112,10 +112,32 @@ Payable.
 
 ## Entries
 The entry page edits only expenses, income and transfers. Buys and sales open the trade sheet (their shares and
-price live in `trades`; trades from before database v7 have none and only their date can change), and payments to or
-from a person open the payment sheet. `AppController.openEntry` routes each kind; never send another kind to the entry page.
+price live in `trades`; trades from before database v7 have none and only their date can change), payments to or
+from a person open the payment sheet, and any entry that belongs to a loan payment (looked up in `loan_payments`
+first, whatever its kind) opens the loan payment sheet. `AppController.openEntry` routes each kind; never send another kind to the entry page.
 Nothing guesses an account: a new entry starts with none and you pick it. Splits live on the entry page (Split row):
 several people, who paid, equal or exact shares; a person's "Split a transaction" opens that same page.
+
+## Loans
+A loan account (`AccountType.LOAN`) can carry terms; adding them upgrades it in place and keeps its entries and balance. A new
+loan comes from Add account (pick "Loan or mortgage"), already partway or starting now; "Add terms" on a loan's page does the
+same for an existing one. Three tables: `loan_terms` (one row per loan: type, Islamic `profit` label flag, rate, payment,
+term, original amount, start, next payment date, due day, escrow, fee, early repayment charge, default interest category,
+pay from), `loan_term_changes` (a new rate, payment, term or type from a date; earlier payments keep their split), and
+`loan_payments` (the link below). Rates are Longs in 1/10000 of a percent (6.125% is 61,250), dates are epoch-day Ints, and
+`payment` is principal plus interest with `escrow` on top. `LoanRepository` is the only writer.
+- **A payment is stored as ordinary entries** so balances, Activity and Insights keep working: the principal is a TRANSFER from
+  the pay-from account to the loan, the interest is an EXPENSE in the interest category, and escrow plus any early repayment
+  charge is a second EXPENSE. A `loan_payments` row ties them together (and keeps the escrow, charge, whether the interest
+  was edited, Kassa's estimate, and whether it covered the scheduled payment, which moves `nextPaymentDay` on a month).
+  Edit and delete act on the whole payment; never edit one of its entries on its own.
+- **Interest category:** "Loan interest" is created with the first loan if it isn't there. A loan's terms may name any category
+  instead (null means Loan interest), and so may a single payment. Kassa never makes a subcategory per loan.
+- **The maths is `domain/Loans.kt`** (`LoanEngine`: split suggestion, forecast, payoff, rate changes, flat-to-reducing rate),
+  `LoanDates.kt` (epoch-day calendar), and the state holders `LoanForm` (setup) and `LoanPaymentForm` (payment sheet), all plain
+  Kotlin with JVM tests. Interest rounds half-up to the cent, principal is the remainder, never negative or above the balance,
+  and the last payment clears it. Nothing posts by itself; due loan payments will wait on Notifications from `nextPaymentDay`.
+- Screens are in `ui/loans/` (setup fields, payment sheet); the loan's own page body is `AccountPage`'s `LoanActions` for now.
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.

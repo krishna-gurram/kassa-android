@@ -32,10 +32,11 @@ import java.time.format.FormatStyle
 
 /**
  * Today, Yesterday, or another day, as the entry page's date panel offers them, for sheets with no room for a whole
- * calendar. The third button shows the picked day and opens [MonthCalendar] in a dialog.
+ * calendar. The third button shows the picked day and opens [MonthCalendar] in a dialog. [allowFuture] lets it pick days
+ * after today, for dates that are still ahead, like a loan's next payment.
  */
 @Composable
-fun DateRow(date: LocalDate, today: LocalDate, onPick: (LocalDate) -> Unit) {
+fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onPick: (LocalDate) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     val yesterday = today.minusDays(1)
     val other = date != today && date != yesterday
@@ -50,7 +51,7 @@ fun DateRow(date: LocalDate, today: LocalDate, onPick: (LocalDate) -> Unit) {
         var month by remember { mutableStateOf(YearMonth.from(date)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Kassa.colors.raised).padding(16.dp)) {
             Text("Date", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
-            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.height(300.dp)) { picked ->
+            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.height(300.dp), allowFuture = allowFuture) { picked ->
                 onPick(picked)
                 picking = false
             }

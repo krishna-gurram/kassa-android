@@ -68,6 +68,7 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
             onOpenAccount = { app.openFromList(Page.AccountDetail(it)) },
             onOpenPerson = { app.openFromList(Page.PersonDetail(it)) },
             onAddAccount = { account, group, done -> app.vm.addAccount(account, group, done) },
+            onAddLoan = { account, terms, group, done -> app.vm.addLoan(account, terms, group, done) },
             onAddPerson = { name, opening, done -> app.vm.addPerson(name, opening, done) },
         )
         Tab.SETTINGS -> SettingsScreen(l, app.settings, padding)
@@ -165,6 +166,9 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
         onDeleteHolding = { app.vm.deleteHolding(it.id) },
         onBuy = { o -> app.vm.buy(a.id, o.ticker, o.microShares, o.price, o.at, transferId = null) },
         onSell = { o -> app.vm.sell(a.id, o.ticker, o.microShares, o.price, o.at) },
+        loanTerms = l.loans.terms[a.id],
+        onPayLoan = { app.payingLoan = a.id },
+        onAddTerms = { app.addingTermsTo = a.id },
     )
 }
 

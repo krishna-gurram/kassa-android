@@ -23,23 +23,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountField
 import app.kassa.money.domain.AccountForm
 import app.kassa.money.domain.AccountGroup
 import app.kassa.money.domain.AccountType
+import app.kassa.money.domain.Category
+import app.kassa.money.domain.LoanField
+import app.kassa.money.domain.LoanForm
+import app.kassa.money.domain.LoanTerms
+import app.kassa.money.domain.Money
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.DigitsField
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.NameField
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
+import app.kassa.money.ui.loans.LoanFields
+import app.kassa.money.ui.loans.loanDay
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
 /**
  * One form for every kind of account; picking a type decides which fields appear. Checking and building the account
- * is [AccountForm]'s job, shared with [EditAccountPage].
+ * is [AccountForm]'s job, shared with [EditAccountPage]. A loan or mortgage shows the loan setup instead of a balance
+ * and is built by [LoanForm]; [onSaveLoan] gets the account and its terms.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -47,11 +56,20 @@ fun AddAccountSheet(
     groups: List<AccountGroup>,
     payFromOptions: List<Account>,
     takenNames: List<String>,
+    categories: List<Category>,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onSave: (Account, String?) -> Unit,
+    onSaveLoan: (Account, LoanTerms, String?) -> Unit,
 ) {
     var form by remember { mutableStateOf(AccountForm(groupId = groups.firstOrNull()?.id)) }
     var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
+    var loan by remember { mutableStateOf(LoanForm.starting(today.loanDay())) }
+    var loanProblems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
+    fun editLoan(field: LoanField?, change: (LoanForm) -> LoanForm) {
+        loan = change(loan)
+        if (field != null) loanProblems = loanProblems - field
+    }
     // Each edit clears that field's problem; the rest stay until the next save.
     fun edit(field: AccountField?, change: (AccountForm) -> AccountForm) {
         form = change(form)
@@ -65,11 +83,22 @@ fun AddAccountSheet(
         ) {
             Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
             Gap(8)
-            AccountFields(form, problems, ::edit, groups, payFromOptions)
+            val isLoan = form.type == AccountType.LOAN
+            AccountFields(
+                form, problems, ::edit, groups, payFromOptions,
+                loanFields = { LoanFields(loan, loanProblems, ::editLoan, today, payFromOptions, categories) },
+            )
             Gap(12)
-            PrimaryButton("Add account") {
+            PrimaryButton(if (isLoan) "Add loan" else "Add account") {
                 problems = form.problems(takenNames)
-                if (problems.isEmpty()) onSave(form.toAccount(Account(name = "", type = form.type), currentBalance = 0), form.newGroupName)
+                if (isLoan) {
+                    loanProblems = loan.problems()
+                    // The loan's own figure stands in for the balance: what is owed becomes the starting balance.
+                    if (problems.isEmpty() && loanProblems.isEmpty()) {
+                        val account = form.copy(balance = Money.toInput(checkNotNull(loan.owed))).toAccount(Account(name = "", type = form.type), currentBalance = 0)
+                        onSaveLoan(account, loan.toTerms(0), form.newGroupName)
+                    }
+                } else if (problems.isEmpty()) onSave(form.toAccount(Account(name = "", type = form.type), currentBalance = 0), form.newGroupName)
             }
             Gap(24)
         }
@@ -90,6 +119,8 @@ fun AccountFields(
     payFromOptions: List<Account>,
     types: List<AccountType> = AccountType.entries,
     showGroup: Boolean = true,
+    /** Replaces the balance field for a loan or mortgage, which has its own setup (see [LoanFields]). */
+    loanFields: (@Composable () -> Unit)? = null,
 ) {
     Label("Type")
     FlowRow {
@@ -98,7 +129,8 @@ fun AccountFields(
     NameField(form.name, { v -> edit(AccountField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[AccountField.NAME])
     DigitsField(form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = v) } }, "Last 4 digits (optional)", 4, Modifier.fillMaxWidth(),
         problem = problems[AccountField.LAST4])
-    AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
+    if (form.type == AccountType.LOAN && loanFields != null) loanFields()
+    else AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
         if (form.type.isDebt) "Amount owed today" else "Balance today", Modifier.fillMaxWidth(),
         problem = problems[AccountField.BALANCE], placeholder = "0", signed = true)
     if (form.type.hasStatement) {

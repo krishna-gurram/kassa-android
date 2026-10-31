@@ -37,14 +37,23 @@ import java.util.Locale
 
 /**
  * Kassa's one calendar: a month of days, starting on the phone's first day of the week. Arrows or a swipe change the
- * month. Days after [today] can't be picked, and neither can months after this one. Every date choice in the app uses
- * it, through the entry page's date panel or [DateRow].
+ * month. Days after [today] can't be picked, and neither can months after this one, unless [allowFuture] is set (the
+ * next payment date of a loan is ahead of today). Every date choice in the app uses it, through the entry page's date
+ * panel or [DateRow].
  */
 @Composable
-fun MonthCalendar(month: YearMonth, selected: LocalDate, today: LocalDate, onMonth: (YearMonth) -> Unit, modifier: Modifier, onPick: (LocalDate) -> Unit) {
+fun MonthCalendar(
+    month: YearMonth,
+    selected: LocalDate,
+    today: LocalDate,
+    onMonth: (YearMonth) -> Unit,
+    modifier: Modifier,
+    allowFuture: Boolean = false,
+    onPick: (LocalDate) -> Unit,
+) {
     val locale = Locale.getDefault()
     val firstDay = WeekFields.of(locale).firstDayOfWeek
-    val canNext = month < YearMonth.from(today)
+    val canNext = allowFuture || month < YearMonth.from(today)
     Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) onMonth(month.minusMonths(1)) else if (canNext) onMonth(month.plusMonths(1)) }) {
         Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink,
@@ -69,7 +78,7 @@ fun MonthCalendar(month: YearMonth, selected: LocalDate, today: LocalDate, onMon
             Row(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 40.dp)) {
                 (0 until 7).forEach { i ->
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        week.getOrNull(i)?.let { d -> CalendarDay(d, selected = d == selected, today = today, onPick = onPick) }
+                        week.getOrNull(i)?.let { d -> CalendarDay(d, selected = d == selected, today = today, allowFuture = allowFuture, onPick = onPick) }
                     }
                 }
             }
@@ -78,8 +87,8 @@ fun MonthCalendar(month: YearMonth, selected: LocalDate, today: LocalDate, onMon
 }
 
 @Composable
-private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, onPick: (LocalDate) -> Unit) {
-    val future = d.isAfter(today)
+private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, allowFuture: Boolean, onPick: (LocalDate) -> Unit) {
+    val future = d.isAfter(today) && !allowFuture
     Box(
         Modifier.size(34.dp).clip(CircleShape).background(if (selected) Kassa.colors.ink else Color.Transparent)
             .clickable(enabled = !future) { onPick(d) }

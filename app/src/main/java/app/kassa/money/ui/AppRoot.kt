@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.kassa.money.ui.activity.MonthBreakdown
 import app.kassa.money.ui.cards.PaySheet
+import app.kassa.money.ui.loans.LoanPaymentSheet
+import app.kassa.money.ui.loans.LoanTermsSheet
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.MessageHost
 import app.kassa.money.ui.common.PanePlaceholder
@@ -146,6 +148,33 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
             app.paying?.let { id ->
                 l.cards().firstOrNull { it.account.id == id }?.let { card ->
                     PaySheet(card, l, onDismiss = { app.paying = null }, onPay = { draft -> app.paying = null; app.vm.save(draft) })
+                }
+            }
+            app.payingLoan?.let { id ->
+                val loan = l.accountById[id]
+                val terms = l.loans.terms[id]
+                val close = { app.payingLoan = null }
+                if (loan != null && terms != null) LoanPaymentSheet(
+                    loan, terms, l, editing = null, onDismiss = close,
+                    onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
+                )
+            }
+            app.editingLoanPayment?.let { detail ->
+                val loan = l.accountById[detail.payment.accountId]
+                val terms = l.loans.terms[detail.payment.accountId]
+                val close = { app.editingLoanPayment = null }
+                if (loan != null && terms != null) LoanPaymentSheet(
+                    loan, terms, l, editing = detail, onDismiss = close,
+                    onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
+                    onDelete = { app.vm.deleteLoanPayment(detail.payment.id, onDone = close) },
+                )
+            }
+            app.addingTermsTo?.let { id ->
+                l.accountById[id]?.let { account ->
+                    LoanTermsSheet(
+                        account, l, onDismiss = { app.addingTermsTo = null },
+                        onSave = { updated, terms, done -> app.vm.addLoanTerms(updated, terms, onDone = done) },
+                    )
                 }
             }
             app.editingTrade?.let { t ->

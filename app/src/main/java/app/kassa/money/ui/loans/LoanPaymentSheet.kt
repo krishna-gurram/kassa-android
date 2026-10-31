@@ -1,0 +1,236 @@
+package app.kassa.money.ui.loans
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import app.kassa.money.data.repo.LoanPaymentDetail
+import app.kassa.money.data.repo.LoanPaymentDraft
+import app.kassa.money.domain.Account
+import app.kassa.money.domain.LoanCategories
+import app.kassa.money.domain.LoanEngine
+import app.kassa.money.domain.LoanPaymentContext
+import app.kassa.money.domain.LoanPaymentField
+import app.kassa.money.domain.LoanPaymentForm
+import app.kassa.money.domain.LoanTerms
+import app.kassa.money.domain.Money
+import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.accounts.Choices
+import app.kassa.money.ui.common.AmountField
+import app.kassa.money.ui.common.ConfirmDialog
+import app.kassa.money.ui.common.DateRow
+import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.entry.Chip
+import app.kassa.money.ui.importer.PrimaryButton
+import app.kassa.money.ui.importer.SecondaryButton
+import app.kassa.money.ui.theme.Kassa
+import app.kassa.money.ui.theme.KassaType
+
+private const val DEFAULT_CATEGORY = -1L
+
+/**
+ * Record a payment on a loan, or open one already recorded. Mirrors Pay a card: amount, date, the account it's paid from,
+ * and then what the payment is made of. Kassa suggests the principal and interest from the loan's terms and the date; typing
+ * in one makes the other follow, so they always add up. All of that is [LoanPaymentForm]'s; this lays it out.
+ *
+ * Nothing posts by itself: the amount starts as the scheduled payment only because the person opened this, and the
+ * account it's paid from starts empty unless the loan names one.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun LoanPaymentSheet(
+    loan: Account,
+    terms: LoanTerms,
+    ledger: Ledger,
+    editing: LoanPaymentDetail?,
+    onDismiss: () -> Unit,
+    onSave: (LoanPaymentDraft) -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
+    val word = terms.interestWord
+    // What is owed before this payment: today's balance, with an edited payment's own principal put back.
+    val owedNow = -(ledger.accounts.balances[loan.id] ?: 0)
+    val ctx = remember(ledger.loans, owedNow, editing) {
+        LoanPaymentContext(
+            terms, ledger.loans.changesFor(loan.id), ledger.loans.paymentsFor(loan.id),
+            balance = (owedNow + (editing?.principal ?: 0)).coerceAtLeast(0), editing = editing?.payment,
+        )
+    }
+    val sources = remember(ledger.accounts) { payFromChoices(ledger.accounts.accounts, except = loan.id) }
+    var form by remember {
+        mutableStateOf(
+            if (editing != null) LoanPaymentForm.of(editing.payment, editing.principal, editing.interest, editing.fromId, editing.categoryId)
+            else {
+                val today = ledger.today.loanDay()
+                val start = LoanPaymentForm.starting(today, terms.payFromId?.takeIf { id -> sources.any { it.id == id } })
+                val due = LoanEngine.amountDue(terms, ctx.changes, ctx.balance, ctx.lastDay(today), today)
+                if (due > 0) start.withAmount(Money.toInput(due), ctx) else start
+            }
+        )
+    }
+    var problems by remember { mutableStateOf(emptyMap<LoanPaymentField, String>()) }
+    var pickingCategory by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val suggestion = form.suggestion(ctx)
+    val parts = form.parts(ctx)
+    val principalColor = Kassa.colors.ink
+    val interestColor = interestColor(ledger, form.categoryId ?: terms.interestCategoryId)
+    val escrowColor = Kassa.colors.ink3
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                if (editing == null) "Pay ${loan.name}" else "${loan.name} payment", style = KassaType.section, color = Kassa.colors.ink,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Gap(8)
+            AmountField(
+                form.amount, { v -> form = form.withAmount(v, ctx); problems = problems - LoanPaymentField.AMOUNT }, "Amount", Modifier.fillMaxWidth(),
+                problem = problems[LoanPaymentField.AMOUNT],
+            )
+            Label("Date")
+            DateRow(dateOfLoanDay(form.day), ledger.today) { d -> form = form.withDay(d.loanDay(), ctx) }
+            Label("From")
+            FlowRow {
+                // Tapping the picked account again clears it: nothing is chosen for you.
+                sources.forEach { a -> Chip(a.name, form.fromId == a.id) { form = form.copy(fromId = if (form.fromId == a.id) null else a.id); problems = problems - LoanPaymentField.FROM } }
+            }
+            problems[LoanPaymentField.FROM]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
+
+            Gap(8)
+            SplitBar(parts.principal, parts.interest, parts.escrow + parts.charge, principalColor, interestColor, escrowColor)
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Legend("Principal", principalColor)
+                Legend(word, interestColor)
+                if (parts.escrow + parts.charge > 0) Legend(if (parts.escrow > 0) "Escrow" else "Charge", escrowColor)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AmountField(
+                    form.principal, { v -> form = form.withPrincipal(v, ctx); problems = problems - LoanPaymentField.PRINCIPAL }, "Principal", Modifier.weight(1f),
+                    problem = problems[LoanPaymentField.PRINCIPAL],
+                )
+                AmountField(form.interest, { v -> form = form.withInterest(v, ctx) }, word, Modifier.weight(1f))
+            }
+            Text(form.hint(ctx), style = KassaType.small, color = Kassa.colors.ink2)
+            val chosen = ledger.categoryById[form.categoryId ?: terms.interestCategoryId]
+            TextButton(onClick = { pickingCategory = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "$word category: ${chosen?.name ?: LoanCategories.NAME}", style = KassaType.bodyStrong, color = Kassa.colors.ink,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                Text("Change", style = KassaType.small, color = Kassa.colors.ink2)
+            }
+
+            // Scheduled, extra, any charge (shown before saving), escrow when the loan has it, and what is left.
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Line("Scheduled payment", Money.format(form.scheduled(ctx)))
+                Line("Extra, to principal", Money.format(suggestion.extra))
+                if (terms.earlyCharge > 0 || parts.charge > 0) Line("Early repayment charge", Money.format(parts.charge))
+                if (terms.escrow > 0) Line("Escrow", Money.format(parts.escrow))
+                Line("Balance after", Money.format(form.balanceAfter(ctx).coerceAtLeast(0)))
+            }
+            Gap(12)
+            PrimaryButton(if (editing == null) "Record payment" else "Save payment") {
+                problems = form.problems(ctx)
+                if (problems.isEmpty()) onSave(
+                    LoanPaymentDraft(
+                        id = editing?.payment?.id, accountId = loan.id, fromId = form.fromId, day = form.day,
+                        epochMillis = momentOn(dateOfLoanDay(form.day), ledger.today, ledger.zone),
+                        amount = parts.amount, principal = parts.principal, interest = parts.interest, escrow = parts.escrow, charge = parts.charge,
+                        categoryId = form.categoryId, edited = parts.edited, estimate = parts.estimate,
+                    )
+                )
+            }
+            if (onDelete != null) SecondaryButton("Delete payment", { confirmDelete = true }, Modifier.padding(top = 8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+        }
+    }
+
+    if (pickingCategory) Choices(
+        "$word category",
+        listOf(DEFAULT_CATEGORY to "${LoanCategories.NAME} (default)") + LoanCategories.choices(ledger.categories),
+        form.categoryId ?: DEFAULT_CATEGORY,
+        onPick = { id -> form = form.copy(categoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }); pickingCategory = false },
+        onDismiss = { pickingCategory = false },
+    )
+    if (confirmDelete && onDelete != null) ConfirmDialog(
+        title = "Delete this payment?",
+        body = "Its principal, ${word.lowercase()} and any escrow entries are all removed, and the balance goes back up.",
+        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+    )
+}
+
+/** The color of the interest part: the interest category's own, so it reads the same here as in Insights. */
+@Composable
+private fun interestColor(ledger: Ledger, categoryId: Long?): Color {
+    val id = categoryId ?: LoanCategories.interestCategory(ledger.categories)?.id
+    val category = id?.let { ledger.categoryById[it] }
+    return category?.let { Color(it.color) } ?: Kassa.colors.ink2
+}
+
+/** One bar for the whole payment, cut into principal, interest and escrow in proportion. Nothing to read; the figures are below. */
+@Composable
+private fun SplitBar(principal: Long, interest: Long, other: Long, principalColor: Color, interestColor: Color, otherColor: Color) {
+    val total = principal + interest + other
+    Row(Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)).background(Kassa.colors.chip)) {
+        if (total > 0) listOf(principal to principalColor, interest to interestColor, other to otherColor).forEach { (part, color) ->
+            if (part > 0) Box(Modifier.weight(part.toFloat() / total).height(12.dp).background(color))
+        }
+    }
+}
+
+@Composable
+private fun Legend(text: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+        Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp))
+    }
+}
+
+@Composable
+private fun Line(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.weight(1f, fill = false))
+        Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+    }
+}
+
+@Composable
+private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))

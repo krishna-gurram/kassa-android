@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Holding
+import app.kassa.money.domain.LoanEngine
+import app.kassa.money.domain.LoanTerms
+import app.kassa.money.domain.LoanRate
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.Transaction
@@ -86,6 +89,10 @@ fun AccountPage(
     onDeleteHolding: (Holding) -> Unit,
     onBuy: (TradeOrder) -> Unit,
     onSell: (TradeOrder) -> Unit,
+    /** The loan's terms when it has them; a loan without terms offers [onAddTerms] instead of [onPayLoan]. */
+    loanTerms: LoanTerms? = null,
+    onPayLoan: () -> Unit = {},
+    onAddTerms: () -> Unit = {},
 ) {
     val balance = ledger.accounts.balances[account.id] ?: 0
     // The balance right after each entry: walk back from today's balance.
@@ -143,6 +150,7 @@ fun AccountPage(
                         if (debt) BigMoney(Math.abs(endBalance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-endBalance))
                         else BigMoney(endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
                         TwoBoxes("In" to Money.format(moneyIn), "Out" to Money.format(moneyOut), aColor = Kassa.colors.positive)
+                        if (account.type == AccountType.LOAN && monthsBack == 0) LoanActions(ledger, account, loanTerms, balance, onPayLoan, onAddTerms)
                     }
                 }
                 if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
@@ -154,6 +162,38 @@ fun AccountPage(
                 TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = "Balance ${if (debt) app.kassa.money.ui.cards.cardMoney(-balanceAfter) else Money.format(balanceAfter)}", onClick = onEditEntry, showDate = true)
             }
         }
+    }
+}
+
+/**
+ * What a loan account offers above its entries: Pay, with the terms in one line, or Add terms when it has none. The
+ * fuller loan page (schedule, payoff date, change terms) comes later; this is the way in.
+ */
+@Composable
+private fun LoanActions(ledger: Ledger, account: Account, terms: LoanTerms?, balance: Long, onPay: () -> Unit, onAddTerms: () -> Unit) {
+    Gap(12)
+    if (terms == null) {
+        Text("Add the rate and payment and Kassa splits each payment into principal and interest.", style = KassaType.small, color = Kassa.colors.ink2)
+        Gap(8)
+        PrimaryButton("Add terms", onAddTerms)
+        return
+    }
+    val payments = ledger.loans.paymentsFor(account.id)
+    val changes = ledger.loans.changesFor(account.id)
+    val next = java.time.LocalDate.ofEpochDay(terms.nextPaymentDay.toLong())
+    val due = LoanEngine.amountDue(terms, changes, -balance, LoanEngine.lastDay(terms, payments), terms.nextPaymentDay)
+    val eff = terms.effective(changes, ledger.today.toEpochDay().toInt())
+    Text(
+        "${LoanRate.display(eff.rate)} · ${eff.type.label}",
+        style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+    )
+    if (balance < 0) Text(
+        "Next payment ${next.format(DateTimeFormatter.ofPattern("MMM d"))} · ${Money.format(due)}",
+        style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+    )
+    if (balance < 0) {
+        Gap(8)
+        PrimaryButton("Record a payment", onPay)
     }
 }
 
