@@ -3,13 +3,11 @@ package app.kassa.money.ui.accounts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -20,15 +18,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDownward
-import androidx.compose.material.icons.outlined.ArrowUpward
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.Role
+import app.kassa.money.domain.AccountGroupView
+import app.kassa.money.ui.common.AutoScroll
+import app.kassa.money.ui.common.LocalMessages
+import app.kassa.money.ui.common.ReorderMath
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,22 +69,6 @@ import app.kassa.money.ui.importer.RaisedButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
-/** How the Accounts tab orders every group; stored in Settings as these names. */
-private enum class AccountSort(val label: String) {
-    NAME("Name"), BALANCE("Balance"), DUE("Due date"), CUSTOM("Custom");
-
-    fun direction(desc: Boolean) = when (this) {
-        NAME -> if (desc) "Z to A" else "A to Z"
-        BALANCE -> if (desc) "Smallest first" else "Largest first"
-        DUE -> if (desc) "Latest due first" else "Soonest due first"
-        CUSTOM -> "Your order"
-    }
-
-    companion object {
-        fun of(stored: String) = entries.firstOrNull { it.name == stored } ?: NAME
-    }
-}
-
 /** The keys of the groups that aren't an [AccountSection]; folding is remembered by these and the sections' names. */
 private object Fold {
     const val PEOPLE = "people"
@@ -118,12 +102,17 @@ fun AccountsScreen(
 ) {
     val settings = LocalSettings.current
     val sort = AccountSort.of(settings.accountSort.collectAsState().value)
-    val desc by settings.accountSortDesc.collectAsState()
+    val messages = LocalMessages.current
     val state = ledger.accounts
     var addingAccount by remember { mutableStateOf(false) }
     var addingPerson by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
+    var ordering by rememberSaveable { mutableStateOf(false) }
     var arranging by rememberSaveable { mutableStateOf(false) }
+    // Which groups are open while arranging; every group starts as one row.
+    var opened by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val scrollState = rememberScrollState()
+    val autoScroll = remember(scrollState) { AutoScroll(scrollState) }
     val savedArrangement by settings.accountArrangement.collectAsState()
     val arrangement = savedArrangement.takeIf { sort == AccountSort.CUSTOM }
     val toggle: (String) -> Unit = { k -> onFolded(if (k in folded) folded - k else folded + k) }
@@ -147,7 +136,7 @@ fun AccountsScreen(
         AccountSort.BALANCE -> compareByDescending<AccountLine> { Math.abs(it.shown) }.then(byName)
         AccountSort.DUE -> compareBy<AccountLine, Int?>(nullsLast<Int>()) { dueDay(it.account) }.then(byName)
         AccountSort.CUSTOM -> byName
-    }.let { if (desc && sort != AccountSort.CUSTOM) it.reversed() else it }
+    }
 
     val personBalances = ledger.personBalances()
     val owed = ledger.openPersonBalances().values
@@ -161,35 +150,48 @@ fun AccountsScreen(
     // Arranging starts from what is shown now, so a first move keeps every other group and row where it is.
     val shownGroups = overview.groups.map { it.section.name }
     val shownRows = overview.groups.associate { g -> g.section.name to g.lines.map { it.account.id } }
+    // The arrows TalkBack offers on each handle use the domain's one-step moves.
     val moveGroup: (String, List<String>, Int) -> Unit = { key, within, d ->
         settings.setAccountArrangement(AccountArrangement(shownGroups, shownRows).moveGroup(shownGroups, within, key, d))
     }
     val moveAccount: (String, Long, Int) -> Unit = { key, id, d ->
         settings.setAccountArrangement(AccountArrangement(shownGroups, shownRows).moveAccount(shownGroups, key, shownRows.getValue(key), id, d))
     }
+    // A drag reports the new order of one column's groups, or of one group's accounts; the rest stay as shown.
+    val reorderGroups: (List<String>, List<String>) -> Unit = { within, reordered ->
+        settings.setAccountArrangement(AccountArrangement().withShown(ReorderMath.placeInSlots(shownGroups, within, reordered), shownRows))
+    }
+    val reorderAccounts: (String, List<Long>) -> Unit = { key, ids ->
+        settings.setAccountArrangement(AccountArrangement().withShown(shownGroups, shownRows + (key to ids)))
+    }
+    val startArranging = {
+        // Your order starts as what's shown now, whatever it was sorted by.
+        if (sort != AccountSort.CUSTOM) settings.setAccountArrangement(AccountArrangement().withShown(shownGroups, shownRows))
+        arranging = true
+    }
+    val resetOrder = {
+        val previousSort = settings.accountSort.value
+        val previousArrangement = settings.accountArrangement.value
+        settings.resetAccountArrangement()
+        arranging = false
+        messages?.withAction("Back to A to Z", "Undo") {
+            if (previousSort == AccountSort.CUSTOM.name && previousArrangement != null) settings.setAccountArrangement(previousArrangement)
+            else settings.setAccountSort(previousSort)
+        }
+    }
 
-    // [within] is the groups of the column this one sits in, so a group moves only among its own column.
-    val groupCard: @Composable (AccountSection, List<AccountLine>, Long, List<String>) -> Unit = { section, lines, total, within ->
+    val groupCard: @Composable (AccountSection, List<AccountLine>, Long) -> Unit = { section, lines, total ->
         val key = section.name
         val debt = section.isDebt
-        val at = within.indexOf(key)
         GroupCard(
             section.title, if (debt) cardMoney(total) else Money.format(total),
             if (debt) cardTint(total) else figureColor(if (total < 0) Kassa.colors.attention else Kassa.colors.ink),
             open = key !in folded, onToggle = { toggle(key) },
-            trailing = if (arranging) ({
-                MoveButtons(section.title, canUp = at > 0, canDown = at in 0 until within.lastIndex,
-                    onUp = { moveGroup(key, within, -1) }, onDown = { moveGroup(key, within, 1) })
-            }) else null,
         ) {
-            lines.forEachIndexed { i, line ->
+            lines.forEach { line ->
                 HorizontalDivider(color = Kassa.colors.line)
                 val id = line.account.id
-                AccountRow(
-                    line, ledger, cards, selected = id == selectedAccount, arranging = arranging,
-                    mover = { MoveButtons(line.account.name, canUp = i > 0, canDown = i < lines.lastIndex,
-                        onUp = { moveAccount(key, id, -1) }, onDown = { moveAccount(key, id, 1) }) },
-                ) { onOpenAccount(id) }
+                AccountRow(line, ledger, cards, selected = id == selectedAccount) { onOpenAccount(id) }
             }
         }
     }
@@ -239,25 +241,30 @@ fun AccountsScreen(
             large,
         )
     }
-    val sortBar: @Composable () -> Unit = {
+    // One quiet line says how the list is ordered and opens the sheet that changes it.
+    val orderBar: @Composable () -> Unit = {
         val keys = overview.groups.map { it.section.name } + Fold.PEOPLE + (if (overview.closed.isNotEmpty()) listOf(Fold.CLOSED) else emptyList())
         val allFolded = keys.all { it in folded }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            SortHeader(sort, desc, onSort = { settings.setAccountSort(it.name) }, onFlip = { settings.setAccountSortDesc(!desc) })
-            TextButton(onClick = { arranging = !arranging }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (arranging) "Done" else "Arrange", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Row(
+                Modifier.weight(1f).heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClickLabel = "Change how accounts are ordered") { ordering = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Order", style = KassaType.small, color = Kassa.colors.ink2)
+                Text(sort.label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp, end = 2.dp))
+                Icon(Icons.Outlined.ExpandMore, null, tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
             }
-            Spacer(Modifier.weight(1f))
             TextButton(onClick = { onFolded(if (allFolded) emptySet() else keys.toSet()) }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(if (allFolded) "Expand all" else "Collapse all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
-        if (arranging) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Move groups and accounts with the arrows.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-            TextButton(onClick = { settings.resetAccountArrangement() }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Reset to A to Z", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
-            }
-        }
+    }
+    val arrangeColumn: @Composable (List<AccountGroupView>) -> Unit = { groups ->
+        ArrangeGroups(
+            groups, opened, onToggle = { k -> opened = if (k in opened) opened - k else opened + k }, auto = autoScroll,
+            onGroupsMoved = reorderGroups, onAccountsMoved = reorderAccounts, moveGroup = moveGroup, moveAccount = moveAccount,
+        )
     }
     val footer: @Composable () -> Unit = {
         Gap(20)
@@ -283,39 +290,75 @@ fun AccountsScreen(
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        Modifier.fillMaxSize().onGloballyPositioned { c ->
+            val r = c.boundsInRoot()
+            autoScroll.viewTop = r.top
+            autoScroll.viewBottom = r.bottom
+        },
+    ) {
         val two = maxWidth >= TWO_COLUMNS
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = if (two) 1100.dp else 720.dp)) {
-            TabTop("Accounts")
-            strip(two)
-            sortBar()
-            Gap(4)
-            if (two) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        overview.assetGroups.map { it.section.name }.let { within -> overview.assetGroups.forEach { groupCard(it.section, it.lines, it.total, within) } }
-                        peopleCard()
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        overview.liabilityGroups.map { it.section.name }.let { within -> overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total, within) } }
-                        if (overview.liabilityGroups.isEmpty()) Text(
-                            "Cards and loans show here when you add one.", style = KassaType.small, color = Kassa.colors.ink2,
-                            modifier = Modifier.padding(12.dp),
-                        )
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(contentPadding).widthIn(max = if (two) 1100.dp else 720.dp)) {
+            if (arranging) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Arrange", style = KassaType.title, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { arranging = false }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink)
                     }
                 }
-                Gap(10)
-                closedCard()
+                Text(
+                    "Drag the handles. Open a group to move its accounts. Saved as you go.",
+                    style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
+                )
+                if (two) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) { arrangeColumn(overview.assetGroups) }
+                        Column(Modifier.weight(1f)) { arrangeColumn(overview.liabilityGroups) }
+                    }
+                } else {
+                    arrangeColumn(overview.groups)
+                }
+                Gap(24)
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    overview.groups.forEach { groupCard(it.section, it.lines, it.total, shownGroups) }
-                    peopleCard()
+                TabTop("Accounts")
+                strip(two)
+                orderBar()
+                Gap(4)
+                if (two) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            overview.assetGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                            peopleCard()
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                            if (overview.liabilityGroups.isEmpty()) Text(
+                                "Cards and loans show here when you add one.", style = KassaType.small, color = Kassa.colors.ink2,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
+                    }
+                    Gap(10)
                     closedCard()
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        overview.groups.forEach { groupCard(it.section, it.lines, it.total) }
+                        peopleCard()
+                        closedCard()
+                    }
                 }
+                footer()
             }
-            footer()
         }
     }
+
+    if (ordering) OrderSheet(
+        sort,
+        onPick = { picked -> ordering = false; settings.setAccountSort(picked.name) },
+        onArrange = { ordering = false; startArranging() },
+        onReset = { ordering = false; resetOrder() },
+        onDismiss = { ordering = false },
+    )
 
     if (addingAccount) AddAccountSheet(
         groups = state.groups,
@@ -337,8 +380,7 @@ fun AccountsScreen(
  */
 @Composable
 private fun AccountRow(
-    line: AccountLine, ledger: Ledger, cards: Map<Long, CardSnapshotFor>, selected: Boolean,
-    arranging: Boolean = false, mover: (@Composable () -> Unit)? = null, onClick: () -> Unit,
+    line: AccountLine, ledger: Ledger, cards: Map<Long, CardSnapshotFor>, selected: Boolean, onClick: () -> Unit,
 ) {
     val a = line.account
     val debt = a.type.isDebt
@@ -382,7 +424,7 @@ private fun AccountRow(
         a.name, a.last4, if (debt) cardMoney(line.shown) else Money.format(line.shown), selected = selected, grouped = true,
         amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown),
         note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor,
-        enabled = !arranging, trailing = if (arranging) mover else null, onClick = onClick,
+        onClick = onClick,
     )
 }
 
@@ -398,67 +440,29 @@ private fun PersonRow(p: Person, balance: Long, onClick: () -> Unit) {
 
 /**
  * A foldable card: its title and [total] in a header 48dp tall that folds or opens it, then [content] while open. The
- * fold state is the caller's, so it survives folding the phone.
+ * fold state is the caller's, so it survives folding the phone. [trailing] sits at the end of the header, outside what
+ * folds it (the drag handle while arranging).
  */
 @Composable
-private fun GroupCard(
+internal fun GroupCard(
     title: String, total: String?, totalColor: Color, open: Boolean, onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = if (open) "Fold $title" else "Open $title", onClick = onToggle).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
-            Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
-            if (total != null) Text(total, style = KassaType.bodyStrong, color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClickLabel = if (open) "Fold $title" else "Open $title", onClick = onToggle)
+                    .padding(start = 12.dp, end = if (trailing == null) 12.dp else 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
+                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
+                if (total != null) Text(total, style = KassaType.bodyStrong, color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
+            }
             trailing?.invoke()
         }
         if (open) content()
-    }
-}
-
-/**
- * The list's order, as Google Files shows it: the sort's name opens a menu, and a separate round button flips the
- * direction. Each has its own 48dp target with space between, so one can't be hit for the other.
- */
-@Composable
-private fun SortHeader(sort: AccountSort, desc: Boolean, onSort: (AccountSort) -> Unit, onFlip: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box {
-            TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(sort.label, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            }
-            DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
-                // Custom is only listed while it's the order in use; arranging is what makes it.
-                AccountSort.entries.filter { it != AccountSort.CUSTOM || sort == AccountSort.CUSTOM }.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label, style = KassaType.body, color = Kassa.colors.ink) },
-                        leadingIcon = { Box(Modifier.size(24.dp)) { if (option == sort) Icon(Icons.Outlined.Check, null, tint = Kassa.colors.ink) } },
-                        onClick = { menu = false; onSort(option) },
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.size(12.dp))
-        if (sort != AccountSort.CUSTOM) IconButton(onClick = onFlip, modifier = Modifier.size(48.dp)) {
-            Icon(Icons.Outlined.ArrowUpward, sort.direction(desc), tint = Kassa.colors.ink, modifier = Modifier.size(20.dp).rotate(if (desc) 180f else 0f))
-        }
-    }
-}
-
-/** Up and down for one group or account while arranging: two 48dp buttons, each off at its end of the list. */
-@Composable
-private fun MoveButtons(label: String, canUp: Boolean, canDown: Boolean, onUp: () -> Unit, onDown: () -> Unit) {
-    Row {
-        IconButton(onClick = onUp, enabled = canUp, modifier = Modifier.size(48.dp)) {
-            Icon(Icons.Outlined.ArrowUpward, "Move $label up", tint = if (canUp) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = onDown, enabled = canDown, modifier = Modifier.size(48.dp)) {
-            Icon(Icons.Outlined.ArrowDownward, "Move $label down", tint = if (canDown) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
-        }
     }
 }
