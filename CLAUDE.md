@@ -184,12 +184,12 @@ Jetpack libraries" notice) shows the icon on a disc over the ground color, light
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to eight pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Activity has no hero: the month switcher is centred with arrows at the edges and a tappable label that opens the month picker sheet (`ui/common/MonthPicker.kt`, months after the current one are disabled), the Spending and Income totals sit under it (each also a filter), then search and the days. Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits, a tinted bar), the Spending/Income tonal hero (titles switch spending and income, a small menu picks the month or this week, the total, then the top three categories as one stacked bar with a legend; a legend item opens its category, the chevron opens the full breakdown), Upcoming (three rows; five unfolded), and up to eight pinned accounts as hairline cells, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
 ## Accounts tab
-Top: Assets, Liabilities, Net worth (orange with its minus below zero). Then a foldable card for each kind the user has,
+Top: a Net worth tonal hero (green; orange with its minus below zero) with Assets and Liabilities along its foot. Then a foldable group for each kind the user has (flat on the page: a small uppercase label, its total, a hairline; while arranging each group is a raised card),
 from `AccountsOverview`: Cash and bank (checking, savings, cash, prepaid, fixed deposit), Investments, Other assets,
 Credit cards, Loans, Other debts, then People and a Closed group (folded by default; fold state lives in `NavViewModel`).
 600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are name and main figure, with
@@ -201,6 +201,8 @@ one and names the person, and it becomes a person with the same balance while th
 Fixed deposit is an asset with an optional maturity date. Close account (account and card pages) needs a zero balance
 (holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
 worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
+
+**Add account is type first.** The sheet opens on a list of kinds (Cash and bank, Credit and loans, Investments, Other, then Add a person); picking one shows a form with only that kind's fields and a back arrow (`AccountFields(showType = false)`). The Type chips remain only on the first-run screen.
 
 **Order and arrange accounts.** One quiet line under the Assets, Liabilities and Net worth strip reads "Order  A to Z" (or
 Largest first, Due soonest, Your order) with a chevron, 48dp tall and tappable, and opens the "Order accounts" bottom sheet
@@ -226,6 +228,10 @@ order, then row order; People last). It rides in the `.kassa` backup beside the 
 (`accountArrangement`, absent in older files). The old stored reverse flag is no longer read.
 
 ## One component per job
+- Hero blocks: `TonalHero` (`ui/common/Hero.kt`) with `HeroLabel`, `HeroRule`, `HeroFoot`; `RaisedPanel` is the same block with a tone (grey by default). Tones come from `Kassa.colors.hero*` (light and dark tints): GREEN neutral or in your favour, ORANGE owed or due, GREY lists. **While Hide balances is on every hero turns grey** (decided inside `TonalHero`), so a tint never gives a figure away. Only Overview, Accounts, Insights, loan, card, account, person and category pages have one; never put a hero on a form.
+- Section titles over a list: `SectionHeader` (uppercase label, hairline, optional `onClick` with a chevron note); Insights' `Head` is the same thing.
+- Months: `PeriodSwitcher` (arrows at the edges, label centred, `onLabel` makes it open a picker) and `MonthPickerSheet`.
+- Accounts: one picker, `ui/common/AccountPicker.kt`, modelled on the category picker: search with Done, kind chips (only kinds that have an account), a Recent row (accounts used lately; it preselects nothing), then icon tiles grouped by kind and A to Z, no amounts, the picked tile outlined with a tick, "No account matches", closed and caller-excluded accounts left out. What shows and in which order is `domain/AccountPicking` (JVM tests). The entry page and the bill page use `AccountPickerPanel` on their own state; bottom sheets wrap their form in `CategoryPickerHost(..., accounts = ...)` (or `AccountPickerHost`) and use `AccountChoiceRow` (entry fields, pay card, loan Pay from, Add account Pay from, person payment). Never build a chip list of accounts.
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before
 writing a new control, find the existing one; if it doesn't fit, change it rather than adding a second version.
 - Dates: `MonthCalendar` (the entry page's date panel) and `DateRow` (Today, Yesterday, Other day; opens the same
@@ -358,7 +364,7 @@ A due notification is `VISIBILITY_PRIVATE` with a public version that says only 
 name, no count), so nothing reaches a locked screen; its private text omits the amount while Hide balances is on.
 
 ## Style
-Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
+Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (Save sits in the entry page's top bar); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
 Money has one color rule (`favourColor`, `balanceColor` in `ui/common/Components.kt`): **green** when it's in your favour
 (income, profit, someone owes you, a card in credit), **orange** when it's against you beyond ordinary spending (an
 investment loss, you owe someone, over budget, a card payment due or overdue, a bank or cash balance below zero, net
