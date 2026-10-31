@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
-import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.CurrencyStyle
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
@@ -70,19 +69,7 @@ internal fun CurrencyPage(ledger: Ledger) {
     val selected by settings.currency.collectAsState()
     var confirm by remember { mutableStateOf<CurrencyStyle?>(null) }
     val hasData = ledger.recent.isNotEmpty() || ledger.accounts.accounts.isNotEmpty()
-    Currencies.all.forEach { c ->
-        Column(Modifier.clickable { if (c.code != selected) { if (hasData) confirm = c else settings.setCurrency(c.code) } }) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                    Text(c.code, style = KassaType.small, color = Kassa.colors.ink2)
-                }
-                Text(Money.sample(123_450, style = c), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
-                Text(if (c.code == selected) "✓" else "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            }
-            HorizontalDivider(color = Kassa.colors.line)
-        }
-    }
+    CurrencyList(selected) { c -> if (c.code != selected) { if (hasData) confirm = c else settings.setCurrency(c.code) } }
     confirm?.let { c ->
         ConfirmDialog(
             title = "Show amounts in ${c.name}?",

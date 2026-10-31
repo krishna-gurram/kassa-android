@@ -85,13 +85,13 @@ class AccountArrangementTest {
     fun overviewFollowsTheArrangementAndColumnsKeepTheirOrder() {
         val list = listOf(
             acct(1, "Bank", AccountType.CHECKING, 100), acct(2, "Savings", AccountType.SAVINGS, 100),
-            acct(3, "Visa", AccountType.CREDIT_CARD, -50), acct(4, "Amex", AccountType.CREDIT_CARD, -20),
+            acct(3, "Card A", AccountType.CREDIT_CARD, -50), acct(4, "Card B", AccountType.CREDIT_CARD, -20),
             acct(5, "Old", AccountType.CHECKING, 0, closed = 100), acct(6, "Car", AccountType.LOAN, -900),
         )
         val a = AccountArrangement(listOf("CREDIT_CARDS", "CASH_AND_BANK"), mapOf("CREDIT_CARDS" to listOf(3L, 4L), "CASH_AND_BANK" to listOf(2L, 1L, 5L)))
         val o = AccountsOverview.of(list, { it.openingBalance }, arrangement = a)
         assertEquals(listOf(AccountSection.CREDIT_CARDS, AccountSection.CASH_AND_BANK, AccountSection.LOANS), o.groups.map { it.section })
-        assertEquals(listOf("Visa", "Amex"), o.groups[0].lines.map { it.account.name })
+        assertEquals(listOf("Card A", "Card B"), o.groups[0].lines.map { it.account.name })
         assertEquals(listOf("Savings", "Bank"), o.groups[1].lines.map { it.account.name })
         assertEquals(listOf(AccountSection.CASH_AND_BANK), o.assetGroups.map { it.section })
         assertEquals(listOf(AccountSection.CREDIT_CARDS, AccountSection.LOANS), o.liabilityGroups.map { it.section })
@@ -101,9 +101,9 @@ class AccountArrangementTest {
 
     @Test
     fun flattenGivesGroupOrderThenRowOrder() {
-        val list = listOf(acct(1, "Bank", AccountType.CHECKING), acct(3, "Visa", AccountType.CREDIT_CARD), acct(4, "Amex", AccountType.CREDIT_CARD))
+        val list = listOf(acct(1, "Bank", AccountType.CHECKING), acct(3, "Card A", AccountType.CREDIT_CARD), acct(4, "Card B", AccountType.CREDIT_CARD))
         val a = AccountArrangement(listOf("CREDIT_CARDS"), mapOf("CREDIT_CARDS" to listOf(3L, 4L)))
         val out = a.flatten(list, { AccountSection.of(it.type).name }, { AccountSection.of(it.type).title }, { it.id }, { it.name })
-        assertEquals(listOf("Visa", "Amex", "Bank"), out.map { it.name })
+        assertEquals(listOf("Card A", "Card B", "Bank"), out.map { it.name })
     }
 }

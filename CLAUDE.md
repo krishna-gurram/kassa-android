@@ -5,9 +5,20 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 ## Rules that matter
 - **No network, ever.** The manifest removes `INTERNET`; CI fails if it appears. Don't add libraries that need it.
 - **Money is `Long` cents.** Never `Double` for stored or summed amounts. Shares are millionths (`microShares`).
-- **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
-  are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
-  and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
+- **No currency is written anywhere.** Each phone shows one currency (Settings > Currency); it starts as the phone's region
+  currency when Kassa lists it (`Currencies.forLocale`, saved at once so moving regions never changes entered amounts), and
+  otherwise the first-run screen asks (Start fresh and Choose backup file open the list until one is picked). Amounts are
+  minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`, and use
+  `Money.symbol` for a bare symbol. Never type `$` in UI code.
+- **Numbers follow the phone's language, not the currency** (`domain/NumberText`, `Money.locale`): grouping and decimal mark
+  (1,234.50, 1.234,50, 1 234,50, lakh grouping 12,34,567.50 for India, Bangladesh and Nepal, which java.text can't do). The
+  symbol is always in front. Typed amounts, rates and share counts accept either mark: `Money.parseCents`, `InputRules.parseRate`
+  and `Shares.parse` read what the person typed or pasted (`NumberText.parts`), and fields rewrite it with the phone's mark.
+  The number pad keeps a point in its own text and only shows the phone's mark. **Files from other apps use
+  `Money.parsePlain`** (a point is always a decimal there). Only currencies with two minor-unit digits are listed: JPY, KRW,
+  VND, KWD, BHD and OMR need whole-unit or three-digit rules through fields, limits, importers and loan rounding first, and IDR
+  would hit the 99,999,999.99 limit at about 6,000 US dollars. Tests pin the style with `Money.withLocale`; the Gradle test
+  tasks run as en-US.
 - **Nothing posts by itself.** Bills, card payments and loan payments wait on the Notifications page
   (`ui/today/Notifications.kt`, linked from Overview only when something waits) from their due day, never before, and
   stay while overdue; so do investment transfers and suggested bills. They wait until the user acts or clears them.
@@ -28,7 +39,9 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
   `Money.hideAmounts`, so every composable that formats money redraws at once. So don't split or measure formatted text,
   and give any color or sign that follows a figure (over budget, a loss, net worth below zero) through `figureColor`,
   `favourColor`, `balanceColor` or `cardTint`, which turn plain ink while hidden. The eye lives in `PageTop` and
-  `TabTop` (`amounts = false` only where a page shows none), so a new screen gets it free.
+  `TabTop` (`amounts = false` only where a page shows none), so a new screen gets it free. While hidden, wording must not give
+  the size or state away either: no "Paid in full", "extra", "over budget", "N% ahead" or arrows and plus signs next to a masked
+  figure, and no zero shown as blank where others show the mask.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 
 ## Built for public release
@@ -37,7 +50,13 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   Defaults must make sense for someone starting fresh.
 - Locale-aware: dates, weekdays and numbers come from the phone's locale (never a hardcoded `Locale.US`);
   currencies cover what real users need. New UI copy should be easy to move into `strings.xml` later.
-- Accessible: content descriptions on icon buttons, layouts that survive large font sizes, 48dp touch targets.
+- Accessible: content descriptions on icon buttons and glyph buttons (a "‹", "⋯" or "⌫" text glyph gets
+  `clearAndSetSemantics { contentDescription = ... }` or is an `IconButton` with an `Icon`), and **every tap target at least
+  48dp** (`IconButton`, `heightIn(min = 48.dp)`, or a 48dp cell with the smaller visual drawn inside it, as in the calendar days,
+  the bill day grid and the color swatches). Layouts survive 200% fonts: no fixed height on anything that holds text (use
+  `heightIn(min = ...)` and let it wrap or ellipsize); a chart whose labels grow with the text uses `scaledDp`; big numerals and
+  the pad keys use `scaledSp` (follows the font setting up to 130% because their box can't grow); fixed widths are `widthIn(min = ...)`.
+  Overview may scroll at large fonts, which is fine; it still fits without scrolling at the default size.
 - Works on ordinary phones and tablets, not only the Fold; light and dark.
 - Privacy is the product: still no network, no analytics, no crash upload. Crash reports stay on the phone
   and the user chooses to share them.
@@ -62,6 +81,12 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.
 - `app/data/backup`: the `.kassa` file format (`BackupFile`), its JSON (`BackupContents`), and `BackupRepository`.
+  Backups stream: `JsonStream.kt` is a small pull parser and writer (plain Kotlin, no `org.json`), `BackupContents.writeJson` and
+  `readJson` go table by table, and `BackupRepository.write` reads inside one transaction in pages of 2000 entries into a
+  compressed buffer, so 50,000 entries never sit in memory as one string. The JSON has `"version"` (now 1); a file with a higher
+  one is refused everywhere with "This backup is from a newer version of Kassa. Update Kassa to open it." (`NewerVersion`).
+  Unknown keys are skipped, so adding an optional field never breaks older files. Gunzip is bounded to 256 MB (`TooLarge`).
+  A protected file releases nothing until its authentication tag has checked (`CheckedDecryptStream`).
   Every table is in it, including waiting investment transfers (optional in the file, so older backups read none). A new table
   or column that holds user data needs a `BackupContents` field (optional) and a line in the round-trip tests.
   An import over existing data (`ImportRepository.replaceWith`) replaces everything that points at the old accounts and entries
@@ -73,6 +98,23 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - Big screens keep their state in a plain state holder next to them (`EntryState` for the entry page,
   `AccountForm` for the account forms) so the composables only lay things out.
 
+## Failures and what the person is told
+Raw exception text never reaches the screen. `data/Failures.kt` is the one place that words a failure for each thing being done
+(`Failures.Doing`: save, write or read a backup, restore, import a file, save an import): wrong password, newer version, damaged
+or cut-short file, wrong kind of file, no space, a folder or file that is no longer reachable, too large. Only a message the
+repository wrote itself (an `IllegalArgumentException` while saving) passes through. `LedgerViewModel.change` catches every
+`Exception` (rethrowing cancellation) and shows "Couldn't save. Try again."; only a short code (`Failures.code`, a class name)
+is logged. `UserFacing` carries a message that is already safe. New single `catch` blocks that show text use `Failures`.
+
+## Closed accounts and waiting transfers
+A closed account takes nothing new: `EntryRepository.save` (entries, transfers, card payments), `correctBalance`, buys and sales,
+loan payments and bill approvals call `requireOpen` (`data/repo/ClosedAccounts.kt`) inside their transaction with only the
+accounts the change newly touches, and refuse with "<name> is closed. Reopen it first to add to it." Existing entries and edits
+that keep their accounts, and deletes, are unaffected. A waiting investment transfer (`investment_transfers`) follows its entry:
+deleting the entry removes the row, editing it updates amount, date and account while it is still a transfer into an investment
+account, and otherwise removes it. Approving a bill (`BillRepository.approve`) saves the entry and marks the month handled in one
+transaction. Activity search escapes `%`, `_` and `\` (`SearchText`, `ESCAPE` in `Daos.kt`), so typed text is never a pattern.
+
 ## Database changes
 Schema 9 added `accounts.maturityDay` and `closedDay` (nullable epoch days); older backups read them as null. Schema 10
 added `loan_terms.countAllAsSpending` (NOT NULL DEFAULT 0, so the entity says `@ColumnInfo(defaultValue = "0")`) and
@@ -83,13 +125,21 @@ Bump `DATABASE_VERSION` and add a `Migration` to `ALL_MIGRATIONS`. Columns must 
 first and upgrades over it, so a bad migration fails the build instead of reaching the phone.
 
 ## Build and release
+- **Daily backups** (`data/jobs/DailyJobs.kt`) write `Kassa_yyyyMMdd_HHmmss.kassa` into the chosen folder, then keep the newest
+  30 of Kassa's own files there and delete older ones (`BackupNames`: a file must match the pattern exactly; anything else is never
+  touched). A failed write deletes the half-written document and leaves a plain status. After 3 failed days in a row
+  (`BackupStreak`) one private notification, "Backup needs attention" (no amounts), opens Settings > Backup and restore; it is
+  offered again the next failed day if notifications were off, and a working backup ends the streak. A one-time note says
+  "Backups in this folder aren't encrypted. Add a password when you save one anywhere you don't control." before the folder picker
+  and on the Backup page until dismissed. Restoring shows "Restoring..." until the result message replaces it.
 - `./gradlew :domain:test :importer:test :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
 - `app/src/androidTest` holds device tests: upgrades from every database version (`app/schemas`; 1 to 3 were rebuilt
   from 4.json by undoing each migration), entries with splits, and backup round trips. CI runs them on the emulator
   after the smoke test. The debug build is `app.kassa.money.debug`, so it installs beside the real app.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
   certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
-  as a GitHub release. Only the newest commit on `main` is published.
+  as a GitHub release. The app's `versionName` is `0.9.<build number>` (testing; it becomes 1.0.<build number> at launch) and `versionCode` is `100 + build number` (the release tag
+  stays `v0.2.<count>` until the workflow changes; the tag is not the version people see). Only the newest commit on `main` is published.
 - Pushes from the Claude GitHub App sometimes don't trigger a run; start one with a `workflow_dispatch`.
 - Build logs aren't readable through the API from Claude sessions, so failures upload logs to a draft release
   `diag-<run>`, and emulator screenshots/logcat go to `ci-<run>`.
@@ -100,25 +150,46 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   main thread and shows `ui/start/CantOpenScreen.kt` ("Kassa can't open its data": Try again, Restore from a backup, Start over;
   the last two ask first and erase the unreadable database and its key, then the first-run screen follows). `DatabaseKey.get`
   never makes a new key over an existing database (`KeyPolicy.decide`, JVM tests); it throws `KeyUnreadable` instead.
+- **While the database opens** (`AppRoot` count -1 or ledger null, and before `MainActivity` has the database) Kassa shows
+  `ui/start/StartingScreen.kt`: the app name on the ground colour and a small progress, with no balances, in light and dark.
 - **App lock** state survives recreation (saved instance state), so folding, rotating or a theme change never re-prompts; a
   cold start locks, and so does coming back after more than a minute (`hiddenAt` is saved too, for a killed process).
+  The switch in Settings only turns on when the phone has a screen lock (`ui/AppLock.check`: `BiometricManager` with weak
+  biometrics or device credential on API 30+, `KeyguardManager.isDeviceSecure` below); without one it says "Set a screen lock on
+  this phone first." If the lock stops being possible while it is on (`ERROR_NO_DEVICE_CREDENTIAL`, `ERROR_HW_NOT_PRESENT`,
+  or no screen lock at unlock time) Kassa turns the setting off and tells the person once (`Settings.lockTurnedOff`,
+  `takeLockNotice`). It never opens silently while the setting is on and the lock is working.
+- **Intents act once.** The reminder's `openAdd`, a due notification and the backup notification are read from the launching
+  intent only when `savedInstanceState` is null (otherwise they come back from saved state), so rotating never repeats them.
+- **The day is not cached.** `DayClock` (Application, one receiver for date, time and zone changes, plus `refresh()` from
+  `MainActivity.onStart`) holds today and the zone; the ledger's recent and repeats windows (`domain/QueryWindows`), the
+  Activity month (it follows the calendar while the current month is shown) and `EntryState` read it. Never keep `LocalDate.now()`
+  or `ZoneId.systemDefault()` in a long-lived object.
 - **FLAG_SECURE** is set on the window while App lock or Hide balances is on (reactive, all Android versions), so recents
   thumbnails and screenshots never show balances. Screenshots are blocked while it is set.
 - **Typed input survives recreation:** `EntryState` has a saver (`EntryState.saver`), the first-run account form and the pay-card
   and loan-payment sheets use `rememberSaveable` (`AccountFormSaver`, `LoanPaymentFormSaver`), and which sheet is open lives in
-  `NavViewModel` (`AppController` only forwards to it). Other sheets reopen empty after a fold. New forms should do the same.
+  `NavViewModel` (`AppController` only forwards to it). The trade, holding, person payment, add and edit person, balance
+  correction, add terms (`LoanFormSaver`) and loan details (`LoanDetailsFormSaver`) sheets do too, and the Import page's confirm
+  step; dates use `rememberSavedDate` (`ui/common/Saveable.kt`). Not saved on purpose: passwords. Not saved: the all-prices
+  sheet. New forms should do the same.
 - **Crash file** (`last-crash.txt`, attached to feedback if the user ticks it) holds exception class names and stack frames only,
   never message text (`CrashReport.describe`).
+
+## Starting screen
+`Theme.Kassa.Starting` (parent `Theme.SplashScreen` from `androidx.core:core-splashscreen`, Apache 2.0, covered by the "Android
+Jetpack libraries" notice) shows the icon on a disc over the ground color, light and dark (`drawable/ic_splash.xml`,
+`splash_disc`), and `MainActivity` calls `installSplashScreen()` before `super.onCreate` to switch to `Theme.Kassa`.
 
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to eight pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Activity has no hero: the month switcher is centred with arrows at the edges and a tappable label that opens the month picker sheet (`ui/common/MonthPicker.kt`, months after the current one are disabled), the Spending and Income totals sit under it (each also a filter), then search and the days. Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits, a tinted bar), the Spending/Income tonal hero (titles switch spending and income, a small menu picks the month or this week, the total, then the top three categories as one stacked bar with a legend; a legend item opens its category, the chevron opens the full breakdown), Upcoming (three rows; five unfolded), and up to eight pinned accounts as hairline cells, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
 ## Accounts tab
-Top: Assets, Liabilities, Net worth (orange with its minus below zero). Then a foldable card for each kind the user has,
+Top: a Net worth tonal hero (green; orange with its minus below zero) with Assets and Liabilities along its foot. Then a foldable group for each kind the user has (flat on the page: a small uppercase label, its total, a hairline; while arranging each group is a raised card),
 from `AccountsOverview`: Cash and bank (checking, savings, cash, prepaid, fixed deposit), Investments, Other assets,
 Credit cards, Loans, Other debts, then People and a Closed group (folded by default; fold state lives in `NavViewModel`).
 600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are name and main figure, with
@@ -130,6 +201,8 @@ one and names the person, and it becomes a person with the same balance while th
 Fixed deposit is an asset with an optional maturity date. Close account (account and card pages) needs a zero balance
 (holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
 worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
+
+**Add account is type first.** The sheet opens on a list of kinds (Cash and bank, Credit and loans, Investments, Other, then Add a person); picking one shows a form with only that kind's fields and a back arrow (`AccountFields(showType = false)`). The Type chips remain only on the first-run screen.
 
 **Order and arrange accounts.** One quiet line under the Assets, Liabilities and Net worth strip reads "Order  A to Z" (or
 Largest first, Due soonest, Your order) with a chevron, 48dp tall and tappable, and opens the "Order accounts" bottom sheet
@@ -155,10 +228,18 @@ order, then row order; People last). It rides in the `.kassa` backup beside the 
 (`accountArrangement`, absent in older files). The old stored reverse flag is no longer read.
 
 ## One component per job
+- Hero blocks: `TonalHero` (`ui/common/Hero.kt`) with `HeroLabel`, `HeroRule`, `HeroFoot`; `RaisedPanel` is the same block with a tone (grey by default). Tones come from `Kassa.colors.hero*` (light and dark tints): GREEN neutral or in your favour, ORANGE owed or due, GREY lists. **While Hide balances is on every hero turns grey** (decided inside `TonalHero`), so a tint never gives a figure away. Only Overview, Accounts, Insights, loan, card, account, person and category pages have one; never put a hero on a form.
+- Section titles over a list: `SectionHeader` (uppercase label, hairline, optional `onClick` with a chevron note); Insights' `Head` is the same thing.
+- Months: `PeriodSwitcher` (arrows at the edges, label centred, `onLabel` makes it open a picker) and `MonthPickerSheet`.
+- Accounts: one picker, `ui/common/AccountPicker.kt`, modelled on the category picker: search with Done, kind chips (only kinds that have an account), a Recent row (accounts used lately; it preselects nothing), then icon tiles grouped by kind and A to Z, no amounts, the picked tile outlined with a tick, "No account matches", closed and caller-excluded accounts left out. What shows and in which order is `domain/AccountPicking` (JVM tests). The entry page and the bill page use `AccountPickerPanel` on their own state; bottom sheets wrap their form in `CategoryPickerHost(..., accounts = ...)` (or `AccountPickerHost`) and use `AccountChoiceRow` (entry fields, pay card, loan Pay from, Add account Pay from, person payment). Never build a chip list of accounts.
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before
 writing a new control, find the existing one; if it doesn't fit, change it rather than adding a second version.
 - Dates: `MonthCalendar` (the entry page's date panel) and `DateRow` (Today, Yesterday, Other day; opens the same
-  calendar). Never Material's `DatePicker`.
+  calendar). Never Material's `DatePicker`. **Writing a date for people goes through `ui/common/Dates.kt`** (`shortDate`,
+  `shortDateYear`, `weekdayDate`, `weekdayDateLong`, `monthYear`, `monthYearShort`, `monthShort`), which asks the phone for its
+  own best pattern ("14 Nov" in the UK, India and the Gulf, "Nov 14" in the US). Never `DateTimeFormatter.ofPattern("MMM d")`,
+  a hardcoded `Locale`, or a month name glued to a year; whole dates use `ofLocalizedDate`. No ordinals ("5th") or other
+  English-only grammar in new copy.
 - Amounts `AmountField`, names `NameField`, short numbers `DigitsField` (`ui/common/Fields.kt`); the entry and bill
   pages use `NumberPad`.
 - Categories: one picker everywhere (`ui/common/CategoryPicker.kt`). `CategoryPickerPanel` (search, icon grid) and
@@ -187,7 +268,7 @@ amount three times is suggested as a bill; ones that vary are added by the user.
 ## Wording
 Cards follow Money Manager: **Balance payable** is the unpaid last statement, **Outstanding** is charges since the
 statement date, **Total balance** is both. A statement covers everything up to the day before its statement date; the
-statement date itself starts the next cycle. Card figures are never clamped: paying past zero shows a green credit. Accounts show Assets, Liabilities and Net worth; people are Receivable or
+statement date itself starts the next cycle. A due day is clamped to the month's length but always lands after the statement date (`CardCycle.dueFor`). Card figures are never clamped: paying past zero shows a green credit. Accounts show Assets, Liabilities and Net worth; people are Receivable or
 Payable.
 
 ## Entries
@@ -283,7 +364,7 @@ A due notification is `VISIBILITY_PRIVATE` with a public version that says only 
 name, no count), so nothing reaches a locked screen; its private text omits the amount while Hide balances is on.
 
 ## Style
-Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
+Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (Save sits in the entry page's top bar); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
 Money has one color rule (`favourColor`, `balanceColor` in `ui/common/Components.kt`): **green** when it's in your favour
 (income, profit, someone owes you, a card in credit), **orange** when it's against you beyond ordinary spending (an
 investment loss, you owe someone, over budget, a card payment due or overdue, a bank or cash balance below zero, net

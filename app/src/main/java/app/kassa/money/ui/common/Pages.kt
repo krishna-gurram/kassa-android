@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -43,7 +43,7 @@ import app.kassa.money.ui.theme.KassaType
  */
 @Composable
 fun PageTop(title: String, onBack: (() -> Unit)?, amounts: Boolean = true, trailing: @Composable RowScope.() -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
             IconButton(onClick = onBack, modifier = Modifier.padding(end = 4.dp)) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
         } else {
@@ -85,10 +85,10 @@ fun HideBalancesButton() {
     }
 }
 
-/** The one raised surface on a screen, for its summary. */
+/** The one summary block on a screen: a tonal hero (see [TonalHero]); grey unless the caller gives it a tone. */
 @Composable
-fun RaisedPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Kassa.colors.raised).padding(18.dp), content = content)
+fun RaisedPanel(modifier: Modifier = Modifier, tone: HeroTone = HeroTone.GREY, content: @Composable ColumnScope.() -> Unit) {
+    TonalHero(tone, modifier, content)
 }
 
 enum class Tone { NEUTRAL, ATTENTION, POSITIVE }
@@ -154,29 +154,34 @@ fun ValueRow(label: String, value: String, color: androidx.compose.ui.graphics.C
     }
 }
 
-/** ‹ Label › with an optional line under it. Used for months on Activity and accounts, and statements on cards. */
+/**
+ * A period with arrows at the edges and its label centred: months on Activity and accounts, statements on cards. With
+ * [onLabel] the label is tappable and shows a small down arrow (it opens a picker).
+ */
 @Composable
-fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Boolean, onBack: () -> Unit, onForward: () -> Unit) {
+fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Boolean, onBack: () -> Unit, onForward: () -> Unit, onLabel: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        RoundArrow(left = true, enabled = canBack, onClick = onBack)
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+        SwitchArrow(left = true, enabled = canBack, onClick = onBack)
+        Column(
+            Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                .then(if (onLabel != null) Modifier.clickable(onClickLabel = "Choose month", role = androidx.compose.ui.semantics.Role.Button, onClick = onLabel) else Modifier),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (onLabel != null) Icon(app.kassa.money.ui.activity.ChevronDown(), null, tint = Kassa.colors.ink, modifier = Modifier.padding(start = 2.dp).size(20.dp))
+            }
             if (sub != null) Text(sub, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1)
         }
-        RoundArrow(left = false, enabled = canForward, onClick = onForward)
+        SwitchArrow(left = false, enabled = canForward, onClick = onForward)
     }
 }
 
+/** A plain chevron in a 48dp touch target; dimmed when there's nowhere to go. */
 @Composable
-private fun RoundArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    // A 34dp circle inside a 48dp touch target.
-    androidx.compose.foundation.layout.Box(
-        Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        androidx.compose.foundation.layout.Box(Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
-            Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
-        }
+private fun SwitchArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
+        Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
     }
 }
 

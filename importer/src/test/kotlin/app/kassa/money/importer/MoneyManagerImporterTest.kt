@@ -23,16 +23,16 @@ class MoneyManagerImporterTest {
             MmGroup("g-inv", "Investments", 8, 3),
         )
         override fun assets() = listOf(
-            MmAsset("a-chk", "Chase checking", "g-acc", 1, null, null, "1000"),
-            MmAsset("a-amex", "Amex Platinum", "g-card", 2, 2, 27, "0", payFromUid = "a-chk"),
-            MmAsset("a-amex2", "amex plat", "g-card", 3, 1, 1, "0"),
+            MmAsset("a-chk", "Bank A checking", "g-acc", 1, null, null, "1000"),
+            MmAsset("a-cardb", "Card B Plus", "g-card", 2, 2, 27, "0", payFromUid = "a-chk"),
+            MmAsset("a-cardb2", "card b pl", "g-card", 3, 1, 1, "0"),
             MmAsset("a-sw", "Friends debt", "g-card", 4, null, null, "0"),
             MmAsset("a-rh", "Robinhood", "g-inv", 5, 1, 1, "0"),
             MmAsset("a-cash", "Cash", "g-cash", 0, null, null, "40.5"),
         )
         override fun categories() = listOf(
             MmCategory("c-gro", "🛒Groceries ", 1, null, false, 1),
-            MmCategory("c-gro-costco", "🛒Costco", 1, "c-gro", false, 1),
+            MmCategory("c-gro-store-c", "🛒Store C", 1, "c-gro", false, 1),
             MmCategory("c-home", "🏡 Home Standard Expenses", 1, null, false, 2),
             MmCategory("c-sw", "Short term loan/Friends", 1, null, false, 3),
             MmCategory("c-old", "Old stuff", 1, null, true, 4),
@@ -40,10 +40,10 @@ class MoneyManagerImporterTest {
         )
         override fun transactions() = listOf(
             MmTransaction("t1", 0, "a-chk", null, "c-pay", "5000", t0, "Paycheck", null),
-            MmTransaction("t2", 1, "a-amex", null, "c-gro-costco", "186.42", t0 + day, "Costco", null),
-            MmTransaction("t3", 1, "a-amex", null, "c-sw", "40", t0 + day, "Dinner", null),
-            MmTransaction("t4", 3, "a-chk", "a-amex", null, "186.42", t0 + 2 * day, "", "p1"),
-            MmTransaction("t5", 4, "a-amex", "a-chk", null, "186.42", t0 + 2 * day, "", "p1"),
+            MmTransaction("t2", 1, "a-cardb", null, "c-gro-store-c", "186.42", t0 + day, "Store C", null),
+            MmTransaction("t3", 1, "a-cardb", null, "c-sw", "40", t0 + day, "Dinner", null),
+            MmTransaction("t4", 3, "a-chk", "a-cardb", null, "186.42", t0 + 2 * day, "", "p1"),
+            MmTransaction("t5", 4, "a-cardb", "a-chk", null, "186.42", t0 + 2 * day, "", "p1"),
             MmTransaction("t6", 3, "a-chk", "a-rh", null, "500", t0 + 3 * day, "", "p2"),
             MmTransaction("t7", 4, "a-rh", "a-chk", null, "500", t0 + 3 * day, "", "p2"),
             MmTransaction("t8", 1, "a-cash", null, "c-home", "0", t0 + 4 * day, "", null),
@@ -57,25 +57,25 @@ class MoneyManagerImporterTest {
     fun transfersAreImportedOnceFromTheOutHalf() {
         val transfers = plan.transactions.filter { it.kind == TxKind.TRANSFER }
         assertEquals(2, transfers.size)
-        val chk = plan.accounts.first { it.name == "Chase checking" }.id
-        val amex = plan.accounts.first { it.name == "Amex Platinum" }.id
-        assertTrue(transfers.any { it.accountId == chk && it.toAccountId == amex && it.amount == 18_642L })
+        val chk = plan.accounts.first { it.name == "Bank A checking" }.id
+        val cardB = plan.accounts.first { it.name == "Card B Plus" }.id
+        assertTrue(transfers.any { it.accountId == chk && it.toAccountId == cardB && it.amount == 18_642L })
     }
 
     @Test
     fun reconcileMatchesWhenNothingIsLost() {
         assertTrue(plan.reconcile.allMatch, plan.reconcile.toString())
-        val chk = plan.reconcile.accounts.first { it.name == "Chase checking" }
+        val chk = plan.reconcile.accounts.first { it.name == "Bank A checking" }
         assertEquals(100_000 + 500_000 - 18_642 - 50_000, chk.imported)
     }
 
     @Test
     fun categoriesKeepHierarchyIconsAndBillFlag() {
         val gro = plan.categories.first { it.name == "Groceries" }
-        val costco = plan.categories.first { it.name == "Costco" }
+        val storeC = plan.categories.first { it.name == "Store C" }
         assertEquals(CategoryIcon.Emoji("🛒"), gro.icon)
-        assertEquals(gro.id, costco.parentId)
-        assertEquals(gro.color, costco.color)
+        assertEquals(gro.id, storeC.parentId)
+        assertEquals(gro.color, storeC.color)
         assertTrue(gro.countsTowardDaily)
         assertTrue(!plan.categories.first { it.name == "Home Standard Expenses" }.countsTowardDaily)
         assertTrue(plan.categories.first { it.name == "Old stuff" }.hidden)
@@ -84,13 +84,13 @@ class MoneyManagerImporterTest {
 
     @Test
     fun accountsGetTypesCardDaysAndPayFrom() {
-        val amex = plan.accounts.first { it.name == "Amex Platinum" }
-        assertEquals(AccountType.CREDIT_CARD, amex.type)
-        assertEquals(2, amex.statementDay)
-        assertEquals(27, amex.dueDay)
-        assertEquals(plan.accounts.first { it.name == "Chase checking" }.id, amex.payFromId)
+        val cardB = plan.accounts.first { it.name == "Card B Plus" }
+        assertEquals(AccountType.CREDIT_CARD, cardB.type)
+        assertEquals(2, cardB.statementDay)
+        assertEquals(27, cardB.dueDay)
+        assertEquals(plan.accounts.first { it.name == "Bank A checking" }.id, cardB.payFromId)
         // No link in the backup: nothing is guessed.
-        assertEquals(null, plan.accounts.first { it.name == "amex plat" }.payFromId)
+        assertEquals(null, plan.accounts.first { it.name == "card b pl" }.payFromId)
         val rh = plan.accounts.first { it.name == "Robinhood" }
         assertEquals(AccountType.INVESTMENT, rh.type)
         assertEquals(null, rh.statementDay)
@@ -100,7 +100,7 @@ class MoneyManagerImporterTest {
     @Test
     fun reviewFlagsDuplicatesAndZeroAmounts() {
         val dupes = plan.issues.filterIsInstance<ImportIssue.PossibleDuplicateAccounts>()
-        assertEquals(listOf(listOf("Amex Platinum", "amex plat")), dupes.map { it.names })
+        assertEquals(listOf(listOf("Card B Plus", "card b pl")), dupes.map { it.names })
         // Nothing is recognised by name: an account that stands in for a person is converted by the user, in Settings.
         assertEquals(listOf("Friends debt"), plan.accounts.map { it.name }.filter { it.startsWith("Friends") })
         assertEquals(1, plan.issues.filterIsInstance<ImportIssue.ZeroAmountEntries>().single().count)
@@ -115,13 +115,13 @@ class MoneyManagerImporterTest {
     @Test
     fun splitsLeadingEmojiFromName() {
         assertEquals(CategoryIcon.Emoji("🧘🏼") to "Gym", MoneyManagerImporter.splitEmoji("🧘🏼 Gym"))
-        assertEquals(CategoryIcon.DEFAULT to "Amazon", MoneyManagerImporter.splitEmoji("Amazon "))
+        assertEquals(CategoryIcon.DEFAULT to "Shop D", MoneyManagerImporter.splitEmoji("Shop D "))
         assertEquals(30, MoneyManagerImporter.splitEmoji("🛒" + "g".repeat(50)).second.length)
     }
 
     @Test
     fun namesAreTidiedCappedAndMadeUnique() {
-        assertEquals("Chase Sapphire", MoneyManagerImporter.fit("  Chase\n  Sapphire ", 40))
+        assertEquals("Bank A Premier", MoneyManagerImporter.fit("  Bank A\n  Premier ", 40))
         assertEquals(40, MoneyManagerImporter.fit("x".repeat(90), 40).length)
         assertEquals(listOf("Cash", "cash 2", "Wallet", "Cash 3"), MoneyManagerImporter.uniqueNames(listOf("Cash", "cash", "Wallet", "Cash")))
     }

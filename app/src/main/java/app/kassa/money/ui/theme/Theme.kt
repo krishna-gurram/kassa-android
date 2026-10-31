@@ -9,10 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.R
 
@@ -33,18 +37,31 @@ data class KassaColors(
     val onInk: Color,
     val positive: Color,
     val attention: Color,
+    /** Tonal hero blocks: a pale tint for the one summary at the top of a screen, and the ink of its small labels. */
+    val heroGreen: Color,
+    val heroGreenInk: Color,
+    val heroOrange: Color,
+    val heroOrangeInk: Color,
+    val heroGrey: Color,
+    val heroGreyInk: Color,
 )
 
 private val Light = KassaColors(
     ground = Color(0xFFF3F4F1), raised = Color(0xFFFFFFFF), chip = Color(0xFFE8EAE5), line = Color(0xFFE0E2DC),
     track = Color(0xFFE4E6E1), ink = Color(0xFF1A1C1F), ink2 = Color(0xFF5E636A), ink3 = Color(0xFF959AA1),
     onInk = Color(0xFFF7F7F4), positive = Color(0xFF0E7A52), attention = Color(0xFFB4531A),
+    heroGreen = Color(0xFFE1EDE4), heroGreenInk = Color(0xFF3C6A4B),
+    heroOrange = Color(0xFFF6E5D8), heroOrangeInk = Color(0xFF8A4310),
+    heroGrey = Color(0xFFE8EAE5), heroGreyInk = Color(0xFF5E636A),
 )
 
 private val Dark = KassaColors(
     ground = Color(0xFF111214), raised = Color(0xFF1B1C1F), chip = Color(0xFF25272A), line = Color(0xFF2A2C30),
     track = Color(0xFF2B2D31), ink = Color(0xFFECEDEA), ink2 = Color(0xFFA3A7AD), ink3 = Color(0xFF6E7279),
     onInk = Color(0xFF141517), positive = Color(0xFF48C294), attention = Color(0xFFEF9459),
+    heroGreen = Color(0xFF1B2D24), heroGreenInk = Color(0xFF8CC3A2),
+    heroOrange = Color(0xFF33221A), heroOrangeInk = Color(0xFFE6A878),
+    heroGrey = Color(0xFF25272A), heroGreyInk = Color(0xFFA3A7AD),
 )
 
 val LocalKassaColors = staticCompositionLocalOf { Light }
@@ -67,8 +84,24 @@ object KassaType {
     val bodyStrong = body.copy(fontWeight = FontWeight.SemiBold)
     val small = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Normal, fontSize = 13.sp, fontFeatureSettings = TNUM)
     val tiny = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Medium, fontSize = 12.sp, fontFeatureSettings = TNUM)
+    /** A small uppercase label over a list (section headers). */
+    val label = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 0.6.sp)
     val stat = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Bold, fontSize = 20.sp, fontFeatureSettings = TNUM)
 }
+
+/**
+ * A text size that follows the phone's font setting only up to [maxScale] (130% unless told otherwise): for big numerals
+ * and keys, which sit in boxes that can't grow with the text. Everything else uses [KassaType] and scales fully.
+ */
+@Composable
+fun scaledSp(sp: Float, maxScale: Float = 1.3f): TextUnit {
+    val density = LocalDensity.current
+    return with(density) { (sp * minOf(density.fontScale, maxScale)).dp.toSp() }
+}
+
+/** [base] grown with the font setting (never below it), for a chart or bar whose labels grow with the text. */
+@Composable
+fun scaledDp(base: Dp): Dp = base * LocalDensity.current.fontScale.coerceAtLeast(1f)
 
 @Composable
 fun KassaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {

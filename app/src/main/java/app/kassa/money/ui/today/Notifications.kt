@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,6 +49,8 @@ import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Repeats
 import app.kassa.money.domain.Spending
+import app.kassa.money.ui.common.weekdayDate
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.CardSnapshotFor
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.activity.Chevron
@@ -62,7 +65,6 @@ import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.Instant
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * One thing that needs the user. Nothing here posts by itself: each choice is theirs.
@@ -157,8 +159,8 @@ fun NotificationsRow(list: List<Notice>, onOpen: () -> Unit, modifier: Modifier 
     val shown = list.take(2).joinToString(" · ") { it.label }
     val more = list.size - 2
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.chip).clickable(onClick = onOpen)
+            .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(28.dp).clip(CircleShape).background(Kassa.colors.ink), contentAlignment = Alignment.Center) {
@@ -242,7 +244,7 @@ private fun NoticeCard(ledger: Ledger, n: Notice, actions: NoticeActions) {
             onClear = clear,
         ) { Chip("Pay", selected = true) { actions.payLoan(n.loan.id) } }
         is Notice.Transfer -> Card(
-            kicker = "Investment transfer on ${n.date.format(DateTimeFormatter.ofPattern("MMM d"))}",
+            kicker = "Investment transfer on ${shortDate(n.date)}",
             badge = { GlyphBadge("↗") },
             title = "Where did it go?",
             subtitle = "Moved to ${ledger.accountById[n.transfer.accountId]?.name ?: "investments"}",
@@ -266,7 +268,7 @@ private fun NoticeCard(ledger: Ledger, n: Notice, actions: NoticeActions) {
 
 /** "Due today", "Due Thu, Oct 29" or "Overdue, was due Tue, Oct 20". */
 private fun dueText(due: LocalDate, today: LocalDate): String {
-    val day = due.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    val day = weekdayDate(due)
     return when {
         due == today -> "Due today"
         due.isBefore(today) -> "Overdue, was due $day"

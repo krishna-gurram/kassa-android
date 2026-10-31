@@ -40,6 +40,8 @@ import app.kassa.money.domain.Period
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.effectOn
+import app.kassa.money.ui.common.monthYear
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.figureColor
@@ -69,10 +71,7 @@ import app.kassa.money.ui.today.BigMoney
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 
 /**
  * One account, built like the card page: a summary with two equal boxes, then the details.
@@ -134,7 +133,7 @@ fun AccountPage(
     var showFullSchedule by rememberSaveable(account.id) { mutableStateOf(false) }
     val periodSwitcher: @Composable () -> Unit = {
         PeriodSwitcher(
-            "${period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${period.yearMonth.year}",
+            monthYear(period.yearMonth),
             if (monthsBack == 0) "So far" else null, canGoBack, monthsBack > 0, onBack = { shift(-1) }, onForward = { shift(1) },
         )
     }
@@ -146,7 +145,7 @@ fun AccountPage(
                 if (loanSummary != null && loanTerms != null) LoanHero(loanSummary, loanTerms, balance)
                 else periodSwitcher()
                 if (loanSummary == null) Gap(12)
-                if (loanSummary == null) RaisedPanel {
+                if (loanSummary == null) RaisedPanel(tone = if (debt && balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
                     if (account.type == AccountType.CREDIT_CARD && account.isActive) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
@@ -159,7 +158,7 @@ fun AccountPage(
                             when {
                                 monthsBack == 0 && debt -> "Outstanding balance"
                                 monthsBack == 0 -> "Balance today"
-                                else -> "Balance on ${period.endInclusive.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                                else -> "Balance on ${shortDate(period.endInclusive)}"
                             },
                             style = KassaType.tiny, color = Kassa.colors.ink2,
                         )
@@ -270,8 +269,8 @@ private fun InvestmentBody(
     val gain = value - putIn
     val newHolding = { Holding(accountId = account.id, ticker = "", microShares = 0, price = 0, priceMillis = 0) }
     var holdingOpen by remember { mutableStateOf<Holding?>(null) }
-    var pricing by remember { mutableStateOf(false) }
-    var trading by remember { mutableStateOf(false) }
+    var pricing by rememberSaveable { mutableStateOf(false) }
+    var trading by rememberSaveable { mutableStateOf(false) }
     val months = after.groupBy { (t, _) -> YearMonth.from(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone)) }.toList()
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
@@ -303,7 +302,7 @@ private fun InvestmentBody(
                 if (holdings.isNotEmpty()) {
                     val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
-                    SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${oldest.format(DateTimeFormatter.ofPattern("MMM d"))}")
+                    SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${shortDate(oldest.toLocalDate())}")
                     holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
                     TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add shares you own", color = Kassa.colors.ink) }
                 }
@@ -312,7 +311,7 @@ private fun InvestmentBody(
         }
         months.forEach { (month, rows) ->
             item(key = "m$month") {
-                Column(Modifier.widthIn(max = 720.dp)) { SectionHeader("Money in and out · " + month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))) }
+                Column(Modifier.widthIn(max = 720.dp)) { SectionHeader("Money in and out · " + monthYear(month)) }
             }
             items(rows, key = { it.first.id }) { (t, cashAfter) ->
                 Column(Modifier.widthIn(max = 720.dp)) {

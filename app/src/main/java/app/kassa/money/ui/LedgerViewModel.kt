@@ -2,9 +2,12 @@ package app.kassa.money.ui
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.kassa.money.KassaApplication
+import app.kassa.money.data.Failures
+import app.kassa.money.data.Failures.Doing
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.db.toEntity
 import app.kassa.money.data.jobs.DueNotifier
@@ -27,6 +30,7 @@ import app.kassa.money.domain.LoanPayment
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Repeat
@@ -35,7 +39,11 @@ import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.today.Notice
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,14 +51,15 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 
 /**
  * The main screens' state ([ledger]) and every change they make. Each change runs in the background and reports
@@ -64,21 +73,24 @@ private data class Investing(
     val bills: List<Recurring>, val holdings: List<Holding>, val transfers: List<InvestmentTransfer>, val trades: List<Trade>, val loans: LoansState,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private val kassa = app as KassaApplication
     private val settings = kassa.settings
-    private val zone = ZoneId.systemDefault()
 
-    private val recent = kassa.entries.between(
-        LocalDate.now(zone).minusDays(RECENT_DAYS).atStartOfDay(zone).toInstant().toEpochMilli(),
-        Long.MAX_VALUE,
-    )
+    /** Today and the phone's time zone; they move on at midnight and when the zone changes, and everything below follows. */
+    private val clock = kassa.clock.day
 
-    /** What repeats, found in the last [HISTORY_DAYS] days: long enough for a yearly charge to show up twice. */
-    private val repeats = kassa.entries.between(
-        LocalDate.now(zone).minusDays(HISTORY_DAYS).atStartOfDay(zone).toInstant().toEpochMilli(),
-        Long.MAX_VALUE,
-    ).map { Repeats.find(it, LocalDate.now(zone), zone) }.flowOn(Dispatchers.Default)
+    /** The last [QueryWindows.RECENT_DAYS] days of entries, re-read from the new window when the date or zone changes. */
+    private val recent = clock.flatMapLatest { d ->
+        kassa.entries.between(QueryWindows.recentFrom(d.today, d.zone), Long.MAX_VALUE)
+    }
+
+    /** What repeats, found in the last [QueryWindows.HISTORY_DAYS] days: long enough for a yearly charge to show up twice. */
+    private val repeats = clock.flatMapLatest { d ->
+        kassa.entries.between(QueryWindows.historyFrom(d.today, d.zone), Long.MAX_VALUE)
+            .map { Repeats.find(it, d.today, d.zone) }.flowOn(Dispatchers.Default)
+    }
 
     val ledger: StateFlow<Ledger?> = combine(
         combine(kassa.categories.categories, kassa.accounts.state, kassa.categories.budgets) { c, a, b -> Triple(c, a, b) },
@@ -86,13 +98,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers, kassa.investments.trades, kassa.loans.state) { b, h, t, tr, ln ->
             Investing(b, h, t, tr, ln)
         },
-        settings.monthStartDay,
-    ) { (categories, accounts, budgets), (people, entries, rep, cleared), inv, monthStart ->
+        combine(settings.monthStartDay, clock) { m, d -> m to d },
+    ) { (categories, accounts, budgets), (people, entries, rep, cleared), inv, (monthStart, day) ->
         // A loan's steady escrow or interest is already tracked by the loan, so it isn't suggested as a bill.
         val loanNotes = inv.loans.terms.keys.mapNotNull { id -> accounts.accounts.firstOrNull { it.id == id }?.name }.flatMap { LoanNotes.repeatKeys(it) }.toSet()
         Ledger(
             categories, accounts, budgets, people, entries, inv.bills, inv.holdings, inv.transfers,
-            inv.trades.associateBy { it.transactionId }, rep.filterNot { it.key in loanNotes }, cleared, inv.loans, monthStart, LocalDate.now(zone), zone,
+            inv.trades.associateBy { it.transactionId }, rep.filterNot { it.key in loanNotes }, cleared, inv.loans, monthStart, day.today, day.zone,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -127,8 +139,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             DueNotifier.refresh(kassa)
             done?.let(_messages::tryEmit)
             onDone()
-        } catch (e: IllegalArgumentException) {
-            _messages.tryEmit(e.message ?: "That couldn't be saved.")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // An input rule the repository enforced ("Pick a category.") is written for the person and shown as it is; anything
+            // else is a plain line, never exception text.
+            Log.w(TAG, "A change couldn't be saved (${Failures.code(e)})")
+            _messages.tryEmit(Failures.message(e, Doing.SAVE))
         }
     }
 
@@ -280,14 +297,14 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
      * today, when the money actually moved.
      */
     fun approveBill(bill: Recurring, amount: Long, due: LocalDate) = change("${bill.name} added for ${Money.format(amount)}.") {
-        val day = minOf(due, LocalDate.now(zone))
-        kassa.entries.save(
-            EntryDraft(
-                id = null, kind = TxKind.EXPENSE, amount = amount, accountId = bill.accountId, toAccountId = null,
-                categoryId = bill.categoryId, personId = null, epochMillis = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), note = bill.name,
-            )
+        val now = clock.value
+        val day = minOf(due, now.today)
+        val draft = EntryDraft(
+            id = null, kind = TxKind.EXPENSE, amount = amount, accountId = bill.accountId, toAccountId = null,
+            categoryId = bill.categoryId, personId = null, epochMillis = day.atTime(9, 0).atZone(now.zone).toInstant().toEpochMilli(), note = bill.name,
         )
-        kassa.bills.markHandled(bill, Budgets.key(YearMonth.from(due)))
+        // The entry and "handled" are one change: a failure of either leaves neither, and the bill still asks.
+        kassa.bills.approve(bill, draft, Budgets.key(YearMonth.from(due)))
     }
 
     /** After the bill due on [due] was entered by hand from its notification. */
@@ -346,20 +363,36 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Saves a backup to [uri]; returns the message to show. */
     suspend fun exportTo(uri: Uri, password: CharArray?): String = withContext(Dispatchers.IO) {
-        runCatching {
-            getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { kassa.backups.write(it, password) }
+        try {
+            val out = getApplication<Application>().contentResolver.openOutputStream(uri) ?: throw FileNotFoundException("No output stream")
+            out.use { kassa.backups.write(it, password) }
             if (password == null || password.isEmpty()) "Backup saved." else "Copy saved. Keep the password somewhere safe; without it the file can't be opened."
-        }.getOrElse { "Couldn't save the backup: ${it.message}" }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.w(TAG, "A backup couldn't be saved (${Failures.code(e)})")
+            Failures.message(e, Doing.WRITE_BACKUP)
+        }
     }
 
+    /** Reads a backup file without changing anything; a failure carries a message that is safe to show (see [Failures.message]). */
     suspend fun readBackup(uri: Uri, password: CharArray?): Result<BackupContents> = withContext(Dispatchers.IO) {
-        runCatching { getApplication<Application>().contentResolver.openInputStream(uri)!!.use { kassa.backups.read(it, password) } }
+        try {
+            val input = getApplication<Application>().contentResolver.openInputStream(uri) ?: throw FileNotFoundException("No input stream")
+            Result.success(input.use { kassa.backups.read(it, password) })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.w(TAG, "A backup couldn't be read (${Failures.code(e)})")
+            Result.failure(e)
+        }
     }
 
     /** Debug builds only: the made-up household from [Demo], for screenshots and walkthroughs. */
     fun loadDemo() = viewModelScope.launch(Dispatchers.IO) {
         if (!app.kassa.money.BuildConfig.DEBUG) return@launch
-        val d = app.kassa.money.domain.Demo.data(LocalDate.now(zone), zone)
+        val now = clock.value
+        val d = app.kassa.money.domain.Demo.data(now.today, now.zone)
         val contents = BackupContents(
             createdAt = System.currentTimeMillis(), monthStartDay = 1, currency = null, groups = emptyList(),
             accounts = d.accounts.map { it.toEntity() }, categories = d.categories.map { it.toEntity() },
@@ -367,20 +400,36 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             people = d.people.map { it.toEntity() }, loans = d.loans.map { it.toEntity() }, bills = d.bills.map { it.toEntity() },
             holdings = d.holdings.map { it.toEntity() }, icons = emptyMap(),
         )
-        runCatching { kassa.backups.restore(contents) }
-            .onSuccess { settings.setMonthStartDay(1); DueNotifier.refresh(kassa); _messages.tryEmit("Demo data loaded.") }
-            .onFailure { _messages.tryEmit("Demo data couldn't be loaded. ${it.message}") }
+        try {
+            kassa.backups.restore(contents)
+            settings.setMonthStartDay(1); DueNotifier.refresh(kassa); _messages.tryEmit("Demo data loaded.")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _messages.tryEmit("Demo data couldn't be loaded.")
+        }
     }
 
-    fun restore(contents: BackupContents) = viewModelScope.launch(Dispatchers.IO) {
-        runCatching { kassa.backups.restore(contents) }
-            .onSuccess { DueNotifier.refresh(kassa); _messages.tryEmit("Backup restored.") }
-            .onFailure { _messages.tryEmit("Nothing was changed. ${it.message}") }
+    /**
+     * Replaces everything with [contents]. Runs on the view model's scope, so leaving the page that asked doesn't cancel it halfway;
+     * the result is the message to show, and is also shown as a message in case nobody is waiting for it.
+     */
+    fun restore(contents: BackupContents): Deferred<String> = viewModelScope.async(Dispatchers.IO) {
+        val message = try {
+            kassa.backups.restore(contents)
+            DueNotifier.refresh(kassa)
+            "Backup restored."
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "A backup couldn't be restored (${Failures.code(e)})")
+            Failures.message(e, Doing.RESTORE)
+        }
+        _messages.tryEmit(message)
+        message
     }
 
     private companion object {
-        /** How far back [ledger] reaches: card statements and three months of comparisons. */
-        const val RECENT_DAYS = 130L
-        const val HISTORY_DAYS = 800L
+        const val TAG = "Kassa"
     }
 }

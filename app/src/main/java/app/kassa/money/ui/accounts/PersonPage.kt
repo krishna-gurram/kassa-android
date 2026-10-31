@@ -26,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +39,8 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.ui.common.shortDateYear
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.balanceColor
@@ -45,6 +49,7 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.common.rememberSavedDate
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
@@ -56,7 +61,6 @@ import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
 import java.time.Instant
-import java.time.format.DateTimeFormatter
 
 /** One line of a person's history: a split share or a payment. [amount] is positive when it adds to what they owe you. */
 /** [payment] lines settle up; the rest (splits, starting balance) change what's owed. */
@@ -103,26 +107,24 @@ fun PersonPage(
     /** Saves the person and, when it changed, their starting balance; then calls the callback. */
     onUpdate: (Person, Long?, () -> Unit) -> Unit,
 ) {
-    var editing by remember(p.id) { mutableStateOf(false) }
-    var recording by remember(p.id) { mutableStateOf(false) }
-    var splitting by remember(p.id) { mutableStateOf(false) }
+    var editing by rememberSaveable(p.id) { mutableStateOf(false) }
+    var recording by rememberSaveable(p.id) { mutableStateOf(false) }
+    var splitting by rememberSaveable(p.id) { mutableStateOf(false) }
     val history = remember(p, ledger.people) { historyOf(p, ledger) }
     val since = remember(history) { openSince(history) }
-    val shortDate = DateTimeFormatter.ofPattern("MMM d")
-    val longDate = DateTimeFormatter.ofPattern("MMM d, yyyy")
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(p.name + if (p.archived) " (archived)" else "", onBack) {
             TextButton(onClick = { editing = true }) { Text("Edit", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
         }
-        RaisedPanel {
+        RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             Text(
                 when { balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
                 style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             BigMoney(Math.abs(balance), sizeSp = 36f, color = favourColor(balance))
             if (balance != 0L) since?.let {
-                Text("Since ${Instant.ofEpochMilli(it).atZone(ledger.zone).format(shortDate)}", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text("Since ${shortDate(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate())}", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
             Gap(14)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -141,7 +143,7 @@ fun PersonPage(
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(line.note, style = KassaType.body, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(Instant.ofEpochMilli(line.millis).atZone(ledger.zone).format(longDate), style = KassaType.small, color = Kassa.colors.ink2)
+                    Text(shortDateYear(Instant.ofEpochMilli(line.millis).atZone(ledger.zone).toLocalDate()), style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 // A payment either way only settles up, so it's plain with no sign. A split or starting balance shows
                 // which way it moved: + green when they owe you more, − orange when you owe them more.
@@ -163,6 +165,9 @@ fun PersonPage(
     if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { id -> splitting = false; onSplit(id) }
 }
 
+/** A payment's direction kept across recreation by its name. */
+private val TxKindSaver: Saver<TxKind, String> = Saver(save = { it.name }, restore = { TxKind.valueOf(it) })
+
 /**
  * Money between you and one person, either way. A new payment starts on settling the balance; [editing] opens an
  * existing one filled in, with Delete ([onDelete]) under Save.
@@ -180,29 +185,31 @@ internal fun PaymentSheet(
 ) {
     // An edited payment keeps its account in the list even if that account was archived since.
     val banks = ledger.accounts.accounts.filter { (it.isActive && it.type in PAYMENT_ACCOUNT_TYPES) || it.id == editing?.accountId }
-    var direction by remember(p.id) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
-    var amount by remember(p.id) {
+    // What is typed here survives folding or rotating the phone.
+    var direction by rememberSaveable(p.id, stateSaver = TxKindSaver) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
+    var amount by rememberSaveable(p.id) {
         mutableStateOf(editing?.let { Money.toInput(it.amount) } ?: if (balance != 0L) Money.toInput(Math.abs(balance)) else "")
     }
     // Nothing guesses an account: you pick where the money went.
-    var account by remember { mutableStateOf(editing?.accountId) }
+    var account by rememberSaveable { mutableStateOf(editing?.accountId) }
     val originalDate = editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
-    var date by remember { mutableStateOf(originalDate ?: ledger.today) }
-    var amountProblem by remember { mutableStateOf<String?>(null) }
-    var accountProblem by remember { mutableStateOf<String?>(null) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var date by rememberSavedDate { originalDate ?: ledger.today }
+    var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var accountProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+        app.kassa.money.ui.common.AccountPickerHost(banks, Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(if (editing != null) "Edit payment" else "Record a payment", style = KassaType.section, color = Kassa.colors.ink)
             FlowRow(Modifier.padding(top = 10.dp)) {
                 Chip("${p.name} paid me", selected = direction == TxKind.PERSON_IN) { direction = TxKind.PERSON_IN }
                 Chip("I paid or lent ${p.name}", selected = direction == TxKind.PERSON_OUT) { direction = TxKind.PERSON_OUT }
             }
             AmountField(amount, { amount = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth(), problem = amountProblem)
-            Text(if (direction == TxKind.PERSON_IN) "Into" else "From", style = KassaType.tiny, color = Kassa.colors.ink2,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-            FlowRow { banks.forEach { a -> Chip(a.name, selected = account == a.id) { account = a.id; accountProblem = null } } }
+            app.kassa.money.ui.common.AccountChoiceRow(
+                if (direction == TxKind.PERSON_IN) "Into" else "From", account, banks, { id -> account = id; accountProblem = null },
+                modifier = Modifier.padding(top = 8.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger),
+            )
             accountProblem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { date = it }

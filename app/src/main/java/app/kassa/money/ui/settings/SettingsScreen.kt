@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -37,10 +38,12 @@ import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.subcategory
+import app.kassa.money.ui.AppLock
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.categories.CategoryEditor
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.theme.Kassa
@@ -66,7 +69,12 @@ interface SettingsActions {
     suspend fun backupNow(): String
     /** Books or cancels the daily backup and reminder to match Settings. */
     fun refreshDailyJobs()
-    fun restore(contents: BackupContents)
+    /** Replaces everything with [contents]; returns the message to show when it is done (restored, or why nothing changed). */
+    suspend fun restore(contents: BackupContents): String
+    /** True while something outside Settings (the "Backup needs attention" notification) asked for the backup page. */
+    val wantsBackupPage: Boolean
+    /** Settings opened the page that was asked for. */
+    fun backupPageOpened()
     /** Opens the page for choosing Overview's account tiles. */
     fun openPins()
     /** Debug builds only: replaces everything with the made-up household in [app.kassa.money.domain.Demo]. */
@@ -104,6 +112,10 @@ private sealed interface SettingsPage {
 @Composable
 fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: PaddingValues) {
     var page by remember { mutableStateOf<SettingsPage>(SettingsPage.Main) }
+    // Asked for from a notification: show the backup page, whatever Settings was showing.
+    LaunchedEffect(actions.wantsBackupPage) {
+        if (actions.wantsBackupPage) { page = SettingsPage.Backup; actions.backupPageOpened() }
+    }
     val back: () -> Unit = {
         page = when (val p = page) {
             is SettingsPage.EditCategory -> p.back
@@ -185,7 +197,17 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     NavRow("Notifications", notificationsSummary()) { open(SettingsPage.Notifications) }
 
     SectionHeader("Security")
-    SwitchRow("App lock", "Fingerprint, face or screen lock", lock, settings::setLock)
+    val context = LocalContext.current
+    val messages = LocalMessages.current
+    SwitchRow("App lock", "Fingerprint, face or screen lock", lock) { on ->
+        when {
+            !on -> settings.setLock(false)
+            // The lock asks for a fingerprint, face or the screen lock, so the phone needs one before this can be on.
+            AppLock.check(context) == AppLock.Status.READY -> settings.setLock(true)
+            AppLock.check(context) == AppLock.Status.NO_SCREEN_LOCK -> messages?.say(AppLock.SET_A_SCREEN_LOCK)
+            else -> messages?.say("App lock isn't available on this phone right now. Try again in a moment.")
+        }
+    }
 
     SectionHeader("Data")
     val (lastAt, problem) = lastBackup

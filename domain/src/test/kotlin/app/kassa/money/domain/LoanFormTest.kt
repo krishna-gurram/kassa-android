@@ -208,4 +208,101 @@ class LoanFormTest {
         assertEquals(false, off.countAllAsSpending)
         assertNull(off.principalCategoryId)
     }
+
+    // ---------- payment with or without escrow ----------
+
+    private fun withEscrow(basis: PaymentBasis, payment: String = "2500", escrow: String = "600") =
+        partway().copy(payment = payment, escrow = escrow, paymentBasis = basis)
+
+    @Test
+    fun principalAndInterestIsTheDefaultAndStoresWhatWasTyped() {
+        val f = partway().copy(payment = "1900", escrow = "600")
+        assertEquals(PaymentBasis.PRINCIPAL_AND_INTEREST, f.paymentBasis)
+        val t = f.toTerms(1)
+        assertEquals(190_000, t.payment)
+        assertEquals(60_000, t.escrow)
+        assertNull(f.paymentSplit())
+    }
+
+    @Test
+    fun aTotalIncludingEscrowStoresTheDifferenceAsThePayment() {
+        val f = withEscrow(PaymentBasis.INCLUDES_ESCROW)
+        assertTrue(f.problems().isEmpty())
+        val t = f.toTerms(1)
+        assertEquals(190_000, t.payment)
+        assertEquals(60_000, t.escrow)
+        assertEquals(PaymentSplit(190_000, 60_000), f.paymentSplit())
+        // The same terms as typing principal and interest directly.
+        assertEquals(partway().copy(payment = "1900", escrow = "600").toTerms(1), t)
+    }
+
+    @Test
+    fun aNewLoanWithATotalStoresTheDifferenceToo() {
+        val t = fresh().copy(payment = "1500", escrow = "400", paymentBasis = PaymentBasis.INCLUDES_ESCROW).toTerms(1)
+        assertEquals(110_000, t.payment)
+        assertEquals(40_000, t.escrow)
+    }
+
+    @Test
+    fun noEscrowMeansTheChoiceChangesNothing() {
+        for (escrow in listOf("", "0", "0.00")) {
+            val total = partway().copy(payment = "1900", escrow = escrow, paymentBasis = PaymentBasis.INCLUDES_ESCROW)
+            val plain = total.copy(paymentBasis = PaymentBasis.PRINCIPAL_AND_INTEREST)
+            assertTrue(total.problems().isEmpty())
+            assertEquals(plain.toTerms(1), total.toTerms(1))
+            assertEquals(190_000, total.toTerms(1).payment)
+            assertNull(total.paymentSplit())
+        }
+    }
+
+    @Test
+    fun aKassaPaymentIsUntouchedByTheChoice() {
+        val plain = fresh().copy(escrow = "400")
+        val total = plain.copy(paymentBasis = PaymentBasis.INCLUDES_ESCROW)
+        assertEquals(57_998, total.toTerms(1).payment)
+        assertEquals(plain.toTerms(1), total.toTerms(1))
+        assertNull(total.paymentSplit())
+    }
+
+    @Test
+    fun escrowAtOrAboveTheTotalIsAnErrorOnThePayment() {
+        for (escrow in listOf("2500", "2600")) {
+            val f = withEscrow(PaymentBasis.INCLUDES_ESCROW, payment = "2500", escrow = escrow)
+            val message = assertNotNull(f.problems()[LoanField.PAYMENT])
+            assertEquals("The total payment has to be more than the escrow.", message)
+            assertNull(f.preview())
+            assertNull(f.paymentSplit())
+        }
+        // The same figures are fine as principal and interest with escrow on top.
+        assertTrue(withEscrow(PaymentBasis.PRINCIPAL_AND_INTEREST, escrow = "2600").problems().isEmpty())
+        // One cent of payment left is allowed.
+        assertTrue(withEscrow(PaymentBasis.INCLUDES_ESCROW, payment = "2500", escrow = "2499.99").problems().isEmpty())
+    }
+
+    @Test
+    fun aBadPaymentOrEscrowStillGetsItsOwnProblem() {
+        assertTrue(LoanField.PAYMENT in withEscrow(PaymentBasis.INCLUDES_ESCROW, payment = "").problems())
+        assertTrue(LoanField.ESCROW in withEscrow(PaymentBasis.INCLUDES_ESCROW, escrow = "abc").problems())
+    }
+
+    @Test
+    fun switchingBackAndForthKeepsWhatWasTyped() {
+        val start = withEscrow(PaymentBasis.PRINCIPAL_AND_INTEREST)
+        val there = start.copy(paymentBasis = PaymentBasis.INCLUDES_ESCROW)
+        val back = there.copy(paymentBasis = PaymentBasis.PRINCIPAL_AND_INTEREST)
+        assertEquals(start, back)
+        assertEquals("2500", there.payment)
+        assertEquals("600", there.escrow)
+        assertEquals(250_000, start.toTerms(1).payment)
+        assertEquals(190_000, there.toTerms(1).payment)
+    }
+
+    @Test
+    fun aFlatLoanPartwayDerivesItsBaseFromThePrincipalAndInterest() {
+        val flat = partway(LoanKind.FLAT).copy(balance = "18000", payment = "650", paymentsLeft = "36", escrow = "")
+        val withTotal = flat.copy(payment = "850", escrow = "200", paymentBasis = PaymentBasis.INCLUDES_ESCROW)
+        assertTrue(withTotal.problems().isEmpty())
+        assertEquals(3_000_000, withTotal.toTerms(1).originalAmount)
+        assertEquals(65_000, withTotal.toTerms(1).payment)
+    }
 }

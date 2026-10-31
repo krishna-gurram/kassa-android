@@ -4,4 +4,5 @@
     <color name="launcher_bg">#1A1C1F</color>
     <color name="launcher_fg">#F3F4F1</color>
     <color name="launcher_accent">#3F9A5E</color>
+    <color name="splash_disc">#1A1C1F</color>
 </resources>

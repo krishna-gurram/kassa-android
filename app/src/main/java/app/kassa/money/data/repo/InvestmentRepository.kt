@@ -40,6 +40,7 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
 
     /** Buys shares with cash in the account: a BUY entry, its trade, and the holding grows. Clears [transferId] when given. */
     suspend fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?) = db.withTransaction {
+        db.requireOpen(accountId)
         val t = checkedTicker(ticker)
         val cost = checkedTrade(microShares, price)
         applyBuy(accountId, t, microShares, price, at)
@@ -52,6 +53,7 @@ class InvestmentRepository(private val db: KassaDatabase, private val entries: E
      * The average cost of what's left doesn't change.
      */
     suspend fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long) = db.withTransaction {
+        db.requireOpen(accountId)
         val t = checkedTicker(ticker)
         val proceeds = checkedTrade(microShares, price)
         applySale(accountId, t, microShares, price, at)

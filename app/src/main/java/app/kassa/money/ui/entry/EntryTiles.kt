@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -30,6 +32,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -47,11 +50,11 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.common.CategoryIconView
 import app.kassa.money.ui.common.accountIcon
+import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 
@@ -67,8 +70,8 @@ internal fun AmountHero(amount: String, income: Boolean, large: Boolean, onClick
     Box(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp, bottom = 10.dp), contentAlignment = Alignment.Center) {
         Text(
             symbol + displayAmount(amount),
-            style = KassaType.hero.copy(fontSize = size.sp, letterSpacing = (-1.5).sp),
-            color = color, maxLines = 1,
+            style = KassaType.hero.copy(fontSize = scaledSp(size), letterSpacing = (-1.5).sp),
+            color = color, maxLines = 1, softWrap = false,
         )
     }
 }
@@ -125,7 +128,7 @@ internal fun AccountTile(
 internal fun DateTile(date: LocalDate, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Tile("Date", on, empty = false, modifier = modifier, onClick = onClick) {
         Text(
-            date.month.getDisplayName(TextStyle.SHORT, Locale.US).uppercase(),
+            monthShort(date).uppercase(),
             style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp), color = Kassa.colors.ink2,
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -165,7 +168,7 @@ internal fun SplitRow(who: String, mine: Long?, on: Boolean, onClick: () -> Unit
             .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Split", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.width(44.dp))
+        Text("Split", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.widthIn(min = 44.dp))
         Column(Modifier.weight(1f)) {
             Text(who, style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (mine != null) Text("Your share ${Money.format(mine)}", style = KassaType.tiny, color = if (mine < 0) figureColor(Kassa.colors.attention) else Kassa.colors.ink2)
@@ -181,11 +184,11 @@ internal fun KindSwitch(selected: TxKind, onSelect: (TxKind) -> Unit, modifier: 
         options.forEach { (kind, label) ->
             val on = kind == selected
             Box(
-                Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(9.dp))
+                Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(9.dp))
                     .background(if (on) Kassa.colors.raised else Color.Transparent)
-                    .clickable { onSelect(kind) },
+                    .selectable(selected = on, role = Role.RadioButton) { onSelect(kind) },
                 contentAlignment = Alignment.Center,
-            ) { Text(label, style = KassaType.bodyStrong, color = if (on) Kassa.colors.ink else Kassa.colors.ink2, maxLines = 1) }
+            ) { Text(label, style = KassaType.bodyStrong, color = if (on) Kassa.colors.ink else Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

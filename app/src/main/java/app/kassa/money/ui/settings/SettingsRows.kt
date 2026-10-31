@@ -2,10 +2,13 @@ package app.kassa.money.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,12 +71,13 @@ internal fun Choice(options: List<Pair<String, String>>, selected: String, onSel
     Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Kassa.colors.chip).padding(3.dp)) {
         options.forEach { (key, label) ->
             val on = key == selected
-            Text(
-                label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold),
-                color = if (on) Kassa.colors.ink else Kassa.colors.ink2,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
-                    .clickable { onSelect(key) }.padding(horizontal = 12.dp, vertical = 7.dp),
-            )
+            Box(
+                Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).background(if (on) Kassa.colors.ink else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton) { onSelect(key) }.padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.onInk else Kassa.colors.ink2)
+            }
         }
     }
 }

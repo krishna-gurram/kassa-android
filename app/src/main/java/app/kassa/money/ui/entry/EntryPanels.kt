@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.domain.Account
+import app.kassa.money.domain.AccountKindFilter
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -56,6 +57,7 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.AccountPickerPanel
 import app.kassa.money.ui.common.CategoryPickerPanel
 import app.kassa.money.ui.common.SubcategoryPickerPanel
 import app.kassa.money.ui.common.MonthCalendar
@@ -125,47 +127,35 @@ internal fun ColumnScope.SubcategoryPanel(s: EntryState, ledger: Ledger, top: Ca
 }
 
 /**
- * Accounts to pay with (or, for [Field.TO], to move money into), most used first. A transfer can't come from a card.
- * Picking a card to pay that has a balance payable opens the pad, so the Payable button is one tap away.
+ * Accounts to pay with (or, for [Field.TO], to move money into): the shared account picker ([AccountPickerPanel]) on the
+ * entry page's [EntryState]. A transfer can't come from a card. Picking a card to pay that has a balance payable opens the
+ * pad, so the Payable button is one tap away.
  */
 @Composable
 internal fun ColumnScope.AccountPanel(
     s: EntryState, accountChoices: List<Account>, toChoices: List<Account>, cards: Map<Long, CardSnapshot>, wide: Boolean,
+    recentIds: List<Long> = emptyList(),
 ) {
-    val focus = LocalFocusManager.current
     val isTo = s.field == Field.TO
-    PanelSearch(s.query, { s.query = it }, "Search accounts", onFocus = { s.searching = it }) { s.field = null }
-    val q = s.query.trim()
-    val list = (if (isTo) toChoices.filter { it.id != s.accountId } else accountChoices.filter { s.kind != TxKind.TRANSFER || !it.type.hasStatement || it.id == s.accountId })
-        .filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) || it.last4?.contains(q) == true }
-    if (list.isEmpty()) Text(if (q.isEmpty()) "Add an account in Accounts first." else "No account matches \"$q\".",
-        style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
-    val selected = if (isTo) s.toAccountId else s.accountId
-    LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(list, key = { it.id }) { a ->
-            PickTile(on = selected == a.id, onClick = {
-                s.searching = false; focus.clearFocus()
-                if (isTo) {
-                    s.toAccountId = a.id
-                    s.error = null
-                    val payable = (cards[a.id]?.payable ?: 0L) > 0
-                    s.field = if (payable && s.cents <= 0) Field.AMOUNT else s.missing() ?: if (s.cents <= 0) Field.AMOUNT else null
-                } else {
-                    s.accountId = a.id
-                    if (s.toAccountId == a.id) s.toAccountId = null
-                    s.advance()
-                }
-            }) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(a.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        a.last4?.takeIf { it.isNotBlank() }?.let { Text("  ··$it", style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1, softWrap = false) }
-                    }
-                    val due = cards[a.id]?.payable ?: 0L
-                    if (due > 0 && s.kind != TxKind.INCOME) Text("${Money.format(due)} due", style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold),
-                        color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+    var filter by remember { mutableStateOf(AccountKindFilter.ALL) }
+    val source = if (isTo) toChoices else accountChoices
+    val excluded: Set<Long> =
+        if (isTo) setOfNotNull(s.accountId)
+        else if (s.kind == TxKind.TRANSFER) source.filter { it.type.hasStatement && it.id != s.accountId }.map { it.id }.toSet()
+        else emptySet()
+    AccountPickerPanel(
+        source, if (isTo) s.toAccountId else s.accountId, excluded, recentIds, s.query, { s.query = it }, { s.searching = it },
+        filter, { filter = it }, wide, onDone = { s.field = null },
+    ) { id ->
+        if (isTo) {
+            s.toAccountId = id
+            s.error = null
+            val payable = (cards[id]?.payable ?: 0L) > 0
+            s.field = if (payable && s.cents <= 0) Field.AMOUNT else s.missing() ?: if (s.cents <= 0) Field.AMOUNT else null
+        } else {
+            s.accountId = id
+            if (s.toAccountId == id) s.toAccountId = null
+            s.advance()
         }
     }
 }
@@ -192,9 +182,10 @@ internal fun ColumnScope.NotePanel(s: EntryState, ledger: Ledger, frequentNotes:
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         suggestions.forEach { text ->
             Box(
-                Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
+                Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
                     s.pickNote(text, ledger.recent.firstOrNull { it.note == text && it.kind == s.kind }?.categoryId)
-                }.padding(horizontal = 14.dp, vertical = 9.dp),
+                }.padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
             ) { Text(text, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }

@@ -76,7 +76,8 @@ internal fun rememberLoanSummary(ledger: Ledger, account: Account, terms: LoanTe
 @Composable
 internal fun LoanHero(summary: LoanSummary, terms: LoanTerms, balance: Long) {
     val word = terms.interestWord
-    RaisedPanel {
+    // What is owed is against you, so the hero is orange while something is owed (grey while hidden).
+    RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
         Text("Outstanding balance", style = KassaType.tiny, color = Kassa.colors.ink2)
         // What is owed, never with a minus; a credit shows green, like a card.
         BigMoney(Math.abs(balance), sizeSp = 36f, color = cardTint(-balance))

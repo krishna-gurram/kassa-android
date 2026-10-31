@@ -13,6 +13,7 @@ import app.kassa.money.R
 import app.kassa.money.domain.DueItem
 import app.kassa.money.domain.DueItems
 import app.kassa.money.domain.DueNotices
+import app.kassa.money.domain.QueryWindows
 import app.kassa.money.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,8 +50,6 @@ object DueNotifier {
     private const val POSTED = "posted"
     /** Posted keys are kept this long past their due date, then forgotten. */
     private const val KEEP_DAYS = 60
-    /** The same window the Ledger reads: enough for card statements. */
-    private const val RECENT_DAYS = 130L
 
     /** Forgets which due dates were already notified, for when the accounts they name are replaced. */
     fun forgetPosted(context: Context) {
@@ -85,7 +84,8 @@ object DueNotifier {
         val now = ZonedDateTime.now(zone)
         val today = now.toLocalDate()
         val accounts = app.accounts.state.first()
-        val history = app.entries.between(today.minusDays(RECENT_DAYS).atStartOfDay(zone).toInstant().toEpochMilli(), Long.MAX_VALUE).first()
+        // The same window the Ledger reads: enough for card statements.
+        val history = app.entries.between(QueryWindows.recentFrom(today, zone), Long.MAX_VALUE).first()
         val bills = app.bills.bills.first()
         val loans = app.loans.state.first()
         val items = DueItems.build(

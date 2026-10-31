@@ -45,6 +45,10 @@ import app.kassa.money.domain.LoanStage
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.domain.PaymentSplit
+import app.kassa.money.domain.PaymentBasis
+import java.time.YearMonth
+import app.kassa.money.ui.common.monthYearShort
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.CategoryChoiceRow
@@ -61,15 +65,13 @@ import app.kassa.money.ui.settings.SwitchRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Loan screens keep dates as epoch days (the rules know nothing of java.time); these convert at the edge. */
 internal fun LocalDate.loanDay(): Int = toEpochDay().toInt()
 internal fun dateOfLoanDay(day: Int): LocalDate = LocalDate.ofEpochDay(day.toLong())
 
 /** "Nov 2030", in the phone's language. */
-internal fun monthYear(day: Int): String = dateOfLoanDay(day).format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.getDefault()))
+internal fun monthYear(day: Int): String = monthYearShort(YearMonth.from(dateOfLoanDay(day)))
 
 /** The accounts a payment can come from, A to Z. */
 internal fun payFromChoices(accounts: List<Account>, except: Long = 0): List<Account> =
@@ -124,9 +126,10 @@ fun LoanFields(
         DigitsField(form.termMonths, { v -> edit(LoanField.TERM) { it.copy(termMonths = v) } }, "Term in months", 3, Modifier.fillMaxWidth(), problem = problems[LoanField.TERM])
         Label("First payment")
         DateRow(dateOfLoanDay(form.firstDay), today, allowFuture = true) { d -> edit(null) { it.copy(firstDay = d.loanDay()) } }
+        PaymentBasisFields(form, problems, edit)
         AmountField(
             form.payment, { v -> edit(LoanField.PAYMENT) { it.copy(payment = v) } }, "Payment", Modifier.fillMaxWidth().padding(top = 8.dp),
-            problem = problems[LoanField.PAYMENT], placeholder = preview?.payment?.let { Money.toInput(it) } ?: "Worked out for you",
+            problem = problems[LoanField.PAYMENT], placeholder = preview?.payment?.takeIf { form.paymentBasis == PaymentBasis.PRINCIPAL_AND_INTEREST }?.let { Money.toInput(it) } ?: "Worked out for you",
         )
         Text("Kassa works out the payment. Type your lender's figure to use that instead.", style = KassaType.small, color = Kassa.colors.ink2)
     } else {
@@ -134,6 +137,7 @@ fun LoanFields(
             AmountField(form.balance, { v -> edit(LoanField.BALANCE) { it.copy(balance = v) } }, "Balance today", Modifier.weight(1f), problem = problems[LoanField.BALANCE])
             PercentField(form.rate, { v -> edit(LoanField.RATE) { it.copy(rate = v) } }, rateLabel, Modifier.weight(1f), problem = problems[LoanField.RATE])
         }
+        PaymentBasisFields(form, problems, edit)
         AmountField(
             form.payment, { v -> edit(LoanField.PAYMENT) { it.copy(payment = v) } }, "Payment", Modifier.fillMaxWidth(),
             problem = problems[LoanField.PAYMENT], placeholder = if (form.type == InterestType.INTEREST_ONLY) "Just the ${word.lowercase()}" else null,
@@ -169,6 +173,8 @@ fun LoanFields(
             onEscrow = { v -> edit(LoanField.ESCROW) { it.copy(escrow = v) } },
             onFee = { v -> edit(LoanField.FEE) { it.copy(fee = v) } },
             onEarlyCharge = { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } },
+            // With a total that includes escrow, the escrow is typed beside the payment instead.
+            showEscrow = form.paymentBasis != PaymentBasis.INCLUDES_ESCROW,
         )
     }
 
@@ -223,14 +229,13 @@ private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kas
  */
 
 /** Where payments start from. Tapping the picked account again clears it: nothing is chosen for you. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PayFromPicker(options: List<Account>, selected: Long?, onPick: (Long?) -> Unit) {
     if (options.isEmpty()) return
-    Label("Pay from")
-    FlowRow {
-        payFromChoices(options).forEach { a -> Chip(a.name, selected == a.id, small = true) { onPick(if (selected == a.id) null else a.id) } }
-    }
+    // The shared account picker (see AccountPicker.kt), opened over the sheet. "No account" clears it: nothing is chosen for you.
+    app.kassa.money.ui.common.AccountChoiceRow(
+        "Pay from", selected, payFromChoices(options), onPick, modifier = Modifier.padding(top = 10.dp), noneOption = "No account",
+    )
 }
 
 /** The day of the month payments fall due; empty means [anchor], the day of the first or next payment. */
@@ -239,14 +244,42 @@ internal fun DueDayField(value: String, onChange: (String) -> Unit, problem: Str
     DigitsField(value, onChange, "Due day of the month", 2, Modifier.fillMaxWidth().padding(top = 8.dp), problem = problem, placeholder = anchor.toString())
 }
 
+/**
+ * Under "Payment": does the amount typed include escrow? With "Total including escrow" the escrow is typed here and the
+ * quiet lines say what is stored: principal and interest, and escrow. [LoanForm] does the working out.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PaymentBasisFields(form: LoanForm, problems: Map<LoanField, String>, edit: (LoanField?, (LoanForm) -> LoanForm) -> Unit) {
+    Label("Payment is")
+    FlowRow {
+        PaymentBasis.entries.forEach { b -> Chip(b.label, form.paymentBasis == b, small = true) { edit(null) { it.copy(paymentBasis = b) } } }
+    }
+    if (form.paymentBasis == PaymentBasis.INCLUDES_ESCROW) {
+        AmountField(
+            form.escrow, { v -> edit(LoanField.ESCROW) { it.copy(escrow = v) } }, "Escrow in each payment",
+            Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[LoanField.ESCROW], placeholder = "0",
+        )
+        form.paymentSplit()?.let { PaymentSplitLines(it) }
+    }
+}
+
+/** The two figures a total with escrow comes to. They go through [Money.format], so Hide balances masks them. */
+@Composable
+internal fun PaymentSplitLines(split: PaymentSplit) {
+    Text("Principal and interest ${Money.format(split.principalAndInterest)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text("Escrow ${Money.format(split.escrow)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
 /** Escrow in each payment, the fee at the start, and the early repayment charge. */
 @Composable
 internal fun CostFields(
     escrow: String, fee: String, earlyCharge: String, problems: Map<LoanField, String>,
     onEscrow: (String) -> Unit, onFee: (String) -> Unit, onEarlyCharge: (String) -> Unit,
+    showEscrow: Boolean = true,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        AmountField(escrow, onEscrow, "Escrow in each payment", Modifier.weight(1f), problem = problems[LoanField.ESCROW], placeholder = "0")
+        if (showEscrow) AmountField(escrow, onEscrow, "Escrow in each payment", Modifier.weight(1f), problem = problems[LoanField.ESCROW], placeholder = "0")
         AmountField(fee, onFee, "Fee at start", Modifier.weight(1f), problem = problems[LoanField.FEE], placeholder = "0")
     }
     PercentField(
@@ -334,14 +367,14 @@ fun LoanTermsSheet(
     onSave: (Account, LoanTerms, () -> Unit) -> Unit,
 ) {
     val current = ledger.accounts.balances[account.id] ?: 0
-    var form by remember { mutableStateOf(LoanForm.forAccount(owedToday = -current, today = ledger.today.loanDay(), payFromId = account.payFromId)) }
+    var form by rememberSaveable(stateSaver = LoanFormSaver) { mutableStateOf(LoanForm.forAccount(owedToday = -current, today = ledger.today.loanDay(), payFromId = account.payFromId)) }
     var problems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
     fun edit(field: LoanField?, change: (LoanForm) -> LoanForm) {
         form = change(form)
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding(), accounts = payFromChoices(ledger.accounts.accounts)) {
             Text("Add terms to ${account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("Its entries and balance stay as they are.", style = KassaType.small, color = Kassa.colors.ink2)
             Gap(4)
@@ -372,14 +405,14 @@ fun LoanDetailsSheet(
     onSave: (Account, LoanTerms, () -> Unit) -> Unit,
 ) {
     val owed = -(ledger.accounts.balances[account.id] ?: 0)
-    var form by remember { mutableStateOf(LoanDetailsForm.of(account.name, terms)) }
+    var form by rememberSaveable(stateSaver = LoanDetailsFormSaver) { mutableStateOf(LoanDetailsForm.of(account.name, terms)) }
     var problems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
     fun edit(field: LoanField?, change: (LoanDetailsForm) -> LoanDetailsForm) {
         form = change(form)
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding(), accounts = payFromChoices(ledger.accounts.accounts, except = account.id)) {
             Text("Edit details", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Gap(4)
             NameField(form.name, { v -> edit(LoanField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[LoanField.NAME])

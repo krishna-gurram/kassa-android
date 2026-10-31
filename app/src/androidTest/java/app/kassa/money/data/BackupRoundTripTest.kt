@@ -71,6 +71,18 @@ class BackupRoundTripTest {
     }
 
     @Test
+    fun aBackupFromANewerKassaIsRefusedAndChangesNothing(): Unit = runBlocking {
+        repo(target).restore(sample)
+        val before = target.people().all()
+        for (password in listOf<CharArray?>(null, "a long password".toCharArray())) {
+            val file = BackupFile.encode("""{"version":2,"createdAt":1,"somethingNew":[1,2,3]}""", password)
+            val e = assertFailsWith<BackupFile.NewerVersion> { repo(target).read(ByteArrayInputStream(file), password) }
+            assertEquals("This backup is from a newer version of Kassa. Update Kassa to open it.", e.message)
+        }
+        assertEquals(before, target.people().all())
+    }
+
+    @Test
     fun restoringReplacesWhatWasThere(): Unit = runBlocking {
         target.people().insertAll(listOf(PersonEntity(9, "Someone old", false)))
         repo(target).restore(sample)

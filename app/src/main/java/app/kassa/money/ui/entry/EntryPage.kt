@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -64,6 +65,8 @@ fun EntryPage(
     onBack: () -> Unit,
 ) {
     val s = rememberSaveable(saver = EntryState.saver(start, ledger.zone, ledger.today)) { EntryState(start, ledger.zone, ledger.today) }
+    // Left open past midnight, or carried to another time zone: "today" and the zone follow the phone.
+    LaunchedEffect(ledger.zone, ledger.today) { s.updateClock(ledger.zone, ledger.today) }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -102,7 +105,11 @@ fun EntryPage(
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
         PageTop(title, onBack = leave) {
             if (s.editing != null) TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Kassa.colors.attention, style = KassaType.bodyStrong) }
-            else TextButton(onClick = save) { Text("Save", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
+            else androidx.compose.material3.Button(
+                onClick = save, shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk),
+                modifier = Modifier.padding(end = 4.dp).androidx_minHeight(),
+            ) { Text("Save", style = KassaType.bodyStrong) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 600.dp
@@ -116,7 +123,7 @@ fun EntryPage(
                             val top = s.categoryId?.let { ledger.categoryById[it] }?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
                             if (top == null) s.field = Field.CATEGORY else SubcategoryPanel(s, ledger, top, wide)
                         }
-                        Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide)
+                        Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide, app.kassa.money.ui.common.recentAccountIds(ledger))
                         Field.DATE -> DatePanel(s, ledger.today)
                         Field.SPLIT -> SplitPanel(s, ledger)
                         Field.NOTE -> NotePanel(s, ledger, notes)
@@ -202,3 +209,6 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
     ) { s.field = Field.SPLIT; s.editingShare = null }
     s.error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp)) }
 }
+
+/** The one ink Save button at the top of the entry page keeps the 48dp touch target. */
+private fun Modifier.androidx_minHeight(): Modifier = this.then(Modifier.heightIn(min = 48.dp))

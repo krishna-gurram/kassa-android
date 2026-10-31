@@ -85,13 +85,13 @@ class CashewImportTest {
         val file = backup("cashew-current.db") {
             row("app_settings", "settings_pk" to 0, "settings_j_s_o_n" to "{\"selectedWalletPk\":\"0\",\"other\":1}", "date_updated" to oct1)
             row("wallets", "wallet_pk" to "0", "name" to "Everyday", "order" to 0, "currency" to "usd", "decimals" to 2)
-            row("wallets", "wallet_pk" to "w2", "name" to "Sapphire", "order" to 1, "currency" to "usd", "decimals" to 2)
+            row("wallets", "wallet_pk" to "w2", "name" to "Card B", "order" to 1, "currency" to "usd", "decimals" to 2)
             row("categories", "category_pk" to "0", "name" to "Balance Correction", "order" to 0, "income" to false)
             row("categories", "category_pk" to "food", "name" to "Food", "colour" to "0xff3f9a5e", "icon_name" to "cutlery.png", "order" to 1, "income" to false)
             row("categories", "category_pk" to "cafe", "name" to "Coffee", "order" to 2, "income" to false, "main_category_pk" to "food")
             row("categories", "category_pk" to "pay", "name" to "Salary", "emoji_icon_name" to "💼", "order" to 3, "income" to true)
             row("objectives", "objective_pk" to "M", "type" to 1, "name" to "Mortgage", "amount" to 312000.0, "order" to 0, "date_created" to oct1, "income" to false, "archived" to false)
-            row("objectives", "objective_pk" to "S", "type" to 1, "name" to "Sam", "amount" to 600.0, "order" to 1, "date_created" to oct1, "income" to true, "archived" to false)
+            row("objectives", "objective_pk" to "S", "type" to 1, "name" to "Friend A", "amount" to 600.0, "order" to 1, "date_created" to oct1, "income" to true, "archived" to false)
             tx(2480.0, "0", "pay", oct1)
             tx(-4.25, "0", "food", oct1 + 3600, "sub_category_fk" to "cafe")
             tx(-129.99, "w2", "food", oct1 + 7200)
@@ -123,12 +123,12 @@ class CashewImportTest {
         val txs = kassa.transactions().all().map { it.toDomain() }
         fun bal(name: String) = balanceOf(accounts.first { it.name == name }, txs)
         assertEquals(2480_00L - 4_25 - 1850_00 - 600_00 + 200_00 - 129_99, bal("Everyday"))
-        assertEquals(0L, bal("Sapphire"))
+        assertEquals(0L, bal("Card B"))
         assertEquals(-312000_00L + 1850_00, bal("Mortgage"))
         val people = kassa.people().all().map { it.toDomain() }
-        assertEquals(setOf("Alex", "Sam"), people.map { it.name }.toSet())
-        val sam = people.first { it.name == "Sam" }
-        assertEquals(400_00L, personBalance(sam.id, kassa.loans().all().map { it.toDomain() }, txs))
+        assertEquals(setOf("Alex", "Friend A"), people.map { it.name }.toSet())
+        val friendA = people.first { it.name == "Friend A" }
+        assertEquals(400_00L, personBalance(friendA.id, kassa.loans().all().map { it.toDomain() }, txs))
         assertEquals(1, kassa.recurring().all().size)
         assertEquals(450_00L, kassa.budgets().all().single().amount)
         val coffee = kassa.categories().all().first { it.name == "Coffee" }

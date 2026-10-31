@@ -59,9 +59,9 @@ class PatternsTest {
 
     @Test
     fun storesGroupByNoteIgnoringCase() {
-        val txs = listOf(spend("2026-10-02", 5_000, note = "Costco"), spend("2026-10-09", 7_000, note = "costco "), spend("2026-10-10", 9_000, note = "Target"), spend("2026-09-10", 50_000, note = "Costco"))
+        val txs = listOf(spend("2026-10-02", 5_000, note = "Store C"), spend("2026-10-09", 7_000, note = "store c "), spend("2026-10-10", 9_000, note = "Target"), spend("2026-09-10", 50_000, note = "Store C"))
         val st = Patterns.stores(txs, byId, LocalDate.of(2026, 10, 1), today, zone)
-        assertEquals("costco", st[0].name.lowercase())
+        assertEquals("store c", st[0].name.lowercase())
         assertEquals(12_000, st[0].total)
         assertEquals(2, st[0].visits)
         assertEquals("Target", st[1].name)

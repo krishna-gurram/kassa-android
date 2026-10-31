@@ -393,7 +393,7 @@ class CashewImporter(private val zone: java.time.ZoneId = java.time.ZoneId.syste
             val t = text.trim()
             if (t.isEmpty()) return null
             val negative = t.startsWith("-")
-            val value = Money.parseCents(t.removePrefix("-").removePrefix("+")) ?: return null
+            val value = Money.parsePlain(t.removePrefix("-").removePrefix("+")) ?: return null
             return if (negative) -value else value
         }
 

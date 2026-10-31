@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,13 +24,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.kassa.money.data.backup.BackupContents
+import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.NumberText
 import app.kassa.money.domain.TxKind
 import app.kassa.money.importer.ImportIssue
 import app.kassa.money.importer.ImportPlan
@@ -39,10 +42,11 @@ import app.kassa.money.ui.common.Panel
 import app.kassa.money.ui.common.PasswordField
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.settings.BackupSummary
+import app.kassa.money.ui.settings.CurrencySheet
+import app.kassa.money.ui.settings.NavRow
 import app.kassa.money.ui.settings.RestoreConfirm
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.text.NumberFormat
 
 /**
  * The whole import, from picking the file to the result. Shown on first launch, where "Start fresh" comes first
@@ -126,20 +130,20 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
         else "This replaces everything in Kassa with the backup you pick. You'll see a review before anything changes.",
         style = KassaType.body, color = Kassa.colors.ink2,
     )
+    val settings = app.kassa.money.ui.LocalSettings.current
+    val code by settings.currency.collectAsState()
+    val chosen by settings.currencyChosen.collectAsState()
+    var choosing by remember { mutableStateOf(false) }
     if (firstRun) {
-        // The currency this phone shows; it can change later in Settings.
-        val settings = app.kassa.money.ui.LocalSettings.current
-        val code by settings.currency.collectAsState()
-        Text("Currency", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 20.dp, bottom = 6.dp))
-        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-        androidx.compose.foundation.layout.FlowRow {
-            app.kassa.money.domain.Currencies.all.forEach { c ->
-                app.kassa.money.ui.entry.Chip(c.code, selected = c.code == code, small = true) { settings.setCurrency(c.code) }
-            }
-        }
-        Gap(20)
+        // The currency this phone shows; it can change later in Settings. A phone in a region Kassa has no currency for
+        // starts with none, and Start fresh and Choose backup file open the list instead until one is picked.
+        val current = Currencies.byCode(code)
+        Gap(12)
+        NavRow("Currency", if (chosen) "${current.name}, ${Money.sample(123_450, style = current)}" else "Choose yours") { choosing = true }
+        if (choosing) CurrencySheet(if (chosen) code else null, onPick = { settings.setCurrency(it.code) }, onDismiss = { choosing = false })
+        Gap(16)
         // Most people have no backup to bring, so starting fresh comes first.
-        PrimaryButton("Start fresh", onStartFresh)
+        PrimaryButton("Start fresh") { if (chosen) onStartFresh() else choosing = true }
         Gap(16)
     } else Gap(28)
     Panel {
@@ -151,7 +155,7 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
             Gap(14)
-            if (firstRun) SecondaryButton("Choose backup file", pick) else PrimaryButton("Choose backup file", pick)
+            if (firstRun) SecondaryButton("Choose backup file", { if (chosen || !firstRun) pick() else choosing = true }) else PrimaryButton("Choose backup file", pick)
         }
     }
     Gap(12)
@@ -176,7 +180,7 @@ private fun KassaPassword(problem: String?, onOpen: (CharArray) -> Unit, onCance
 /** A Kassa backup, read: what's in it, then restore. Over existing data it asks first, like the Backup page. */
 @Composable
 private fun KassaReady(contents: BackupContents, firstRun: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
-    var confirm by remember { mutableStateOf(false) }
+    var confirm by rememberSaveable { mutableStateOf(false) }
     Text("Restore this backup?", style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
     BackupSummary(contents)
@@ -300,7 +304,7 @@ private fun Check(ok: Boolean, text: String) {
 fun PrimaryButton(label: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk),
     ) { Text(label, style = KassaType.bodyStrong) }
@@ -311,7 +315,7 @@ fun PrimaryButton(label: String, onClick: () -> Unit) {
 fun RaisedButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(50.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 50.dp),
         shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Kassa.colors.raised, contentColor = Kassa.colors.ink),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 0.dp),
@@ -323,9 +327,9 @@ fun RaisedButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifi
 fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(50.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 50.dp),
         shape = RoundedCornerShape(15.dp),
     ) { Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink) }
 }
 
-private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
+private fun count(n: Int): String = NumberText.group(n.toString())

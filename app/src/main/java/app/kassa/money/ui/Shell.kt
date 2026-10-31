@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.ui.theme.Kassa
+import app.kassa.money.ui.theme.scaledSp
 
 /** The cover screen's bottom bar (Material's navigation bar height, before the system's own inset). */
 val NAV_BAR_HEIGHT = 80.dp
@@ -77,7 +78,7 @@ fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, showAdd: Boolean, c
                                 selected = tab == t, onClick = { onTab(t) },
                                 icon = { Icon(iconFor(t), null) },
                                 // Labels always show, so selecting a tab changes only the highlight.
-                                label = { Text(t.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                                label = { Text(t.label, fontSize = scaledSp(11f), maxLines = 1, softWrap = false) },
                                 alwaysShowLabel = true, colors = colors,
                             )
                         }
