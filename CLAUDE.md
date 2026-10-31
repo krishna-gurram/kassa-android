@@ -192,8 +192,8 @@ the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, whic
 Top: a Net worth tonal hero (green; orange with its minus below zero) with Assets and Liabilities along its foot. Then a foldable group for each kind the user has (flat on the page: a small uppercase label, its total, a hairline; while arranging each group is a raised card),
 from `AccountsOverview`: Cash and bank (checking, savings, cash, prepaid, fixed deposit), Investments, Other assets,
 Credit cards, Loans, Other debts, then People and a Closed group (folded by default; fold state lives in `NavViewModel`).
-600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are name and main figure, with
-one second line: card "Pay <balance payable>" and "Due <date>", loan "Pay <payment>" and "Due <date>" (only with terms),
+600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are the name and one main figure on the right. A card or loan with something payable shows the
+payable as that figure (orange) with "Due <date>" under it, and "Total balance <x>" (card) or "Outstanding <x>" (loan) under the name; a loan's payable is the payment in effect on its due date (a dated change is in it), loans only with terms;
 fixed deposit "Matures <date>". Orange only for something payable and a payment due today or overdue. No bars,
 percentages, trends or forecasts here. Debts show what is owed, with no minus.
 Settings > Data > "Account to person" lists the user's own plain accounts (not cards, loans or investments, A to Z); the user picks
