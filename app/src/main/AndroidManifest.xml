@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Keeps the daily backup and reminder scheduled after the phone restarts. Granted at install, never asked. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Lets the daily reminder arrive on time while the phone dozes. Android 12 and later list it under
+         "Alarms & reminders"; Settings offers the switch only if it's off. Without it the reminder can be a little late. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".KassaApplication"
@@ -47,6 +50,25 @@
             android:name=".data.jobs.DailyJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- The daily reminder's alarm. Only Kassa's own alarm reaches it. -->
+        <receiver
+            android:name=".data.jobs.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- Sets the reminder and backup again after a restart, an update, a clock or time zone change, or a change
+             to "Alarms & reminders". These system broadcasts reach it without exporting it. -->
+        <receiver
+            android:name=".data.jobs.RescheduleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
