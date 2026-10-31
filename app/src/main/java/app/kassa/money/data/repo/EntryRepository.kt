@@ -4,12 +4,14 @@ import androidx.room.withTransaction
 import app.kassa.money.data.db.KassaDatabase
 import app.kassa.money.data.db.toDomain
 import app.kassa.money.data.db.toEntity
+import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Split
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.effectOn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -95,6 +97,25 @@ class EntryRepository(private val db: KassaDatabase) {
             })
         }
         tx.copy(id = id)
+    }
+
+    /**
+     * Saves a balance correction so that [accountId] shows [target] once it is in, dated [epochMillis]: the entry holds
+     * the difference, nothing before it changes, and it is neither spending nor income (see [BalanceCorrection]). When
+     * [editingId] names an earlier correction, that one is replaced and the difference is worked out without it. Throws
+     * [IllegalArgumentException] with a message to show when there is nothing to correct or the figure is out of range.
+     * Works for any account; the loan page is the first to offer it.
+     */
+    suspend fun correctBalance(accountId: Long, target: Long, epochMillis: Long, editingId: Long? = null): Transaction = db.withTransaction {
+        InputRules.balanceProblem(target)?.let { throw IllegalArgumentException(it) }
+        require(db.accounts().all().any { it.id == accountId }) { "That account isn't there any more." }
+        val old = editingId?.let { db.transactions().byId(it)?.toDomain() }
+        require(editingId == null || (old != null && BalanceCorrection.isCorrection(old.kind) && old.accountId == accountId)) { "That correction isn't there any more." }
+        val without = (db.accounts().balanceOf(accountId) ?: 0) - (old?.effectOn(accountId) ?: 0)
+        val change = BalanceCorrection.change(target, without)
+        BalanceCorrection.problem(change)?.let { throw IllegalArgumentException(it) }
+        val tx = checkNotNull(BalanceCorrection.entry(editingId ?: 0, accountId, change, epochMillis))
+        if (editingId == null) tx.copy(id = db.transactions().insert(tx.toEntity())) else tx.also { db.transactions().update(it.toEntity()) }
     }
 
     /** Inserts an entry as is, for buys and sales that the investment repository records. */

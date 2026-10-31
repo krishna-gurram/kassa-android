@@ -13,7 +13,10 @@ import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.LoanCategories
 import app.kassa.money.domain.LoanDates
+import app.kassa.money.domain.LoanNotes
+import app.kassa.money.domain.LoanPart
 import app.kassa.money.domain.LoanPayment
+import app.kassa.money.domain.tag
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
@@ -22,14 +25,36 @@ import app.kassa.money.domain.TxKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
-/** Every loan's terms, term changes and recorded payments, as the screens read them. */
+/**
+ * Every loan's terms, term changes and recorded payments, as the screens read them. [interestPaid] is the sum of each
+ * loan's linked interest entries; [escrowCategory] is the category each loan's latest escrow entry went to, which the next
+ * payment's sheet starts from, so a loan keeps the category it was last given.
+ */
 data class LoansState(
     val terms: Map<Long, LoanTerms>,
     val changes: List<LoanTermChange>,
     val payments: List<LoanPayment>,
+    val interestPaid: Map<Long, Long> = emptyMap(),
+    val escrowCategory: Map<Long, Long> = emptyMap(),
 ) {
     fun changesFor(accountId: Long): List<LoanTermChange> = changes.filter { it.accountId == accountId }
     fun paymentsFor(accountId: Long): List<LoanPayment> = payments.filter { it.accountId == accountId }
+
+    private val byEntry: Map<Long, Pair<LoanPayment, LoanPart>> by lazy {
+        buildMap {
+            payments.forEach { p ->
+                listOf(p.principalEntryId to LoanPart.PRINCIPAL, p.interestEntryId to LoanPart.INTEREST, p.otherEntryId to LoanPart.OTHER)
+                    .forEach { (id, part) -> if (id != null) put(id, p to part) }
+            }
+        }
+    }
+
+    /** Whether an entry is one of a loan payment's entries, whatever its kind. */
+    fun isLoanEntry(entryId: Long): Boolean = entryId in byEntry
+
+    /** The small tag Activity shows on a loan payment's entry ("principal", "interest", "escrow", "charge"); null for any other entry. */
+    fun tagFor(entryId: Long): String? =
+        byEntry[entryId]?.let { (p, part) -> p.tag(part, terms[p.accountId]?.interestWord ?: "Interest") }
 
     companion object {
         val EMPTY = LoansState(emptyMap(), emptyList(), emptyList())
@@ -52,6 +77,8 @@ data class LoanPaymentDraft(
     val charge: Long,
     /** The category for the interest part; null means the loan's own (the "Loan interest" category unless it names another). */
     val categoryId: Long?,
+    /** The category for the escrow (and any early repayment charge) entry; null means the shared "Escrow" category. */
+    val escrowCategoryId: Long? = null,
     val edited: Boolean,
     val estimate: Long,
 )
@@ -63,6 +90,7 @@ data class LoanPaymentDetail(
     val interest: Long,
     val fromId: Long?,
     val categoryId: Long?,
+    val escrowCategoryId: Long? = null,
 )
 
 /**
@@ -80,9 +108,13 @@ class LoanRepository(
 ) {
 
     val state: Flow<LoansState> = combine(
-        db.loanTerms().observeAll(), db.loanChanges().observeAll(), db.loanPayments().observeAll(),
-    ) { terms, changes, payments ->
-        LoansState(terms.associate { it.accountId to it.toDomain() }, changes.map { it.toDomain() }, payments.map { it.toDomain() })
+        db.loanTerms().observeAll(), db.loanChanges().observeAll(), db.loanPayments().observeAll(), db.loanPayments().observeExtras(),
+    ) { terms, changes, payments, extras ->
+        LoansState(
+            terms.associate { it.accountId to it.toDomain() }, changes.map { it.toDomain() }, payments.map { it.toDomain() },
+            interestPaid = extras.groupBy { it.accountId }.mapValues { (_, rows) -> rows.sumOf { it.interest } },
+            escrowCategory = extras.filter { it.escrowCategoryId != null }.groupBy { it.accountId }.mapValues { (_, rows) -> rows.last().escrowCategoryId!! },
+        )
     }
 
     /**
@@ -114,8 +146,57 @@ class LoanRepository(
         terms.interestCategoryId?.let { id -> require(db.categories().all().any { it.id == id }) { "That category isn't there any more." } }
         // The default category exists from the first loan on, even when this loan names another.
         interestCategory()
+        // The shared Escrow category exists from the first loan that has escrow.
+        if (terms.escrow > 0) escrowCategory()
         db.loanTerms().upsert(terms.toEntity())
     }
+
+    /**
+     * The shared "Escrow" category's id, made when it isn't there yet (and brought back when it was archived). Every
+     * loan with escrow starts from it; a single payment can name any category instead, and a loan keeps the last one.
+     */
+    private suspend fun escrowCategory(): Long {
+        val all = db.categories().all().map { it.toDomain() }
+        LoanCategories.escrowCategory(all)?.let { return it.id }
+        all.firstOrNull { it.parentId == null && it.kind == CategoryKind.EXPENSE && it.name.equals(LoanCategories.ESCROW_NAME, ignoreCase = true) }?.let { archived ->
+            db.categories().update(archived.copy(hidden = false).toEntity())
+            return archived.id
+        }
+        return categories.save(
+            Category(
+                name = LoanCategories.ESCROW_NAME, kind = CategoryKind.EXPENSE, icon = CategoryIcon.Symbol("home"),
+                color = CategoryColors.next(all, CategoryKind.EXPENSE),
+                // Escrow is a standing cost, like the loan itself, so it doesn't eat into what is safe to spend today.
+                countsTowardDaily = false,
+            )
+        )
+    }
+
+    /**
+     * Saves the loan's details that have no date (see `LoanDetailsForm`): the name goes to the account, the rest to the
+     * terms. A new due day was already applied to the next payment date by the form. Payments recorded so far keep
+     * what they hold, so a new escrow amount or charge only reaches the next ones.
+     */
+    suspend fun updateDetails(account: Account, terms: LoanTerms) = db.withTransaction {
+        require(account.type == AccountType.LOAN && account.id != 0L) { "Details belong to a loan or mortgage account." }
+        require(db.loanTerms().forAccount(account.id) != null) { "Add this loan's terms first." }
+        accounts.update(account)
+        saveTerms(terms.copy(accountId = account.id))
+    }
+
+    /**
+     * Saves a change of terms from a date on. Throws [IllegalArgumentException] with a message to show when it changes
+     * nothing, starts before the loan did, or breaks an input rule. Payments before its date keep their split, because
+     * the engine reads each date's terms from the changes; nothing already recorded is touched.
+     */
+    suspend fun addChange(change: LoanTermChange): Long = db.withTransaction {
+        val terms = db.loanTerms().forAccount(change.accountId)?.toDomain() ?: throw IllegalArgumentException("Add this loan's terms first.")
+        change.problem(terms, db.loanChanges().all().map { it.toDomain() })?.let { throw IllegalArgumentException(it) }
+        db.loanChanges().insert(change.copy(id = 0).toEntity())
+    }
+
+    /** Removes a change of terms: the schedule goes back to what it was before it. Recorded payments are untouched. */
+    suspend fun deleteChange(id: Long) = db.loanChanges().delete(id)
 
     /**
      * The "Loan interest" category's id, made when it isn't there yet (and brought back when it was archived).
@@ -152,7 +233,8 @@ class LoanRepository(
             principal = principal?.amount ?: 0,
             interest = interest?.amount ?: 0,
             fromId = principal?.accountId ?: interest?.accountId ?: other?.accountId,
-            categoryId = interest?.categoryId ?: other?.categoryId,
+            categoryId = interest?.categoryId,
+            escrowCategoryId = other?.categoryId,
         )
     }
 
@@ -174,6 +256,9 @@ class LoanRepository(
         require(from != d.accountId && db.accounts().all().any { it.id == from }) { "Pick the account it's paid from." }
         val category = d.categoryId ?: terms.interestCategoryId ?: interestCategory()
         require(db.categories().all().any { it.id == category }) { "Pick a category for the ${terms.interestWord.lowercase()}." }
+        val costs = d.escrow + d.charge
+        val costCategory = if (costs > 0) (d.escrowCategoryId ?: escrowCategory()) else null
+        costCategory?.let { id -> require(db.categories().all().any { it.id == id }) { "Pick a category for the ${if (d.escrow > 0) "escrow" else "charge"}." } }
 
         // Take the payment being edited out first, so the balance and the next date are as they were before it.
         var next = terms.nextPaymentDay
@@ -186,18 +271,16 @@ class LoanRepository(
         require(d.principal <= owed.coerceAtLeast(0)) { "That's more than the ${Money.format(owed.coerceAtLeast(0))} still owed." }
 
         val name = loan.name
-        val word = terms.interestWord.lowercase()
         val principalId = if (d.principal > 0) db.transactions().insert(
-            Transaction(kind = TxKind.TRANSFER, amount = d.principal, accountId = from, toAccountId = d.accountId, epochMillis = d.epochMillis, note = note("$name principal")).toEntity()
+            Transaction(kind = TxKind.TRANSFER, amount = d.principal, accountId = from, toAccountId = d.accountId, epochMillis = d.epochMillis, note = note(LoanNotes.principal(name))).toEntity()
         ) else null
         val interestId = if (d.interest > 0) db.transactions().insert(
-            Transaction(kind = TxKind.EXPENSE, amount = d.interest, accountId = from, categoryId = category, epochMillis = d.epochMillis, note = note("$name $word")).toEntity()
+            Transaction(kind = TxKind.EXPENSE, amount = d.interest, accountId = from, categoryId = category, epochMillis = d.epochMillis, note = note(LoanNotes.interest(name, terms.interestWord))).toEntity()
         ) else null
-        val costs = d.escrow + d.charge
         val otherId = if (costs > 0) db.transactions().insert(
             Transaction(
-                kind = TxKind.EXPENSE, amount = costs, accountId = from, categoryId = category, epochMillis = d.epochMillis,
-                note = note("$name " + when { d.escrow > 0 && d.charge > 0 -> "escrow and early repayment charge"; d.escrow > 0 -> "escrow"; else -> "early repayment charge" }),
+                kind = TxKind.EXPENSE, amount = costs, accountId = from, categoryId = costCategory, epochMillis = d.epochMillis,
+                note = note(LoanNotes.other(name, d.escrow, d.charge)),
             ).toEntity()
         ) else null
 

@@ -202,6 +202,13 @@ data class LoanPaymentEntity(
     val scheduled: Boolean,
 )
 
+/** Result row for the loan payments query: what a payment's entries hold, see `LoanPaymentDao.observeExtras`. */
+data class LoanPaymentExtra(
+    @ColumnInfo(name = "accountId") val accountId: Long,
+    @ColumnInfo(name = "interest") val interest: Long,
+    @ColumnInfo(name = "escrowCategoryId") val escrowCategoryId: Long?,
+)
+
 /** Result row for the balance query. */
 data class AccountBalance(
     @ColumnInfo(name = "id") val id: Long,
