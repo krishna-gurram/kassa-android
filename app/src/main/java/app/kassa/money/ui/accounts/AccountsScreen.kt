@@ -1,10 +1,12 @@
 package app.kassa.money.ui.accounts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,37 +35,38 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
-import app.kassa.money.domain.LoanTerms
+import app.kassa.money.domain.AccountLine
+import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
+import app.kassa.money.domain.AccountsOverview
+import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.Names
 import app.kassa.money.domain.Person
+import app.kassa.money.ui.CardSnapshotFor
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
-import app.kassa.money.ui.cards.CardRow
 import app.kassa.money.ui.cards.cardMoney
 import app.kassa.money.ui.cards.cardTint
-import app.kassa.money.ui.cards.cardsByDueDate
-import app.kassa.money.ui.common.favourColor
-import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.Gap
-import app.kassa.money.ui.common.RaisedPanel
-import app.kassa.money.ui.common.accountIcon
+import app.kassa.money.ui.common.TabTop
+import app.kassa.money.ui.common.balanceColor
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.ui.importer.RaisedButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import app.kassa.money.ui.today.BigMoney
 
-/** How the Accounts tab orders every section; stored in Settings as these names. */
+/** How the Accounts tab orders every group; stored in Settings as these names. */
 private enum class AccountSort(val label: String) {
     NAME("Name"), BALANCE("Balance"), DUE("Due date");
 
@@ -78,23 +81,21 @@ private enum class AccountSort(val label: String) {
     }
 }
 
-/** The sections' keys, which also remember which ones are open. */
-private object Section {
-    const val CARDS = "cards"
-    const val BANKS = "Bank and cash"
-    const val INVEST = "Investments"
-    const val LOANS = "Loans"
+/** The keys of the groups that aren't an [AccountSection]; folding is remembered by these and the sections' names. */
+private object Fold {
     const val PEOPLE = "people"
-    val all = listOf(CARDS, BANKS, INVEST, LOANS, PEOPLE)
+    const val CLOSED = "closed"
 }
 
-private val BANK_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID)
-private val INVEST_TYPES = setOf(AccountType.INVESTMENT, AccountType.OTHER_ASSET)
-private val LOAN_TYPES = setOf(AccountType.LOAN, AccountType.OTHER_DEBT)
+/** From this width the groups sit in two columns: what you have on the left, what you owe on the right. */
+private val TWO_COLUMNS = 600.dp
 
 /**
- * Everything you own and owe on one page: net worth, then credit cards (payable and outstanding), bank and cash,
- * investments, loans, and people. Each row opens its own page.
+ * What you have, what you owe, and when. A strip of Assets, Liabilities and Net worth, then a foldable card for each
+ * kind of account you have: Cash and bank, Investments, Other assets, Credit cards, Loans, Other debts, then People and
+ * a folded Closed group. Rows show the account's main figure and, for cards, loans and fixed deposits, what to pay and
+ * when. Nothing is calculated beyond sums: no rates, trends or forecasts. The grouping and totals are
+ * [AccountsOverview]'s; this only lays them out. Each row opens its own page.
  *
  * The add callbacks get a `done` to call once the save succeeded, so a sheet stays open on a problem.
  */
@@ -103,6 +104,8 @@ fun AccountsScreen(
     ledger: Ledger,
     contentPadding: PaddingValues,
     selectedAccount: Long?,
+    folded: Set<String>,
+    onFolded: (Set<String>) -> Unit,
     onOpenAccount: (Long) -> Unit,
     onOpenPerson: (Long) -> Unit,
     onAddAccount: (Account, String?, () -> Unit) -> Unit,
@@ -116,108 +119,106 @@ fun AccountsScreen(
     var addingAccount by remember { mutableStateOf(false) }
     var addingPerson by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
-    // Sections start folded; which ones are open survives folding the phone.
-    var openKeys by rememberSaveable { mutableStateOf("") }
-    val open = openKeys.split(',').filter { it.isNotEmpty() }.toSet()
-    val toggle: (String) -> Unit = { k -> openKeys = (if (k in open) open - k else open + k).joinToString(",") }
+    val toggle: (String) -> Unit = { k -> onFolded(if (k in folded) folded - k else folded + k) }
 
-    val balanceOf: (Account) -> Long = { state.balances[it.id] ?: 0L }
     // An investment account is worth its cash plus its holdings.
-    val valueOf: (Account) -> Long = { balanceOf(it) + if (it.type == AccountType.INVESTMENT) ledger.holdingsValue(it.id) else 0L }
-    fun <T> List<T>.ordered(name: (T) -> String, size: (T) -> Long): List<T> {
-        val byName = compareBy<T, String>(String.CASE_INSENSITIVE_ORDER) { name(it) }
-        // Due date only orders cards; everything else keeps A to Z then.
-        val base = if (sort == AccountSort.BALANCE) sortedWith(compareByDescending<T> { Math.abs(size(it)) }.then(byName)) else sortedWith(byName)
-        return if (desc) base.reversed() else base
+    val valueOf: (Account) -> Long = { (state.balances[it.id] ?: 0L) + if (it.type == AccountType.INVESTMENT) ledger.holdingsValue(it.id) else 0L }
+    val cards = ledger.cards().associateBy { it.account.id }
+    val today = ledger.today
+
+    // Due date orders what has one coming (cards with something payable, loans with terms); the rest follow A to Z.
+    val dueDay: (Account) -> Int? = { a ->
+        when {
+            a.type.hasStatement -> cards[a.id]?.snapshot?.takeIf { it.payable > 0 }?.due?.accountDay()
+            a.type == AccountType.LOAN -> ledger.loans.terms[a.id]?.nextPaymentDay
+            else -> null
+        }
     }
+    val byName = Names.order<AccountLine> { it.account.name }
+    val order: Comparator<AccountLine> = when (sort) {
+        AccountSort.NAME -> byName
+        AccountSort.BALANCE -> compareByDescending<AccountLine> { Math.abs(it.shown) }.then(byName)
+        AccountSort.DUE -> compareBy<AccountLine, Int?>(nullsLast<Int>()) { dueDay(it.account) }.then(byName)
+    }.let { if (desc) it.reversed() else it }
 
     val personBalances = ledger.personBalances()
     val owed = ledger.openPersonBalances().values
     val receivable = owed.filter { it > 0 }.sum()
     val payable = -owed.filter { it < 0 }.sum()
-    val active = state.accounts.filter { !it.archived }
-    val assets = active.filter { !it.type.isDebt }.sumOf(valueOf) + receivable
-    val liabilities = -active.filter { it.type.isDebt }.sumOf(balanceOf) + payable
-
-    val cards = if (sort == AccountSort.DUE) cardsByDueDate(ledger).let { if (desc) it.reversed() else it }
-    else ledger.cards().ordered({ it.account.name }, { it.snapshot.totalBalance })
-    val cardIds = cards.map { it.account.id }.toSet()
-    // Cards without statement days have no snapshot; they still belong in the section.
-    val unsetCards = active.filter { it.type == AccountType.CREDIT_CARD && it.id !in cardIds }.ordered({ it.name }, balanceOf)
-    val banks = active.filter { it.type in BANK_TYPES }.ordered({ it.name }, valueOf)
-    val invest = active.filter { it.type in INVEST_TYPES }.ordered({ it.name }, valueOf)
-    val loans = active.filter { it.type in LOAN_TYPES }.ordered({ it.name }, balanceOf)
-    val people = ledger.people.people.filter { !it.archived }.ordered({ it.name }, { personBalances[it.id] ?: 0L })
-    val archived = state.accounts.filter { it.archived }.sortedWith(compareBy<Account, String>(String.CASE_INSENSITIVE_ORDER) { it.name })
+    val overview = AccountsOverview.of(state.accounts, valueOf, receivable, payable, order)
+    val people = ledger.people.people.filter { !it.archived }.sortedWith(Names.order { it.name })
+    val archived = state.accounts.filter { it.archived }.sortedWith(Names.order { it.name })
     val archivedPeople = ledger.people.people.filter { it.archived }
 
-    val accountRow: @Composable (Account, Long) -> Unit = { a, amount ->
-        // [amount] is as shown: what's owed for cards and loans (a credit as a green plus), the balance otherwise.
-        OneLineRow(iconTile(accountIcon(a.type)), a.name, a.last4, if (a.type.isDebt) cardMoney(amount) else Money.format(amount), selected = a.id == selectedAccount,
-            amountColor = if (a.type.isDebt) cardTint(amount) else balanceColor(a.type, valueOf(a))) { onOpenAccount(a.id) }
-    }
-    val personRow: @Composable (Person) -> Unit = { p ->
-        val b = personBalances[p.id] ?: 0
-        OneLineRow(
-            letterTile(p.name), p.name, null, Money.format(Math.abs(b)),
-            suffix = when { b > 0 -> "owes you"; b < 0 -> "you owe"; else -> "settled" },
-            amountColor = favourColor(b),
-        ) { onOpenPerson(p.id) }
-    }
-
-    val hero: @Composable () -> Unit = {
-        RaisedPanel {
-            Text("Net worth", style = KassaType.tiny, color = Kassa.colors.ink2)
-            BigMoney(assets - liabilities, sizeSp = 36f, color = if (assets < liabilities) Kassa.colors.attention else Kassa.colors.ink)
-            HorizontalDivider(color = Kassa.colors.line, modifier = Modifier.padding(vertical = 12.dp))
-            TwoFigures("Assets" to Money.format(assets), "Liabilities" to Money.format(liabilities))
+    val groupCard: @Composable (AccountSection, List<AccountLine>, Long) -> Unit = { section, lines, total ->
+        val key = section.name
+        val debt = section.isDebt
+        GroupCard(
+            section.title, if (debt) cardMoney(total) else Money.format(total),
+            if (debt) cardTint(total) else figureColor(if (total < 0) Kassa.colors.attention else Kassa.colors.ink),
+            open = key !in folded, onToggle = { toggle(key) },
+        ) {
+            lines.forEach { line ->
+                HorizontalDivider(color = Kassa.colors.line)
+                AccountRow(line, ledger, cards, selected = line.account.id == selectedAccount) { onOpenAccount(line.account.id) }
+            }
         }
-        val allOpen = Section.all.all { it in open }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    }
+    val peopleCard: @Composable () -> Unit = {
+        GroupCard(
+            "People", Money.format(receivable - payable), favourColor(receivable - payable),
+            open = Fold.PEOPLE !in folded, onToggle = { toggle(Fold.PEOPLE) },
+        ) {
+            if (people.isNotEmpty()) {
+                HorizontalDivider(color = Kassa.colors.line)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("Receivable ${Money.format(receivable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+                    Text("Payable ${Money.format(payable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+                }
+            } else {
+                Text("Add people you split costs with or lend to.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(12.dp))
+            }
+            people.forEach { p ->
+                HorizontalDivider(color = Kassa.colors.line)
+                PersonRow(p, personBalances[p.id] ?: 0L) { onOpenPerson(p.id) }
+            }
+        }
+    }
+    val closedCard: @Composable () -> Unit = {
+        if (overview.closed.isNotEmpty()) GroupCard(
+            "Closed · ${overview.closed.size}", null, Kassa.colors.ink,
+            open = Fold.CLOSED !in folded, onToggle = { toggle(Fold.CLOSED) },
+        ) {
+            overview.closed.forEach { a ->
+                HorizontalDivider(color = Kassa.colors.line)
+                OneLineRow(
+                    a.name, a.last4, "", selected = a.id == selectedAccount, grouped = true,
+                    note = "Kept in your history", dueNote = a.closedDay?.let { "Closed ${accountDate(it)}" },
+                ) { onOpenAccount(a.id) }
+            }
+        }
+    }
+    val strip: @Composable (Boolean) -> Unit = { large ->
+        val net = overview.netWorth
+        FigureStrip(
+            listOf(
+                Triple("Assets", Money.format(overview.assets), Kassa.colors.ink),
+                Triple("Liabilities", Money.format(overview.liabilities), Kassa.colors.ink),
+                // Below zero it's orange with its minus sign, like every figure that's against you; hidden, plain.
+                Triple("Net worth", Money.format(net), figureColor(if (net < 0) Kassa.colors.attention else Kassa.colors.ink)),
+            ),
+            large,
+        )
+    }
+    val sortBar: @Composable () -> Unit = {
+        val keys = overview.groups.map { it.section.name } + Fold.PEOPLE + (if (overview.closed.isNotEmpty()) listOf(Fold.CLOSED) else emptyList())
+        val allFolded = keys.all { it in folded }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             SortHeader(sort, desc, onSort = { settings.setAccountSort(it.name) }, onFlip = { settings.setAccountSortDesc(!desc) })
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { openKeys = if (allOpen) "" else Section.all.joinToString(",") }) {
-                Text(if (allOpen) "Collapse all" else "Expand all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+            TextButton(onClick = { onFolded(if (allFolded) emptySet() else keys.toSet()) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(if (allFolded) "Expand all" else "Collapse all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
-        }
-    }
-    val cardSection: @Composable () -> Unit = {
-        if (cards.isNotEmpty() || unsetCards.isNotEmpty()) {
-            // The cards' real balances, the same figure Liabilities adds up: an overpaid card's credit counts too.
-            val owed = -(cards.map { it.account } + unsetCards).sumOf(balanceOf)
-            GroupHead(
-                "Credit cards", cardMoney(owed),
-                Section.CARDS in open, { toggle(Section.CARDS) },
-                listOf("Payable" to cardMoney(cards.sumOf { it.snapshot.balancePayable }), "Outstanding" to cardMoney(cards.sumOf { it.snapshot.outstanding })),
-                // A card in credit is in your favour; an ordinary card balance is plain. Only payable is orange.
-                totalFavour = if (owed < 0) 1 else 0,
-                figureFavour = listOf(-cards.sumOf { it.snapshot.balancePayable }, if (cards.sumOf { it.snapshot.outstanding } < 0) 1 else 0),
-            )
-            if (Section.CARDS in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                cards.forEach { c -> CardRow(c, ledger.today, selected = c.account.id == selectedAccount) { onOpenAccount(c.account.id) } }
-                unsetCards.forEach { a -> accountRow(a, -balanceOf(a)) }
-            }
-        }
-    }
-    val accountSection: @Composable (String, List<Account>, Boolean) -> Unit = { key, list, debt ->
-        if (list.isNotEmpty()) {
-            val shown: (Account) -> Long = { if (debt) -balanceOf(it) else valueOf(it) }
-            val total = list.sumOf(shown)
-            // Loans show what's owed like cards; a group of your own money below zero is orange.
-            GroupHead(key, if (debt) cardMoney(total) else Money.format(total), key in open, { toggle(key) },
-                totalFavour = if (debt) (if (total < 0) 1 else 0) else if (total < 0) -1 else 0)
-            if (key in open) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { accountRow(it, shown(it)) } }
-        }
-    }
-    val peopleSection: @Composable () -> Unit = {
-        GroupHead(
-            "Loans and splits", Money.format(receivable - payable), Section.PEOPLE in open, { toggle(Section.PEOPLE) },
-            if (people.isEmpty()) null else listOf("Owed to you" to Money.format(receivable), "You owe" to Money.format(payable)),
-            totalFavour = receivable - payable, figureFavour = listOf(receivable, -payable),
-        )
-        if (Section.PEOPLE in open) {
-            if (people.isEmpty()) Text("Add people you split costs with or lend to.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 6.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { people.forEach { personRow(it) } }
         }
     }
     val footer: @Composable () -> Unit = {
@@ -228,44 +229,62 @@ fun AccountsScreen(
         }
         val archivedCount = archived.size + archivedPeople.size
         if (archivedCount > 0) {
-            TextButton(onClick = { showArchived = !showArchived }) {
+            TextButton(onClick = { showArchived = !showArchived }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(if (showArchived) "Hide archived ($archivedCount)" else "Show archived ($archivedCount)", color = Kassa.colors.ink2)
             }
-            if (showArchived) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                archived.forEach { accountRow(it, if (it.type.isDebt) -balanceOf(it) else balanceOf(it)) }
-                archivedPeople.forEach { personRow(it) }
+            if (showArchived) Column(Modifier.clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
+                archived.forEachIndexed { i, a ->
+                    if (i > 0) HorizontalDivider(color = Kassa.colors.line)
+                    AccountRow(AccountLine(a, if (a.type.isDebt) -valueOf(a) else valueOf(a)), ledger, cards, selected = a.id == selectedAccount) { onOpenAccount(a.id) }
+                }
+                archivedPeople.forEachIndexed { i, p ->
+                    if (archived.isNotEmpty() || i > 0) HorizontalDivider(color = Kassa.colors.line)
+                    PersonRow(p, personBalances[p.id] ?: 0L) { onOpenPerson(p.id) }
+                }
             }
         }
     }
-    val title: @Composable () -> Unit = { Text("Accounts", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 12.dp)) }
-    val leftColumn: @Composable () -> Unit = {
-        accountSection(Section.BANKS, banks, false)
-        accountSection(Section.INVEST, invest, false)
-        accountSection(Section.LOANS, loans, true)
-        peopleSection()
-        footer()
-    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (maxWidth >= 720.dp) {
-            // Unfolded: cards get their own column beside everything else.
-            Row(Modifier.fillMaxSize().padding(contentPadding), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { title(); hero(); leftColumn() }
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { cardSection() }
+        val two = maxWidth >= TWO_COLUMNS
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = if (two) 1100.dp else 720.dp)) {
+            TabTop("Accounts")
+            strip(two)
+            sortBar()
+            Gap(4)
+            if (two) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        overview.assetGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                        peopleCard()
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                        if (overview.liabilityGroups.isEmpty()) Text(
+                            "Cards and loans show here when you add one.", style = KassaType.small, color = Kassa.colors.ink2,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
+                Gap(10)
+                closedCard()
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    overview.groups.forEach { groupCard(it.section, it.lines, it.total) }
+                    peopleCard()
+                    closedCard()
+                }
             }
-        } else {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-                title(); hero(); cardSection(); leftColumn()
-            }
+            footer()
         }
     }
 
     if (addingAccount) AddAccountSheet(
         groups = state.groups,
-        payFromOptions = active.filter { it.type in listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) },
+        payFromOptions = state.accounts.filter { it.isActive && it.type in listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) },
         takenNames = state.accounts.map { it.name },
         categories = ledger.categories,
-        today = ledger.today,
+        today = today,
         onDismiss = { addingAccount = false },
         onSave = { account, newGroup -> onAddAccount(account, newGroup) { addingAccount = false } },
         onSaveLoan = { account, terms, newGroup -> onAddLoan(account, terms, newGroup) { addingAccount = false } },
@@ -273,16 +292,87 @@ fun AccountsScreen(
     if (addingPerson) AddPersonSheet(ledger.people.people, onDismiss = { addingPerson = false }) { name, opening, done -> onAddPerson(name, opening, done) }
 }
 
-/** Two labelled figures side by side, like Assets and Liabilities. */
+/**
+ * One account in a group. The main figure is what you have, or for a card, loan or other debt what you owe (a credit
+ * on a card is a green +). A card adds what to pay and when it's due; a loan with terms, its payment and next date; a
+ * fixed deposit, when it matures. Orange is for something to pay and for a payment due today or overdue.
+ */
 @Composable
-private fun TwoFigures(a: Pair<String, String>, b: Pair<String, String>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        listOf(a, b).forEach { (label, value) ->
-            Column(Modifier.weight(1f)) {
-                Text(label, style = KassaType.tiny, color = Kassa.colors.ink2)
-                Text(value, style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun AccountRow(line: AccountLine, ledger: Ledger, cards: Map<Long, CardSnapshotFor>, selected: Boolean, onClick: () -> Unit) {
+    val a = line.account
+    val debt = a.type.isDebt
+    var note: String? = null
+    var noteColor = Kassa.colors.ink2
+    var dueNote: String? = null
+    var dueColor = Kassa.colors.ink2
+    val todayDay = ledger.today.accountDay()
+    when (a.type) {
+        AccountType.CREDIT_CARD -> {
+            // A card without statement days has nothing to split yet, so it shows only its total.
+            val s = cards[a.id]?.snapshot
+            if (s != null && s.payable > 0) {
+                note = "Pay ${Money.format(s.payable)}"
+                noteColor = Kassa.colors.attention
+                dueNote = "Due ${accountShortDate(s.due)}"
+                if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = Kassa.colors.attention
+            } else if (s != null) {
+                note = "Nothing to pay"
             }
         }
+        AccountType.LOAN -> {
+            // A loan without terms shows only what's outstanding; so does one that's paid off.
+            val t = ledger.loans.terms[a.id]
+            if (t != null && line.shown > 0) {
+                note = "Pay ${Money.format(t.scheduledTotal)}"
+                dueNote = "Due ${accountShortDate(dateOfAccountDay(t.nextPaymentDay))}"
+                if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) {
+                    noteColor = Kassa.colors.attention
+                    dueColor = Kassa.colors.attention
+                }
+            }
+        }
+        AccountType.FIXED_DEPOSIT -> {
+            val matures = a.maturityDay
+            if (matures != null) dueNote = "Matures ${accountShortDate(dateOfAccountDay(matures))}"
+        }
+        else -> Unit
+    }
+    OneLineRow(
+        a.name, a.last4, if (debt) cardMoney(line.shown) else Money.format(line.shown), selected = selected, grouped = true,
+        amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown),
+        note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor, onClick = onClick,
+    )
+}
+
+/** A person: what's between you and them, as Receivable (they owe you) or Payable (you owe them). */
+@Composable
+private fun PersonRow(p: Person, balance: Long, onClick: () -> Unit) {
+    OneLineRow(
+        p.name, null, Money.format(Math.abs(balance)), grouped = true,
+        suffix = when { balance > 0 -> "owes you"; balance < 0 -> "you owe"; else -> "settled" },
+        amountColor = favourColor(balance), onClick = onClick,
+    )
+}
+
+/**
+ * A foldable card: its title and [total] in a header 48dp tall that folds or opens it, then [content] while open. The
+ * fold state is the caller's, so it survives folding the phone.
+ */
+@Composable
+private fun GroupCard(
+    title: String, total: String?, totalColor: Color, open: Boolean, onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = if (open) "Fold $title" else "Open $title", onClick = onToggle).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
+            Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
+            if (total != null) Text(total, style = KassaType.bodyStrong, color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
+        }
+        if (open) content()
     }
 }
 
@@ -313,30 +403,4 @@ private fun SortHeader(sort: AccountSort, desc: Boolean, onSort: (AccountSort) -
             Icon(Icons.Outlined.ArrowUpward, sort.direction(desc), tint = Kassa.colors.ink, modifier = Modifier.size(20.dp).rotate(if (desc) 180f else 0f))
         }
     }
-}
-
-/** A section title with its total. Tap to open or fold it; its key figures show while it's open. */
-@Composable
-private fun GroupHead(
-    title: String, total: String, open: Boolean, onToggle: () -> Unit,
-    figures: List<Pair<String, String>>? = null, totalFavour: Long = 0, figureFavour: List<Long> = emptyList(),
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onToggle).padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Outlined.ChevronRight, if (open) "Fold" else "Open", tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
-        Text(title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
-        Text(total, style = KassaType.bodyStrong, maxLines = 1, color = favourColor(totalFavour))
-    }
-    if (open && figures != null) Row(Modifier.padding(start = 26.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        figures.forEachIndexed { i, (label, value) ->
-            Row {
-                Text("$label ", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
-                Text(value, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1,
-                    color = favourColor(figureFavour.getOrElse(i) { 0 }))
-            }
-        }
-    }
-    if (open) Gap(10)
 }

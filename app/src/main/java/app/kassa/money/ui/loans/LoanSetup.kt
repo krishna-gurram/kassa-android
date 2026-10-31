@@ -70,7 +70,7 @@ internal fun monthYear(day: Int): String = dateOfLoanDay(day).format(DateTimeFor
 
 /** The accounts a payment can come from, A to Z. */
 internal fun payFromChoices(accounts: List<Account>, except: Long = 0): List<Account> =
-    accounts.filter { !it.archived && it.id != except && it.type in PAY_FROM_TYPES }.sortedWith(Names.order { it.name })
+    accounts.filter { it.isActive && it.id != except && it.type in PAY_FROM_TYPES }.sortedWith(Names.order { it.name })
 
 private val PAY_FROM_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH)
 

@@ -85,7 +85,7 @@ fun EditAccountPage(
     BackHandler(enabled = dirty) { confirmDiscard = true }
 
     val isCard = form.type.hasStatement
-    val payFromOptions = ledger.accounts.accounts.filter { !it.archived && it.id != account.id && it.type in PAY_FROM_TYPES }
+    val payFromOptions = ledger.accounts.accounts.filter { it.isActive && it.id != account.id && it.type in PAY_FROM_TYPES }
     val groups = ledger.accounts.groups
     val save = {
         problems = form.problems(takenNames = ledger.accounts.accounts.filter { it.id != account.id }.map { it.name })
@@ -93,7 +93,7 @@ fun EditAccountPage(
     }
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
-        PageTop(if (isCard) "Edit card" else "Edit account", onBack = leave)
+        PageTop(if (isCard) "Edit card" else "Edit account", onBack = leave, amounts = false)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).widthIn(max = 640.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -122,7 +122,7 @@ fun EditAccountPage(
             val investing = form.type == AccountType.INVESTMENT
             Group(if (investing) "Cash" else "Balance") {
                 Field(
-                    when { investing -> "Cash today"; form.type.isDebt -> "Amount owed today"; else -> "Balance today" }, form.balance,
+                    when { investing -> "Cash today"; form.type.hasStatement -> "Total balance today"; form.type.isDebt -> "Outstanding balance today"; else -> "Balance today" }, form.balance,
                     { v -> edit(AccountField.BALANCE) { it.copy(balance = InputRules.typedBalance(v)) } }, KeyboardType.Decimal, problem = problems[AccountField.BALANCE],
                 )
                 Text(
@@ -142,7 +142,8 @@ fun EditAccountPage(
                 ) { picking = Picker.GROUP }
                 if (creatingGroup) Field("New group name", form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = InputRules.typed(v, InputRules.NAME_MAX)) } },
                     problem = problems[AccountField.NEW_GROUP])
-                PickRow("Type", form.type.label, last = true) { picking = Picker.TYPE }
+                PickRow("Type", form.type.label, last = form.type != AccountType.FIXED_DEPOSIT) { picking = Picker.TYPE }
+                if (form.type.hasMaturity) MaturityField(form.maturityDay, ledger.today) { d -> edit(null) { it.copy(maturityDay = d) } }
             }
             PrimaryButton("Save changes", save)
             TextButton(onClick = { if (account.archived) onArchive(false) else confirmArchive = true }, modifier = Modifier.fillMaxWidth()) {

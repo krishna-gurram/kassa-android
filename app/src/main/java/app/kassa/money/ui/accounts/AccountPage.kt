@@ -42,6 +42,7 @@ import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.effectOn
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
@@ -91,6 +92,8 @@ fun AccountPage(
     onDeleteHolding: (Holding) -> Unit,
     onBuy: (TradeOrder) -> Unit,
     onSell: (TradeOrder) -> Unit,
+    /** Close and Reopen; null where closing isn't offered. */
+    closing: AccountClosing? = null,
     /** The loan's terms when it has them; a loan without terms offers [onAddTerms] instead of [onPayLoan]. */
     loanTerms: LoanTerms? = null,
     onPayLoan: () -> Unit = {},
@@ -111,7 +114,7 @@ fun AccountPage(
         PageTop(title, onBack) { TextButton(onClick = onEditAccount) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) } }
     }
     if (account.type == AccountType.INVESTMENT) {
-        InvestmentBody(ledger, account, balance, history, after, contentPadding, top, onEditEntry, onSaveHolding, onDeleteHolding, onBuy, onSell)
+        InvestmentBody(ledger, account, balance, history, after, contentPadding, top, onEditEntry, onSaveHolding, onDeleteHolding, onBuy, onSell, status = { AccountStatus(ledger, account, closing) })
         return
     }
 
@@ -144,7 +147,7 @@ fun AccountPage(
                 else periodSwitcher()
                 if (loanSummary == null) Gap(12)
                 if (loanSummary == null) RaisedPanel {
-                    if (account.type == AccountType.CREDIT_CARD) {
+                    if (account.type == AccountType.CREDIT_CARD && account.isActive) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
                         // What's owed, never with a minus; a credit shows green.
@@ -154,7 +157,7 @@ fun AccountPage(
                     } else {
                         Text(
                             when {
-                                monthsBack == 0 && debt -> "Balance owed"
+                                monthsBack == 0 && debt -> "Outstanding balance"
                                 monthsBack == 0 -> "Balance today"
                                 else -> "Balance on ${period.endInclusive.format(DateTimeFormatter.ofPattern("MMM d"))}"
                             },
@@ -166,6 +169,7 @@ fun AccountPage(
                         if (account.type == AccountType.LOAN && monthsBack == 0) LoanActions(account, loanTerms, onAddTerms)
                     }
                 }
+                AccountStatus(ledger, account, closing)
                 if (loanSummary == null) {
                     if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
                     Gap(8)
@@ -226,9 +230,9 @@ private fun HoldingRow(h: Holding, showDivider: Boolean, onClick: () -> Unit) {
                 val cost = h.cost
                 if (profit == null || cost == null) Text("Add average cost", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1)
                 else Text(
-                    Money.format(profit, showPlus = true) + if (cost > 0) " · ${percentOf(Math.abs(profit), cost)}" else "",
+                    Money.format(profit, showPlus = true) + if (cost > 0 && !Money.isHidden) " · ${percentOf(Math.abs(profit), cost)}" else "",
                     style = KassaType.small, maxLines = 1,
-                    color = if (profit < 0) Kassa.colors.attention else Kassa.colors.positive,
+                    color = figureColor(if (profit < 0) Kassa.colors.attention else Kassa.colors.positive),
                 )
             }
             Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 4.dp).size(20.dp))
@@ -253,6 +257,7 @@ private fun InvestmentBody(
     onDeleteHolding: (Holding) -> Unit,
     onBuy: (TradeOrder) -> Unit,
     onSell: (TradeOrder) -> Unit,
+    status: @Composable () -> Unit = {},
 ) {
     val holdings = ledger.holdings.filter { it.accountId == account.id }.sortedByDescending { it.value }
     val holdingsValue = holdings.sumOf { it.value }
@@ -275,11 +280,12 @@ private fun InvestmentBody(
                 top()
                 RaisedPanel {
                     Text("Total value", style = KassaType.tiny, color = Kassa.colors.ink2)
-                    BigMoney(value, sizeSp = 36f, color = if (value < 0) Kassa.colors.attention else Kassa.colors.ink)
+                    BigMoney(value, sizeSp = 36f, color = figureColor(if (value < 0) Kassa.colors.attention else Kassa.colors.ink))
                     if (putIn > 0) {
                         Text(
-                            "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} (${percentOf(Math.abs(gain), putIn)}) on what you put in",
-                            style = KassaType.bodyStrong, color = if (gain >= 0) Kassa.colors.positive else Kassa.colors.attention,
+                            if (Money.isHidden) "${Money.MASK} on what you put in"
+                            else "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} (${percentOf(Math.abs(gain), putIn)}) on what you put in",
+                            style = KassaType.bodyStrong, color = figureColor(if (gain >= 0) Kassa.colors.positive else Kassa.colors.attention),
                         )
                     }
                     TwoBoxes((if (putIn > 0) "You put in" else "Holdings") to Money.format(if (putIn > 0) putIn else holdingsValue), "Cash" to Money.format(cash))
@@ -293,6 +299,7 @@ private fun InvestmentBody(
                         SecondaryButton("Buy or sell", { trading = true }, Modifier.weight(1f))
                     }
                 }
+                status()
                 if (holdings.isNotEmpty()) {
                     val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)

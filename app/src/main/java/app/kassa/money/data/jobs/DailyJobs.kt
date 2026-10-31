@@ -189,6 +189,7 @@ object DailyJobs {
         val tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_kassa)
+            // Hide balances: this text has no amount. Any notification text that does (the due notifications) must build it with Money.format, which masks while hidden, so no amount reaches the lock screen.
             .setContentTitle("Have you recorded today's transactions?")
             .setContentText("Tap to add anything you spent or received today.")
             .setContentIntent(tap)

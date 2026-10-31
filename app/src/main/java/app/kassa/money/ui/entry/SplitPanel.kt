@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.ui.Ledger
@@ -107,7 +108,7 @@ private fun ShareLine(name: String, amount: Long, total: Long, editable: Boolean
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (total > 0) Text("${Math.round(amount * 100.0 / total)}%", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(horizontal = 10.dp))
-        Text(Money.format(amount), style = KassaType.bodyStrong, maxLines = 1, color = if (amount < 0) Kassa.colors.attention else Kassa.colors.ink)
+        if (total > 0 && !Money.isHidden) Text("${Math.round(amount * 100.0 / total)}%", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(horizontal = 10.dp))
+        Text(Money.format(amount), style = KassaType.bodyStrong, maxLines = 1, color = figureColor(if (amount < 0) Kassa.colors.attention else Kassa.colors.ink))
     }
 }

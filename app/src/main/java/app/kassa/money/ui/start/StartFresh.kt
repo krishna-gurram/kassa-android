@@ -86,7 +86,7 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).imePadding().widthIn(max = 560.dp)) {
         if (step == 0) {
-            PageTop("Categories", onBack)
+            PageTop("Categories", onBack, amounts = false)
             Text("Pick what to start with. You can rename, add or remove any of them later.", style = KassaType.body, color = Kassa.colors.ink2)
             CategoryKind.entries.forEach { kind ->
                 Text(if (kind == CategoryKind.EXPENSE) "Expenses" else "Income", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
@@ -100,7 +100,7 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
             Gap(24)
             PrimaryButton("Next") { step = 1 }
         } else {
-            PageTop("Your first account", onBack = { step = 0 })
+            PageTop("Your first account", onBack = { step = 0 }, amounts = false)
             Text("Where your money is. Add the rest any time from Accounts.", style = KassaType.body, color = Kassa.colors.ink2)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 AccountFields(form, problems, { field, change -> form = change(form); if (field != null) problems = problems - field },

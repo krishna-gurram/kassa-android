@@ -66,7 +66,7 @@ data class Ledger(
 
     /** Every card with a statement day, with where it stands today. */
     fun cards(): List<CardSnapshotFor> = accounts.accounts
-        .filter { it.type.hasStatement && !it.archived && it.statementDay != null }
+        .filter { it.type.hasStatement && it.isActive && it.statementDay != null }
         .map { CardSnapshotFor(it, CardCycle.snapshot(it, recent, today, zone, balance = accounts.balances[it.id] ?: 0L)) }
 
     /** Person id to what they owe you (positive) or you owe them (negative). */

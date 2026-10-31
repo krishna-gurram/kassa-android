@@ -56,6 +56,7 @@ data class BackupContents(
             put("id", it.id).put("name", it.name).put("type", it.type).putOpt("groupId", it.groupId).put("openingBalance", it.openingBalance)
                 .putOpt("statementDay", it.statementDay).putOpt("dueDay", it.dueDay).putOpt("payFromId", it.payFromId).putOpt("creditLimit", it.creditLimit)
                 .put("archived", it.archived).put("sortOrder", it.sortOrder).putOpt("externalId", it.externalId).putOpt("last4", it.last4)
+                .putOpt("maturityDay", it.maturityDay).putOpt("closedDay", it.closedDay)
         })
         .put("categories", array(categories) {
             put("id", it.id).put("name", it.name).put("kind", it.kind).putOpt("parentId", it.parentId).put("icon", it.icon).put("color", it.color)
@@ -111,7 +112,8 @@ data class BackupContents(
                 accounts = j.rows("accounts") {
                     AccountEntity(getLong("id"), getString("name"), getString("type"), longOrNull("groupId"), getLong("openingBalance"),
                         intOrNull("statementDay"), intOrNull("dueDay"), longOrNull("payFromId"), longOrNull("creditLimit"),
-                        getBoolean("archived"), getInt("sortOrder"), stringOrNull("externalId"), stringOrNull("last4"))
+                        getBoolean("archived"), getInt("sortOrder"), stringOrNull("externalId"), stringOrNull("last4"),
+                        intOrNull("maturityDay"), intOrNull("closedDay"))
                 },
                 categories = j.rows("categories") {
                     CategoryEntity(getLong("id"), getString("name"), getString("kind"), longOrNull("parentId"), getString("icon"), getInt("color"),

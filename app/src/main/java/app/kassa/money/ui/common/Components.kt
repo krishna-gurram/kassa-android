@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.InputRules
+import app.kassa.money.domain.Money
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
@@ -175,6 +176,7 @@ fun SearchBox(value: String, onChange: (String) -> Unit, hint: String) {
  */
 @Composable
 fun favourColor(favour: Long, plain: Color = Kassa.colors.ink): Color = when {
+    Money.isHidden -> plain
     favour > 0 -> Kassa.colors.positive
     favour < 0 -> Kassa.colors.attention
     else -> plain
@@ -183,4 +185,12 @@ fun favourColor(favour: Long, plain: Color = Kassa.colors.ink): Color = when {
 /** An account's balance: orange only when money you own (a bank, cash, investments) goes below zero. */
 @Composable
 fun balanceColor(type: app.kassa.money.domain.AccountType, balance: Long): Color =
-    if (!type.isDebt && balance < 0) Kassa.colors.attention else Kassa.colors.ink
+    if (!Money.isHidden && !type.isDebt && balance < 0) Kassa.colors.attention else Kassa.colors.ink
+
+/**
+ * [color] for an amount whose color says something about the figure (over budget, a loss, a gain). While amounts are
+ * hidden it's plain ink, so color can't give the figure away. Colors that follow a kind of entry, not its size
+ * (income is always green), don't need this.
+ */
+@Composable
+fun figureColor(color: Color): Color = if (Money.isHidden) Kassa.colors.ink else color

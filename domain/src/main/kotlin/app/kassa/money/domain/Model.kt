@@ -9,6 +9,7 @@ package app.kassa.money.domain
 enum class AccountType(val isDebt: Boolean, val label: String) {
     CHECKING(false, "Checking"),
     SAVINGS(false, "Savings"),
+    FIXED_DEPOSIT(false, "Fixed deposit"),
     CASH(false, "Cash"),
     CREDIT_CARD(true, "Credit card"),
     INVESTMENT(false, "Investment"),
@@ -19,6 +20,9 @@ enum class AccountType(val isDebt: Boolean, val label: String) {
 
     /** Card fields (statement and due day) only make sense for cards. */
     val hasStatement: Boolean get() = this == CREDIT_CARD
+
+    /** A fixed deposit can carry the day it matures. */
+    val hasMaturity: Boolean get() = this == FIXED_DEPOSIT
 }
 
 data class AccountGroup(
@@ -44,7 +48,15 @@ data class Account(
     val externalId: String? = null,
     /** Last four digits of the card or account number, to tell similar accounts apart. */
     val last4: String? = null,
-)
+    /** Fixed deposits: the day it matures, as an epoch day (see [LoanDates]). Past or future. */
+    val maturityDay: Int? = null,
+    /** The day the account was closed, as an epoch day; null while open. A closed account keeps its history. */
+    val closedDay: Int? = null,
+) {
+    /** In use: not archived and not closed. Pickers, totals and tiles only take these. */
+    val isActive: Boolean get() = !archived && closedDay == null
+    val isClosed: Boolean get() = closedDay != null
+}
 
 enum class CategoryKind { EXPENSE, INCOME }
 

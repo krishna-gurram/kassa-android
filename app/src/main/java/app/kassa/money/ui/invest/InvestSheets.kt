@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.InvestmentTransfer
@@ -170,7 +171,7 @@ fun AllocateSheet(
                     cost > p.amount -> "That costs ${Money.format(cost)}, more than the ${Money.format(p.amount)} you moved."
                     else -> "${Money.format(cost)} invested, ${Money.format(p.amount - cost)} stays as uninvested cash."
                 },
-                style = KassaType.small, color = if (cost != null && cost > p.amount) Kassa.colors.attention else Kassa.colors.ink2,
+                style = KassaType.small, color = if (cost != null && cost > p.amount) figureColor(Kassa.colors.attention) else Kassa.colors.ink2,
                 modifier = Modifier.padding(top = 8.dp),
             )
             Gap(12)
@@ -249,8 +250,8 @@ private fun ExistingHolding(holding: Holding, onSave: (Holding) -> Unit, onDelet
         preview.profit?.let { p ->
             val cost = preview.cost ?: 0L
             Figure(
-                "Profit", Money.format(p, showPlus = true) + if (cost > 0) " · ${percentOf(Math.abs(p), cost)}" else "",
-                if (p < 0) Kassa.colors.attention else Kassa.colors.positive,
+                "Profit", Money.format(p, showPlus = true) + if (cost > 0 && !Money.isHidden) " · ${percentOf(Math.abs(p), cost)}" else "",
+                figureColor(if (p < 0) Kassa.colors.attention else Kassa.colors.positive),
             )
         }
     }

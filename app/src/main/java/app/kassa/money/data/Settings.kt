@@ -1,6 +1,9 @@
 package app.kassa.money.data
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -30,6 +33,20 @@ class Settings(context: Context) {
         app.kassa.money.domain.Money.style = app.kassa.money.domain.Currencies.byCode(code)
         _currency.value = code
     }
+
+    /**
+     * Hide balances: while true every amount shows as dots (see Money.hideAmounts). A Compose state, not a flow, so
+     * each composable that formats money subscribes by formatting it and redraws when this flips, with no screen
+     * recreated and no form, scroll position or navigation lost. Stays on until switched back, across restarts.
+     */
+    var hideAmounts: Boolean by mutableStateOf(prefs.getBoolean(HIDE_AMOUNTS, false))
+        private set
+
+    init {
+        app.kassa.money.domain.Money.hideAmounts = { hideAmounts }
+    }
+
+    fun setHideAmounts(on: Boolean) { prefs.edit().putBoolean(HIDE_AMOUNTS, on).apply(); hideAmounts = on }
 
     private val _accountSort = MutableStateFlow(prefs.getString(ACCOUNT_SORT, "NAME")!!)
     /** How the Accounts tab orders every section: NAME, BALANCE or DUE (cards by due date, the rest by name). */
@@ -128,6 +145,7 @@ class Settings(context: Context) {
 
     private companion object {
         const val MONTH_START = "month_start_day"
+        const val HIDE_AMOUNTS = "hide_amounts"
         const val ACCOUNT_SORT = "account_sort"
         const val AUTO_BACKUP = "auto_backup"
         const val BACKUP_FOLDER = "backup_folder"

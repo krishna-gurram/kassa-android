@@ -179,7 +179,7 @@ internal fun PaymentSheet(
     onDelete: (() -> Unit)? = null,
 ) {
     // An edited payment keeps its account in the list even if that account was archived since.
-    val banks = ledger.accounts.accounts.filter { (!it.archived && it.type in PAYMENT_ACCOUNT_TYPES) || it.id == editing?.accountId }
+    val banks = ledger.accounts.accounts.filter { (it.isActive && it.type in PAYMENT_ACCOUNT_TYPES) || it.id == editing?.accountId }
     var direction by remember(p.id) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
     var amount by remember(p.id) {
         mutableStateOf(editing?.let { Money.toInput(it.amount) } ?: if (balance != 0L) Money.toInput(Math.abs(balance)) else "")

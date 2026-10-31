@@ -9,6 +9,7 @@ import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.Savings
@@ -28,6 +29,7 @@ import app.kassa.money.ui.theme.Kassa
 fun accountIcon(type: AccountType): ImageVector = when (type) {
     AccountType.CHECKING -> Icons.Outlined.AccountBalance
     AccountType.SAVINGS -> Icons.Outlined.Savings
+    AccountType.FIXED_DEPOSIT -> Icons.Outlined.Lock
     AccountType.CASH -> Icons.Outlined.Payments
     AccountType.CREDIT_CARD -> Icons.Outlined.CreditCard
     AccountType.INVESTMENT -> Icons.Outlined.ShowChart

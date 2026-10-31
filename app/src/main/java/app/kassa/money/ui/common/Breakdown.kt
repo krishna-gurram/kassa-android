@@ -110,12 +110,12 @@ fun CategoryLinesAll(lines: List<CatLine>, emptyTitle: String, onOpen: (Category
 /** One category: name and amount, then a bar of how much of [ref] is used. Past it, the bar and amount turn orange. */
 @Composable
 fun CategoryBar(c: Category, spent: Long, ref: Long, refLabel: String?, over: Boolean, onClick: () -> Unit) {
-    val color = if (over) Kassa.colors.attention else Color(c.color)
+    val color = if (over) figureColor(Kassa.colors.attention) else Color(c.color)
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryBadge(c, size = 26)
             Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
-            Text(Money.format(spent, wholeDollars = true), style = KassaType.bodyStrong, color = if (over) Kassa.colors.attention else Kassa.colors.ink)
+            Text(Money.format(spent, wholeDollars = true), style = KassaType.bodyStrong, color = figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
             if (refLabel != null) Text(" $refLabel", style = KassaType.tiny, color = Kassa.colors.ink2)
         }
         Box(Modifier.padding(start = 34.dp, top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.track)) {

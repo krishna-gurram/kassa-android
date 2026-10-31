@@ -102,7 +102,8 @@ fun cardMoney(v: Long): String = if (v < 0) Money.format(-v, showPlus = true) el
 fun payableTint(v: Long): androidx.compose.ui.graphics.Color = cardTint(v, owed = if (v > 0) Kassa.colors.attention else Kassa.colors.ink)
 
 @Composable
-fun cardTint(v: Long, owed: androidx.compose.ui.graphics.Color = Kassa.colors.ink): androidx.compose.ui.graphics.Color = if (v < 0) Kassa.colors.positive else owed
+fun cardTint(v: Long, owed: androidx.compose.ui.graphics.Color = Kassa.colors.ink): androidx.compose.ui.graphics.Color =
+    if (Money.isHidden) Kassa.colors.ink else if (v < 0) Kassa.colors.positive else owed
 
 /** A calendar-style date: month over day, orange when due within three days, green once paid in full. */
 @Composable
@@ -131,44 +132,6 @@ fun dueTone(c: CardSnapshotFor, today: LocalDate): Tone {
 }
 
 /**
- * One card as a raised row, led by its due date. First line: name with its last 4 digits, and the total
- * balance. Second line: what's payable (bold) and what's outstanding.
- */
-@Composable
-fun CardRow(c: CardSnapshotFor, today: LocalDate, selected: Boolean = false, onClick: () -> Unit) {
-    val s = c.snapshot
-    val shape = RoundedCornerShape(18.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Kassa.colors.raised)
-            .border(1.5.dp, if (selected) Kassa.colors.ink else androidx.compose.ui.graphics.Color.Transparent, shape)
-            .clickable(onClick = onClick).padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DueTile(s.due, dueTone(c, today))
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text(c.account.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    c.account.last4?.let { Text("  ··$it", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1) }
-                }
-                Text(cardMoney(s.totalBalance), style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = cardTint(s.totalBalance), maxLines = 1, modifier = Modifier.padding(start = 8.dp))
-            }
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(
-                    androidx.compose.ui.text.buildAnnotatedString {
-                        append("Payable ")
-                        pushStyle(androidx.compose.ui.text.SpanStyle(color = payableTint(s.balancePayable), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
-                        append(cardMoney(s.balancePayable)); pop()
-                    },
-                    style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1,
-                )
-                Text("Outstanding ${Money.format(s.outstanding)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
-            }
-        }
-    }
-}
-
-/**
  * One card. First what you owe and when, then the total and what's outstanding, side by side in equal boxes,
  * then the entries behind each. Edit opens the card's details: name, last 4 digits, days, limit, balance.
  */
@@ -183,6 +146,8 @@ fun CardPage(
     onEditCard: () -> Unit,
     /** Every entry on this card, newest first, so older statements can be shown. Falls back to the loaded months. */
     history: List<Transaction> = emptyList(),
+    /** Close this card; null where closing isn't offered. */
+    closing: app.kassa.money.ui.accounts.AccountClosing? = null,
 ) {
     val s = c.snapshot
     val a = c.account
@@ -232,6 +197,7 @@ fun CardPage(
             Gap(14)
             PrimaryButton(if (s.payable > 0) "Pay ${Money.format(s.payable)}" else "Record a payment", onPay)
         }
+        app.kassa.money.ui.accounts.AccountStatus(ledger, a, closing)
         // Statement by statement: 0 is what's charged since the last statement, 1 the last statement, and so on back.
         var back by androidx.compose.runtime.saveable.rememberSaveable(id) { androidx.compose.runtime.mutableIntStateOf(0) }
         val all = (if (history.isNotEmpty()) history else ledger.recent).filter { it.accountId == id || it.toAccountId == id }
@@ -282,7 +248,7 @@ private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epoc
 
 /** The card's own default payment account, if you set one and it's still open. Nothing else is guessed. */
 private fun defaultPayFrom(c: CardSnapshotFor, ledger: Ledger): Long? =
-    c.account.payFromId?.takeIf { id -> ledger.accounts.accounts.any { it.id == id && !it.archived } }
+    c.account.payFromId?.takeIf { id -> ledger.accounts.accounts.any { it.id == id && it.isActive } }
 
 /** Record a card payment: balance payable, total balance or another amount, from any account, on any date. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -297,7 +263,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
     var amountProblem by remember { mutableStateOf<String?>(null) }
-    val sources = ledger.accounts.accounts.filter { !it.archived && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) }
+    val sources = ledger.accounts.accounts.filter { it.isActive && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {

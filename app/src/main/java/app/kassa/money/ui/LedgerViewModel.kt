@@ -116,6 +116,9 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private fun hasDueDay(a: Account) = a.type.hasStatement && a.statementDay != null && a.dueDay != null
 
     /** Runs [block] in the background; on success shows [done] (if any) and calls [onDone], otherwise shows why. */
+    /** A short message for the person, from a screen that found the problem itself (a check before a confirm). */
+    fun say(message: String) { _messages.tryEmit(message) }
+
     private fun change(done: String? = null, onDone: () -> Unit = {}, block: suspend () -> Unit) = viewModelScope.launch {
         try {
             block()
@@ -189,6 +192,10 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setArchived(account: Account, archived: Boolean) =
         change(if (archived) "${account.name} archived. Its history stays." else "${account.name} restored.") { kassa.accounts.update(account.copy(archived = archived)) }
+
+    /** Closes an account (its history stays) or reopens it. The balance check is the repository's; a problem shows as a message. */
+    fun setClosed(account: Account, closedDay: Int?) =
+        change(if (closedDay != null) "${account.name} closed. Its history stays." else "${account.name} reopened.") { kassa.accounts.setClosed(account.id, closedDay) }
 
     fun addPerson(name: String, opening: Long, onDone: () -> Unit = {}) = change("${name.trim()} added.", onDone) { kassa.people.add(name, opening) }
 

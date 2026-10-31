@@ -42,7 +42,7 @@ internal fun topCategories(ledger: Ledger, kind: CategoryKind): List<Category> =
 
 /** Open accounts, A to Z. It only orders; nothing is preselected. */
 internal fun openAccounts(ledger: Ledger): List<Account> =
-    ledger.accounts.accounts.filter { !it.archived }.sortedWith(Names.order { it.name })
+    ledger.accounts.accounts.filter { it.isActive }.sortedWith(Names.order { it.name })
 
 /** A category's visible subcategories, A to Z. */
 internal fun subcategories(ledger: Ledger, top: Category): List<Category> =
