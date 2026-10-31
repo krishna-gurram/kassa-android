@@ -113,6 +113,9 @@ class BackupRoundTripTest {
             TransactionEntity(3, "TRANSFER", 10_000, 1, 2, null, null, 1_760_000_300_000, "", null, "mm-t3"),
             TransactionEntity(4, "TRANSFER", 47_260, 1, 3, null, null, 1_760_000_400_000, "Car loan principal", null, null),
             TransactionEntity(5, "EXPENSE", 10_740, 1, null, 2, null, 1_760_000_400_000, "Car loan interest", null, null),
+            // Balance corrections: stored as text kinds, so they come back like any entry.
+            TransactionEntity(6, "ADJUST_IN", 2_480, 3, null, null, null, 1_760_000_500_000, "", null, null),
+            TransactionEntity(7, "ADJUST_OUT", 1_000, 1, null, null, null, 1_760_000_500_000, "", null, null),
         ),
         budgets = listOf(BudgetEntity(1, 0, 40_000), BudgetEntity(1, 202610, 45_000)),
         people = listOf(PersonEntity(1, "Sam", false), PersonEntity(2, "Alex", true)),

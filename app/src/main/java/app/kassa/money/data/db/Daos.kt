@@ -36,14 +36,15 @@ interface AccountDao {
     fun observeAll(): Flow<List<AccountEntity>>
 
     /**
-     * Balance per account: starting amount, plus income, minus expenses, minus transfers out, plus transfers in.
+     * Balance per account: starting amount, plus income, minus expenses, minus transfers out, plus transfers in, and a
+     * balance correction up or down (kinds ADJUST_IN and ADJUST_OUT).
      * Done in SQL so it stays fast with years of history.
      */
     @Query(
         """
         SELECT a.id AS id,
           a.openingBalance
-          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL') THEN t.amount ELSE -t.amount END)
+          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL', 'ADJUST_IN') THEN t.amount ELSE -t.amount END)
                       FROM transactions t WHERE t.accountId = a.id), 0)
           + COALESCE((SELECT SUM(t.amount) FROM transactions t
                       WHERE t.kind = 'TRANSFER' AND t.toAccountId = a.id), 0) AS balance
@@ -56,7 +57,7 @@ interface AccountDao {
     @Query(
         """
         SELECT a.openingBalance
-          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL') THEN t.amount ELSE -t.amount END)
+          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL', 'ADJUST_IN') THEN t.amount ELSE -t.amount END)
                       FROM transactions t WHERE t.accountId = a.id), 0)
           + COALESCE((SELECT SUM(t.amount) FROM transactions t
                       WHERE t.kind = 'TRANSFER' AND t.toAccountId = a.id), 0)
@@ -370,6 +371,9 @@ interface LoanTermChangeDao {
     @Insert
     suspend fun insert(change: LoanTermChangeEntity): Long
 
+    @Query("DELETE FROM loan_term_changes WHERE id = :id")
+    suspend fun delete(id: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(changes: List<LoanTermChangeEntity>)
 
@@ -384,6 +388,21 @@ interface LoanPaymentDao {
 
     @Query("SELECT * FROM loan_payments ORDER BY day, id")
     fun observeAll(): Flow<List<LoanPaymentEntity>>
+
+    /**
+     * What each payment's entries hold that the loan page needs: the interest paid, and the category of its escrow
+     * entry. Oldest first, so the last row of a loan is its latest payment.
+     */
+    @Query(
+        """
+        SELECT p.accountId AS accountId, COALESCE(ti.amount, 0) AS interest, o.categoryId AS escrowCategoryId
+        FROM loan_payments p
+        LEFT JOIN transactions ti ON ti.id = p.interestEntryId
+        LEFT JOIN transactions o ON o.id = p.otherEntryId
+        ORDER BY p.day, p.id
+        """
+    )
+    fun observeExtras(): Flow<List<LoanPaymentExtra>>
 
     @Query("SELECT * FROM loan_payments WHERE id = :id")
     suspend fun byId(id: Long): LoanPaymentEntity?
