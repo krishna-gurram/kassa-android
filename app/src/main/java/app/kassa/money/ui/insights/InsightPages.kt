@@ -78,7 +78,7 @@ fun InsightDetailPage(
                 Column {
                     dues.forEachIndexed { i, d ->
                         Row(Modifier.fillMaxWidth().clickable { onOpenCard(d.account.id) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(d.snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.width(44.dp))
+                            Text(d.snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.widthIn(min = 44.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(d.account.name + (d.account.last4?.takeIf { it.isNotBlank() }?.let { "  \u00b7\u00b7$it" } ?: ""), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink3)
@@ -131,7 +131,7 @@ fun InsightDetailPage(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CategoryBadge(cr.category, size = 26)
                             Text(cr.category.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                            Text("+" + Money.format(cr.rise, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.attention)
+                            Text((if (Money.isHidden) "" else "+") + Money.format(cr.rise, wholeDollars = true), style = KassaType.bodyStrong, color = figureColor(Kassa.colors.attention))
                             Text(" since ${short(cr.months.first().first)}", style = KassaType.tiny, color = Kassa.colors.ink2)
                         }
                         BarChart(cr.months.map { short(it.first) to it.second }, cr.months.lastIndex, Kassa.colors.attention, height = 110)

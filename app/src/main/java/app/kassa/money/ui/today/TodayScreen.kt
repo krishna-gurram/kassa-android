@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.NumberText
 import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
@@ -67,6 +68,7 @@ import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
+import app.kassa.money.ui.theme.scaledSp
 
 /** Account types that count as cash and bank on Today. */
 val CASH_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID)
@@ -207,7 +209,8 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
     val centsColor = if (color == ink) Kassa.colors.ink2 else color
     val text = Money.format(cents)
     // Hidden amounts are a mask with no decimal point, so there are no cents to set apart.
-    val dot = text.lastIndexOf('.')
+    val dot = text.lastIndexOf(NumberText.decimalSeparator())
+    val centsSize = scaledSp(sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f))
     Text(
         buildAnnotatedString {
             if (dot < 0) append(text)
@@ -215,13 +218,13 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
                 append(text.substring(0, dot))
                 // Cents sit on the same baseline and smaller, so the dollars read first. A colored total (income) keeps
                 // its color for the cents too; a plain one shows them a shade lighter.
-                withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = centsColor, fontWeight = FontWeight.SemiBold)) {
+                withStyle(SpanStyle(fontSize = centsSize, color = centsColor, fontWeight = FontWeight.SemiBold)) {
                     append(text.substring(dot))
                 }
             }
         },
-        style = KassaType.hero.copy(fontSize = sizeSp.sp, letterSpacing = (-sizeSp / 32f).sp),
-        color = color, maxLines = 1,
+        style = KassaType.hero.copy(fontSize = scaledSp(sizeSp), letterSpacing = (-sizeSp / 32f).sp),
+        color = color, maxLines = 1, softWrap = false,
     )
 }
 

@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 
 /* The building blocks of the bottom panel on the entry and bill pages, and the app-wide Chip. */
 
@@ -145,8 +145,7 @@ internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick
 @Composable
 internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
     val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del")
-    val density = LocalDensity.current
-    val keySize = with(density) { (24f * density.fontScale.coerceAtMost(1.3f)).dp.toSp() }
+    val keySize = scaledSp(24f)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.chunked(3).forEach { row ->
             Row(Modifier.weight(1f).heightIn(max = 64.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

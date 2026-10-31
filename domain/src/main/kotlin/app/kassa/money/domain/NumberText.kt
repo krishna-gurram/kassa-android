@@ -17,6 +17,9 @@ object NumberText {
     fun decimalMark(locale: Locale = Money.locale): Char =
         DecimalFormatSymbols.getInstance(locale).decimalSeparator.takeIf { it == '.' || it == ',' } ?: '.'
 
+    /** The character that really separates whole and fraction in formatted text ('.', ',' or the Arabic mark), to find the cents in "1.234,50". */
+    fun decimalSeparator(locale: Locale = Money.locale): Char = DecimalFormatSymbols.getInstance(locale).decimalSeparator
+
     /** A plain number for a field: no grouping, no trailing zeros, the phone's decimal mark ("1234,5" in Germany). */
     fun toField(value: BigDecimal, locale: Locale = Money.locale): String {
         val plain = value.stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }.toPlainString()

@@ -75,6 +75,7 @@ import app.kassa.money.ui.theme.KassaType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import app.kassa.money.ui.theme.scaledSp
 
 /*
  * Wording follows Money Manager and card issuers:
@@ -111,11 +112,11 @@ fun DueTile(date: LocalDate, tone: Tone, large: Boolean = false, caption: String
     val fg = when (tone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink }
     val bg = when (tone) { Tone.NEUTRAL -> Kassa.colors.ground; else -> fg.copy(alpha = 0.14f) }
     Column(
-        Modifier.width(if (large) 66.dp else 48.dp).clip(RoundedCornerShape(if (large) 16.dp else 13.dp)).background(bg).padding(vertical = if (large) 8.dp else 7.dp),
+        Modifier.widthIn(min = if (large) 66.dp else 48.dp).clip(RoundedCornerShape(if (large) 16.dp else 13.dp)).background(bg).padding(vertical = if (large) 8.dp else 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(monthShort(date).uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
-        Text(date.dayOfMonth.toString(), style = KassaType.stat.copy(fontSize = if (large) 26.sp else 19.sp, lineHeight = if (large) 30.sp else 22.sp), color = fg)
+        Text(monthShort(date).uppercase(), maxLines = 1, softWrap = false, style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
+        Text(date.dayOfMonth.toString(), style = KassaType.stat.copy(fontSize = scaledSp(if (large) 26f else 19f), lineHeight = scaledSp(if (large) 30f else 22f)), color = fg)
         if (caption != null) Text(caption.uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
     }
 }
@@ -167,8 +168,10 @@ fun CardPage(
                 Column(Modifier.weight(1f)) {
                     Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
                     app.kassa.money.ui.today.BigMoney(Math.abs(s.balancePayable), sizeSp = 36f, color = payableTint(s.balancePayable))
+                    // While hidden the line says only when it is due: "Paid in full", "extra" or "days late" would give the size away.
                     Text(
                         when {
+                            Money.isHidden -> "Due ${shortDate(s.due)}"
                             s.balancePayable < 0 -> "Paid ${Money.format(-s.balancePayable)} extra"
                             dueTone == Tone.POSITIVE -> "Paid in full"
                             s.payable == 0L -> "Nothing due"
@@ -178,10 +181,10 @@ fun CardPage(
                             else -> "Due in $days days"
                         },
                         style = KassaType.bodyStrong,
-                        color = when (dueTone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink2 },
+                        color = if (Money.isHidden) Kassa.colors.ink2 else when (dueTone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink2 },
                     )
                 }
-                DueTile(s.due, dueTone, large = true, caption = "Due")
+                DueTile(s.due, if (Money.isHidden) Tone.NEUTRAL else dueTone, large = true, caption = "Due")
             }
             Gap(12)
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -228,7 +231,7 @@ fun CardPage(
             Row(Modifier.padding(top = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Charges ${Money.format(charges)}", style = KassaType.small, color = Kassa.colors.ink)
                 if (credits > 0) Text("Payments ${Money.format(credits)}", style = KassaType.small, color = Kassa.colors.ink2)
-                if (back == 1) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else if (s.balancePayable < 0) "Paid ${Money.format(-s.balancePayable)} extra" else "Paid in full", style = KassaType.small,
+                if (back == 1 && !Money.isHidden) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else if (s.balancePayable < 0) "Paid ${Money.format(-s.balancePayable)} extra" else "Paid in full", style = KassaType.small,
                     color = if (s.payable > 0) Kassa.colors.attention else Kassa.colors.positive)
             }
             if (list.isEmpty()) Text(if (back == 0) "No charges since the statement date." else "Nothing on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))

@@ -31,6 +31,7 @@ import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 
 /**
  * Who shares an expense, who paid, and each share: equal, or exact amounts typed on the pad.
@@ -51,7 +52,7 @@ private fun ColumnScope.ShareKeypad(s: EntryState, person: Person?) {
     val current = person?.let { s.exactShares[it.id] } ?: 0L
     Text(
         if (s.shareInput.isEmpty()) Money.format(current) else Money.symbol + displayAmount(s.shareInput),
-        style = KassaType.hero.copy(fontSize = 30.sp), color = if (s.shareInput.isEmpty()) Kassa.colors.ink3 else Kassa.colors.ink,
+        style = KassaType.hero.copy(fontSize = scaledSp(30f)), color = if (s.shareInput.isEmpty()) Kassa.colors.ink3 else Kassa.colors.ink,
         maxLines = 1, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
     )
     NumberPad(Modifier.weight(1f)) { k -> s.shareInput = applyKey(s.shareInput, k) }

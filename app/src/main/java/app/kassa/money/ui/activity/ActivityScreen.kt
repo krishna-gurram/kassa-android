@@ -52,6 +52,7 @@ import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.ui.common.weekdayDate
 import app.kassa.money.ui.common.shortDateYear
 import app.kassa.money.ui.common.monthYear
@@ -196,7 +197,7 @@ fun ActivityScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
-                    FilterTile("Income", Money.format(s.income), Kassa.colors.positive, s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
+                    FilterTile("Income", Money.format(s.income), figureColor(Kassa.colors.positive), s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
                 }
             }
             SearchField(s.query, vm::search)
@@ -242,7 +243,8 @@ fun ActivityScreen(
                 s.days.forEach { (day, entries) ->
                     item(key = "h$day") {
                         val spent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-                        DayHeader(dayLabel(day, today), (if (spent > 0) Money.format(spent) else "") + "  \u203a") { onOpenDay(day) }
+                        // A zero would give away which days had spending, so while hidden every day shows the mask.
+                        DayHeader(dayLabel(day, today), (if (spent > 0 || Money.isHidden) Money.format(spent) else "") + "  \u203a") { onOpenDay(day) }
                     }
                     items(entries, key = { it.id }) { t ->
                         val sel = t.id == selectedId
@@ -296,7 +298,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
     val shape = RoundedCornerShape(50)
     val active = value.isNotEmpty()
     Row(
-        Modifier.fillMaxWidth().height(46.dp).clip(shape).background(Kassa.colors.raised)
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(Kassa.colors.raised)
             .border(1.dp, if (active) Kassa.colors.ink else Kassa.colors.line, shape).padding(start = 14.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
