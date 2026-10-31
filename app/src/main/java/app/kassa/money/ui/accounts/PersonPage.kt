@@ -119,11 +119,12 @@ fun PersonPage(
         }
         RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             Text(
-                when { balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
+                // While Hide balances is on the wording must not give the direction or a zero away.
+                when { Money.isHidden -> "Balance with ${p.name}"; balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
                 style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             BigMoney(Math.abs(balance), sizeSp = 36f, color = favourColor(balance))
-            if (balance != 0L) since?.let {
+            if (balance != 0L && !Money.isHidden) since?.let {
                 Text("Since ${shortDate(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate())}", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
             Gap(14)

@@ -97,4 +97,26 @@ class PatternsTest {
         assertEquals(-3_000, ch[home]!!.change)
         assertTrue(ch.size == 2)
     }
+
+    @Test
+    fun loanPaymentEntriesAreNotStoresOrPurchasesButStillCountInTotals() {
+        val interest = spend("2026-10-02", 322_600, home, "Mortgage Oct 2026").copy(id = 11)
+        val escrow = spend("2026-10-02", 20_000, home, "Mortgage escrow").copy(id = 12)
+        val coffee = spend("2026-10-05", 450, food, "Cafe").copy(id = 13)
+        val payment = LoanPayment(
+            id = 1, accountId = 10, day = 0, amount = 342_600, principalEntryId = null, interestEntryId = 11, otherEntryId = 12,
+            escrow = 20_000, charge = 0, edited = false, estimate = 0, scheduled = true,
+        )
+        val all = listOf(interest, escrow, coffee)
+        val from = LocalDate.of(2026, 10, 1)
+
+        assertEquals("Mortgage Oct 2026", Patterns.stores(all, byId, from, today, zone).first().name)
+        val purchases = Patterns.purchases(all, listOf(payment))
+        assertEquals(listOf("Cafe"), Patterns.stores(purchases, byId, from, today, zone).map { it.name })
+        assertEquals(listOf(13L), purchases.map { it.id })
+        assertEquals(1, Patterns.smallBuys(purchases, byId, from, today, zone, limit = 100_000).count)
+        // Totals read the full list, so interest and escrow stay spending.
+        assertEquals(343_050L, Patterns.spent(all, from, today, zone))
+        assertEquals(all, Patterns.purchases(all, emptyList()))
+    }
 }
