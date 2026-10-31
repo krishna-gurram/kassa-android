@@ -163,4 +163,36 @@ class MigrationTest {
             db.query("SELECT closedDay FROM accounts WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(20900L, c.getLong(0)) }
         }
     }
+
+    @Test
+    fun loansGainTheSpendingSwitchOffAndExistingPaymentsFollowTheirLoan() {
+        helper.createDatabase("loans-v9.db", 9).apply {
+            execSQL(
+                "INSERT INTO loan_terms (accountId, type, profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay, escrow, fee, earlyCharge, interestCategoryId, payFromId) " +
+                    "VALUES (3, 'REDUCING', 0, 60000, 58000, NULL, NULL, NULL, 20758, 1, 0, 0, 0, NULL, NULL)"
+            )
+            execSQL("INSERT INTO loan_payments (accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled) VALUES (3, 20758, 58000, 9, 10, NULL, 0, 0, 0, 0, 1)")
+            close()
+        }
+        helper.runMigrationsAndValidate("loans-v9.db", DATABASE_VERSION, true, *ALL_MIGRATIONS).use { db ->
+            db.query("SELECT payment, countAllAsSpending, principalCategoryId FROM loan_terms WHERE accountId = 3").use { c ->
+                c.moveToFirst()
+                assertEquals(58000L, c.getLong(0))
+                assertEquals(0L, c.getLong(1))
+                assertTrue(c.isNull(2))
+            }
+            db.query("SELECT amount, countAllAsSpending, principalCategoryId FROM loan_payments WHERE accountId = 3").use { c ->
+                c.moveToFirst()
+                assertEquals(58000L, c.getLong(0))
+                assertTrue(c.isNull(1))
+                assertTrue(c.isNull(2))
+            }
+            // The new columns take values.
+            db.execSQL("UPDATE loan_terms SET countAllAsSpending = 1, principalCategoryId = 4 WHERE accountId = 3")
+            db.execSQL("UPDATE loan_payments SET countAllAsSpending = 0, principalCategoryId = 5 WHERE accountId = 3")
+            db.query("SELECT countAllAsSpending, principalCategoryId FROM loan_terms WHERE accountId = 3").use { c ->
+                c.moveToFirst(); assertEquals(1L, c.getLong(0)); assertEquals(4L, c.getLong(1))
+            }
+        }
+    }
 }

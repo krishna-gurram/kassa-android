@@ -7,6 +7,7 @@ import app.kassa.money.data.db.toEntity
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.CategoryColors
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
@@ -52,6 +53,10 @@ data class LoansState(
     /** Whether an entry is one of a loan payment's entries, whatever its kind. */
     fun isLoanEntry(entryId: Long): Boolean = entryId in byEntry
 
+    /** Whether an entry is the principal of a payment that counts as spending (see [CountedSpending]). */
+    fun countsAsSpending(entryId: Long): Boolean =
+        byEntry[entryId]?.let { (p, part) -> part == LoanPart.PRINCIPAL && CountedSpending.counts(p, terms[p.accountId]) } == true
+
     /** The small tag Activity shows on a loan payment's entry ("principal", "interest", "escrow", "charge"); null for any other entry. */
     fun tagFor(entryId: Long): String? =
         byEntry[entryId]?.let { (p, part) -> p.tag(part, terms[p.accountId]?.interestWord ?: "Interest") }
@@ -81,6 +86,10 @@ data class LoanPaymentDraft(
     val escrowCategoryId: Long? = null,
     val edited: Boolean,
     val estimate: Long,
+    /** This payment only: null follows the loan's "count the whole payment as spending", true counts the principal, false doesn't. */
+    val countAllAsSpending: Boolean? = null,
+    /** Where this payment's principal counts when it counts; null means the loan's principal category. */
+    val principalCategoryId: Long? = null,
 )
 
 /** A saved payment with what its entries hold, to open the payment sheet on. */
@@ -144,11 +153,13 @@ class LoanRepository(
             require(id != terms.accountId && db.accounts().all().any { it.id == id }) { "Pick another account to pay from." }
         }
         terms.interestCategoryId?.let { id -> require(db.categories().all().any { it.id == id }) { "That category isn't there any more." } }
+        terms.principalCategoryId?.let { id -> require(db.categories().all().any { it.id == id && it.kind == CategoryKind.EXPENSE.name }) { "Pick an expense category for the principal." } }
         // The default category exists from the first loan on, even when this loan names another.
         interestCategory()
         // The shared Escrow category exists from the first loan that has escrow.
         if (terms.escrow > 0) escrowCategory()
-        db.loanTerms().upsert(terms.toEntity())
+        // A principal category only means something while the whole payment counts as spending.
+        db.loanTerms().upsert(terms.copy(principalCategoryId = terms.principalCategoryId.takeIf { terms.countAllAsSpending }).toEntity())
     }
 
     /**
@@ -256,6 +267,12 @@ class LoanRepository(
         require(from != d.accountId && db.accounts().all().any { it.id == from }) { "Pick the account it's paid from." }
         val category = d.categoryId ?: terms.interestCategoryId ?: interestCategory()
         require(db.categories().all().any { it.id == category }) { "Pick a category for the ${terms.interestWord.lowercase()}." }
+        // The principal's category only matters when this payment counts: its own choice, else the loan's.
+        val counts = d.countAllAsSpending ?: terms.countAllAsSpending
+        val principalCategory = d.principalCategoryId?.takeIf { counts }
+        principalCategory?.let { id ->
+            require(db.categories().all().any { it.id == id && it.kind == CategoryKind.EXPENSE.name }) { "Pick an expense category for the principal." }
+        }
         val costs = d.escrow + d.charge
         val costCategory = if (costs > 0) (d.escrowCategoryId ?: escrowCategory()) else null
         costCategory?.let { id -> require(db.categories().all().any { it.id == id }) { "Pick a category for the ${if (d.escrow > 0) "escrow" else "charge"}." } }
@@ -293,6 +310,7 @@ class LoanRepository(
             id = old?.id ?: 0, accountId = d.accountId, day = d.day, amount = d.amount,
             principalEntryId = principalId, interestEntryId = interestId, otherEntryId = otherId,
             escrow = d.escrow, charge = d.charge, edited = d.edited, estimate = d.estimate, scheduled = scheduled,
+            countAllAsSpending = d.countAllAsSpending, principalCategoryId = principalCategory,
         )
         if (old != null) link.also { db.loanPayments().update(it.toEntity()) }
         else link.copy(id = db.loanPayments().insert(link.toEntity()))

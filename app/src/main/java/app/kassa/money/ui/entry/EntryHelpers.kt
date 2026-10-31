@@ -37,23 +37,25 @@ internal fun displayAmount(typed: String): String {
 internal fun centsToInput(cents: Long): String = BigDecimal.valueOf(cents).movePointLeft(2).toPlainString().removeSuffix(".00")
 
 /** Visible top-level categories of [kind], A to Z, so each stays in the same place in the picker. */
-internal fun topCategories(ledger: Ledger, kind: CategoryKind): List<Category> =
-    ledger.categories.filter { it.kind == kind && it.parentId == null && !it.hidden }.sortedWith(Names.order { it.name })
+internal fun topCategories(categories: List<Category>, kind: CategoryKind): List<Category> =
+    categories.filter { it.kind == kind && it.parentId == null && !it.hidden }.sortedWith(Names.order { it.name })
 
 /** Open accounts, A to Z. It only orders; nothing is preselected. */
 internal fun openAccounts(ledger: Ledger): List<Account> =
     ledger.accounts.accounts.filter { it.isActive }.sortedWith(Names.order { it.name })
 
 /** A category's visible subcategories, A to Z. */
-internal fun subcategories(ledger: Ledger, top: Category): List<Category> =
-    ledger.categories.filter { it.parentId == top.id && !it.hidden }.sortedWith(Names.order { it.name })
+internal fun subcategories(categories: List<Category>, top: Category): List<Category> =
+    categories.filter { it.parentId == top.id && !it.hidden }.sortedWith(Names.order { it.name })
 
 /** Categories and subcategories whose name contains [query], best matches first; a subcategory needs a visible parent. */
-internal fun searchCategories(ledger: Ledger, kind: CategoryKind, query: String): List<Category> =
-    ledger.categories
+internal fun searchCategories(categories: List<Category>, kind: CategoryKind, query: String): List<Category> {
+    val byId = categories.associateBy { it.id }
+    return categories
         .filter { it.kind == kind && !it.hidden && it.name.contains(query, ignoreCase = true) }
-        .filter { it.parentId == null || ledger.categoryById[it.parentId]?.hidden == false }
+        .filter { it.parentId == null || byId[it.parentId]?.hidden == false }
         .sortedWith(compareBy<Category> { !it.name.startsWith(query, ignoreCase = true) }.thenBy { it.parentId != null }.thenBy { it.name.lowercase() })
+}
 
 /**
  * Up to six notes to offer under the note field. With nothing typed and a category picked, the notes used most

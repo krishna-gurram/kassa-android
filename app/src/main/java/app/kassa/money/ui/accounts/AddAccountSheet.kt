@@ -35,6 +35,7 @@ import app.kassa.money.domain.LoanForm
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.ui.common.AmountField
+import app.kassa.money.ui.common.CategoryPickerHost
 import app.kassa.money.ui.common.DigitsField
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.NameField
@@ -77,10 +78,7 @@ fun AddAccountSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        CategoryPickerHost(categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
             Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
             Gap(8)
             val isLoan = form.type == AccountType.LOAN

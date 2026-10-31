@@ -173,16 +173,39 @@ class LoanFormTest {
     }
 
     @Test
-    fun interestCategoriesAreAnyExpenseCategoryAToZ() {
+    fun theDefaultInterestCategoryIsTheVisibleTopLevelOneByName() {
         fun cat(id: Long, name: String, parent: Long? = null, kind: CategoryKind = CategoryKind.EXPENSE, hidden: Boolean = false) =
             Category(id = id, name = name, kind = kind, parentId = parent, color = 0, hidden = hidden)
         val all = listOf(
             cat(1, "Loan interest"), cat(2, "Car loan", parent = 1), cat(3, "Bills"), cat(4, "Salary", kind = CategoryKind.INCOME),
             cat(5, "Old", hidden = true), cat(6, "apples"),
         )
-        assertEquals(listOf(6L to "apples", 3L to "Bills", 1L to "Loan interest", 2L to "Loan interest: Car loan"), LoanCategories.choices(all))
         assertEquals(1L, LoanCategories.interestCategory(all)?.id)
         assertNull(LoanCategories.interestCategory(all.filter { it.id != 1L }))
         assertNull(LoanCategories.interestCategory(all.map { if (it.id == 1L) it.copy(hidden = true) else it }))
+    }
+
+    @Test
+    fun theSpendingSwitchIsOffByDefaultAndTheSetupFormCarriesIt() {
+        val off = fresh().toTerms(1)
+        assertEquals(false, off.countAllAsSpending)
+        assertNull(off.principalCategoryId)
+        val on = fresh().copy(countAllAsSpending = true, principalCategoryId = 9).toTerms(1)
+        assertTrue(on.countAllAsSpending)
+        assertEquals(9L, on.principalCategoryId)
+        // A principal category only means something while the switch is on.
+        assertNull(fresh().copy(principalCategoryId = 9).toTerms(1).principalCategoryId)
+    }
+
+    @Test
+    fun editDetailsKeepsAndChangesTheSpendingSwitch() {
+        val terms = fresh().copy(countAllAsSpending = true, principalCategoryId = 9).toTerms(1)
+        val form = LoanDetailsForm.of("Car loan", terms)
+        assertTrue(form.countAllAsSpending)
+        assertEquals(9L, form.principalCategoryId)
+        assertEquals(terms, form.applyTo(terms))
+        val off = form.copy(countAllAsSpending = false).applyTo(terms)
+        assertEquals(false, off.countAllAsSpending)
+        assertNull(off.principalCategoryId)
     }
 }

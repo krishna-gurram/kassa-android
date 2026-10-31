@@ -12,7 +12,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import app.kassa.money.domain.subcategory
 import app.kassa.money.ui.accounts.AccountClosing
 import app.kassa.money.ui.accounts.AccountPage
 import app.kassa.money.ui.accounts.AccountsScreen
@@ -89,7 +88,6 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             loadNotes = { vm.notes(it) },
             onSave = { vm.save(it, page.start.afterSave, onDone = app::back) },
             onDelete = { vm.delete(it); app.back() },
-            onAddSubcategory = { parent, name, then -> vm.saveCategory(parent.subcategory(name), null, then = then) },
             onBack = back,
         )
         is Page.Bill -> BillPage(
@@ -134,7 +132,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
         }
         is Page.CategoryDetail -> {
             val c = l.categoryById[page.categoryId]
-            if (c == null) Gone(padding, onBack) else CategoryPage(l, c, padding, onBack, onEdit = app.editFromPage, load = vm::between, monthsBack = page.monthsBack)
+            if (c == null) Gone(padding, onBack) else CategoryPage(l, c, padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween, monthsBack = page.monthsBack)
         }
         is Page.Insight -> InsightDetailPage(
             l, page.page, padding, onBack,
@@ -142,9 +140,9 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             onOpenStore = { app.push(Page.Store(it)) }, onEdit = app.editFromPage,
         )
         is Page.Store -> InsightStorePage(l, page.name, padding, onBack, onEdit = app.editFromPage)
-        is Page.Day -> DayPage(l, LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::between)
+        is Page.Day -> DayPage(l, LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween)
         is Page.Spending -> SpendingPage(
-            l, page.month, page.income, padding, onBack, load = vm::between,
+            l, page.month, page.income, padding, onBack, load = vm::countedBetween,
             onOpenCategory = { id, monthsBack -> app.push(Page.CategoryDetail(id, monthsBack)) },
         )
         Page.Upcoming -> UpcomingPage(l, padding, onBack, onOpenCard = { app.push(Page.CardDetail(it)) })

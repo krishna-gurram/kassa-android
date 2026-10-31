@@ -57,6 +57,8 @@ import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.CategoryPickerPanel
+import app.kassa.money.ui.common.SubcategoryPickerPanel
 import app.kassa.money.ui.common.CategoryIconView
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.PageTop
@@ -101,12 +103,12 @@ fun BillPage(
 
     val focus = LocalFocusManager.current
     val nameFocus = remember { FocusRequester() }
-    LaunchedEffect(field) { if (field == BillField.NAME) runCatching { nameFocus.requestFocus() } else focus.clearFocus() }
+    LaunchedEffect(field) { categoryQuery = ""; if (field == BillField.NAME) runCatching { nameFocus.requestFocus() } else focus.clearFocus() }
 
     val cents = Money.parseCents(amount) ?: 0L
     val cat = categoryId?.let { ledger.categoryById[it] }
     val topCat = cat?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-    val categoryChoices = remember(ledger.recent.size) { topCategories(ledger, CategoryKind.EXPENSE) }
+    var categoryQuery by remember { mutableStateOf("") }
     val accountChoices = remember(ledger.recent.size, ledger.accounts.accounts.size) { openAccounts(ledger) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val estimate = if (cents > 0 || name.isBlank() || categoryId == null) null else RecurringRules.estimate(
@@ -190,38 +192,18 @@ fun BillPage(
                             ) { error = null; field = next }
                             else PrimaryButton(saveLabel, ::save)
                         }
-                        BillField.CATEGORY -> {
-                            PanelTitle("Category") { field = null }
-                            LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(categoryChoices, key = { it.id }) { c ->
-                                    PickTile(on = topCat?.id == c.id, minHeight = 66.dp, onClick = {
-                                        categoryId = c.id; error = null
-                                        if (subcategories(ledger, c).isNotEmpty()) field = BillField.SUB else advance()
-                                    }) {
-                                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                                            CategoryIconView(c.icon, Color(c.color), 34, fallback = c.name.take(1))
-                                            Text(c.name, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        BillField.CATEGORY -> CategoryPickerPanel(
+                            ledger.categories, CategoryKind.EXPENSE, categoryId, categoryQuery, { categoryQuery = it }, {}, wide, onDone = { field = null },
+                            onPick = { id -> categoryId = id; advance() },
+                            onOpenSubcategories = { c -> categoryId = c.id; error = null; field = BillField.SUB },
+                        )
                         BillField.SUB -> {
                             val t = topCat
                             if (t == null) { field = BillField.CATEGORY } else {
-                                PanelTitle(t.name, back = { field = BillField.CATEGORY }) { field = null }
-                                LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    item(key = "none") {
-                                        PickTile(on = cat?.id == t.id, onClick = { categoryId = t.id; advance() }) {
-                                            Text("No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
-                                        }
-                                    }
-                                    items(subcategories(ledger, t), key = { it.id }) { s: Category ->
-                                        PickTile(on = cat?.id == s.id, onClick = { categoryId = s.id; advance() }) {
-                                            Text(s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        }
-                                    }
-                                }
+                                SubcategoryPickerPanel(
+                                    ledger.categories, t, categoryId, wide, onBack = { field = BillField.CATEGORY }, onDone = { field = null },
+                                    onPick = { id -> categoryId = id; advance() },
+                                )
                             }
                         }
                         BillField.ACCOUNT -> {

@@ -19,6 +19,7 @@ import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.LoanNotes
@@ -144,6 +145,12 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun notes(kind: TxKind): List<String> = kassa.entries.frequentNotes(kind)
 
     fun between(fromMillis: Long, toMillis: Long): Flow<List<Transaction>> = kassa.entries.between(fromMillis, toMillis)
+
+    /** [between] as spending sees the entries: a counted loan principal is an expense in its category (see `CountedSpending`). */
+    fun countedBetween(fromMillis: Long, toMillis: Long): Flow<List<Transaction>> =
+        combine(between(fromMillis, toMillis), kassa.loans.state, kassa.categories.categories) { list, loans, cats ->
+            CountedSpending.apply(list, loans.payments, loans.terms, cats)
+        }
 
     fun accountHistory(accountId: Long): Flow<List<Transaction>> = kassa.entries.forAccount(accountId)
 

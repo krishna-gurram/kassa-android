@@ -88,7 +88,7 @@ fun InsightDetailPage(
                 }
             }
             InsightPage.SAVED -> {
-                val months = Patterns.saved(ledger.recent, ledger.today, ledger.monthStartDay, ledger.zone)
+                val months = Patterns.saved(ledger.counted, ledger.today, ledger.monthStartDay, ledger.zone)
                 val now = months.last()
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Figure("Income", Money.format(now.income, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
@@ -104,14 +104,14 @@ fun InsightDetailPage(
                 }
             }
             InsightPage.STORES -> {
-                val stores = Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
+                val stores = Patterns.stores(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
                 if (stores.isEmpty()) Empty("No entries with a store name this month.")
                 val max = stores.firstOrNull()?.total ?: 1L
                 Column { stores.forEach { st -> RankRow(st.category, st.name, st.total, max, "${st.visits}×") { onOpenStore(st.name) } } }
             }
             InsightPage.SMALL -> {
-                val s = Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone)
-                val months = Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone)
+                val s = Patterns.smallBuys(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone)
+                val months = Patterns.smallBuysByMonth(ledger.counted, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone)
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Figure("This month", Money.format(s.total, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                     Figure("Buys", s.count.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
@@ -122,7 +122,7 @@ fun InsightDetailPage(
                 Column { s.byCategory.forEach { (c, v, n) -> RankRow(c, c.name, v, max, "$n×") { onOpenCategory(c) } } }
             }
             InsightPage.CREEP -> {
-                val creep = Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone)
+                val creep = Patterns.creeping(ledger.counted, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone)
                 if (creep.isEmpty()) Empty("No category has gone up three months in a row.")
                 creep.forEach { cr ->
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).clickable { onOpenCategory(cr.category) }.padding(12.dp)) {
@@ -150,13 +150,13 @@ fun InsightDetailPage(
                 }
             }
             InsightPage.WEEKDAYS -> {
-                val avg = Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone)
+                val avg = Insights.weekdayAverages(ledger.counted, ledger.categories, ledger.today, ledger.zone)
                 val top = avg.maxByOrNull { it.second }
                 BarChart(avg.map { it.first.getDisplayName(TextStyle.SHORT, Locale.getDefault()) to it.second }, top?.let { avg.indexOf(it) } ?: -1, Kassa.colors.ink, height = 200)
                 Text("Avg day \u00b7 last 13 weeks", style = KassaType.tiny, color = Kassa.colors.ink3)
                 // Per weekday: what it mostly goes to and how many purchases over the 13 weeks.
                 val from = ledger.today.minusWeeks(13)
-                val byDay = ledger.recent.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
+                val byDay = ledger.counted.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
                     .map { it to java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
                     .filter { (_, d) -> !d.isBefore(from) && d.isBefore(ledger.today) }
                     .groupBy({ it.second.dayOfWeek }, { it.first })
@@ -275,7 +275,7 @@ fun DayPage(
     val loaded by androidx.compose.runtime.remember(date) {
         load(date.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
     }.collectAsState(initial = null)
-    val list = (loaded ?: ledger.recent.filter { dateOf(it, ledger) == date })
+    val list = (loaded ?: ledger.counted.filter { dateOf(it, ledger) == date })
         .sortedWith(compareByDescending<app.kassa.money.domain.Transaction> { it.epochMillis }.thenByDescending { it.id })
     val spent = list.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }.sumOf { it.categoryAmount }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
@@ -294,7 +294,7 @@ fun DayPage(
 fun InsightStorePage(ledger: Ledger, name: String, contentPadding: PaddingValues, onBack: (() -> Unit)?, onEdit: (app.kassa.money.domain.Transaction) -> Unit) {
     // Notes match the way repeats do: "Mortgage October 2026" counts as Mortgage.
     val key = app.kassa.money.domain.Repeats.key(name)
-    val list = ledger.recent.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE && app.kassa.money.domain.Repeats.key(it.note) == key }.sortedByDescending { it.epochMillis }
+    val list = ledger.counted.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE && app.kassa.money.domain.Repeats.key(it.note) == key }.sortedByDescending { it.epochMillis }
     val month = list.filter { dateOf(it, ledger) in ledger.period }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTop(name, onBack)

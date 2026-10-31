@@ -45,8 +45,10 @@ import app.kassa.money.domain.LoanPaymentForm
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.accounts.Choices
 import app.kassa.money.ui.common.AmountField
+import app.kassa.money.ui.common.CategoryChoiceRow
+import app.kassa.money.ui.common.CategoryPickerHost
+import app.kassa.money.ui.common.categoryPath
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
@@ -54,10 +56,9 @@ import app.kassa.money.ui.common.momentOn
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
+import app.kassa.money.ui.settings.SwitchRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-
-private const val DEFAULT_CATEGORY = -1L
 
 /**
  * Record a payment on a loan, or open one already recorded. Mirrors Pay a card: amount, date, the account it's paid from,
@@ -100,14 +101,12 @@ fun LoanPaymentSheet(
         )
     }
     var problems by remember { mutableStateOf(emptyMap<LoanPaymentField, String>()) }
-    var pickingCategory by remember { mutableStateOf(false) }
     // The escrow category: the one on this payment when it is opened again, else the one the loan's last escrow went to.
     var escrowCategoryId by remember {
         mutableStateOf(
             (if (editing != null) editing.escrowCategoryId else ledger.loans.escrowCategory[loan.id])?.takeIf { id -> ledger.categoryById[id]?.hidden == false }
         )
     }
-    var pickingEscrowCategory by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val suggestion = form.suggestion(ctx)
     val parts = form.parts(ctx)
@@ -116,10 +115,7 @@ fun LoanPaymentSheet(
     val escrowColor = Kassa.colors.ink3
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
             Text(
                 if (editing == null) "Pay ${loan.name}" else "${loan.name} payment", style = KassaType.section, color = Kassa.colors.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -153,25 +149,34 @@ fun LoanPaymentSheet(
                 AmountField(form.interest, { v -> form = form.withInterest(v, ctx) }, word, Modifier.weight(1f))
             }
             Text(form.hint(ctx), style = KassaType.small, color = Kassa.colors.ink2)
-            val chosen = ledger.categoryById[form.categoryId ?: terms.interestCategoryId]
-            TextButton(onClick = { pickingCategory = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "$word category: ${chosen?.name ?: LoanCategories.NAME}", style = KassaType.bodyStrong, color = Kassa.colors.ink,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
-                Text("Change", style = KassaType.small, color = Kassa.colors.ink2)
+            Label("Categories")
+            InterestCategoryRow(word, ledger.categories, form.categoryId, { id -> form = form.copy(categoryId = id) }, loanDefaultId = terms.interestCategoryId)
+            val counts = form.counts(ctx)
+            if (counts) {
+                // Null means the loan's principal category; failing that, wherever this payment's interest goes.
+                val loanPrincipal = terms.principalCategoryId?.let { ledger.categoryById[it] }
+                val interestId = form.categoryId ?: terms.interestCategoryId
+                if (loanPrincipal != null) {
+                    val same = "Same as the loan (${categoryPath(loanPrincipal, ledger.categories)})"
+                    CategoryChoiceRow(
+                        "Principal category", form.principalCategoryId, ledger.categories, { id -> form = form.copy(principalCategoryId = id) },
+                        defaultCategory = loanPrincipal, defaultText = same, topOption = same,
+                    )
+                } else PrincipalCategoryRow(ledger.categories, form.principalCategoryId, interestId) { id -> form = form.copy(principalCategoryId = id) }
             }
-
             if (parts.escrow + parts.charge > 0) {
                 val costWord = if (parts.escrow > 0) "Escrow" else "Charge"
-                TextButton(onClick = { pickingEscrowCategory = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "$costWord category: ${ledger.categoryById[escrowCategoryId]?.name ?: LoanCategories.ESCROW_NAME}", style = KassaType.bodyStrong, color = Kassa.colors.ink,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                    )
-                    Text("Change", style = KassaType.small, color = Kassa.colors.ink2)
-                }
+                CategoryChoiceRow(
+                    "$costWord category", escrowCategoryId, ledger.categories, { id -> escrowCategoryId = id },
+                    defaultCategory = LoanCategories.escrowCategory(ledger.categories), defaultText = LoanCategories.ESCROW_NAME,
+                )
             }
+            // One payment only: choosing what the loan already does clears it (see LoanPaymentForm.withCounts).
+            SwitchRow(
+                "Count the whole payment as spending",
+                if (terms.countAllAsSpending) "On for this loan. Turn off for this payment only." else "Just this payment. Set it for the loan in Edit details.",
+                counts,
+            ) { on -> form = form.withCounts(on, ctx) }
 
             // Scheduled, extra, any charge (shown before saving), escrow when the loan has it, and what is left.
             Column(
@@ -183,6 +188,7 @@ fun LoanPaymentSheet(
                 if (terms.earlyCharge > 0 || parts.charge > 0) Line("Early repayment charge", Money.format(parts.charge))
                 if (terms.escrow > 0) Line("Escrow", Money.format(parts.escrow))
                 Line("Balance after", Money.format(form.balanceAfter(ctx).coerceAtLeast(0)))
+                Line("Counts as spending", Money.format(form.countedSpending(ctx)), strong = true)
             }
             Gap(12)
             PrimaryButton(if (editing == null) "Record payment" else "Save payment") {
@@ -193,6 +199,7 @@ fun LoanPaymentSheet(
                         epochMillis = momentOn(dateOfLoanDay(form.day), ledger.today, ledger.zone),
                         amount = parts.amount, principal = parts.principal, interest = parts.interest, escrow = parts.escrow, charge = parts.charge,
                         categoryId = form.categoryId, escrowCategoryId = escrowCategoryId, edited = parts.edited, estimate = parts.estimate,
+                        countAllAsSpending = form.countOverride, principalCategoryId = form.principalCategoryId,
                     )
                 )
             }
@@ -201,20 +208,6 @@ fun LoanPaymentSheet(
         }
     }
 
-    if (pickingCategory) Choices(
-        "$word category",
-        listOf(DEFAULT_CATEGORY to "${LoanCategories.NAME} (default)") + LoanCategories.choices(ledger.categories),
-        form.categoryId ?: DEFAULT_CATEGORY,
-        onPick = { id -> form = form.copy(categoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }); pickingCategory = false },
-        onDismiss = { pickingCategory = false },
-    )
-    if (pickingEscrowCategory) Choices(
-        "Escrow category",
-        listOf(DEFAULT_CATEGORY to "${LoanCategories.ESCROW_NAME} (default)") + LoanCategories.choices(ledger.categories),
-        escrowCategoryId ?: DEFAULT_CATEGORY,
-        onPick = { id -> escrowCategoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }; pickingEscrowCategory = false },
-        onDismiss = { pickingEscrowCategory = false },
-    )
     if (confirmDelete && onDelete != null) ConfirmDialog(
         title = "Delete this payment?",
         body = "Its principal, ${word.lowercase()} and any escrow entries are all removed, and the balance goes back up.",
@@ -250,9 +243,9 @@ private fun Legend(text: String, color: Color) {
 }
 
 @Composable
-private fun Line(label: String, value: String) {
+private fun Line(label: String, value: String, strong: Boolean = false) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.weight(1f, fill = false))
+        Text(label, style = if (strong) KassaType.bodyStrong else KassaType.body, color = if (strong) Kassa.colors.ink else Kassa.colors.ink2, modifier = Modifier.weight(1f, fill = false))
         Text(value, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
     }
 }

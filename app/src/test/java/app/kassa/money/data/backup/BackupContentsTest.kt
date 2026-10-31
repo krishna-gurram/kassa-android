@@ -53,13 +53,16 @@ internal fun sampleContents() = BackupContents(
     holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000, 21_333), HoldingEntity(2, 1, "SCHD", 80_000_000, 2_750, 1_760_000_000_000)),
         trades = listOf(TradeEntity(1, 3, "VTI", 2_500_000, 25_050)),
     loanTerms = listOf(
-        LoanTermsEntity(3, "REDUCING", false, 61_250, 58_000, 60, 3_000_000, 20_500, 20_758, 1, 20_000, 15_000, 10_000, 2, 1),
+        LoanTermsEntity(3, "REDUCING", false, 61_250, 58_000, 60, 3_000_000, 20_500, 20_758, 1, 20_000, 15_000, 10_000, 2, 1, countAllAsSpending = true, principalCategoryId = 1),
     ),
     loanChanges = listOf(
         LoanTermChangeEntity(1, 3, 21_000, 72_500, null, null, null),
         LoanTermChangeEntity(2, 3, 21_400, null, 60_000, 24, "REDUCING"),
     ),
-    loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true)),
+    loanPayments = listOf(
+        LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true, countAllAsSpending = false, principalCategoryId = 2),
+        LoanPaymentEntity(2, 3, 20_800, 58_000, null, null, null, 0, 0, false, 0, true),
+    ),
     icons = mapOf("photo_1.jpg" to byteArrayOf(1, 2, 3, -1)),
     accountArrangement = "CREDIT_CARDS,CASH_AND_BANK|CREDIT_CARDS=2;CASH_AND_BANK=1",
 )
@@ -121,6 +124,27 @@ class BackupContentsTest {
         val older = BackupContents.fromJson(old.toString(), decode)
         assertTrue(older.accounts.all { it.maturityDay == null && it.closedDay == null })
         assertEquals(sampleContents().accounts.size, older.accounts.size)
+    }
+
+    @Test
+    fun theSpendingSwitchSurvivesAndOlderBackupsReadItsDefaults() {
+        val back = BackupContents.fromJson(sampleContents().toJson(encode), decode)
+        assertEquals(true, back.loanTerms.single().countAllAsSpending)
+        assertEquals(1L, back.loanTerms.single().principalCategoryId)
+        assertEquals(false, back.loanPayments.first { it.id == 1L }.countAllAsSpending)
+        assertEquals(2L, back.loanPayments.first { it.id == 1L }.principalCategoryId)
+        // A payment that follows its loan stays null rather than becoming false.
+        assertEquals(null, back.loanPayments.first { it.id == 2L }.countAllAsSpending)
+        // A backup made before schema 10 has none of these keys: the loan doesn't count, payments follow it.
+        val old = org.json.JSONObject(sampleContents().toJson(encode))
+        for (name in listOf("loanTerms", "loanPayments")) {
+            val rows = old.getJSONArray(name)
+            for (i in 0 until rows.length()) rows.getJSONObject(i).apply { remove("countAllAsSpending"); remove("principalCategoryId") }
+        }
+        val older = BackupContents.fromJson(old.toString(), decode)
+        assertEquals(false, older.loanTerms.single().countAllAsSpending)
+        assertEquals(null, older.loanTerms.single().principalCategoryId)
+        assertTrue(older.loanPayments.all { it.countAllAsSpending == null && it.principalCategoryId == null })
     }
 
     @Test

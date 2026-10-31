@@ -47,6 +47,10 @@ data class LoanPaymentForm(
     val categoryId: Long? = null,
     /** The interest Kassa estimated, kept from a saved payment until the amount or date changes. Null means work it out. */
     val estimate: Long? = null,
+    /** Where this payment's principal counts as spending; null means the loan's principal category. */
+    val principalCategoryId: Long? = null,
+    /** This payment only: null follows the loan's switch, true counts the principal as spending, false doesn't. */
+    val countOverride: Boolean? = null,
 ) {
     private val amountValue: Long get() = Money.parseCents(amount) ?: 0
 
@@ -118,6 +122,18 @@ data class LoanPaymentForm(
     /** The scheduled payment on this date with escrow, which is what "Scheduled payment" shows. */
     fun scheduled(c: LoanPaymentContext): Long = LoanEngine.amountDue(c.terms, c.changes, c.balance, c.lastDay(day), day)
 
+    /** Whether this payment's principal counts as spending: its own choice, else the loan's. */
+    fun counts(c: LoanPaymentContext): Boolean = countOverride ?: c.terms.countAllAsSpending
+
+    /** The switch on the sheet: it only overrides this payment, so choosing what the loan already does clears the override. */
+    fun withCounts(on: Boolean, c: LoanPaymentContext): LoanPaymentForm = copy(countOverride = on.takeIf { it != c.terms.countAllAsSpending })
+
+    /** What this payment adds to spending: the interest, escrow and charge, and the principal too when it counts. */
+    fun countedSpending(c: LoanPaymentContext): Long {
+        val p = parts(c)
+        return p.interest + p.escrow + p.charge + if (counts(c)) p.principal else 0
+    }
+
     /** Balance after this payment, from the principal as it stands. */
     fun balanceAfter(c: LoanPaymentContext): Long = c.balance - part(principal)
 
@@ -151,6 +167,7 @@ data class LoanPaymentForm(
          * changed by hand stays flagged, so the hint can say what Kassa estimated.
          */
         fun of(p: LoanPayment, principal: Long, interest: Long, fromId: Long?, categoryId: Long?) = LoanPaymentForm(
+            principalCategoryId = p.principalCategoryId, countOverride = p.countAllAsSpending,
             amount = Money.toInput(p.amount), day = p.day, principal = Money.toInput(principal), interest = Money.toInput(interest),
             edit = if (p.edited) SplitEdit.INTEREST else SplitEdit.NONE, fromId = fromId, categoryId = categoryId, estimate = p.estimate,
         )

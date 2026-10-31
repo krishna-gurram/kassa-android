@@ -46,7 +46,7 @@ private fun top(ledger: Ledger) = ledger.categories.filter { it.parentId == null
 private fun List<CatLine>.dropIdleArchived() = filter { !it.category.hidden || it.spent > 0 }
 
 /** Every visible expense category in a budget month, largest first, against that month's budget. [txs] defaults to the loaded months. */
-fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transaction> = ledger.recent): List<CatLine> {
+fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transaction> = ledger.counted): List<CatLine> {
     val to = if (ledger.today in period) ledger.today else period.endInclusive
     val spent = Spending.byTopCategory(txs, ledger.categoryById, period.start, to, ledger.zone)
     return top(ledger).filter { it.kind == CategoryKind.EXPENSE }
@@ -62,7 +62,7 @@ fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transac
  * Every visible expense category in the week starting [start], largest first, against the week before: up to the
  * same day for this week, the whole week for a past one. [txs] must cover both weeks.
  */
-fun weekLines(ledger: Ledger, start: LocalDate = ledger.weekStart, txs: List<Transaction> = ledger.recent): List<CatLine> {
+fun weekLines(ledger: Ledger, start: LocalDate = ledger.weekStart, txs: List<Transaction> = ledger.counted): List<CatLine> {
     val end = minOf(start.plusDays(6), ledger.today)
     val (from, to) = app.kassa.money.domain.Patterns.samePointBefore(start, end, start.minusWeeks(1))
     val now = Spending.byTopCategory(txs, ledger.categoryById, start, end, ledger.zone)
@@ -74,7 +74,7 @@ fun weekLines(ledger: Ledger, start: LocalDate = ledger.weekStart, txs: List<Tra
 }
 
 /** Every visible income category between two dates, largest first. Income has nothing to measure against. */
-fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transaction> = ledger.recent): List<CatLine> {
+fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transaction> = ledger.counted): List<CatLine> {
     val got = HashMap<Long, Long>()
     for (t in txs) {
         if (t.kind != TxKind.INCOME) continue

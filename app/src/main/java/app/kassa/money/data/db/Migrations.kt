@@ -149,5 +149,19 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+/**
+ * v10: "Count the whole payment as spending" on loans. A switch and a principal category on the loan's terms (off and none
+ * for every existing loan) and an optional own choice on each payment (none, so it follows its loan). Nothing existing is
+ * rewritten: balances, entries and every figure stay exactly as they were until someone turns the switch on.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `loan_terms` ADD COLUMN `countAllAsSpending` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `loan_terms` ADD COLUMN `principalCategoryId` INTEGER")
+        db.execSQL("ALTER TABLE `loan_payments` ADD COLUMN `countAllAsSpending` INTEGER")
+        db.execSQL("ALTER TABLE `loan_payments` ADD COLUMN `principalCategoryId` INTEGER")
+    }
+}
+
 /** Every migration, oldest first. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
