@@ -61,11 +61,18 @@ internal fun sampleContents() = BackupContents(
     ),
     loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true)),
     icons = mapOf("photo_1.jpg" to byteArrayOf(1, 2, 3, -1)),
+    accountArrangement = "CREDIT_CARDS,CASH_AND_BANK|CREDIT_CARDS=2;CASH_AND_BANK=1",
 )
 
 class BackupContentsTest {
     private val encode: (ByteArray) -> String = { Base64.getEncoder().encodeToString(it) }
     private val decode: (String) -> ByteArray = { Base64.getDecoder().decode(it) }
+
+    @Test
+    fun aBackupWithoutAnArrangementReadsItAsAbsent() {
+        val json = sampleContents().copy(accountArrangement = null).toJson(encode)
+        assertEquals(null, BackupContents.fromJson(json, decode).accountArrangement)
+    }
 
     @Test
     fun everyTableSurvivesTheJsonRoundTrip() {

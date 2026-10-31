@@ -49,13 +49,28 @@ class Settings(context: Context) {
     fun chooseHideAmounts(on: Boolean) { prefs.edit().putBoolean(HIDE_AMOUNTS, on).apply(); hideAmounts = on }
 
     private val _accountSort = MutableStateFlow(prefs.getString(ACCOUNT_SORT, "NAME")!!)
-    /** How the Accounts tab orders every section: NAME, BALANCE or DUE (cards by due date, the rest by name). */
+    /** How the Accounts tab orders every section: NAME, BALANCE, DUE (cards by due date, the rest by name) or CUSTOM (the user's arrangement). */
     val accountSort: StateFlow<String> = _accountSort
     private val _accountSortDesc = MutableStateFlow(prefs.getBoolean(ACCOUNT_SORT_DESC, false))
     /** Reverses [accountSort]: Z to A, smallest first, latest due first. */
     val accountSortDesc: StateFlow<Boolean> = _accountSortDesc
-    fun setAccountSort(v: String) { prefs.edit().putString(ACCOUNT_SORT, v).putBoolean(ACCOUNT_SORT_DESC, false).apply(); _accountSort.value = v; _accountSortDesc.value = false }
+    /** Picking any sort other than CUSTOM drops the user's arrangement. */
+    fun setAccountSort(v: String) {
+        val e = prefs.edit().putString(ACCOUNT_SORT, v).putBoolean(ACCOUNT_SORT_DESC, false)
+        if (v != "CUSTOM") { e.remove(ACCOUNT_ARRANGEMENT); _arrangement.value = null }
+        e.apply(); _accountSort.value = v; _accountSortDesc.value = false
+    }
     fun setAccountSortDesc(v: Boolean) { prefs.edit().putBoolean(ACCOUNT_SORT_DESC, v).apply(); _accountSortDesc.value = v }
+
+    private val _arrangement = MutableStateFlow(app.kassa.money.domain.AccountArrangement.decode(prefs.getString(ACCOUNT_ARRANGEMENT, null)))
+    /** The user's own order of account groups and accounts; null until they arrange (then sort is CUSTOM). */
+    val accountArrangement: StateFlow<app.kassa.money.domain.AccountArrangement?> = _arrangement
+    fun setAccountArrangement(a: app.kassa.money.domain.AccountArrangement) {
+        prefs.edit().putString(ACCOUNT_ARRANGEMENT, a.encode()).putString(ACCOUNT_SORT, "CUSTOM").putBoolean(ACCOUNT_SORT_DESC, false).apply()
+        _arrangement.value = a; _accountSort.value = "CUSTOM"; _accountSortDesc.value = false
+    }
+    /** Reset to A to Z: no arrangement, sort by name. */
+    fun resetAccountArrangement() = setAccountSort("NAME")
 
     // Automatic backups: on or off, the folder picked once (a persisted document tree), the time of day in minutes.
     private val _autoBackup = MutableStateFlow(prefs.getBoolean(AUTO_BACKUP, false))
@@ -129,7 +144,7 @@ class Settings(context: Context) {
     fun setOpenTab(v: String) { prefs.edit().putString(OPEN_TAB, v).apply(); _openTab.value = v }
 
     private val _pins = MutableStateFlow(prefs.getStringSet(PINS, null)?.toSet())
-    /** Tiles on Overview, as keys ("acct:<id>", "people"); null until the user picks, meaning the first six A to Z. */
+    /** Tiles on Overview, as keys ("acct:<id>", "people"); null until the user picks, meaning the first eight in Accounts order. */
     val pins: StateFlow<Set<String>?> = _pins
     fun setPins(keys: Set<String>) { prefs.edit().putStringSet(PINS, keys).apply(); _pins.value = keys }
 
@@ -147,6 +162,7 @@ class Settings(context: Context) {
         const val MONTH_START = "month_start_day"
         const val HIDE_AMOUNTS = "hide_amounts"
         const val ACCOUNT_SORT = "account_sort"
+        const val ACCOUNT_ARRANGEMENT = "account_arrangement"
         const val AUTO_BACKUP = "auto_backup"
         const val BACKUP_FOLDER = "backup_folder"
         const val BACKUP_MINUTE = "backup_minute"

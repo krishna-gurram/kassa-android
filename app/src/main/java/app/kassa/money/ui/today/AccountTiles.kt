@@ -26,6 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
+import app.kassa.money.domain.AccountArrangement
+import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
@@ -42,7 +44,7 @@ import app.kassa.money.ui.theme.KassaType
 import java.time.format.DateTimeFormatter
 
 /** At most this many tiles on Overview. */
-const val MAX_PINS = 6
+const val MAX_PINS = 8
 
 /** Something that can be pinned on Overview: one account, or everyone you owe or who owes you, as one tile. */
 sealed interface Pin {
@@ -60,14 +62,17 @@ sealed interface Pin {
     }
 }
 
-/** Every open account A to Z, then People when anyone is listed. */
-fun pinChoices(ledger: Ledger): List<Pin> =
-    ledger.accounts.accounts.filter { it.isActive }.sortedWith(Names.order { it.name }).map { Pin.Acct(it) } +
-        listOfNotNull(Pin.People.takeIf { ledger.people.people.any { !it.archived } })
+/** Every open account in the user's Accounts order (A to Z until they arrange), then People when anyone is listed. */
+fun pinChoices(ledger: Ledger, arrangement: AccountArrangement? = null): List<Pin> {
+    val open = ledger.accounts.accounts.filter { it.isActive }
+    val ordered = if (arrangement == null) open.sortedWith(Names.order { it.name })
+    else arrangement.flatten(open, { AccountSection.of(it.type).name }, { AccountSection.of(it.type).title }, { it.id }, { it.name })
+    return ordered.map { Pin.Acct(it) } + listOfNotNull(Pin.People.takeIf { ledger.people.people.any { !it.archived } })
+}
 
-/** What Overview shows: the user's picks, or until they pick, the first six choices. */
-fun pinned(ledger: Ledger, saved: Set<String>?): List<Pin> {
-    val choices = pinChoices(ledger)
+/** What Overview shows: the user's picks, or until they pick, the first eight choices. */
+fun pinned(ledger: Ledger, saved: Set<String>?, arrangement: AccountArrangement? = null): List<Pin> {
+    val choices = pinChoices(ledger, arrangement)
     return if (saved == null) choices.take(MAX_PINS) else choices.filter { it.key in saved }
 }
 
@@ -84,7 +89,8 @@ fun AccountTiles(
     onPin: () -> Unit,
 ) {
     val saved by LocalSettings.current.pins.collectAsState()
-    val pins = pinned(ledger, saved)
+    val arrangement by LocalSettings.current.accountArrangement.collectAsState()
+    val pins = pinned(ledger, saved, arrangement)
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
         Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,18 +150,19 @@ private fun Tile(name: String, amount: String, note: String?, modifier: Modifier
 
 /**
  * Settings › Home screen › Accounts on Overview: tick up to [MAX_PINS]. Until something changes here,
- * Overview shows the first six; the first change saves the whole set.
+ * Overview shows the first eight; the first change saves the whole set.
  */
 @Composable
 fun PinAccountsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?) {
     val settings = LocalSettings.current
     val saved by settings.pins.collectAsState()
-    val choices = pinChoices(ledger)
-    val picked = pinned(ledger, saved).map { it.key }.toSet()
+    val arrangement by settings.accountArrangement.collectAsState()
+    val choices = pinChoices(ledger, arrangement)
+    val picked = pinned(ledger, saved, arrangement).map { it.key }.toSet()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop("Accounts on Overview", onBack, amounts = false)
         Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-            Text("Pick up to $MAX_PINS. They show A to Z.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+            Text("Pick up to $MAX_PINS. They show in your Accounts order.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
             Text("${picked.size} of $MAX_PINS", style = KassaType.small, color = Kassa.colors.ink)
         }
         if (choices.isEmpty()) Text("Add an account in Accounts first.", style = KassaType.body, color = Kassa.colors.ink2)

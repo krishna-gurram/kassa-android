@@ -43,6 +43,8 @@ internal fun OneLineRow(
     dueNote: String? = null,
     dueColor: Color = Kassa.colors.ink2,
     grouped: Boolean = false,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(if (grouped) 0.dp else 18.dp)
@@ -50,7 +52,7 @@ internal fun OneLineRow(
     Row(
         Modifier.fillMaxWidth().then(box)
             .then(if (selected && grouped) Modifier.background(Kassa.colors.chip) else if (selected) Modifier.border(1.5.dp, Kassa.colors.ink, shape) else Modifier)
-            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -69,6 +71,7 @@ internal fun OneLineRow(
                 dueNote?.let { Text(it, style = KassaType.small, color = dueColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp)) }
             }
         }
+        trailing?.invoke()
     }
 }
 
