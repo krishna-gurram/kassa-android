@@ -188,7 +188,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
         lastAt > 0 -> "Last " + Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
         else -> "Not set up"
     }) { open(SettingsPage.Backup) }
-    NavRow("Import from another app", "Supported files: .mmbak") { actions.importAgain() }
+    NavRow("Import from another app", "Kassa, Money Manager (.mmbak) and Cashew (.sql) backups") { actions.importAgain() }
     val splitwise = splitwiseAccounts(ledger)
     if (splitwise.isNotEmpty()) NavRow("Splitwise accounts", "${splitwise.size} to convert") { open(SettingsPage.Splitwise) }
 

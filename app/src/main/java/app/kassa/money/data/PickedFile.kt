@@ -14,7 +14,7 @@ sealed interface PickedFile {
     data class Cashew(val copy: File) : PickedFile
 
     companion object {
-        private const val SUPPORTED = "Kassa reads Money Manager backups (.mmbak) and Cashew backups (.sql)."
+        private const val SUPPORTED = "Kassa reads its own backups (.kassa), Money Manager backups (.mmbak) and Cashew backups (.sql)."
 
         /** Throws [NotReadableBackup] with a message that says what to do next. Nothing in Kassa changes either way. */
         fun identify(context: Context, uri: Uri): PickedFile {
