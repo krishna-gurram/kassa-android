@@ -33,16 +33,18 @@ class RecurringTest {
     }
 
     @Test
-    fun asksFiveDaysAheadAndKeepsAskingWhenOverdue() {
+    fun nextDueIsThisMonthsUntilHandledThenNextMonths() {
         val oct = LocalDate.parse("2026-10-20")
-        assertNull(RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-14"), zone))
-        assertEquals(oct, RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-15"), zone))
+        // No window: the due date is there from the start of the month and stays while overdue.
+        assertEquals(oct, RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-01"), zone))
         assertEquals(oct, RecurringRules.nextDue(elec, history, LocalDate.parse("2026-10-30"), zone))
-        // October handled: November's shows from the 15th.
+        // October handled: November's is next, however far off.
         val handled = elec.copy(handledMonth = 202610)
-        assertNull(RecurringRules.nextDue(handled, history, LocalDate.parse("2026-10-30"), zone))
-        assertEquals(LocalDate.parse("2026-11-20"), RecurringRules.nextDue(handled, history, LocalDate.parse("2026-11-16"), zone))
+        assertEquals(LocalDate.parse("2026-11-20"), RecurringRules.nextDue(handled, history, LocalDate.parse("2026-10-30"), zone))
         assertEquals(LocalDate.parse("2026-11-03"), RecurringRules.nextDue(elec.copy(dayOfMonth = 3, handledMonth = 202610), history, LocalDate.parse("2026-10-30"), zone))
+        // Entered by hand in October: counts as done.
+        assertEquals(LocalDate.parse("2026-11-20"), RecurringRules.nextDue(elec, history + bill("2026-10-21", 20_000), LocalDate.parse("2026-10-22"), zone))
+        assertNull(RecurringRules.nextDue(elec.copy(active = false), history, LocalDate.parse("2026-10-22"), zone))
     }
 
     @Test

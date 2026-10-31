@@ -56,15 +56,16 @@ object RecurringRules {
     }
 
     /**
-     * The due date to ask about: this month's or next month's, once it's at most [days] away or past, and only while
-     * that month isn't handled and nothing matching was logged in it. Null when nothing needs asking.
+     * The due date still waiting on an answer: this month's, or next month's once this month is handled or already
+     * logged. Null when [r] is off. How soon to show it is up to the screen: the Notifications page shows it on its
+     * due day and while it is overdue, a phone notification some days ahead (see [DueNotices]).
      */
-    fun nextDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: ZoneId, days: Long = 5): LocalDate? {
+    fun nextDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: ZoneId): LocalDate? {
         if (!r.active) return null
         val now = YearMonth.from(today)
         return listOf(now, now.plusMonths(1)).map { dueDate(r, it) }.firstOrNull { due ->
             val month = YearMonth.from(due)
-            r.handledMonth < Budgets.key(month) && !due.isAfter(today.plusDays(days)) &&
+            r.handledMonth < Budgets.key(month) &&
                 history.none { matches(r, it) && YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) == month }
         }
     }
