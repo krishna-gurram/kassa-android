@@ -32,6 +32,7 @@ import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import app.kassa.money.BuildConfig
 import app.kassa.money.KassaApplication
 import app.kassa.money.data.db.DatabaseOpen
 import app.kassa.money.data.jobs.DailyJobs
@@ -64,10 +65,10 @@ class MainActivity : FragmentActivity() {
         if (intent?.action == DailyJobs.ACTION_ADD) openAdd.value = true
         if (savedInstanceState == null) openDue.value = dueTarget(intent)
         // Debug builds only: starting with `--ez demo true` loads the demo household, for CI screenshots.
-        if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
+        if (BuildConfig.DEBUG && savedInstanceState == null && intent?.getBooleanExtra("demo", false) == true)
             androidx.lifecycle.ViewModelProvider(this)[LedgerViewModel::class.java].loadDemo()
         // Debug builds only: `--es importFile name` opens that file from the app's files folder on the Import page.
-        if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null)
+        if (BuildConfig.DEBUG && savedInstanceState == null)
             intent?.getStringExtra("importFile")?.let { app.kassa.money.ui.importer.DebugImport.pending = android.net.Uri.fromFile(java.io.File(filesDir, it)) }
         val app = application as KassaApplication
         // A cold start locks when App lock is on. After recreation the state it had comes back, and so does the time the
@@ -89,7 +90,7 @@ class MainActivity : FragmentActivity() {
             // Recents thumbnails and screenshots would show balances: keep them out while App lock or Hide balances is on.
             // FLAG_SECURE works on every Android version, unlike setRecentsScreenshotEnabled (33 and later).
             // Debug builds only: `--ez noSecure true` lets CI screenshots capture the Hide balances view.
-            val noSecure = app.kassa.money.BuildConfig.DEBUG && intent?.getBooleanExtra("noSecure", false) == true
+            val noSecure = BuildConfig.DEBUG && intent?.getBooleanExtra("noSecure", false) == true
             val secure = (lockOn || app.settings.hideAmounts) && !noSecure
             LaunchedEffect(secure) {
                 if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
