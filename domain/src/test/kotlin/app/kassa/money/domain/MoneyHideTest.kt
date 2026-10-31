@@ -63,6 +63,13 @@ class MoneyHideTest {
     }
 
     @Test
+    fun aBalanceCorrectionShowsNoArrowWhileHidden() {
+        assertEquals("↓ $24.80", BalanceCorrection.describe(-2_480))
+        Money.hideAmounts = { true }
+        assertEquals(Money.MASK, BalanceCorrection.describe(-2_480))
+    }
+
+    @Test
     fun theSymbolStaysForAFieldPrefix() {
         Money.hideAmounts = { true }
         assertEquals("$", Money.symbol)
