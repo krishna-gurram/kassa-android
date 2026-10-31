@@ -101,7 +101,7 @@ fun ChangeTermsPage(
                     }
                 }
                 ChangeKind.PAYMENT -> {
-                    PaymentBasisChips(form, ctx, edit)
+                    PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
                         form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
@@ -115,7 +115,7 @@ fun ChangeTermsPage(
                         InterestType.entries.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(ChangeField.TYPE) { it.copy(type = t) } } }
                     }
                     problems[ChangeField.TYPE]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
-                    PaymentBasisChips(form, ctx, edit)
+                    PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
                         form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
@@ -138,7 +138,7 @@ fun ChangeTermsPage(
                             Modifier.weight(1f), problem = problems[ChangeField.TERM],
                         )
                     }
-                    PaymentBasisChips(form, ctx, edit)
+                    PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
                         form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
