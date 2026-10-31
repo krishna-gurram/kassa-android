@@ -134,7 +134,8 @@ scroll; shot loan-1b-add-more 1
 tap "Add loan"; shot loan-2-added 3
 tap "Car loan"; shot loan-3-page 3
 tap "Record a payment"; sleep 1
-tap "Everyday checking"; shot loan-4-payment 2
+# The From field opens the account picker (a tile per account); a pick returns to the form.
+tap "From, Choose"; sleep 1; tap "Everyday checking"; sleep 1; shot loan-4-payment 2
 scroll; tap "Record payment"; sleep 2
 shot loan-5-page-after-payment 2
 scroll; shot loan-6-schedule 1

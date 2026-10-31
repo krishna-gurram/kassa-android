@@ -35,6 +35,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -176,6 +177,7 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun shift(by: Long) { month.value = month.value.plusMonths(by) }
+    fun setMonth(m: YearMonth) { month.value = m }
     fun search(q: String) { query.value = q }
     fun toggle(f: ActivityFilter) { filter.value = if (filter.value == f) ActivityFilter.ALL else f }
 }
@@ -198,6 +200,11 @@ fun ActivityScreen(
     val today = ledger.today
     val searching = s.query.isNotBlank()
     val layout = androidx.compose.ui.platform.LocalLayoutDirection.current
+    var choosingMonth by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (choosingMonth) app.kassa.money.ui.common.MonthPickerSheet(
+        current = s.month, latest = YearMonth.from(today),
+        onPick = { vm.setMonth(it); choosingMonth = false }, onDismiss = { choosingMonth = false },
+    )
 
     Column(
         Modifier.fillMaxSize().padding(
@@ -211,6 +218,7 @@ fun ActivityScreen(
                 app.kassa.money.ui.common.PeriodSwitcher(
                     monthYear(s.month), null,
                     canBack = true, canForward = !s.isCurrentMonth, onBack = { vm.shift(-1) }, onForward = { vm.shift(1) },
+                    onLabel = { choosingMonth = true },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
@@ -287,24 +295,24 @@ private inline fun androidx.compose.ui.text.AnnotatedString.Builder.withStyleBol
 private fun DayHeader(left: String, right: String, onClick: (() -> Unit)? = null) {
     Column(Modifier.widthIn(max = 720.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
         Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(left, style = KassaType.tiny, color = Kassa.colors.ink2)
-            Text(right, style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(left.uppercase(java.util.Locale.getDefault()), style = KassaType.label, color = Kassa.colors.ink2, maxLines = 1)
+            Text(right, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink, maxLines = 1)
         }
         HorizontalDivider(color = Kassa.colors.line)
     }
 }
 
-/** A total that doubles as a filter: tap to show only these entries, tap again for all. */
+/** A total that doubles as a filter: tap to show only these entries, tap again for all. Plain figures; the picked one is outlined. */
 @Composable
 private fun FilterTile(label: String, value: String, color: Color, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier.clip(shape).background(Kassa.colors.raised)
+        modifier.heightIn(min = 48.dp).clip(shape)
             .border(1.5.dp, if (selected) Kassa.colors.ink else Color.Transparent, shape)
-            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Text(label, style = KassaType.tiny, color = Kassa.colors.ink2)
-        Text(value, style = KassaType.stat.copy(fontSize = KassaType.stat.fontSize * 0.9f), color = color, maxLines = 1)
+        Text(label, style = KassaType.tiny.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink2)
+        Text(value, style = KassaType.stat.copy(fontSize = KassaType.stat.fontSize * 1.1f), color = color, maxLines = 1)
     }
 }
 
@@ -315,7 +323,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
     val shape = RoundedCornerShape(50)
     val active = value.isNotEmpty()
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(Kassa.colors.raised)
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape)
             .border(1.dp, if (active) Kassa.colors.ink else Kassa.colors.line, shape).padding(start = 14.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -358,6 +366,14 @@ fun Chevron(left: Boolean): ImageVector = ImageVector.Builder("chevron", 24.dp, 
     strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
 ) {
     if (left) { moveTo(15f, 6f); lineTo(9f, 12f); lineTo(15f, 18f) } else { moveTo(9f, 6f); lineTo(15f, 12f); lineTo(9f, 18f) }
+}.build()
+
+/** A plain down chevron, drawn here for the same reason as [Chevron]. */
+fun ChevronDown(): ImageVector = ImageVector.Builder("chevronDown", 24.dp, 24.dp, 24f, 24f).path(
+    stroke = androidx.compose.ui.graphics.SolidColor(Color.Black), strokeLineWidth = 1.8f,
+    strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
+) {
+    moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f)
 }.build()
 
 /** Unfolded, beside the list: where the shown month's spending went, with the same category lines as everywhere else. */

@@ -72,11 +72,11 @@ internal fun Choice(options: List<Pair<String, String>>, selected: String, onSel
         options.forEach { (key, label) ->
             val on = key == selected
             Box(
-                Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
+                Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).background(if (on) Kassa.colors.ink else Color.Transparent)
                     .selectable(selected = on, role = Role.RadioButton) { onSelect(key) }.padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.ink else Kassa.colors.ink2)
+                Text(label, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = if (on) Kassa.colors.onInk else Kassa.colors.ink2)
             }
         }
     }

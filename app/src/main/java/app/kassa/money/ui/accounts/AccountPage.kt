@@ -145,7 +145,7 @@ fun AccountPage(
                 if (loanSummary != null && loanTerms != null) LoanHero(loanSummary, loanTerms, balance)
                 else periodSwitcher()
                 if (loanSummary == null) Gap(12)
-                if (loanSummary == null) RaisedPanel {
+                if (loanSummary == null) RaisedPanel(tone = if (debt && balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
                     if (account.type == AccountType.CREDIT_CARD && account.isActive) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)

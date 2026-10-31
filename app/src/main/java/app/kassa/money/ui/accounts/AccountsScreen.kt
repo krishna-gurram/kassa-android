@@ -203,12 +203,12 @@ fun AccountsScreen(
         ) {
             if (people.isNotEmpty()) {
                 HorizontalDivider(color = Kassa.colors.line)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("Receivable ${Money.format(receivable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
                     Text("Payable ${Money.format(payable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
                 }
             } else {
-                Text("Add people you split costs with or lend to.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(12.dp))
+                Text("Add people you split costs with or lend to.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
             }
             people.forEach { p ->
                 HorizontalDivider(color = Kassa.colors.line)
@@ -232,15 +232,13 @@ fun AccountsScreen(
     }
     val strip: @Composable (Boolean) -> Unit = { large ->
         val net = overview.netWorth
-        FigureStrip(
-            listOf(
-                Triple("Assets", Money.format(overview.assets), Kassa.colors.ink),
-                Triple("Liabilities", Money.format(overview.liabilities), Kassa.colors.ink),
-                // Below zero it's orange with its minus sign, like every figure that's against you; hidden, plain.
-                Triple("Net worth", Money.format(net), figureColor(if (net < 0) Kassa.colors.attention else Kassa.colors.ink)),
-            ),
-            large,
-        )
+        // Net worth below zero is against you, so its hero is orange; hidden, every hero is plain grey.
+        app.kassa.money.ui.common.TonalHero(if (net < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
+            app.kassa.money.ui.common.HeroLabel("Net worth")
+            app.kassa.money.ui.today.BigMoney(net, sizeSp = if (large) 46f else 40f, color = figureColor(if (net < 0) Kassa.colors.attention else Kassa.colors.ink))
+            app.kassa.money.ui.common.HeroRule()
+            app.kassa.money.ui.common.HeroFoot("Assets", Money.format(overview.assets), "Liabilities", Money.format(overview.liabilities))
+        }
     }
     // One quiet line says how the list is ordered and opens the sheet that changes it.
     val orderBar: @Composable () -> Unit = {
@@ -370,6 +368,7 @@ fun AccountsScreen(
         onDismiss = { addingAccount = false },
         onSave = { account, newGroup -> onAddAccount(account, newGroup) { addingAccount = false } },
         onSaveLoan = { account, terms, newGroup -> onAddLoan(account, terms, newGroup) { addingAccount = false } },
+        onAddPerson = { addingAccount = false; addingPerson = true },
     )
     if (addingPerson) AddPersonSheet(ledger.people.people, onDismiss = { addingPerson = false }) { name, opening, done -> onAddPerson(name, opening, done) }
 }
@@ -451,19 +450,24 @@ internal fun GroupCard(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
+    // Flat on the page with a hairline under its header; while arranging it's a raised card, opaque so a dragged group hides what it passes.
+    Column(modifier.fillMaxWidth().then(if (trailing != null) Modifier.clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised) else Modifier)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClickLabel = if (open) "Fold $title" else "Open $title", onClick = onToggle)
-                    .padding(start = 12.dp, end = if (trailing == null) 12.dp else 0.dp),
+                    .padding(start = if (trailing == null) 0.dp else 12.dp, end = if (trailing == null) 0.dp else 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
-                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
-                if (total != null) Text(total, style = KassaType.bodyStrong, color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
+                Text(
+                    title.uppercase(java.util.Locale.getDefault()), style = KassaType.label, color = Kassa.colors.ink2, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp),
+                )
+                if (total != null) Text(total, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
             }
             trailing?.invoke()
         }
+        if (!open && trailing == null) HorizontalDivider(color = Kassa.colors.line)
         if (open) content()
     }
 }

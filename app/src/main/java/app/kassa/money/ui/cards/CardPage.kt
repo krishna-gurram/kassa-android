@@ -161,7 +161,7 @@ fun CardPage(
         PageTop(a.name + (a.last4?.let { "  ··$it" } ?: ""), onBack) {
             androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
-        RaisedPanel {
+        RaisedPanel(tone = if (s.payable > 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             val dueTone = dueTone(c, ledger.today)
             val days = s.daysUntilDue(ledger.today)
             Row(verticalAlignment = Alignment.Top) {
@@ -244,7 +244,7 @@ fun CardPage(
 /** A quieter box inside the raised panel. */
 @Composable
 private fun Box2(modifier: Modifier, content: @Composable () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp)) { content() }
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised.copy(alpha = 0.55f)).padding(12.dp)) { content() }
 }
 
 private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
@@ -270,7 +270,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     val sources = ledger.accounts.accounts.filter { it.isActive && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
+        app.kassa.money.ui.common.AccountPickerHost(sources, Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
             Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Amount", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${weekdayDate(s.due)}", option == "payable") { option = "payable" }
@@ -283,8 +283,10 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
             if (option == "other") AmountField(
                 other, { other = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth().padding(top = 8.dp), problem = amountProblem,
             )
-            Text("From", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            FlowRow { sources.forEach { a -> Chip(a.name, selected = from == a.id) { from = a.id; error = null } } }
+            app.kassa.money.ui.common.AccountChoiceRow(
+                "Pay from", from, sources, { id -> from = id; error = null }, modifier = Modifier.padding(top = 16.dp),
+                recentIds = app.kassa.money.ui.common.recentAccountIds(ledger),
+            )
             Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { dateDay = it.toEpochDay() }
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }

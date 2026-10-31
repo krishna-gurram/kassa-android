@@ -140,7 +140,7 @@ fun LoanPaymentSheet(
     val escrowColor = Kassa.colors.ink3
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp), accounts = sources) {
             Text(
                 if (editing == null) "Pay ${loan.name}" else "${loan.name} payment", style = KassaType.section, color = Kassa.colors.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -152,11 +152,12 @@ fun LoanPaymentSheet(
             )
             Label("Date")
             DateRow(dateOfLoanDay(form.day), ledger.today) { d -> form = form.withDay(d.loanDay(), ctx) }
-            Label("From")
-            FlowRow {
-                // Tapping the picked account again clears it: nothing is chosen for you.
-                sources.forEach { a -> Chip(a.name, form.fromId == a.id) { form = form.copy(fromId = if (form.fromId == a.id) null else a.id); problems = problems - LoanPaymentField.FROM } }
-            }
+            // The shared account picker; "No account" clears it: nothing is chosen for you.
+            app.kassa.money.ui.common.AccountChoiceRow(
+                "From", form.fromId, sources,
+                { id -> form = form.copy(fromId = id); problems = problems - LoanPaymentField.FROM },
+                modifier = Modifier.padding(top = 10.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger), noneOption = "No account",
+            )
             problems[LoanPaymentField.FROM]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
 
             Gap(8)

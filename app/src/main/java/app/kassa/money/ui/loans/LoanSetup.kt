@@ -229,14 +229,13 @@ private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kas
  */
 
 /** Where payments start from. Tapping the picked account again clears it: nothing is chosen for you. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PayFromPicker(options: List<Account>, selected: Long?, onPick: (Long?) -> Unit) {
     if (options.isEmpty()) return
-    Label("Pay from")
-    FlowRow {
-        payFromChoices(options).forEach { a -> Chip(a.name, selected == a.id, small = true) { onPick(if (selected == a.id) null else a.id) } }
-    }
+    // The shared account picker (see AccountPicker.kt), opened over the sheet. "No account" clears it: nothing is chosen for you.
+    app.kassa.money.ui.common.AccountChoiceRow(
+        "Pay from", selected, payFromChoices(options), onPick, modifier = Modifier.padding(top = 10.dp), noneOption = "No account",
+    )
 }
 
 /** The day of the month payments fall due; empty means [anchor], the day of the first or next payment. */
@@ -375,7 +374,7 @@ fun LoanTermsSheet(
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding(), accounts = payFromChoices(ledger.accounts.accounts)) {
             Text("Add terms to ${account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("Its entries and balance stay as they are.", style = KassaType.small, color = Kassa.colors.ink2)
             Gap(4)
@@ -413,7 +412,7 @@ fun LoanDetailsSheet(
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding(), accounts = payFromChoices(ledger.accounts.accounts, except = account.id)) {
             Text("Edit details", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Gap(4)
             NameField(form.name, { v -> edit(LoanField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[LoanField.NAME])
