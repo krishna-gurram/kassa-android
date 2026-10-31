@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.kassa.money.ui.activity.MonthBreakdown
 import app.kassa.money.ui.cards.PaySheet
+import app.kassa.money.ui.accounts.BalanceCorrectionSheet
+import app.kassa.money.ui.loans.LoanDetailsSheet
 import app.kassa.money.ui.loans.LoanPaymentSheet
 import app.kassa.money.ui.loans.LoanTermsSheet
 import app.kassa.money.ui.cards.cardsByDueDate
@@ -176,6 +178,23 @@ fun AppRoot(entryCount: Int, startedFresh: Boolean, onStartFresh: () -> Unit, op
                         onSave = { updated, terms, done -> app.vm.addLoanTerms(updated, terms, onDone = done) },
                     )
                 }
+            }
+            app.editingLoanDetails?.let { id ->
+                val loan = l.accountById[id]
+                val terms = l.loans.terms[id]
+                if (loan != null && terms != null) LoanDetailsSheet(
+                    loan, terms, l, onDismiss = { app.editingLoanDetails = null },
+                    onSave = { updated, newTerms, done -> app.vm.updateLoanDetails(updated, newTerms, onDone = done) },
+                )
+            }
+            app.correcting?.let { c ->
+                val account = l.accountById[c.accountId]
+                val close = { app.correcting = null }
+                if (account != null) BalanceCorrectionSheet(
+                    l, account, c.editing, onDismiss = close,
+                    onSave = { target, at, done -> app.vm.correctBalance(account.id, target, at, c.editing?.id, onDone = done) },
+                    onDelete = c.editing?.let { t -> val delete: () -> Unit = { app.vm.deleteCorrection(t.id, onDone = close) }; delete },
+                )
             }
             app.editingTrade?.let { t ->
                 val close = { app.editingTrade = null }

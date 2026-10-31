@@ -101,6 +101,13 @@ fun LoanPaymentSheet(
     }
     var problems by remember { mutableStateOf(emptyMap<LoanPaymentField, String>()) }
     var pickingCategory by remember { mutableStateOf(false) }
+    // The escrow category: the one on this payment when it is opened again, else the one the loan's last escrow went to.
+    var escrowCategoryId by remember {
+        mutableStateOf(
+            (if (editing != null) editing.escrowCategoryId else ledger.loans.escrowCategory[loan.id])?.takeIf { id -> ledger.categoryById[id]?.hidden == false }
+        )
+    }
+    var pickingEscrowCategory by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val suggestion = form.suggestion(ctx)
     val parts = form.parts(ctx)
@@ -155,6 +162,17 @@ fun LoanPaymentSheet(
                 Text("Change", style = KassaType.small, color = Kassa.colors.ink2)
             }
 
+            if (parts.escrow + parts.charge > 0) {
+                val costWord = if (parts.escrow > 0) "Escrow" else "Charge"
+                TextButton(onClick = { pickingEscrowCategory = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "$costWord category: ${ledger.categoryById[escrowCategoryId]?.name ?: LoanCategories.ESCROW_NAME}", style = KassaType.bodyStrong, color = Kassa.colors.ink,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    Text("Change", style = KassaType.small, color = Kassa.colors.ink2)
+                }
+            }
+
             // Scheduled, extra, any charge (shown before saving), escrow when the loan has it, and what is left.
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp),
@@ -174,7 +192,7 @@ fun LoanPaymentSheet(
                         id = editing?.payment?.id, accountId = loan.id, fromId = form.fromId, day = form.day,
                         epochMillis = momentOn(dateOfLoanDay(form.day), ledger.today, ledger.zone),
                         amount = parts.amount, principal = parts.principal, interest = parts.interest, escrow = parts.escrow, charge = parts.charge,
-                        categoryId = form.categoryId, edited = parts.edited, estimate = parts.estimate,
+                        categoryId = form.categoryId, escrowCategoryId = escrowCategoryId, edited = parts.edited, estimate = parts.estimate,
                     )
                 )
             }
@@ -189,6 +207,13 @@ fun LoanPaymentSheet(
         form.categoryId ?: DEFAULT_CATEGORY,
         onPick = { id -> form = form.copy(categoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }); pickingCategory = false },
         onDismiss = { pickingCategory = false },
+    )
+    if (pickingEscrowCategory) Choices(
+        "Escrow category",
+        listOf(DEFAULT_CATEGORY to "${LoanCategories.ESCROW_NAME} (default)") + LoanCategories.choices(ledger.categories),
+        escrowCategoryId ?: DEFAULT_CATEGORY,
+        onPick = { id -> escrowCategoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }; pickingEscrowCategory = false },
+        onDismiss = { pickingEscrowCategory = false },
     )
     if (confirmDelete && onDelete != null) ConfirmDialog(
         title = "Delete this payment?",

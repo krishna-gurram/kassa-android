@@ -34,9 +34,7 @@ import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Holding
-import app.kassa.money.domain.LoanEngine
 import app.kassa.money.domain.LoanTerms
-import app.kassa.money.domain.LoanRate
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.Transaction
@@ -56,6 +54,10 @@ import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.invest.HoldingSheet
+import app.kassa.money.ui.loans.LoanHero
+import app.kassa.money.ui.loans.LoanPageActions
+import app.kassa.money.ui.loans.loanSections
+import app.kassa.money.ui.loans.rememberLoanSummary
 import app.kassa.money.ui.invest.PricesSheet
 import app.kassa.money.ui.invest.TradeOrder
 import app.kassa.money.ui.invest.percentOf
@@ -93,6 +95,10 @@ fun AccountPage(
     loanTerms: LoanTerms? = null,
     onPayLoan: () -> Unit = {},
     onAddTerms: () -> Unit = {},
+    onChangeTerms: () -> Unit = {},
+    onEditDetails: () -> Unit = {},
+    onCorrectBalance: () -> Unit = {},
+    onRemoveChange: (Long) -> Unit = {},
 ) {
     val balance = ledger.accounts.balances[account.id] ?: 0
     // The balance right after each entry: walk back from today's balance.
@@ -120,17 +126,24 @@ fun AccountPage(
     val moneyOut = rows.sumOf { (t, _) -> maxOf(0L, -t.effectOn(account.id)) }
     val debt = account.type.isDebt
     val shift: (Int) -> Unit = { d -> if (d < 0 && canGoBack) monthsBack++ else if (d > 0 && monthsBack > 0) monthsBack-- }
+    // A loan with terms has its own page: outstanding balance, payment schedule, terms. Its entries follow, month by month.
+    val loanSummary = if (account.type == AccountType.LOAN && loanTerms != null) rememberLoanSummary(ledger, account, loanTerms, balance) else null
+    var showFullSchedule by rememberSaveable(account.id) { mutableStateOf(false) }
+    val periodSwitcher: @Composable () -> Unit = {
+        PeriodSwitcher(
+            "${period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${period.yearMonth.year}",
+            if (monthsBack == 0) "So far" else null, canGoBack, monthsBack > 0, onBack = { shift(-1) }, onForward = { shift(1) },
+        )
+    }
 
     LazyColumn(Modifier.fillMaxSize().swipeShift(shift), contentPadding = contentPadding) {
         item {
             Column(Modifier.widthIn(max = 720.dp)) {
                 top()
-                PeriodSwitcher(
-                    "${period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${period.yearMonth.year}",
-                    if (monthsBack == 0) "So far" else null, canGoBack, monthsBack > 0, onBack = { shift(-1) }, onForward = { shift(1) },
-                )
-                Gap(12)
-                RaisedPanel {
+                if (loanSummary != null && loanTerms != null) LoanHero(loanSummary, loanTerms, balance)
+                else periodSwitcher()
+                if (loanSummary == null) Gap(12)
+                if (loanSummary == null) RaisedPanel {
                     if (account.type == AccountType.CREDIT_CARD) {
                         // A card without statement days can't be split into payable and outstanding yet.
                         Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
@@ -150,11 +163,27 @@ fun AccountPage(
                         if (debt) BigMoney(Math.abs(endBalance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-endBalance))
                         else BigMoney(endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
                         TwoBoxes("In" to Money.format(moneyIn), "Out" to Money.format(moneyOut), aColor = Kassa.colors.positive)
-                        if (account.type == AccountType.LOAN && monthsBack == 0) LoanActions(ledger, account, loanTerms, balance, onPayLoan, onAddTerms)
+                        if (account.type == AccountType.LOAN && monthsBack == 0) LoanActions(account, loanTerms, onAddTerms)
                     }
                 }
-                if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
-                Gap(8)
+                if (loanSummary == null) {
+                    if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
+                    Gap(8)
+                }
+            }
+        }
+        if (loanSummary != null && loanTerms != null) {
+            loanSections(
+                ledger, account, loanTerms, loanSummary, showFullSchedule, { showFullSchedule = it },
+                LoanPageActions(onPayLoan, onChangeTerms, onEditDetails, onCorrectBalance, onRemoveChange),
+            )
+            item(key = "loan-activity") {
+                Column(Modifier.widthIn(max = 720.dp)) {
+                    SectionHeader("Activity")
+                    periodSwitcher()
+                    if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
+                    Gap(8)
+                }
             }
         }
         items(rows, key = { it.first.id }) { (t, balanceAfter) ->
@@ -165,36 +194,14 @@ fun AccountPage(
     }
 }
 
-/**
- * What a loan account offers above its entries: Pay, with the terms in one line, or Add terms when it has none. The
- * fuller loan page (schedule, payoff date, change terms) comes later; this is the way in.
- */
+/** What a loan account without terms offers: Add terms. A loan with terms has the fuller page, see `LoanHero`. */
 @Composable
-private fun LoanActions(ledger: Ledger, account: Account, terms: LoanTerms?, balance: Long, onPay: () -> Unit, onAddTerms: () -> Unit) {
+private fun LoanActions(account: Account, terms: LoanTerms?, onAddTerms: () -> Unit) {
+    if (terms != null) return
     Gap(12)
-    if (terms == null) {
-        Text("Add the rate and payment and Kassa splits each payment into principal and interest.", style = KassaType.small, color = Kassa.colors.ink2)
-        Gap(8)
-        PrimaryButton("Add terms", onAddTerms)
-        return
-    }
-    val payments = ledger.loans.paymentsFor(account.id)
-    val changes = ledger.loans.changesFor(account.id)
-    val next = java.time.LocalDate.ofEpochDay(terms.nextPaymentDay.toLong())
-    val due = LoanEngine.amountDue(terms, changes, -balance, LoanEngine.lastDay(terms, payments), terms.nextPaymentDay)
-    val eff = terms.effective(changes, ledger.today.toEpochDay().toInt())
-    Text(
-        "${LoanRate.display(eff.rate)} · ${eff.type.label}",
-        style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
-    )
-    if (balance < 0) Text(
-        "Next payment ${next.format(DateTimeFormatter.ofPattern("MMM d"))} · ${Money.format(due)}",
-        style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
-    )
-    if (balance < 0) {
-        Gap(8)
-        PrimaryButton("Record a payment", onPay)
-    }
+    Text("Add the rate and payment and Kassa splits each payment into principal and interest.", style = KassaType.small, color = Kassa.colors.ink2)
+    Gap(8)
+    PrimaryButton("Add terms", onAddTerms)
 }
 
 /**

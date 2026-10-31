@@ -35,6 +35,7 @@ import app.kassa.money.domain.InterestType
 import app.kassa.money.domain.IslamicContract
 import app.kassa.money.domain.LoanCategories
 import app.kassa.money.domain.LoanDates
+import app.kassa.money.domain.LoanDetailsForm
 import app.kassa.money.domain.LoanField
 import app.kassa.money.domain.LoanForm
 import app.kassa.money.domain.LoanKind
@@ -50,6 +51,7 @@ import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.DigitsField
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.NameField
 import app.kassa.money.ui.common.PercentField
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
@@ -94,7 +96,6 @@ fun LoanFields(
     val preview = remember(form) { form.preview() }
     var showProgress by rememberSaveable { mutableStateOf(false) }
     var showMore by rememberSaveable { mutableStateOf(false) }
-    var pickingCategory by remember { mutableStateOf(false) }
 
     if (!form.stageLocked) {
         Label("This loan is")
@@ -149,65 +150,30 @@ fun LoanFields(
         TextButton(onClick = { showProgress = !showProgress }) {
             Text(if (showProgress) "Hide original amount and start" else "Optional: original amount and start, for progress", color = Kassa.colors.ink2, style = KassaType.small)
         }
-        if (showProgress) {
-            AmountField(form.original, { v -> edit(LoanField.ORIGINAL) { it.copy(original = v) } }, "Original amount", Modifier.fillMaxWidth(), problem = problems[LoanField.ORIGINAL])
-            Label("Started")
-            val start = form.startDay
-            if (start == null) TextButton(onClick = { edit(null) { it.copy(startDay = today.loanDay()) } }) { Text("Add the start date", color = Kassa.colors.ink) }
-            else {
-                DateRow(dateOfLoanDay(start), today) { d -> edit(null) { it.copy(startDay = d.loanDay()) } }
-                TextButton(onClick = { edit(null) { it.copy(startDay = null) } }) { Text("Clear the start date", color = Kassa.colors.ink2) }
-            }
-        }
+        if (showProgress) ProgressFields(
+            form.original, { v -> edit(LoanField.ORIGINAL) { it.copy(original = v) } }, problems[LoanField.ORIGINAL],
+            form.startDay, today, { d -> edit(null) { it.copy(startDay = d) } },
+        )
     }
 
-    if (payFromOptions.isNotEmpty()) {
-        Label("Pay from")
-        FlowRow {
-            payFromChoices(payFromOptions).forEach { a ->
-                // Tapping the picked account again clears it: nothing is chosen for you.
-                Chip(a.name, form.payFromId == a.id, small = true) { edit(null) { it.copy(payFromId = if (form.payFromId == a.id) null else a.id) } }
-            }
-        }
-    }
+    PayFromPicker(payFromOptions, form.payFromId) { id -> edit(null) { it.copy(payFromId = id) } }
     val anchor = LoanDates.dayOfMonth(if (form.stage == LoanStage.NEW) form.firstDay else form.nextDay)
-    DigitsField(
-        form.dueDay, { v -> edit(LoanField.DUE_DAY) { it.copy(dueDay = v) } }, "Due day of the month", 2, Modifier.fillMaxWidth().padding(top = 8.dp),
-        problem = problems[LoanField.DUE_DAY], placeholder = anchor.toString(),
-    )
+    DueDayField(form.dueDay, { v -> edit(LoanField.DUE_DAY) { it.copy(dueDay = v) } }, problems[LoanField.DUE_DAY], anchor)
 
     TextButton(onClick = { showMore = !showMore }) {
         Text(if (showMore) "Hide details" else "More: escrow, fees, early repayment charge", color = Kassa.colors.ink2, style = KassaType.small)
     }
     if (showMore) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AmountField(form.escrow, { v -> edit(LoanField.ESCROW) { it.copy(escrow = v) } }, "Escrow in each payment", Modifier.weight(1f), problem = problems[LoanField.ESCROW], placeholder = "0")
-            AmountField(form.fee, { v -> edit(LoanField.FEE) { it.copy(fee = v) } }, "Fee at start", Modifier.weight(1f), problem = problems[LoanField.FEE], placeholder = "0")
-        }
-        PercentField(
-            form.earlyCharge, { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } }, "Early repayment charge", Modifier.fillMaxWidth().padding(top = 8.dp),
-            problem = problems[LoanField.EARLY_CHARGE], placeholder = "0",
+        CostFields(
+            form.escrow, form.fee, form.earlyCharge, problems,
+            onEscrow = { v -> edit(LoanField.ESCROW) { it.copy(escrow = v) } },
+            onFee = { v -> edit(LoanField.FEE) { it.copy(fee = v) } },
+            onEarlyCharge = { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } },
         )
-        Text("Charged on extra or early payments. Shown before you record one.", style = KassaType.small, color = Kassa.colors.ink2)
-        val chosen = categories.firstOrNull { it.id == form.interestCategoryId }
-        TextButton(onClick = { pickingCategory = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                "$word category: ${chosen?.name ?: LoanCategories.NAME}", color = Kassa.colors.ink, style = KassaType.bodyStrong,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-            )
-            Text("Change", color = Kassa.colors.ink2, style = KassaType.small)
-        }
+        InterestCategoryRow(word, categories, form.interestCategoryId) { id -> edit(null) { it.copy(interestCategoryId = id) } }
     }
 
     if (preview != null) LoanCalc(form, preview)
-
-    if (pickingCategory) Choices(
-        "$word category",
-        listOf(DEFAULT_CATEGORY to "${LoanCategories.NAME} (default)") + LoanCategories.choices(categories),
-        form.interestCategoryId ?: DEFAULT_CATEGORY,
-        onPick = { id -> edit(null) { it.copy(interestCategoryId = id.takeIf { v -> v != DEFAULT_CATEGORY }) }; pickingCategory = false },
-        onDismiss = { pickingCategory = false },
-    )
 }
 
 /** The live calculation under the form: what the figures come to, with a warning when the payment can't pay it off. */
@@ -246,6 +212,79 @@ private fun Line(label: String, value: String) {
 @Composable
 private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
 
+/*
+ * The pieces the setup form shares with Edit details, so a field is the same wherever the loan is entered or changed.
+ */
+
+/** Where payments start from. Tapping the picked account again clears it: nothing is chosen for you. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PayFromPicker(options: List<Account>, selected: Long?, onPick: (Long?) -> Unit) {
+    if (options.isEmpty()) return
+    Label("Pay from")
+    FlowRow {
+        payFromChoices(options).forEach { a -> Chip(a.name, selected == a.id, small = true) { onPick(if (selected == a.id) null else a.id) } }
+    }
+}
+
+/** The day of the month payments fall due; empty means [anchor], the day of the first or next payment. */
+@Composable
+internal fun DueDayField(value: String, onChange: (String) -> Unit, problem: String?, anchor: Int) {
+    DigitsField(value, onChange, "Due day of the month", 2, Modifier.fillMaxWidth().padding(top = 8.dp), problem = problem, placeholder = anchor.toString())
+}
+
+/** Escrow in each payment, the fee at the start, and the early repayment charge. */
+@Composable
+internal fun CostFields(
+    escrow: String, fee: String, earlyCharge: String, problems: Map<LoanField, String>,
+    onEscrow: (String) -> Unit, onFee: (String) -> Unit, onEarlyCharge: (String) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AmountField(escrow, onEscrow, "Escrow in each payment", Modifier.weight(1f), problem = problems[LoanField.ESCROW], placeholder = "0")
+        AmountField(fee, onFee, "Fee at start", Modifier.weight(1f), problem = problems[LoanField.FEE], placeholder = "0")
+    }
+    PercentField(
+        earlyCharge, onEarlyCharge, "Early repayment charge", Modifier.fillMaxWidth().padding(top = 8.dp),
+        problem = problems[LoanField.EARLY_CHARGE], placeholder = "0",
+    )
+    Text("Charged on extra or early payments. Shown before you record one.", style = KassaType.small, color = Kassa.colors.ink2)
+}
+
+/** The loan's interest category: a row that opens the list. Null means the default, "Loan interest". */
+@Composable
+internal fun InterestCategoryRow(word: String, categories: List<Category>, selectedId: Long?, onPick: (Long?) -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    val chosen = categories.firstOrNull { it.id == selectedId }
+    TextButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "$word category: ${chosen?.name ?: LoanCategories.NAME}", color = Kassa.colors.ink, style = KassaType.bodyStrong,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
+        Text("Change", color = Kassa.colors.ink2, style = KassaType.small)
+    }
+    if (picking) Choices(
+        "$word category",
+        listOf(DEFAULT_CATEGORY to "${LoanCategories.NAME} (default)") + LoanCategories.choices(categories),
+        selectedId ?: DEFAULT_CATEGORY,
+        onPick = { id -> onPick(id.takeIf { v -> v != DEFAULT_CATEGORY }); picking = false },
+        onDismiss = { picking = false },
+    )
+}
+
+/** The original amount and start date, which only feed the progress bar on the loan page. */
+@Composable
+internal fun ProgressFields(
+    original: String, onOriginal: (String) -> Unit, problem: String?, startDay: Int?, today: LocalDate, onStart: (Int?) -> Unit,
+) {
+    AmountField(original, onOriginal, "Original amount", Modifier.fillMaxWidth(), problem = problem)
+    Label("Started")
+    if (startDay == null) TextButton(onClick = { onStart(today.loanDay()) }) { Text("Add the start date", color = Kassa.colors.ink) }
+    else {
+        DateRow(dateOfLoanDay(startDay), today) { d -> onStart(d.loanDay()) }
+        TextButton(onClick = { onStart(null) }) { Text("Clear the start date", color = Kassa.colors.ink2) }
+    }
+}
+
 /**
  * "Add terms" on a loan account that is already there: the same form, already partway and filled with today's balance.
  * The loan's entries stay; if the balance is changed, the starting balance moves by the difference, as editing an
@@ -279,6 +318,61 @@ fun LoanTermsSheet(
             PrimaryButton("Add terms") {
                 problems = form.problems()
                 if (problems.isEmpty()) onSave(account.copy(openingBalance = form.openingBalance(account, current)), form.toTerms(account.id), onDismiss)
+            }
+            Gap(24)
+        }
+    }
+}
+
+/**
+ * Edit details on a loan: its name, where it's paid from, the due day, escrow, fee and early repayment charge, the
+ * interest category, and the original amount and start date for the progress bar. The fields are the setup form's own
+ * pieces; the checking is [LoanDetailsForm]'s. The rate, payment, term and interest type are dated, so they change
+ * under Change terms. [onSave] gets a `done` to call once saved, so the sheet stays open on a problem.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoanDetailsSheet(
+    account: Account,
+    terms: LoanTerms,
+    ledger: Ledger,
+    onDismiss: () -> Unit,
+    onSave: (Account, LoanTerms, () -> Unit) -> Unit,
+) {
+    val owed = -(ledger.accounts.balances[account.id] ?: 0)
+    var form by remember { mutableStateOf(LoanDetailsForm.of(account.name, terms)) }
+    var problems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
+    fun edit(field: LoanField?, change: (LoanDetailsForm) -> LoanDetailsForm) {
+        form = change(form)
+        if (field != null) problems = problems - field
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("Edit details", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Gap(4)
+            NameField(form.name, { v -> edit(LoanField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[LoanField.NAME])
+            PayFromPicker(ledger.accounts.accounts.filter { it.id != account.id }, form.payFromId) { id -> edit(null) { it.copy(payFromId = id) } }
+            DueDayField(form.dueDay, { v -> edit(LoanField.DUE_DAY) { it.copy(dueDay = v) } }, problems[LoanField.DUE_DAY], terms.dueDay)
+            Gap(8)
+            CostFields(
+                form.escrow, form.fee, form.earlyCharge, problems,
+                onEscrow = { v -> edit(LoanField.ESCROW) { it.copy(escrow = v) } },
+                onFee = { v -> edit(LoanField.FEE) { it.copy(fee = v) } },
+                onEarlyCharge = { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } },
+            )
+            InterestCategoryRow(terms.interestWord, ledger.categories, form.interestCategoryId) { id -> edit(null) { it.copy(interestCategoryId = id) } }
+            Label("For the progress bar")
+            ProgressFields(
+                form.original, { v -> edit(LoanField.ORIGINAL) { it.copy(original = v) } }, problems[LoanField.ORIGINAL],
+                form.startDay, ledger.today, { d -> edit(null) { it.copy(startDay = d) } },
+            )
+            Gap(12)
+            PrimaryButton("Save details") {
+                problems = form.problems(terms, owed)
+                if (problems.isEmpty()) onSave(account.copy(name = form.name), form.applyTo(terms), onDismiss)
             }
             Gap(24)
         }

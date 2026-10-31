@@ -82,13 +82,19 @@ internal fun TwoBoxes(
     b: Pair<String, String>,
     aColor: Color = Kassa.colors.ink,
     bColor: Color = Kassa.colors.ink,
+    /** A small line under a figure, like the due date under a payment. */
+    aNote: String? = null,
+    bNote: String? = null,
 ) {
     Row(Modifier.padding(top = 12.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf(Triple(a.first, a.second, aColor), Triple(b.first, b.second, bColor)).forEach { (label, value, color) ->
+        listOf(BoxFigure(a.first, a.second, aColor, aNote), BoxFigure(b.first, b.second, bColor, bNote)).forEach { f ->
             Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp)) {
-                Text(label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(value, style = KassaType.stat, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(f.label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(f.value, style = KassaType.stat, color = f.color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                f.note?.let { Text(it, style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
     }
 }
+
+private data class BoxFigure(val label: String, val value: String, val color: Color, val note: String?)

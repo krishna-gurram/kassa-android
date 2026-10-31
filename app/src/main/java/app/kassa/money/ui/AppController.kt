@@ -36,6 +36,9 @@ import java.time.YearMonth
 /** The phone's settings, for any screen: `LocalSettings.current.theme.collectAsState()`. */
 val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings is provided by MainActivity") }
 
+/** A balance correction being made on [accountId], or [editing] an earlier one. */
+data class Correcting(val accountId: Long, val editing: Transaction? = null)
+
 /**
  * Where screens go and what their buttons do. Screens call this instead of the view model and navigation
  * directly, so "open a card" or "edit an entry" means the same thing everywhere.
@@ -57,6 +60,12 @@ class AppController(
 
     /** The loan account that terms are being added to, if any. */
     var addingTermsTo by mutableStateOf<Long?>(null)
+
+    /** The loan whose details (name, due day, escrow and so on) are being edited, if any. */
+    var editingLoanDetails by mutableStateOf<Long?>(null)
+
+    /** The balance correction sheet that is open, if any: new for an account, or an earlier correction being edited. */
+    var correcting by mutableStateOf<Correcting?>(null)
 
     /** The recorded loan payment whose sheet is open, if any. Any of its entries opens it. */
     var editingLoanPayment by mutableStateOf<LoanPaymentDetail?>(null)
@@ -97,7 +106,7 @@ class AppController(
     /**
      * Opens an entry where it's edited: expenses, income and transfers on the entry page (its split loaded;
      * [withPerson] adds them to the split, as "Split a transaction" does), trades, person payments and loan payments in
-     * their own sheets. The entry page only knows its three kinds, so nothing else may reach it: an entry that is part
+     * their own sheets, balance corrections in the correction sheet. The entry page only knows its three kinds, so nothing else may reach it: an entry that is part
      * of a loan payment (its principal, interest or escrow) opens the loan payment sheet, whichever kind it is.
      */
     fun openEntry(id: Long, fromPage: Boolean, withPerson: Long? = null) {
@@ -110,6 +119,7 @@ class AppController(
             when (t.kind) {
                 TxKind.BUY, TxKind.SELL -> editingTrade = t
                 TxKind.PERSON_IN, TxKind.PERSON_OUT -> editingPayment = t
+                TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> t.accountId?.let { correcting = Correcting(it, t) }
                 else -> {
                     val start = vm.entryStartFor(id, withPerson) ?: return@launch
                     if (fromPage) push(Page.Entry(start)) else openFromList(Page.Entry(start))
