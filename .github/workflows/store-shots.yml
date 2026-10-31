@@ -100,6 +100,7 @@ jobs:
         run: |
           mkdir -p upload
           find collected/store-output -name '*.png' -exec cp {} upload/ \; 2>/dev/null || true
+          find collected/ci-output -type f \( -name '*.txt' -o -name '*.log' -o -name '*.png' \) -exec sh -c 'cp "$1" "upload/diag-$(basename "$1")"' _ {} \; 2>/dev/null || true
           find upload -type f -empty -delete
           ls upload | sort > upload/LIST.txt
           {

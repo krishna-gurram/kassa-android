@@ -6,6 +6,8 @@
 # PNGs go to store-output/. Each one is checked (PNG header size equals the screen size, and not blank);
 # the script goes on after a bad one so every screen is tried, then exits 1 if any failed.
 set -u
+mkdir -p ci-output
+exec > >(tee -a "ci-output/run-${1:-x}-${2:-light}.log") 2>&1
 PREFIX=${1:?prefix}
 MODE=${2:-light}
 PREP=${3:-}
