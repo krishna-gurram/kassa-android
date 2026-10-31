@@ -84,6 +84,15 @@ object Patterns {
         }
     }
 
+    /**
+     * [transactions] without the entries of loan payments (principal, interest, escrow): they are spending in the totals,
+     * but a mortgage payment is not a store or a purchase, so Top store, Big purchases and Small purchases read this.
+     */
+    fun purchases(transactions: List<Transaction>, payments: List<LoanPayment>): List<Transaction> {
+        val loanIds = payments.flatMap { it.entryIds }.toSet()
+        return if (loanIds.isEmpty()) transactions else transactions.filter { it.id !in loanIds }
+    }
+
     /** Where the money went by store (the entry's note), largest first. */
     fun stores(transactions: Iterable<Transaction>, byId: Map<Long, Category>, from: LocalDate, to: LocalDate, zone: ZoneId): List<Store> =
         transactions.filter { it.kind == TxKind.EXPENSE && it.note.isNotBlank() && dateOf(it, zone).let { d -> !d.isBefore(from) && !d.isAfter(to) } }

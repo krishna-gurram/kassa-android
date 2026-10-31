@@ -106,14 +106,14 @@ fun InsightDetailPage(
                 }
             }
             InsightPage.STORES -> {
-                val stores = Patterns.stores(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
+                val stores = Patterns.stores(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
                 if (stores.isEmpty()) Empty("No entries with a store name this month.")
                 val max = stores.firstOrNull()?.total ?: 1L
                 Column { stores.forEach { st -> RankRow(st.category, st.name, st.total, max, "${st.visits}×") { onOpenStore(st.name) } } }
             }
             InsightPage.SMALL -> {
-                val s = Patterns.smallBuys(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone)
-                val months = Patterns.smallBuysByMonth(ledger.counted, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone)
+                val s = Patterns.smallBuys(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone)
+                val months = Patterns.smallBuysByMonth(ledger.purchases, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone)
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Figure("This month", Money.format(s.total, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                     Figure("Buys", s.count.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
