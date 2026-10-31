@@ -64,6 +64,34 @@ class Settings(context: Context) {
     val reminderMinute: StateFlow<Int> = _reminderMinute
     fun setReminderMinute(m: Int) { prefs.edit().putInt(REMINDER_MINUTE, m).apply(); _reminderMinute.value = m }
 
+    // Phone notifications for payments due, one rule per kind: on or off, days before the due day, time of day.
+    private val dueFlows = app.kassa.money.domain.DueKind.entries.associateWith { MutableStateFlow(readDue(it)) }
+    fun dueRule(kind: app.kassa.money.domain.DueKind): StateFlow<app.kassa.money.domain.DueRule> = dueFlows.getValue(kind)
+    fun setDueRule(kind: app.kassa.money.domain.DueKind, rule: app.kassa.money.domain.DueRule) {
+        val clean = rule.copy(daysBefore = rule.daysBefore.coerceIn(0, app.kassa.money.domain.DueNotices.MAX_DAYS_BEFORE), minute = rule.minute.coerceIn(0, 1_439))
+        val p = "due_${kind.name.lowercase()}"
+        prefs.edit().putBoolean(p + "_on", clean.enabled).putInt(p + "_days", clean.daysBefore).putInt(p + "_minute", clean.minute).apply()
+        dueFlows.getValue(kind).value = clean
+    }
+    /** All three rules, as the notifier reads them. */
+    fun dueRules() = app.kassa.money.domain.DueRules(
+        dueRule(app.kassa.money.domain.DueKind.CARD).value, dueRule(app.kassa.money.domain.DueKind.LOAN).value, dueRule(app.kassa.money.domain.DueKind.BILL).value,
+    )
+    private fun readDue(kind: app.kassa.money.domain.DueKind): app.kassa.money.domain.DueRule {
+        val d = app.kassa.money.domain.DueRule.default(kind)
+        val p = "due_${kind.name.lowercase()}"
+        return app.kassa.money.domain.DueRule(
+            prefs.getBoolean(p + "_on", d.enabled),
+            prefs.getInt(p + "_days", d.daysBefore).coerceIn(0, app.kassa.money.domain.DueNotices.MAX_DAYS_BEFORE),
+            prefs.getInt(p + "_minute", d.minute).coerceIn(0, 1_439),
+        )
+    }
+
+    /** Set once Kassa has explained and asked for permission to notify, so it never asks twice. */
+    var notifyAsked: Boolean
+        get() = prefs.getBoolean(NOTIFY_ASKED, false)
+        set(value) { prefs.edit().putBoolean(NOTIFY_ASKED, value).apply() }
+
     private val _cleared = MutableStateFlow(prefs.getStringSet(CLEARED, emptySet())!!.toSet())
     /** Notifications the user cleared, by key (a card's statement, a suggested bill). They don't come back. */
     val cleared: StateFlow<Set<String>> = _cleared
@@ -113,6 +141,7 @@ class Settings(context: Context) {
         const val LOCK = "app_lock"
         const val THEME = "theme"
         const val CURRENCY = "currency"
+        const val NOTIFY_ASKED = "notify_asked"
         const val CLEARED = "cleared_notifications"
         const val TIP = "first_run_tip"
         const val OPEN_TAB = "open_tab"

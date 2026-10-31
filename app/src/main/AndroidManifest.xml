@@ -5,7 +5,7 @@
     <!-- Kassa never talks to a network. Remove the permission even if a library asks for it. -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
-    <!-- Daily reminder. Android asks once, only when you turn the reminder on. -->
+    <!-- Daily reminder and payments due. Android asks once: when you turn the reminder on, or after saving a card or loan with a due date. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Keeps the daily backup and reminder scheduled after the phone restarts. Granted at install, never asked. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -54,6 +54,11 @@
         <!-- The daily reminder's alarm. Only Kassa's own alarm reaches it. -->
         <receiver
             android:name=".data.jobs.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- The payments-due alarm: one alarm for the earliest notification. Only Kassa's own alarm reaches it. -->
+        <receiver
+            android:name=".data.jobs.DueReceiver"
             android:exported="false" />
 
         <!-- Sets the reminder and backup again after a restart, an update, a clock or time zone change, or a change
