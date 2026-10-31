@@ -88,7 +88,9 @@ class MainActivity : FragmentActivity() {
             val lockOn by app.settings.lockEnabled.collectAsState()
             // Recents thumbnails and screenshots would show balances: keep them out while App lock or Hide balances is on.
             // FLAG_SECURE works on every Android version, unlike setRecentsScreenshotEnabled (33 and later).
-            val secure = lockOn || app.settings.hideAmounts
+            // Debug builds only: `--ez noSecure true` lets CI screenshots capture the Hide balances view.
+            val noSecure = app.kassa.money.BuildConfig.DEBUG && intent?.getBooleanExtra("noSecure", false) == true
+            val secure = (lockOn || app.settings.hideAmounts) && !noSecure
             LaunchedEffect(secure) {
                 if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             }
