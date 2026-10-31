@@ -46,7 +46,7 @@ class Settings(context: Context) {
         app.kassa.money.domain.Money.hideAmounts = { hideAmounts }
     }
 
-    fun setHideAmounts(on: Boolean) { prefs.edit().putBoolean(HIDE_AMOUNTS, on).apply(); hideAmounts = on }
+    fun chooseHideAmounts(on: Boolean) { prefs.edit().putBoolean(HIDE_AMOUNTS, on).apply(); hideAmounts = on }
 
     private val _accountSort = MutableStateFlow(prefs.getString(ACCOUNT_SORT, "NAME")!!)
     /** How the Accounts tab orders every section: NAME, BALANCE or DUE (cards by due date, the rest by name). */

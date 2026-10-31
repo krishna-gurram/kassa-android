@@ -76,7 +76,7 @@ fun TabTop(title: String, modifier: Modifier = Modifier, trailing: @Composable R
 fun HideBalancesButton() {
     val settings = LocalSettings.current
     val hidden = settings.hideAmounts
-    IconButton(onClick = { settings.setHideAmounts(!hidden) }, modifier = Modifier.size(48.dp)) {
+    IconButton(onClick = { settings.chooseHideAmounts(!hidden) }, modifier = Modifier.size(48.dp)) {
         Icon(
             if (hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
             if (hidden) "Show balances" else "Hide balances",
