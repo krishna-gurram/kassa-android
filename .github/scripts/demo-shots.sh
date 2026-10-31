@@ -102,6 +102,45 @@ adb shell cmd uimode night yes
 shot 07-dark 5
 adb shell settings put system font_scale 1.6; shot 07b-large-font 5; adb shell settings put system font_scale 1.0; sleep 3
 tap "Settings"; sleep 2; tap "Expense categories"; sleep 2; tap "Dining"; sleep 2; scroll; shot 08-category-colors
+
+# The loan flow, best effort: add a loan, record a payment, the loan page, change terms, correct the balance. Each step
+# only looks for text on screen and taps it, and a step that can't find its element says so and the walk goes on, so a
+# layout change costs a screenshot and never the build. Typing goes into a field by tapping its label first.
+type_into() { tap "$1"; adb shell input text "$2" < /dev/null; sleep 0.6; }
+adb shell am force-stop $DPKG
+adb shell am start -W -n $ACT > /dev/null 2>&1; sleep 6
+tap "Accounts"; sleep 1
+tap "Add an account"; sleep 1
+tap "Loan or mortgage"; sleep 1
+type_into "Name" "Car%sloan"
+type_into "Amount borrowed" "30000"
+type_into "Interest rate a year" "6"
+type_into "Term in months" "60"
+adb shell input keyevent KEYCODE_BACK
+shot loan-1-add 2
+scroll; shot loan-1b-add-more 1
+tap "Add loan"; shot loan-2-added 3
+tap "Car loan"; shot loan-3-page 3
+tap "Record a payment"; sleep 1
+tap "Everyday checking"; shot loan-4-payment 2
+scroll; tap "Record payment"; sleep 2
+shot loan-5-page-after-payment 2
+scroll; shot loan-6-schedule 1
+tap "Show full schedule"; shot loan-6b-full-schedule 1
+scroll; scroll; shot loan-7-terms 1
+tap "Change terms"; sleep 1
+type_into "New interest rate a year" "7.25"
+adb shell input keyevent KEYCODE_BACK
+shot loan-8-change-terms 2
+scroll; tap "Save change"; shot loan-9-saved 3
+scroll; scroll; scroll; shot loan-10-history 1
+tap "Correct balance"; sleep 1
+type_into "Balance your lender shows" "21000"
+shot loan-11-correction 2
+tap "Save correction"; shot loan-12-corrected 3
+adb logcat -d | grep -A 30 "FATAL EXCEPTION" | grep -A 30 "$DPKG" > ci-output/loan-crash.txt || true
+adb shell am force-stop $DPKG
+
 adb shell cmd uimode night no
 adb shell am force-stop $DPKG
 rm -f ci-output/ui.xml
