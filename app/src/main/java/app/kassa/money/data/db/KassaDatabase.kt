@@ -41,14 +41,27 @@ abstract class KassaDatabase : RoomDatabase() {
     abstract fun loanPayments(): LoanPaymentDao
 
     companion object {
-        /** Encrypted with SQLCipher. The key lives in the Android Keystore, see [DatabaseKey]. */
+        const val FILE_NAME = "kassa.db"
+
+        /**
+         * Encrypted with SQLCipher. The key lives in the Android Keystore, see [DatabaseKey]. Opens the file at once,
+         * so a wrong or lost key fails here rather than on the first query somewhere in the UI.
+         */
         fun open(context: Context): KassaDatabase {
             System.loadLibrary("sqlcipher")
-            val factory = SupportOpenHelperFactory(DatabaseKey.get(context))
-            return Room.databaseBuilder(context, KassaDatabase::class.java, "kassa.db")
+            val exists = context.getDatabasePath(FILE_NAME).exists()
+            val factory = SupportOpenHelperFactory(DatabaseKey.get(context, exists))
+            val db = Room.databaseBuilder(context, KassaDatabase::class.java, FILE_NAME)
                 .openHelperFactory(factory)
                 .addMigrations(*ALL_MIGRATIONS)
                 .build()
+            try {
+                db.openHelper.writableDatabase
+            } catch (e: Throwable) {
+                runCatching { db.close() }
+                throw e
+            }
+            return db
         }
     }
 }
