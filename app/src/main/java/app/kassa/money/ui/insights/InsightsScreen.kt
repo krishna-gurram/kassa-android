@@ -206,9 +206,9 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int?, mod
 private fun PatternTiles(ledger: Ledger, actions: InsightActions, oneRow: Boolean = false) {
     val p = ledger.period
     val monthBiggest = remember(ledger) { bigPurchases(ledger, week = false) }
-    val stores = remember(ledger) { Patterns.stores(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone) }
-    val small = remember(ledger) { Patterns.smallBuys(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone) }
-    val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.counted, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val stores = remember(ledger) { Patterns.stores(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val small = remember(ledger) { Patterns.smallBuys(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.purchases, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
     val creep = remember(ledger) { Patterns.creeping(ledger.counted, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
     val repeating = remember(ledger) { ledger.repeats.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE } }
     val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.counted, ledger.categories, ledger.today, ledger.zone) }
@@ -322,7 +322,7 @@ internal fun duesThisWeek(ledger: Ledger) = ledger.cards()
 /** The 10 largest expenses this week or this budget month, largest first (fewer if there aren't 10). */
 internal fun bigPurchases(ledger: Ledger, week: Boolean): List<Transaction> {
     val from = if (week) ledger.weekStart else ledger.period.start
-    return ledger.counted.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(from) && !dateOf(it, ledger).isAfter(ledger.today) }
+    return ledger.purchases.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(from) && !dateOf(it, ledger).isAfter(ledger.today) }
         .sortedByDescending { it.categoryAmount }.take(10)
 }
 

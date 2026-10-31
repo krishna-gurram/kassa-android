@@ -14,6 +14,7 @@ import app.kassa.money.domain.Category
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InvestmentTransfer
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.Patterns
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Repeat
@@ -62,6 +63,9 @@ data class Ledger(
      * balances, cards and bills read [recent], which is never changed.
      */
     val counted: List<Transaction> by lazy { counted(recent) }
+
+    /** [counted] without loan payment entries: what Top store, Big purchases and Small purchases read (see `Patterns.purchases`). */
+    val purchases: List<Transaction> by lazy { Patterns.purchases(counted, loans.payments) }
 
     /** Any list of entries (a month, a day) as spending sees it; see [counted]. */
     fun counted(list: List<Transaction>): List<Transaction> = CountedSpending.apply(list, loans.payments, loans.terms, categories)
