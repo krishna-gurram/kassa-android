@@ -57,25 +57,25 @@ class AppController(
     var split by mutableStateOf(false)
 
     /** The card whose pay sheet is open, if any. */
-    var paying by mutableStateOf<Long?>(null)
+    var paying: Long? get() = nav.paying; set(v) { nav.paying = v }
 
     /** The loan whose payment sheet is open to record a new payment, if any. */
-    var payingLoan by mutableStateOf<Long?>(null)
+    var payingLoan: Long? get() = nav.payingLoan; set(v) { nav.payingLoan = v }
 
     /** The loan account that terms are being added to, if any. */
-    var addingTermsTo by mutableStateOf<Long?>(null)
+    var addingTermsTo: Long? get() = nav.addingTermsTo; set(v) { nav.addingTermsTo = v }
 
     /** The loan whose details (name, due day, escrow and so on) are being edited, if any. */
-    var editingLoanDetails by mutableStateOf<Long?>(null)
+    var editingLoanDetails: Long? get() = nav.editingLoanDetails; set(v) { nav.editingLoanDetails = v }
 
     /** The balance correction sheet that is open, if any: new for an account, or an earlier correction being edited. */
-    var correcting by mutableStateOf<Correcting?>(null)
+    var correcting: Correcting? get() = nav.correcting; set(v) { nav.correcting = v }
 
     /** The recorded loan payment whose sheet is open, if any. Any of its entries opens it. */
-    var editingLoanPayment by mutableStateOf<LoanPaymentDetail?>(null)
+    var editingLoanPayment: LoanPaymentDetail? get() = nav.editingLoanPayment; set(v) { nav.editingLoanPayment = v }
 
     /** The investment transfer being explained, if any. */
-    var allocating by mutableStateOf<InvestmentTransfer?>(null)
+    var allocating: InvestmentTransfer? get() = nav.allocating; set(v) { nav.allocating = v }
 
     /**
      * A tapped payment-due notification: the card's page, the loan's page with its payment sheet open (when something
@@ -118,10 +118,10 @@ class AppController(
     }
 
     /** The buy or sale whose sheet is open, if any. */
-    var editingTrade by mutableStateOf<Transaction?>(null)
+    var editingTrade: Transaction? get() = nav.editingTrade; set(v) { nav.editingTrade = v }
 
     /** The payment to or from a person whose sheet is open, if any. */
-    var editingPayment by mutableStateOf<Transaction?>(null)
+    var editingPayment: Transaction? get() = nav.editingPayment; set(v) { nav.editingPayment = v }
 
     /**
      * Opens an entry where it's edited: expenses, income and transfers on the entry page (its split loaded;

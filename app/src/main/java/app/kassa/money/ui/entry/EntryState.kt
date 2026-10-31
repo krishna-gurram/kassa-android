@@ -3,6 +3,8 @@ package app.kassa.money.ui.entry
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.domain.Account
@@ -112,6 +114,34 @@ internal class EntryState(val start: EntryStart, private val zone: ZoneId, priva
     val myShare: Long get() = cents - shares.values.sum()
     val someoneElsePaid: Boolean get() = kind == TxKind.EXPENSE && paidBy != null
 
+    /**
+     * What's typed and which panel is open, as plain strings, so the page survives the activity being recreated (folding,
+     * rotating, a theme change). The entry it opened with comes from [start], which navigation keeps; see [saver].
+     */
+    private fun saved(): List<String> = listOf(
+        kind.name, amount, categoryId?.toString().orEmpty(), accountId?.toString().orEmpty(), toAccountId?.toString().orEmpty(),
+        date.toEpochDay().toString(), note, splitPeople.joinToString(","), paidBy?.toString().orEmpty(), exact.toString(),
+        exactShares.entries.joinToString(",") { "${it.key}:${it.value}" }, field?.name.orEmpty(), editingShare?.toString().orEmpty(), shareInput,
+    )
+
+    private fun restore(v: List<String>) {
+        if (v.size < SAVED_SIZE) return
+        TxKind.entries.firstOrNull { it.name == v[0] }?.let { kind = it }
+        amount = v[1]
+        categoryId = v[2].toLongOrNull()
+        accountId = v[3].toLongOrNull()
+        toAccountId = v[4].toLongOrNull()
+        v[5].toLongOrNull()?.let { date = LocalDate.ofEpochDay(it); calendarMonth = YearMonth.from(date) }
+        note = v[6].take(InputRules.NOTE_MAX)
+        splitPeople = v[7].split(",").mapNotNull { it.toLongOrNull() }
+        paidBy = v[8].toLongOrNull()
+        exact = v[9] == "true"
+        exactShares = v[10].split(",").mapNotNull { pair -> pair.split(":").takeIf { it.size == 2 }?.let { (id, cents) -> id.toLongOrNull()?.let { i -> cents.toLongOrNull()?.let { c -> i to c } } } }.toMap()
+        field = Field.entries.firstOrNull { it.name == v[11] }
+        editingShare = v[12].toLongOrNull()
+        shareInput = v[13]
+    }
+
     fun typeNote(raw: String) { note = InputRules.typed(raw, InputRules.NOTE_MAX) }
 
     fun pressKey(key: String) { amount = applyKey(amount, key); error = null }
@@ -212,5 +242,15 @@ internal class EntryState(val start: EntryStart, private val zone: ZoneId, priva
             else -> LocalTime.NOON
         }
         return date.atTime(time).atZone(zone).toInstant().toEpochMilli()
+    }
+
+    companion object {
+        private const val SAVED_SIZE = 14
+
+        /** Keeps an [EntryState] across recreation: a new one for [start], with what was typed put back. */
+        fun saver(start: EntryStart, zone: ZoneId, today: LocalDate): Saver<EntryState, Any> = listSaver(
+            save = { it.saved() },
+            restore = { v -> EntryState(start, zone, today).also { it.restore(v) } },
+        )
     }
 }

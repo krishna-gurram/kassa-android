@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +63,7 @@ fun EntryPage(
     onDelete: (Long) -> Unit,
     onBack: () -> Unit,
 ) {
-    val s = remember { EntryState(start, ledger.zone, ledger.today) }
+    val s = rememberSaveable(saver = EntryState.saver(start, ledger.zone, ledger.today)) { EntryState(start, ledger.zone, ledger.today) }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
