@@ -98,6 +98,7 @@ if [ "$PREP" = prep ]; then
   adb shell pm grant $DPKG android.permission.POST_NOTIFICATIONS > /dev/null 2>&1 || true
   # A loan, added the way a person would, then one payment so the page has a schedule.
   tap "Accounts"; sleep 1
+  scroll; sleep 1
   tap "Add an account"; sleep 1
   tap "Loan or mortgage"; sleep 1
   type_into "Name" "Car%sloan"
