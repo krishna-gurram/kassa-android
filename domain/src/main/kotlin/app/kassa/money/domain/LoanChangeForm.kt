@@ -48,10 +48,25 @@ data class LoanChangeForm(
     val termMonths: String = "",
     val type: InterestType? = null,
     val kept: LenderKept = LenderKept.PAYMENT,
+    /** What [payment] means. The escrow is the loan's own (a change has none of its own), so it only matters when the loan has escrow. */
+    val paymentBasis: PaymentBasis = PaymentBasis.PRINCIPAL_AND_INTEREST,
 ) {
     private val rateValue: Long? get() = InputRules.parseRate(rate)
-    private val paymentValue: Long? get() = Money.parseCents(payment)
+    private val typedTotal: Long? get() = Money.parseCents(payment)
     private val months: Int? get() = termMonths.toIntOrNull()
+
+    private fun includesEscrow(c: LoanChangeContext): Boolean = paymentBasis == PaymentBasis.INCLUDES_ESCROW && c.terms.escrow > 0
+
+    /** The loan's own payment (principal and interest): the typed amount, less the loan's escrow when it includes it. */
+    private fun paymentValue(c: LoanChangeContext): Long? = typedTotal?.let { if (includesEscrow(c)) it - c.terms.escrow else it }
+
+    /** The typed total split into principal and interest and the loan's escrow, or null unless it includes escrow and is valid. */
+    fun paymentSplit(c: LoanChangeContext): PaymentSplit? {
+        if (!includesEscrow(c)) return null
+        val total = typedTotal ?: return null
+        if (InputRules.amountProblem(total) != null || total <= c.terms.escrow) return null
+        return PaymentSplit(total - c.terms.escrow, c.terms.escrow)
+    }
 
     private fun word(c: LoanChangeContext) = c.terms.interestWord.lowercase()
 
@@ -64,7 +79,7 @@ data class LoanChangeForm(
         when (kind) {
             ChangeKind.RATE -> InputRules.rateProblem(rateValue, "new ${word(c)} rate")?.let { put(ChangeField.RATE, it) }
             ChangeKind.PAYMENT ->
-                InputRules.amountProblem(paymentValue, zeroAllowed = typeBefore(c) == InterestType.INTEREST_ONLY)?.let { put(ChangeField.PAYMENT, it) }
+                InputRules.amountProblem(typedTotal, zeroAllowed = typeBefore(c) == InterestType.INTEREST_ONLY)?.let { put(ChangeField.PAYMENT, it) }
             ChangeKind.TYPE -> {
                 val t = type
                 when {
@@ -76,14 +91,20 @@ data class LoanChangeForm(
                 if (t != null && t != InterestType.INTEREST_ONLY) {
                     if (payment.isBlank() && termMonths.isBlank()) put(ChangeField.PAYMENT, "Enter the payment, or a term in months.")
                 }
-                if (payment.isNotBlank()) InputRules.amountProblem(paymentValue)?.let { put(ChangeField.PAYMENT, it) }
+                if (payment.isNotBlank()) InputRules.amountProblem(typedTotal)?.let { put(ChangeField.PAYMENT, it) }
                 if (termMonths.isNotBlank()) InputRules.monthsProblem(months, "a term in months")?.let { put(ChangeField.TERM, it) }
             }
             ChangeKind.REFINANCE -> {
                 InputRules.rateProblem(rateValue, "new ${word(c)} rate")?.let { put(ChangeField.RATE, it) }
                 InputRules.monthsProblem(months, "a term in months")?.let { put(ChangeField.TERM, it) }
-                if (payment.isNotBlank()) InputRules.amountProblem(paymentValue)?.let { put(ChangeField.PAYMENT, it) }
+                if (payment.isNotBlank()) InputRules.amountProblem(typedTotal)?.let { put(ChangeField.PAYMENT, it) }
             }
+        }
+        // A total with escrow in it has to leave something for the loan itself (interest only may be left with nothing).
+        val total = typedTotal
+        if (ChangeField.PAYMENT !in this && total != null && includesEscrow(c) && kind != ChangeKind.RATE) {
+            val floor = if (kind == ChangeKind.PAYMENT && typeBefore(c) == InterestType.INTEREST_ONLY) c.terms.escrow else c.terms.escrow + 1
+            if (total < floor) put(ChangeField.PAYMENT, "The total payment has to be more than the escrow.")
         }
     }
 
@@ -101,13 +122,13 @@ data class LoanChangeForm(
         val id = c.terms.accountId
         return when (kind) {
             ChangeKind.RATE -> LoanEngine.rateChange(c.terms, c.changes, c.cursor, day, checkNotNull(rateValue), kept).change
-            ChangeKind.PAYMENT -> LoanTermChange(accountId = id, effectiveDay = day, payment = paymentValue)
+            ChangeKind.PAYMENT -> LoanTermChange(accountId = id, effectiveDay = day, payment = paymentValue(c))
             ChangeKind.TYPE -> LoanTermChange(
                 accountId = id, effectiveDay = day, type = type, termMonths = months,
-                payment = paymentValue ?: if (type == InterestType.INTEREST_ONLY) null else suggestedPayment(c),
+                payment = paymentValue(c) ?: if (type == InterestType.INTEREST_ONLY) null else suggestedPayment(c),
             )
             ChangeKind.REFINANCE -> LoanTermChange(
-                accountId = id, effectiveDay = day, rate = rateValue, termMonths = months, payment = paymentValue ?: suggestedPayment(c),
+                accountId = id, effectiveDay = day, rate = rateValue, termMonths = months, payment = paymentValue(c) ?: suggestedPayment(c),
             )
         }
     }
