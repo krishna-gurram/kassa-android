@@ -46,8 +46,10 @@ import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.accounts.Choices
 import app.kassa.money.ui.common.AmountField
+import app.kassa.money.ui.common.CategoryChoiceRow
+import app.kassa.money.ui.common.CategoryPickerHost
+import app.kassa.money.ui.common.categoryPath
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.DigitsField
 import app.kassa.money.ui.common.Gap
@@ -55,6 +57,7 @@ import app.kassa.money.ui.common.NameField
 import app.kassa.money.ui.common.PercentField
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
+import app.kassa.money.ui.settings.SwitchRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.LocalDate
@@ -73,9 +76,6 @@ internal fun payFromChoices(accounts: List<Account>, except: Long = 0): List<Acc
     accounts.filter { it.isActive && it.id != except && it.type in PAY_FROM_TYPES }.sortedWith(Names.order { it.name })
 
 private val PAY_FROM_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH)
-
-/** Stands for "no category chosen" in the category list: the loan's own default. */
-private const val DEFAULT_CATEGORY = -1L
 
 /**
  * The loan setup fields, from the prototype: how it starts, how interest is charged, the figures, where it's paid from
@@ -170,8 +170,14 @@ fun LoanFields(
             onFee = { v -> edit(LoanField.FEE) { it.copy(fee = v) } },
             onEarlyCharge = { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } },
         )
-        InterestCategoryRow(word, categories, form.interestCategoryId) { id -> edit(null) { it.copy(interestCategoryId = id) } }
     }
+
+    Label("Categories")
+    LoanCategoryFields(
+        word, categories, form.interestCategoryId, { id -> edit(null) { it.copy(interestCategoryId = id) } },
+        form.countAllAsSpending, { on -> edit(null) { it.copy(countAllAsSpending = on) } },
+        form.principalCategoryId, { id -> edit(null) { it.copy(principalCategoryId = id) } },
+    )
 
     if (preview != null) LoanCalc(form, preview)
 }
@@ -250,25 +256,54 @@ internal fun CostFields(
     Text("Charged on extra or early payments. Shown before you record one.", style = KassaType.small, color = Kassa.colors.ink2)
 }
 
-/** The loan's interest category: a row that opens the list. Null means the default, "Loan interest". */
+/**
+ * The loan's interest category: the shared category row (see [CategoryChoiceRow]). Null means the default, "Loan interest",
+ * or [loanDefaultId] when a payment is choosing and its loan names another.
+ */
 @Composable
-internal fun InterestCategoryRow(word: String, categories: List<Category>, selectedId: Long?, onPick: (Long?) -> Unit) {
-    var picking by remember { mutableStateOf(false) }
-    val chosen = categories.firstOrNull { it.id == selectedId }
-    TextButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "$word category: ${chosen?.name ?: LoanCategories.NAME}", color = Kassa.colors.ink, style = KassaType.bodyStrong,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
-        Text("Change", color = Kassa.colors.ink2, style = KassaType.small)
-    }
-    if (picking) Choices(
-        "$word category",
-        listOf(DEFAULT_CATEGORY to "${LoanCategories.NAME} (default)") + LoanCategories.choices(categories),
-        selectedId ?: DEFAULT_CATEGORY,
-        onPick = { id -> onPick(id.takeIf { v -> v != DEFAULT_CATEGORY }); picking = false },
-        onDismiss = { picking = false },
+internal fun InterestCategoryRow(word: String, categories: List<Category>, selectedId: Long?, onPick: (Long?) -> Unit, loanDefaultId: Long? = null) {
+    CategoryChoiceRow(
+        "$word category", selectedId, categories, onPick,
+        defaultCategory = categories.firstOrNull { it.id == loanDefaultId } ?: LoanCategories.interestCategory(categories),
+        defaultText = categories.firstOrNull { it.id == loanDefaultId }?.let { categoryPath(it, categories) } ?: LoanCategories.NAME,
     )
+}
+
+/**
+ * Where the principal counts as spending: null means the same category as the interest. [interestId] is that category's id
+ * (null for the default), so the row can say which it is.
+ */
+@Composable
+internal fun PrincipalCategoryRow(categories: List<Category>, selectedId: Long?, interestId: Long?, onPick: (Long?) -> Unit) {
+    val interest = categories.firstOrNull { it.id == interestId } ?: LoanCategories.interestCategory(categories)
+    val same = "Same as interest (${interest?.let { categoryPath(it, categories) } ?: LoanCategories.NAME})"
+    CategoryChoiceRow("Principal category", selectedId, categories, onPick, defaultCategory = interest, defaultText = same, topOption = same)
+}
+
+/** The loan's switch for counting the whole payment as spending, with the text under it. The same on the setup form and in Edit details. */
+@Composable
+internal fun SpendingSwitch(on: Boolean, onChange: (Boolean) -> Unit) {
+    SwitchRow(
+        "Count the whole payment as spending",
+        "Spending, Insights and budgets include the principal. Balances and net worth stay the same.",
+        on, onChange,
+    )
+}
+
+/**
+ * The loan's category rows and spending switch, from the mockup: the interest category, the switch, and, while it is on, the
+ * principal category. Shared by the setup form and Edit details, so both read the same.
+ */
+@Composable
+internal fun LoanCategoryFields(
+    word: String, categories: List<Category>,
+    interestId: Long?, onInterest: (Long?) -> Unit,
+    counts: Boolean, onCounts: (Boolean) -> Unit,
+    principalId: Long?, onPrincipal: (Long?) -> Unit,
+) {
+    InterestCategoryRow(word, categories, interestId, onInterest)
+    if (counts) PrincipalCategoryRow(categories, principalId, interestId, onPrincipal)
+    SpendingSwitch(counts, onCounts)
 }
 
 /** The original amount and start date, which only feed the progress bar on the loan page. */
@@ -306,10 +341,7 @@ fun LoanTermsSheet(
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
             Text("Add terms to ${account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("Its entries and balance stay as they are.", style = KassaType.small, color = Kassa.colors.ink2)
             Gap(4)
@@ -347,10 +379,7 @@ fun LoanDetailsSheet(
         if (field != null) problems = problems - field
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
             Text("Edit details", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Gap(4)
             NameField(form.name, { v -> edit(LoanField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[LoanField.NAME])
@@ -363,7 +392,12 @@ fun LoanDetailsSheet(
                 onFee = { v -> edit(LoanField.FEE) { it.copy(fee = v) } },
                 onEarlyCharge = { v -> edit(LoanField.EARLY_CHARGE) { it.copy(earlyCharge = v) } },
             )
-            InterestCategoryRow(terms.interestWord, ledger.categories, form.interestCategoryId) { id -> edit(null) { it.copy(interestCategoryId = id) } }
+            Label("Categories")
+            LoanCategoryFields(
+                terms.interestWord, ledger.categories, form.interestCategoryId, { id -> edit(null) { it.copy(interestCategoryId = id) } },
+                form.countAllAsSpending, { on -> edit(null) { it.copy(countAllAsSpending = on) } },
+                form.principalCategoryId, { id -> edit(null) { it.copy(principalCategoryId = id) } },
+            )
             Label("For the progress bar")
             ProgressFields(
                 form.original, { v -> edit(LoanField.ORIGINAL) { it.copy(original = v) } }, problems[LoanField.ORIGINAL],

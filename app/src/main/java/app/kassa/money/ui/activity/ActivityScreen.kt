@@ -46,6 +46,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.kassa.money.KassaApplication
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
@@ -113,10 +114,18 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
         if (q.isBlank()) kotlinx.coroutines.flow.flowOf(emptyList()) else entries.search(q)
     }
 
+    /**
+     * The month's entries and the search hits as spending sees them: a loan principal that counts is an expense in its
+     * category (see `CountedSpending`), so the totals, the Spending filter and the rows all agree.
+     */
+    private val counted = combine(txs, found, (app as KassaApplication).loans.state, categories) { list, hits, loans, cats ->
+        CountedSpending.apply(list, loans.payments, loans.terms, cats) to CountedSpending.apply(hits, loans.payments, loans.terms, cats)
+    }
+
     val ui: StateFlow<ActivityUi?> = combine(
         combine(month, query, filter) { m, q, f -> Triple(m, q, f) },
-        txs, found, categories, accounts,
-    ) { (m, q, f), list, hits, cats, accts ->
+        counted, categories, accounts,
+    ) { (m, q, f), (list, hits), cats, accts ->
         val catMap = cats.associateBy { it.id }
         val acctMap = accts.accounts.associateBy { it.id }
         val shown = list.filter {

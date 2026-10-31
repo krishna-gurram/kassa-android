@@ -70,6 +70,10 @@ data class LoanForm(
     val fee: String = "",
     val earlyCharge: String = "",
     val interestCategoryId: Long? = null,
+    /** Spending also counts each payment's principal (see [CountedSpending]). Off unless chosen. */
+    val countAllAsSpending: Boolean = false,
+    /** Where the principal counts when [countAllAsSpending]; null means the same category as the interest. */
+    val principalCategoryId: Long? = null,
 ) {
     val type: InterestType
         get() = when (kind) {
@@ -152,6 +156,7 @@ data class LoanForm(
             accountId = accountId, type = type, profit = profit, rate = rate, payment = 0, dueDay = due, nextPaymentDay = 0,
             escrow = optional(escrow) ?: 0L, fee = optional(fee) ?: 0L, earlyCharge = optionalRate(earlyCharge) ?: 0L,
             interestCategoryId = interestCategoryId, payFromId = payFromId,
+            countAllAsSpending = countAllAsSpending, principalCategoryId = principalCategoryId.takeIf { countAllAsSpending },
         )
         if (stage == LoanStage.NEW) {
             val amount = checkNotNull(newAmount)
@@ -222,16 +227,8 @@ data class LoanForm(
     }
 }
 
-/** The categories a payment's interest can go to: any expense category, in A to Z order. */
+/** The two categories loans make for themselves, "Loan interest" and "Escrow". Any expense category can stand in for either. */
 object LoanCategories {
-    /** Id to label for every active expense category and subcategory ("Loan interest: Car loan"), A to Z. */
-    fun choices(categories: List<Category>): List<Pair<Long, String>> {
-        val byId = categories.associateBy { it.id }
-        return categories.filter { it.kind == CategoryKind.EXPENSE && !it.hidden }
-            .map { c -> c.id to (c.parentId?.let { byId[it]?.name }?.let { "$it: ${c.name}" } ?: c.name) }
-            .sortedWith(Names.order { it.second })
-    }
-
     /** The "Loan interest" category: the top-level expense category with that name, if it exists and isn't archived. */
     fun interestCategory(categories: List<Category>): Category? =
         categories.firstOrNull { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden && it.name.equals(NAME, ignoreCase = true) }

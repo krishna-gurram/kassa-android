@@ -173,6 +173,45 @@ class LoanRepositoryTest {
         assertEquals(nov1, next())
     }
 
+    // ---------- count the whole payment as spending ----------
+
+    @Test
+    fun theSpendingSwitchChangesNoBalanceAndNoEntryAndIsKeptOnTheLinkAndTheTerms(): Unit = runBlocking {
+        val mortgage = db.categories().insert(CategoryEntity(0, "Mortgage", "EXPENSE", null, "emoji:\uD83C\uDFE0", 0, true, false, 0, null))
+        val salary = db.categories().insert(CategoryEntity(0, "Salary", "INCOME", null, "emoji:\uD83D\uDCB5", 0, true, false, 0, null))
+        val account = Account(id = loan, name = "Car loan", type = AccountType.LOAN, openingBalance = -2_148_000)
+        val base = db.loanTerms().forAccount(loan)!!.toDomain()
+        loans.updateDetails(account, base.copy(countAllAsSpending = true, principalCategoryId = mortgage))
+        assertEquals(true, db.loanTerms().forAccount(loan)!!.countAllAsSpending)
+        assertEquals(mortgage, db.loanTerms().forAccount(loan)!!.principalCategoryId)
+        // An income category can't hold the principal.
+        assertFailsWith<IllegalArgumentException> { loans.updateDetails(account, base.copy(countAllAsSpending = true, principalCategoryId = salary)) }
+
+        val p = loans.recordPayment(draft())
+        // Accounting is untouched: the principal is still a transfer, balances are as without the switch.
+        assertEquals(listOf("TRANSFER", "EXPENSE"), p.entryIds.map { db.transactions().byId(it)!!.kind })
+        assertEquals(-2_148_000L + 47_260L, balance(loan))
+        assertEquals(500_000L - 58_000L, balance(checking))
+        assertEquals(10_740L, spent())
+        // This payment turns it off for itself; the category is only kept while it counts.
+        val q = loans.recordPayment(draft(id = p.id).copy(countAllAsSpending = false, principalCategoryId = mortgage))
+        assertEquals(false, db.loanPayments().byId(q.id)!!.countAllAsSpending)
+        assertEquals(null, db.loanPayments().byId(q.id)!!.principalCategoryId)
+        // And on again with its own category, still one payment and the same entries.
+        val r = loans.recordPayment(draft(id = p.id).copy(countAllAsSpending = true, principalCategoryId = mortgage))
+        assertEquals(mortgage, db.loanPayments().byId(r.id)!!.principalCategoryId)
+        assertEquals(1, db.loanPayments().all().size)
+        assertEquals(2, db.transactions().all().size)
+        assertFailsWith<IllegalArgumentException> { loans.recordPayment(draft(id = p.id).copy(principalCategoryId = salary)) }
+
+        // Turning the loan's switch off clears its principal category and leaves every payment and entry alone.
+        loans.updateDetails(account, db.loanTerms().forAccount(loan)!!.toDomain().copy(countAllAsSpending = false))
+        assertEquals(null, db.loanTerms().forAccount(loan)!!.principalCategoryId)
+        assertEquals(2, db.transactions().all().size)
+        loans.deletePayment(p.id)
+        assertEquals(0, db.loanPayments().all().size)
+    }
+
     // ---------- term changes ----------
 
     @Test

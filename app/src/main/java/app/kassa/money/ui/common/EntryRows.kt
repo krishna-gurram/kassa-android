@@ -38,6 +38,8 @@ fun TransactionRow(
     val person = t.personId?.let { id -> ledger.people.people.firstOrNull { it.id == id }?.name }
     // An entry of a loan payment (principal, interest, escrow or charge) says which, and opens the whole payment.
     val loanTag = ledger.loans.tagFor(t.id)
+    // The principal of a payment that counts as spending says so, wherever it shows (see CountedSpending).
+    val counted = ledger.loans.countsAsSpending(t.id)
     when (t.kind) {
         TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> {
             // A change, not money moving: an arrow and the size, in what the account shows (owed, for a debt).
@@ -59,7 +61,12 @@ fun TransactionRow(
                 // A payment to a card is a credit on it: green, like a refund.
                 amount = Money.format(t.amount, showPlus = to?.type?.hasStatement == true),
                 amountColor = if (to?.type?.hasStatement == true) Kassa.colors.positive else Kassa.colors.ink2,
-                note = noteOverride ?: when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
+                note = noteOverride ?: when {
+                    to?.type?.hasStatement == true -> "Card payment"
+                    counted -> "Counts as spending"
+                    t.note.isNotBlank() -> t.note
+                    else -> "Transfer"
+                },
                 showDivider = showDivider, modifier = m, tag = loanTag,
             )
         }
@@ -85,7 +92,7 @@ fun TransactionRow(
             EntryRow(
                 badge = { CategoryBadge(parent ?: cat) },
                 title = t.note.ifBlank { cat?.name ?: "Uncategorized" },
-                subtitle = date + listOfNotNull(cat?.name ?: "Uncategorized", share).joinToString(", "),
+                subtitle = date + listOfNotNull(cat?.name ?: "Uncategorized", share, "counts as spending".takeIf { counted }).joinToString(", "),
                 amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
                 amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
                 note = noteOverride ?: acct ?: person?.let { "Paid by $it" },

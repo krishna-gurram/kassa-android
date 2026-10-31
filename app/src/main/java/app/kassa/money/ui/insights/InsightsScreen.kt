@@ -137,11 +137,11 @@ internal fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpoch
 @Composable
 private fun MonthHero(ledger: Ledger) {
     val p = ledger.period
-    val spent = Patterns.spent(ledger.recent, p.start, ledger.today, ledger.zone)
+    val spent = Patterns.spent(ledger.counted, p.start, ledger.today, ledger.zone)
     val prev = Period.startingIn(p.yearMonth.minusMonths(1), ledger.monthStartDay)
     val (from, to) = Patterns.samePointBefore(p.start, ledger.today, prev.start)
-    val before = Patterns.spent(ledger.recent, from, to, ledger.zone)
-    val hasBefore = ledger.recent.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
+    val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
+    val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
     Hero("Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}", spent) {
         if (hasBefore) Compare("${prev.yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} by the ${ordinal(to.dayOfMonth)}", before)
     }
@@ -162,12 +162,12 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int?, mod
 private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
     val p = ledger.period
     val monthBiggest = remember(ledger) { bigPurchases(ledger, week = false) }
-    val stores = remember(ledger) { Patterns.stores(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
-    val small = remember(ledger) { Patterns.smallBuys(ledger.recent, ledger.categoryById, p.start, ledger.today, ledger.zone) }
-    val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.recent, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
-    val creep = remember(ledger) { Patterns.creeping(ledger.recent, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val stores = remember(ledger) { Patterns.stores(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val small = remember(ledger) { Patterns.smallBuys(ledger.counted, ledger.categoryById, p.start, ledger.today, ledger.zone) }
+    val smallMonths = remember(ledger) { Patterns.smallBuysByMonth(ledger.counted, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone) }
+    val creep = remember(ledger) { Patterns.creeping(ledger.counted, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone) }
     val repeating = remember(ledger) { ledger.repeats.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE } }
-    val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.recent, ledger.categories, ledger.today, ledger.zone) }
+    val weekdays = remember(ledger) { Insights.weekdayAverages(ledger.counted, ledger.categories, ledger.today, ledger.zone) }
     val busiest = weekdays.maxByOrNull { it.second }
     val changed = repeating.count { it.change != 0L }
 
@@ -214,10 +214,10 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions) {
 @Composable
 private fun WeekHero(ledger: Ledger, actions: InsightActions) {
     val monday = ledger.weekStart
-    val days = Patterns.daysThisWeek(ledger.recent, ledger.today, ledger.zone, ledger.firstDayOfWeek)
+    val days = Patterns.daysThisWeek(ledger.counted, ledger.today, ledger.zone, ledger.firstDayOfWeek)
     val spent = days.sumOf { it.second ?: 0L }
     val (from, to) = Patterns.samePointBefore(monday, ledger.today, monday.minusWeeks(1))
-    val before = Patterns.spent(ledger.recent, from, to, ledger.zone)
+    val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val max = (days.maxOfOrNull { it.second ?: 0L } ?: 0L).coerceAtLeast(1L)
     Hero("Spent this week", spent) {
         Compare("Last week by ${ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}", before)
@@ -258,19 +258,19 @@ internal fun duesThisWeek(ledger: Ledger) = ledger.cards()
 /** The 10 largest expenses this week or this budget month, largest first (fewer if there aren't 10). */
 internal fun bigPurchases(ledger: Ledger, week: Boolean): List<Transaction> {
     val from = if (week) ledger.weekStart else ledger.period.start
-    return ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(from) && !dateOf(it, ledger).isAfter(ledger.today) }
+    return ledger.counted.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(from) && !dateOf(it, ledger).isAfter(ledger.today) }
         .sortedByDescending { it.categoryAmount }.take(10)
 }
 
 private fun weekExpenses(ledger: Ledger): List<Transaction> {
     val monday = ledger.weekStart
-    return ledger.recent.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
+    return ledger.counted.filter { it.kind == TxKind.EXPENSE && !dateOf(it, ledger).isBefore(monday) && !dateOf(it, ledger).isAfter(ledger.today) }
 }
 
 /** Up and down most against last week, what's due before Sunday, and the biggest purchase: four tiles, two rows. */
 @Composable
 private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
-    val changes = Patterns.weekChanges(ledger.recent, ledger.categories, ledger.today, ledger.zone, ledger.firstDayOfWeek)
+    val changes = Patterns.weekChanges(ledger.counted, ledger.categories, ledger.today, ledger.zone, ledger.firstDayOfWeek)
     val up = changes.filter { it.change > 0 }.maxByOrNull { it.change }
     val down = changes.filter { it.change < 0 }.minByOrNull { it.change }
     val dues = duesThisWeek(ledger)

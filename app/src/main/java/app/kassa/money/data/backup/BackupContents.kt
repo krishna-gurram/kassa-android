@@ -90,6 +90,7 @@ data class BackupContents(
                 .putOpt("termMonths", it.termMonths).putOpt("originalAmount", it.originalAmount).putOpt("startDay", it.startDay)
                 .put("nextPaymentDay", it.nextPaymentDay).put("dueDay", it.dueDay).put("escrow", it.escrow).put("fee", it.fee)
                 .put("earlyCharge", it.earlyCharge).putOpt("interestCategoryId", it.interestCategoryId).putOpt("payFromId", it.payFromId)
+                .put("countAllAsSpending", it.countAllAsSpending).putOpt("principalCategoryId", it.principalCategoryId)
         })
         .put("loanChanges", array(loanChanges) {
             put("id", it.id).put("accountId", it.accountId).put("effectiveDay", it.effectiveDay).putOpt("rate", it.rate)
@@ -99,6 +100,7 @@ data class BackupContents(
             put("id", it.id).put("accountId", it.accountId).put("day", it.day).put("amount", it.amount)
                 .putOpt("principalEntryId", it.principalEntryId).putOpt("interestEntryId", it.interestEntryId).putOpt("otherEntryId", it.otherEntryId)
                 .put("escrow", it.escrow).put("charge", it.charge).put("edited", it.edited).put("estimate", it.estimate).put("scheduled", it.scheduled)
+                .putOpt("countAllAsSpending", it.countAllAsSpending).putOpt("principalCategoryId", it.principalCategoryId)
         })
         .put("icons", JSONObject().also { o -> icons.forEach { (name, bytes) -> o.put(name, encodeBytes(bytes)) } })
         .toString()
@@ -141,7 +143,8 @@ data class BackupContents(
                 loanTerms = j.rows("loanTerms") {
                     LoanTermsEntity(getLong("accountId"), getString("type"), getBoolean("profit"), getLong("rate"), getLong("payment"),
                         intOrNull("termMonths"), longOrNull("originalAmount"), intOrNull("startDay"), getInt("nextPaymentDay"), getInt("dueDay"),
-                        getLong("escrow"), getLong("fee"), getLong("earlyCharge"), longOrNull("interestCategoryId"), longOrNull("payFromId"))
+                        getLong("escrow"), getLong("fee"), getLong("earlyCharge"), longOrNull("interestCategoryId"), longOrNull("payFromId"),
+                        optBoolean("countAllAsSpending", false), longOrNull("principalCategoryId"))
                 },
                 loanChanges = j.rows("loanChanges") {
                     LoanTermChangeEntity(getLong("id"), getLong("accountId"), getInt("effectiveDay"), longOrNull("rate"), longOrNull("payment"),
@@ -150,7 +153,8 @@ data class BackupContents(
                 loanPayments = j.rows("loanPayments") {
                     LoanPaymentEntity(getLong("id"), getLong("accountId"), getInt("day"), getLong("amount"), longOrNull("principalEntryId"),
                         longOrNull("interestEntryId"), longOrNull("otherEntryId"), getLong("escrow"), getLong("charge"), getBoolean("edited"),
-                        getLong("estimate"), getBoolean("scheduled"))
+                        getLong("estimate"), getBoolean("scheduled"),
+                        booleanOrNull("countAllAsSpending"), longOrNull("principalCategoryId"))
                 },
                 icons = j.optJSONObject("icons")?.let { o -> o.keys().asSequence().associateWith { decodeBytes(o.getString(it)) } }.orEmpty(),
             )
@@ -168,6 +172,7 @@ data class BackupContents(
 
         private fun JSONObject.longOrNull(k: String): Long? = if (has(k) && !isNull(k)) getLong(k) else null
         private fun JSONObject.intOrNull(k: String): Int? = if (has(k) && !isNull(k)) getInt(k) else null
+        private fun JSONObject.booleanOrNull(k: String): Boolean? = if (has(k) && !isNull(k)) getBoolean(k) else null
         private fun JSONObject.stringOrNull(k: String): String? = if (has(k) && !isNull(k)) getString(k) else null
     }
 }

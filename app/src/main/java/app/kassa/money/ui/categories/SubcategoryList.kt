@@ -70,7 +70,7 @@ fun SubcategoryList(
     // This month's figures per subcategory.
     val p = ledger.period
     val figures = HashMap<Long, Pair<Long, Int>>()
-    for (t in ledger.recent) {
+    for (t in ledger.counted) {
         if (t.kind != TxKind.EXPENSE && t.kind != TxKind.INCOME) continue
         val id = t.categoryId ?: continue
         val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()

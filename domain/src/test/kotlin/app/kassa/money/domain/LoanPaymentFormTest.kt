@@ -201,4 +201,40 @@ class LoanPaymentFormTest {
         val f = start().withAmount("580", c).withInterest("110", c)
         assertEquals("Edited by you. Kassa's estimate was \$107.40 profit.", f.hint(c))
     }
+
+    @Test
+    fun theSwitchOnASheetOnlyOverridesThatPayment() {
+        val off = ctx()
+        val f = start().withAmount("580", off)
+        assertFalse(f.counts(off))
+        assertEquals(10_740, f.countedSpending(off))
+        // Turning it on for this payment counts the principal too.
+        val on = f.withCounts(true, off)
+        assertEquals(true, on.countOverride)
+        assertEquals(58_000, on.countedSpending(off))
+        // Choosing what the loan already does clears the override.
+        assertNull(on.withCounts(false, off).countOverride)
+
+        val loanOn = ctx(terms().copy(countAllAsSpending = true))
+        val g = start().withAmount("580", loanOn)
+        assertTrue(g.counts(loanOn))
+        assertEquals(58_000, g.countedSpending(loanOn))
+        val override = g.withCounts(false, loanOn)
+        assertEquals(false, override.countOverride)
+        assertEquals(10_740, override.countedSpending(loanOn))
+        assertNull(override.withCounts(true, loanOn).countOverride)
+    }
+
+    @Test
+    fun escrowAndChargeAlwaysCountAndASavedPaymentOpensWithItsChoices() {
+        val t = terms(escrow = 40_000)
+        val c = ctx(t)
+        val f = start().withAmount("980", c)
+        assertEquals(10_740 + 40_000, f.countedSpending(c))
+        val saved = LoanPayment(4, 1, nov1, 98_000, 10, 11, 12, 40_000, 0, false, 10_740, true, countAllAsSpending = true, principalCategoryId = 8)
+        val again = LoanPaymentForm.of(saved, 47_260, 10_740, 5, null)
+        assertEquals(true, again.countOverride)
+        assertEquals(8L, again.principalCategoryId)
+        assertTrue(again.counts(c))
+    }
 }

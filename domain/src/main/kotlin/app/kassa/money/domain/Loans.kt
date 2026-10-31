@@ -64,6 +64,13 @@ data class LoanTerms(
     val interestCategoryId: Long? = null,
     /** The account payments start from; null means nothing is preselected. */
     val payFromId: Long? = null,
+    /**
+     * Spending, Insights and budgets also count each payment's principal (see [CountedSpending]). Balances and net
+     * worth never change. A payment can turn it off or on for itself ([LoanPayment.countAllAsSpending]).
+     */
+    val countAllAsSpending: Boolean = false,
+    /** Where the principal counts as spending; null means the same category as the interest. */
+    val principalCategoryId: Long? = null,
 ) {
     /** The word screens use for the cost of borrowing. */
     val interestWord: String get() = if (profit) "Profit" else "Interest"
@@ -169,6 +176,10 @@ data class LoanPayment(
     val estimate: Long,
     /** It covered the scheduled payment, so it moved the next payment date on by a month. */
     val scheduled: Boolean,
+    /** Counts the principal as spending for this payment only: null follows the loan, true is on, false is off. */
+    val countAllAsSpending: Boolean? = null,
+    /** Where this payment's principal counts; null means the loan's principal category. */
+    val principalCategoryId: Long? = null,
 ) {
     val entryIds: List<Long> get() = listOfNotNull(principalEntryId, interestEntryId, otherEntryId)
 }

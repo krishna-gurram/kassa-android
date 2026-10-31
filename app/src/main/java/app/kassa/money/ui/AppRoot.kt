@@ -48,6 +48,9 @@ import app.kassa.money.ui.loans.LoanPaymentSheet
 import app.kassa.money.ui.loans.LoanTermsSheet
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.ConfirmDialog
+import app.kassa.money.domain.Category
+import app.kassa.money.domain.subcategory
+import app.kassa.money.ui.common.LocalAddSubcategory
 import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.MessageHost
 import app.kassa.money.ui.common.Messages
@@ -114,137 +117,143 @@ fun AppRoot(
         if (nav.stack.isNotEmpty()) nav.pop() else nav.select(Tab.TODAY)
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Kassa.colors.ground)) {
-        val wide = maxWidth >= 600.dp
-        app.split = maxWidth >= 720.dp
-        val l = ledger
-        val top = nav.top
+    // The category picker's "+ New" makes a subcategory through the view model, wherever the picker is shown.
+    val addSubcategory: (Category, String, (Long) -> Unit) -> Unit = remember(vm) {
+        { parent, name, then -> vm.saveCategory(parent.subcategory(name), null, then = then); Unit }
+    }
+    CompositionLocalProvider(LocalAddSubcategory provides addSubcategory) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Kassa.colors.ground)) {
+            val wide = maxWidth >= 600.dp
+            app.split = maxWidth >= 720.dp
+            val l = ledger
+            val top = nav.top
 
-        when {
-            entryCount < 0 || l == null -> Unit
-            entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                if (settingUp) StartFresh(
-                    onDone = { categories, account -> vm.startFresh(categories, account); fresh = true; onStartFresh() },
-                    onBack = { settingUp = false },
-                )
-                else ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() }, onStartFresh = { settingUp = true })
+            when {
+                entryCount < 0 || l == null -> Unit
+                entryCount == 0 && l.accounts.accounts.isEmpty() && !fresh -> Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    if (settingUp) StartFresh(
+                        onDone = { categories, account -> vm.startFresh(categories, account); fresh = true; onStartFresh() },
+                        onBack = { settingUp = false },
+                    )
+                    else ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() }, onStartFresh = { settingUp = true })
+                }
+                else -> Shell(nav.tab, onTab = nav::select, onAdd = { app.newEntry(from = nav.top) }, showAdd = nav.stack.isEmpty()) { padding ->
+                    CompositionLocalProvider(LocalMessages provides messages) { Tabs(app, l, padding, wide) }
+                }
             }
-            else -> Shell(nav.tab, onTab = nav::select, onAdd = { app.newEntry(from = nav.top) }, showAdd = nav.stack.isEmpty()) { padding ->
-                CompositionLocalProvider(LocalMessages provides messages) { Tabs(app, l, padding, wide) }
-            }
-        }
 
-        // A page that takes the whole screen slides in over the tabs, which stay composed underneath so going
-        // back returns to the same scroll position.
-        val fullPage = top?.takeIf { !wide || !it.besideList }
-        var lastFull by remember { mutableStateOf<Page?>(null) }
-        if (fullPage != null) lastFull = fullPage
-        AnimatedVisibility(
-            visible = fullPage != null && l != null,
-            enter = slideInHorizontally(tween(240)) { it / 5 } + fadeIn(tween(200)),
-            exit = slideOutHorizontally(tween(200)) { it / 5 } + fadeOut(tween(160)),
-        ) {
-            val page = lastFull
-            if (page != null && l != null) Box(
-                Modifier.fillMaxSize().background(Kassa.colors.ground)
-                    // Swallows touches so nothing underneath reacts.
-                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
-                    .windowInsetsPadding(WindowInsets.safeDrawing),
+            // A page that takes the whole screen slides in over the tabs, which stay composed underneath so going
+            // back returns to the same scroll position.
+            val fullPage = top?.takeIf { !wide || !it.besideList }
+            var lastFull by remember { mutableStateOf<Page?>(null) }
+            if (fullPage != null) lastFull = fullPage
+            AnimatedVisibility(
+                visible = fullPage != null && l != null,
+                enter = slideInHorizontally(tween(240)) { it / 5 } + fadeIn(tween(200)),
+                exit = slideOutHorizontally(tween(200)) { it / 5 } + fadeOut(tween(160)),
             ) {
-                // Card, account and category pages keep Add, which starts the entry with that card or category picked.
-                val offersAdd = app.presetFor(page) != null
-                val bottom = if (offersAdd) ADD_BUTTON_CLEARANCE else 24.dp
-                key(page) { PageContent(app, page, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = bottom), onBack = nav::pop) }
-                if (offersAdd) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) { AddButton { app.newEntry(from = page) } }
-            }
-        }
-
-        // Messages sit bottom left, level with Add and stopping short of it, so Add always works while one shows.
-        MessageHost(
-            snackbar,
-            Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 16.dp, end = ADD_BUTTON_CLEARANCE, bottom = if (!wide && top == null) NAV_BAR_HEIGHT + 16.dp else 16.dp),
-        )
-
-        if (l != null) {
-            app.allocating?.let { t ->
-                AllocateSheet(
-                    t, l,
-                    onCash = { app.vm.keepTransferAsCash(t.id); app.allocating = null },
-                    onRecorded = { app.vm.clearTransfer(t.id); app.allocating = null },
-                    onBuy = { o -> app.vm.buy(t.accountId, o.ticker, o.microShares, o.price, o.at, transferId = t.id); app.allocating = null },
-                    onDismiss = { app.allocating = null },
-                )
-            }
-            app.paying?.let { id ->
-                l.cards().firstOrNull { it.account.id == id }?.let { card ->
-                    PaySheet(card, l, onDismiss = { app.paying = null }, onPay = { draft -> app.paying = null; app.vm.save(draft) })
+                val page = lastFull
+                if (page != null && l != null) Box(
+                    Modifier.fillMaxSize().background(Kassa.colors.ground)
+                        // Swallows touches so nothing underneath reacts.
+                        .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
+                ) {
+                    // Card, account and category pages keep Add, which starts the entry with that card or category picked.
+                    val offersAdd = app.presetFor(page) != null
+                    val bottom = if (offersAdd) ADD_BUTTON_CLEARANCE else 24.dp
+                    key(page) { PageContent(app, page, l, PaddingValues(start = 12.dp, end = 16.dp, top = 4.dp, bottom = bottom), onBack = nav::pop) }
+                    if (offersAdd) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) { AddButton { app.newEntry(from = page) } }
                 }
             }
-            app.payingLoan?.let { id ->
-                val loan = l.accountById[id]
-                val terms = l.loans.terms[id]
-                val close = { app.payingLoan = null }
-                if (loan != null && terms != null) LoanPaymentSheet(
-                    loan, terms, l, editing = null, onDismiss = close,
-                    onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
-                )
-            }
-            app.editingLoanPayment?.let { detail ->
-                val loan = l.accountById[detail.payment.accountId]
-                val terms = l.loans.terms[detail.payment.accountId]
-                val close = { app.editingLoanPayment = null }
-                if (loan != null && terms != null) LoanPaymentSheet(
-                    loan, terms, l, editing = detail, onDismiss = close,
-                    onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
-                    onDelete = { app.vm.deleteLoanPayment(detail.payment.id, onDone = close) },
-                )
-            }
-            app.addingTermsTo?.let { id ->
-                l.accountById[id]?.let { account ->
-                    LoanTermsSheet(
-                        account, l, onDismiss = { app.addingTermsTo = null },
-                        onSave = { updated, terms, done -> app.vm.addLoanTerms(updated, terms, onDone = done) },
+
+            // Messages sit bottom left, level with Add and stopping short of it, so Add always works while one shows.
+            MessageHost(
+                snackbar,
+                Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(start = 16.dp, end = ADD_BUTTON_CLEARANCE, bottom = if (!wide && top == null) NAV_BAR_HEIGHT + 16.dp else 16.dp),
+            )
+
+            if (l != null) {
+                app.allocating?.let { t ->
+                    AllocateSheet(
+                        t, l,
+                        onCash = { app.vm.keepTransferAsCash(t.id); app.allocating = null },
+                        onRecorded = { app.vm.clearTransfer(t.id); app.allocating = null },
+                        onBuy = { o -> app.vm.buy(t.accountId, o.ticker, o.microShares, o.price, o.at, transferId = t.id); app.allocating = null },
+                        onDismiss = { app.allocating = null },
                     )
                 }
-            }
-            app.editingLoanDetails?.let { id ->
-                val loan = l.accountById[id]
-                val terms = l.loans.terms[id]
-                if (loan != null && terms != null) LoanDetailsSheet(
-                    loan, terms, l, onDismiss = { app.editingLoanDetails = null },
-                    onSave = { updated, newTerms, done -> app.vm.updateLoanDetails(updated, newTerms, onDone = done) },
-                )
-            }
-            app.correcting?.let { c ->
-                val account = l.accountById[c.accountId]
-                val close = { app.correcting = null }
-                if (account != null) BalanceCorrectionSheet(
-                    l, account, c.editing, onDismiss = close,
-                    onSave = { target, at, done -> app.vm.correctBalance(account.id, target, at, c.editing?.id, onDone = done) },
-                    onDelete = c.editing?.let { t -> val delete: () -> Unit = { app.vm.deleteCorrection(t.id, onDone = close) }; delete },
-                )
-            }
-            app.editingTrade?.let { t ->
-                val close = { app.editingTrade = null }
-                TradeEditSheet(
-                    t, l.trades[t.id], l.today, l.zone,
-                    onSave = { o -> app.vm.editTrade(t, o.ticker, o.microShares, o.price, o.at, close) },
-                    onMove = { at -> app.vm.moveTrade(t, at, close) },
-                    onDelete = { app.vm.deleteTrade(t, close) },
-                    onDismiss = close,
-                )
-            }
-            app.editingPayment?.let { t ->
-                val close = { app.editingPayment = null }
-                l.people.people.firstOrNull { it.id == t.personId }?.let { person ->
-                    PaymentSheet(
-                        person, l.personBalances()[person.id] ?: 0, l,
+                app.paying?.let { id ->
+                    l.cards().firstOrNull { it.account.id == id }?.let { card ->
+                        PaySheet(card, l, onDismiss = { app.paying = null }, onPay = { draft -> app.paying = null; app.vm.save(draft) })
+                    }
+                }
+                app.payingLoan?.let { id ->
+                    val loan = l.accountById[id]
+                    val terms = l.loans.terms[id]
+                    val close = { app.payingLoan = null }
+                    if (loan != null && terms != null) LoanPaymentSheet(
+                        loan, terms, l, editing = null, onDismiss = close,
+                        onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
+                    )
+                }
+                app.editingLoanPayment?.let { detail ->
+                    val loan = l.accountById[detail.payment.accountId]
+                    val terms = l.loans.terms[detail.payment.accountId]
+                    val close = { app.editingLoanPayment = null }
+                    if (loan != null && terms != null) LoanPaymentSheet(
+                        loan, terms, l, editing = detail, onDismiss = close,
+                        onSave = { draft -> app.vm.recordLoanPayment(draft, onDone = close) },
+                        onDelete = { app.vm.deleteLoanPayment(detail.payment.id, onDone = close) },
+                    )
+                }
+                app.addingTermsTo?.let { id ->
+                    l.accountById[id]?.let { account ->
+                        LoanTermsSheet(
+                            account, l, onDismiss = { app.addingTermsTo = null },
+                            onSave = { updated, terms, done -> app.vm.addLoanTerms(updated, terms, onDone = done) },
+                        )
+                    }
+                }
+                app.editingLoanDetails?.let { id ->
+                    val loan = l.accountById[id]
+                    val terms = l.loans.terms[id]
+                    if (loan != null && terms != null) LoanDetailsSheet(
+                        loan, terms, l, onDismiss = { app.editingLoanDetails = null },
+                        onSave = { updated, newTerms, done -> app.vm.updateLoanDetails(updated, newTerms, onDone = done) },
+                    )
+                }
+                app.correcting?.let { c ->
+                    val account = l.accountById[c.accountId]
+                    val close = { app.correcting = null }
+                    if (account != null) BalanceCorrectionSheet(
+                        l, account, c.editing, onDismiss = close,
+                        onSave = { target, at, done -> app.vm.correctBalance(account.id, target, at, c.editing?.id, onDone = done) },
+                        onDelete = c.editing?.let { t -> val delete: () -> Unit = { app.vm.deleteCorrection(t.id, onDone = close) }; delete },
+                    )
+                }
+                app.editingTrade?.let { t ->
+                    val close = { app.editingTrade = null }
+                    TradeEditSheet(
+                        t, l.trades[t.id], l.today, l.zone,
+                        onSave = { o -> app.vm.editTrade(t, o.ticker, o.microShares, o.price, o.at, close) },
+                        onMove = { at -> app.vm.moveTrade(t, at, close) },
+                        onDelete = { app.vm.deleteTrade(t, close) },
                         onDismiss = close,
-                        onSave = { draft -> app.vm.save(draft, onDone = close) },
-                        editing = t,
-                        onDelete = { app.vm.delete(t.id); close() },
                     )
+                }
+                app.editingPayment?.let { t ->
+                    val close = { app.editingPayment = null }
+                    l.people.people.firstOrNull { it.id == t.personId }?.let { person ->
+                        PaymentSheet(
+                            person, l.personBalances()[person.id] ?: 0, l,
+                            onDismiss = close,
+                            onSave = { draft -> app.vm.save(draft, onDone = close) },
+                            editing = t,
+                            onDelete = { app.vm.delete(t.id); close() },
+                        )
+                    }
                 }
             }
         }

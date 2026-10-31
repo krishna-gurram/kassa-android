@@ -172,6 +172,10 @@ data class LoanTermsEntity(
     val earlyCharge: Long,
     val interestCategoryId: Long?,
     val payFromId: Long?,
+    /** Schema 10: spending also counts each payment's principal. */
+    @ColumnInfo(defaultValue = "0") val countAllAsSpending: Boolean = false,
+    /** Schema 10: where that principal counts; null means the interest category. */
+    val principalCategoryId: Long? = null,
 )
 
 /** A [LoanTermChange]: new terms from a date on. */
@@ -204,6 +208,10 @@ data class LoanPaymentEntity(
     val edited: Boolean,
     val estimate: Long,
     val scheduled: Boolean,
+    /** Schema 10: this payment's own choice about counting its principal as spending; null follows the loan. */
+    val countAllAsSpending: Boolean? = null,
+    /** Schema 10: where this payment's principal counts; null means the loan's principal category. */
+    val principalCategoryId: Long? = null,
 )
 
 /** Result row for the loan payments query: what a payment's entries hold, see `LoanPaymentDao.observeExtras`. */
@@ -267,17 +275,19 @@ fun Trade.toEntity() = TradeEntity(id, transactionId, ticker, microShares, price
 
 fun LoanTermsEntity.toDomain() = LoanTerms(
     accountId, InterestType.valueOf(type), profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay,
-    escrow, fee, earlyCharge, interestCategoryId, payFromId,
+    escrow, fee, earlyCharge, interestCategoryId, payFromId, countAllAsSpending, principalCategoryId,
 )
 fun LoanTerms.toEntity() = LoanTermsEntity(
     accountId, type.name, profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay,
-    escrow, fee, earlyCharge, interestCategoryId, payFromId,
+    escrow, fee, earlyCharge, interestCategoryId, payFromId, countAllAsSpending, principalCategoryId,
 )
 fun LoanTermChangeEntity.toDomain() = LoanTermChange(id, accountId, effectiveDay, rate, payment, termMonths, type?.let(InterestType::valueOf))
 fun LoanTermChange.toEntity() = LoanTermChangeEntity(id, accountId, effectiveDay, rate, payment, termMonths, type?.name)
 fun LoanPaymentEntity.toDomain() = LoanPayment(
     id, accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled,
+    countAllAsSpending, principalCategoryId,
 )
 fun LoanPayment.toEntity() = LoanPaymentEntity(
     id, accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled,
+    countAllAsSpending, principalCategoryId,
 )

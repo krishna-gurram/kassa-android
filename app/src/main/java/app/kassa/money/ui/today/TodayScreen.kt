@@ -71,7 +71,7 @@ import java.util.Locale
 val CASH_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID)
 
 fun weekPace(ledger: Ledger): WeekPace.Result =
-    WeekPace.compute(ledger.recent, ledger.today, ledger.firstDayOfWeek, ledger.zone)
+    WeekPace.compute(ledger.counted, ledger.today, ledger.firstDayOfWeek, ledger.zone)
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
 /** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
@@ -363,7 +363,7 @@ fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> U
 
 /** Expenses from [from] through today, by top category, largest first. */
 private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: TxKind = TxKind.EXPENSE): List<Pair<app.kassa.money.domain.Category?, Long>> =
-    ledger.recent.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
+    ledger.counted.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
         .groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
 
@@ -391,7 +391,7 @@ fun SpendingPage(
     val loaded by remember(loadFrom, to) {
         load(loadFrom.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), to.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
     }.collectAsState(initial = null)
-    val txs = loaded ?: ledger.recent
+    val txs = loaded ?: ledger.counted
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
     val entries = txs.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(to) } }
     val lines = when {

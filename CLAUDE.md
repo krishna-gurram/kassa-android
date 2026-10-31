@@ -69,7 +69,10 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   `AccountForm` for the account forms) so the composables only lay things out.
 
 ## Database changes
-Schema 9 added `accounts.maturityDay` and `closedDay` (nullable epoch days); older backups read them as null.
+Schema 9 added `accounts.maturityDay` and `closedDay` (nullable epoch days); older backups read them as null. Schema 10
+added `loan_terms.countAllAsSpending` (NOT NULL DEFAULT 0, so the entity says `@ColumnInfo(defaultValue = "0")`) and
+`principalCategoryId`, and `loan_payments.countAllAsSpending` (nullable) and `principalCategoryId` (see Loans); older
+backups read the defaults.
 Bump `DATABASE_VERSION` and add a `Migration` to `ALL_MIGRATIONS`. Columns must match the entity exactly
 (type, nullability, indexes named `index_<table>_<column>`). CI installs the last published release on an emulator
 first and upgrades over it, so a bad migration fails the build instead of reaching the phone.
@@ -135,6 +138,14 @@ writing a new control, find the existing one; if it doesn't fit, change it rathe
   calendar). Never Material's `DatePicker`.
 - Amounts `AmountField`, names `NameField`, short numbers `DigitsField` (`ui/common/Fields.kt`); the entry and bill
   pages use `NumberPad`.
+- Categories: one picker everywhere (`ui/common/CategoryPicker.kt`). `CategoryPickerPanel` (search, icon grid) and
+  `SubcategoryPickerPanel` ("No subcategory", subcategories, "+ New") hold no state about what is being edited: the caller
+  passes what is picked and gets the id back. Add entry and the bill page put them on their own state (`EntryState`
+  `CategoryPanel`/`SubcategoryPanel`); a bottom sheet wraps its form in `CategoryPickerHost` and uses `CategoryChoiceRow`
+  (a `CategoryFieldRow`: icon tile, small label, "Parent › Child", chevron, 56dp), which swaps the sheet body for the same
+  panels with a back arrow and returns on a pick. Loan setup, Edit details and the payment sheet use it for interest,
+  principal and escrow; a null choice shows its default's name ("Loan interest", "Escrow", "Same as interest (X)"). "+ New"
+  creates through `LocalAddSubcategory` (AppRoot provides it). Never build a text row and a list for a category.
 - Pick-one choices `Chip`; one-tap answers `QuickButton`; anything that removes data `ConfirmDialog`;
   short messages `MessageHost`; Add `AddButton`.
 
@@ -186,7 +197,7 @@ pay from), `loan_term_changes` (a new rate, payment, term or type from a date; e
 - **Escrow category:** one shared "Escrow" expense category is made the first time a loan with escrow is saved (like Loan
   interest). The escrow (and early repayment charge) entry of a payment goes there unless the payment sheet names another; a
   loan starts its next payment from the category its last escrow entry went to (`LoansState.escrowCategory`), since a stored
-  per-loan override would need a `loan_terms` column. A loan's payment entries carry `LoanNotes`, which also keeps a steady
+  per-loan override would need a `loan_terms` column. (Its category row is the shared picker, with "Escrow" as the default.) A loan's payment entries carry `LoanNotes`, which also keeps a steady
   escrow or flat-rate interest out of the suggested bills.
 - **Loan page** (`AccountPage` for a loan with terms; `ui/loans/LoanPage.kt`): Outstanding balance (ink, no minus), a progress bar
   only when the original amount is known, then Payment (with its due date), Paid off, Interest (Profit) paid so far (the linked
@@ -194,13 +205,31 @@ pay from), `loan_term_changes` (a new rate, payment, term or type from a date; e
   remove), and Record a payment, Change terms, Edit details, Correct balance. Figures come from `LoanSummary.of`, so they use the
   terms in effect on each date. Activity rows of a payment carry a small tag (principal, interest, escrow, charge) and open the
   payment sheet (`LoansState.tagFor`); never split such an entry (the person page's list leaves them out).
+- **Count the whole payment as spending** (schema 10): a switch on the loan (setup form and Edit details, off by default; the same
+  `SpendingSwitch` and `LoanCategoryFields` in both) that makes spending figures also count each payment's principal, under a
+  **Principal category** (`loan_terms.principalCategoryId`; null means the same category as the interest, offered as "Same as
+  interest (name)" at the top of the picker). Accounting never changes: the principal stays a TRANSFER to the loan, interest and
+  escrow stay EXPENSEs, balances, net worth, card and loan figures and the loan engine read the real entries. The payment sheet
+  has the switch as a one-time override (`loan_payments.countAllAsSpending`: null follows the loan, 1 on, 0 off; choosing what the
+  loan already does clears it), a Principal category row while it counts (`loan_payments.principalCategoryId`, null means the
+  loan's), and a "Counts as spending" line in its summary. **One rule, `domain/CountedSpending`:** `apply(entries, payments,
+  terms, categories)` returns the entries as spending sees them, with each counted principal entry turned into an EXPENSE in
+  its principal category (payment's own, else the loan's, else where that payment's interest went, else the interest category,
+  else "Loan interest"; same id, account, date, amount and note). Only the entry a `loan_payments` row names as its principal,
+  and only a TRANSFER, can change; income, balance corrections (`ADJUST_*`) and every other transfer never do. Nothing is
+  rewritten, so it reaches past payments and turning it off restores every figure. Every figure of spending reads `Ledger.counted`
+  (and `Ledger.counted(list)`, `LedgerViewModel.countedBetween`, which the month, week, day and category pages load) or applies
+  the rule itself (Activity's totals and rows): Overview, Insights, budgets, spending lines, Activity. Cards, bills, repeats, due
+  notices and balances keep reading `Ledger.recent`. A new spending figure reads the counted list and keeps its explicit
+  `EXPENSE`/`INCOME` filter. Activity rows of a counted principal are expenses in the principal category, tagged "principal" with
+  "counts as spending" under the category; on the loan's own page the transfer says "Counts as spending".
 - **Change terms** (`Page.ChangeTerms`, `LoanChangeForm`): Rate, Payment, Interest type or Refinanced, from a date (future allowed,
   never before the loan's start). A rate change asks what the lender kept and previews the new payment or payoff from
   `LoanEngine.rateChange`. It saves one `loan_term_changes` row (`LoanRepository.addChange`); payments before it keep their split
   because the engine reads each date's terms. A change that gives a term always saves the payment that goes with it.
 - **Edit details** (`LoanDetailsForm`, `LoanDetailsSheet`): name, due day (moves the next payment date), pay from, escrow, fee, early
-  repayment charge, interest category, original amount and start. It reuses the setup form's pieces (`PayFromPicker`,
-  `DueDayField`, `CostFields`, `InterestCategoryRow`, `ProgressFields`).
+  repayment charge, interest category, the spending switch and principal category, original amount and start. It reuses the
+  setup form's pieces (`PayFromPicker`, `DueDayField`, `CostFields`, `LoanCategoryFields`, `ProgressFields`).
 - **Balance correction** (`domain/BalanceCorrection.kt`, `EntryRepository.correctBalance`, `BalanceCorrectionSheet`): a dated entry
   of kind `ADJUST_IN` (balance up) or `ADJUST_OUT` (down), amount positive. It is stored as text, so no schema change, moves the
   balance (the SQL balance sums and `effectOn` know it, so the loan engine and every payment check see it), backs up like any

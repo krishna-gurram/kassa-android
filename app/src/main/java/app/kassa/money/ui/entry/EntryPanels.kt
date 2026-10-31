@@ -56,7 +56,8 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.common.CategoryIconView
+import app.kassa.money.ui.common.CategoryPickerPanel
+import app.kassa.money.ui.common.SubcategoryPickerPanel
 import app.kassa.money.ui.common.MonthCalendar
 import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.importer.PrimaryButton
@@ -102,111 +103,25 @@ internal fun ColumnScope.AmountPanel(s: EntryState, toCard: CardSnapshot?, saveL
     ) { s.error = null; s.field = next }
 }
 
-/** Categories most used first; typing searches categories and subcategories together. */
+/** The shared category picker ([CategoryPickerPanel]) on the entry page's [EntryState]. */
 @Composable
-internal fun ColumnScope.CategoryPanel(s: EntryState, ledger: Ledger, categoryChoices: List<Category>, wide: Boolean) {
-    val focus = LocalFocusManager.current
-    val kind = if (s.kind == TxKind.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val picked = s.categoryId?.let { ledger.categoryById[it] }
-    val pickedTop = picked?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-    // A top-level category with subcategories opens them; anything else moves on.
-    val choose: (Category) -> Unit = { c ->
-        s.pickCategory(c.id)
-        if (c.parentId == null && subcategories(ledger, c).isNotEmpty()) s.field = Field.SUB else s.advance()
-    }
-
-    PanelSearch(s.query, { s.query = it }, "Search categories", onFocus = { s.searching = it }) { s.field = null }
-    val q = s.query.trim()
-    if (q.isEmpty()) {
-        LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(categoryChoices, key = { it.id }) { c ->
-                PickTile(on = pickedTop?.id == c.id, minHeight = 66.dp, onClick = { choose(c) }) {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CategoryIconView(c.icon, Color(c.color), 34, fallback = c.name.take(1))
-                        Text(c.name, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                    }
-                }
-            }
-        }
-        return
-    }
-    val hits = searchCategories(ledger, kind, q)
-    if (hits.isEmpty()) Text("No category matches \"$q\".", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
-    LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(hits, key = { it.id }) { c ->
-            val parent = c.parentId?.let { ledger.categoryById[it] }
-            PickTile(on = picked?.id == c.id, onClick = { s.searching = false; focus.clearFocus(); choose(c) }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CategoryIconView((parent ?: c).icon, Color((parent ?: c).color), 26, fallback = c.name.take(1))
-                    Column(Modifier.padding(start = 8.dp)) {
-                        Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (parent != null) Text(parent.name, style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        }
-    }
+internal fun ColumnScope.CategoryPanel(s: EntryState, ledger: Ledger, wide: Boolean) {
+    CategoryPickerPanel(
+        ledger.categories, if (s.kind == TxKind.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE, s.categoryId,
+        s.query, { s.query = it }, { s.searching = it }, wide, onDone = { s.field = null },
+        onPick = { id -> s.pickCategory(id); s.advance() },
+        // A top-level category with subcategories is picked first, then its subcategories open.
+        onOpenSubcategories = { c -> s.pickCategory(c.id); s.field = Field.SUB },
+    )
 }
 
-/**
- * A category's subcategories, "No subcategory" first, and "+ New" to add one without leaving the entry.
- * [onAdd] creates the subcategory and hands back its id.
- */
+/** The shared subcategory picker ([SubcategoryPickerPanel]) on the entry page's [EntryState]. */
 @Composable
-internal fun ColumnScope.SubcategoryPanel(s: EntryState, ledger: Ledger, top: Category, wide: Boolean, onAdd: (Category, String, (Long) -> Unit) -> Unit) {
-    var newName by remember(top.id) { mutableStateOf<String?>(null) }
-    val pickedId = s.categoryId
-    PanelTitle(top.name, back = { s.field = Field.CATEGORY }) { s.field = null }
-    LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        item(key = "none") {
-            PickTile(on = pickedId == top.id, onClick = { s.pickCategory(top.id); s.advance() }) {
-                Text("No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
-            }
-        }
-        items(subcategories(ledger, top), key = { it.id }) { sub ->
-            PickTile(on = pickedId == sub.id, onClick = { s.pickCategory(sub.id); s.advance() }) {
-                Text(sub.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        item(key = "new", span = { GridItemSpan(if (newName == null) 1 else maxLineSpan) }) {
-            val typed = newName
-            if (typed == null) PickTile(on = false, onClick = { newName = "" }) {
-                Text("+ New", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
-            } else NewSubcategory(
-                parent = top,
-                value = typed,
-                siblings = ledger.categories.filter { it.parentId == top.id }.map { it.name },
-                onChange = { newName = it },
-                onAdd = { name -> onAdd(top, name) { id -> s.pickCategory(id); newName = null; s.advance() } },
-            )
-        }
-    }
-}
-
-/** The field for a new subcategory's name, checked against [siblings] before [onAdd] gets the cleaned name. */
-@Composable
-private fun NewSubcategory(parent: Category, value: String, siblings: List<String>, onChange: (String) -> Unit, onAdd: (String) -> Unit) {
-    var problem by remember { mutableStateOf<String?>(null) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val add: () -> Unit = {
-        problem = InputRules.nameProblem(value, "subcategory", InputRules.CATEGORY_NAME_MAX,
-            taken = { n -> siblings.any { it.equals(n, ignoreCase = true) } })
-        if (problem == null) onAdd(InputRules.clean(value))
-    }
-    Row(verticalAlignment = Alignment.Top) {
-        OutlinedTextField(
-            value, { onChange(InputRules.typed(it, InputRules.CATEGORY_NAME_MAX)); problem = null }, singleLine = true,
-            placeholder = { Text("New under ${parent.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            isError = problem != null,
-            supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { add() }),
-            modifier = Modifier.weight(1f).focusRequester(focus),
-        )
-        TextButton(onClick = add, modifier = Modifier.padding(top = 4.dp)) { Text("Add", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
-    }
+internal fun ColumnScope.SubcategoryPanel(s: EntryState, ledger: Ledger, top: Category, wide: Boolean) {
+    SubcategoryPickerPanel(
+        ledger.categories, top, s.categoryId, wide, onBack = { s.field = Field.CATEGORY }, onDone = { s.field = null },
+        onPick = { id -> s.pickCategory(id); s.advance() },
+    )
 }
 
 /**

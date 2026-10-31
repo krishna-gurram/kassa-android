@@ -128,9 +128,9 @@ class BackupRoundTripTest {
         bills = listOf(RecurringEntity(1, "Rent", 1, 1, 1, 120_000, true, 202609)),
         holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000, 21_333), HoldingEntity(2, 1, "SCHD", 80_000_000, 2_750, 1_760_000_000_000)),
         trades = listOf(TradeEntity(1, 3, "VTI", 2_500_000, 25_050)),
-        loanTerms = listOf(LoanTermsEntity(3, "REDUCING", false, 61_250, 58_000, 60, 3_000_000, 20_500, 20_758, 1, 20_000, 15_000, 10_000, 2, 1)),
+        loanTerms = listOf(LoanTermsEntity(3, "REDUCING", false, 61_250, 58_000, 60, 3_000_000, 20_500, 20_758, 1, 20_000, 15_000, 10_000, 2, 1, countAllAsSpending = true, principalCategoryId = 2)),
         loanChanges = listOf(LoanTermChangeEntity(1, 3, 21_000, 72_500, null, null, null)),
-        loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true)),
+        loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true, countAllAsSpending = false, principalCategoryId = 2)),
         icons = emptyMap(),
     )
 }

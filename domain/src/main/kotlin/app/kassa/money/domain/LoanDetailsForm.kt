@@ -1,7 +1,7 @@
 package app.kassa.money.domain
 
 /**
- * Edit details on a loan: everything that has no date. Name, due day, pay from, interest category, escrow, fee, early
+ * Edit details on a loan: everything that has no date. Name, due day, pay from, interest category, whether the whole payment counts as spending and its principal category, escrow, fee, early
  * repayment charge, and the original amount and start date that only feed the progress bar. The rate, payment, term and
  * interest type are dated changes and live in [LoanChangeForm]. Plain Kotlin like [LoanForm], whose fields and
  * [LoanField] problems it shares, so a figure is checked the same way wherever it is typed.
@@ -11,6 +11,8 @@ data class LoanDetailsForm(
     val dueDay: String,
     val payFromId: Long?,
     val interestCategoryId: Long?,
+    val countAllAsSpending: Boolean,
+    val principalCategoryId: Long?,
     val escrow: String,
     val fee: String,
     val earlyCharge: String,
@@ -45,6 +47,7 @@ data class LoanDetailsForm(
         dueDay = checkNotNull(dueDay.toIntOrNull()),
         nextPaymentDay = checkNotNull(dueDay.toIntOrNull()).let { due -> if (due == terms.dueDay) terms.nextPaymentDay else LoanDates.addMonths(terms.nextPaymentDay, 0, due) },
         payFromId = payFromId, interestCategoryId = interestCategoryId,
+        countAllAsSpending = countAllAsSpending, principalCategoryId = principalCategoryId.takeIf { countAllAsSpending },
         escrow = optionalAmount(escrow) ?: 0, fee = optionalAmount(fee) ?: 0, earlyCharge = optionalRate(earlyCharge) ?: 0,
         originalAmount = Money.parseCents(original)?.takeIf { original.isNotBlank() }, startDay = startDay,
     )
@@ -52,6 +55,7 @@ data class LoanDetailsForm(
     companion object {
         fun of(name: String, terms: LoanTerms) = LoanDetailsForm(
             name = name, dueDay = terms.dueDay.toString(), payFromId = terms.payFromId, interestCategoryId = terms.interestCategoryId,
+            countAllAsSpending = terms.countAllAsSpending, principalCategoryId = terms.principalCategoryId,
             escrow = terms.escrow.takeIf { it > 0 }?.let { Money.toInput(it) } ?: "", fee = terms.fee.takeIf { it > 0 }?.let { Money.toInput(it) } ?: "",
             earlyCharge = terms.earlyCharge.takeIf { it > 0 }?.let { LoanRate.toInput(it) } ?: "",
             original = terms.originalAmount?.let { Money.toInput(it) } ?: "", startDay = terms.startDay,

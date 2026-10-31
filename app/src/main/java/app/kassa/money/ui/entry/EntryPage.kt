@@ -60,8 +60,6 @@ fun EntryPage(
     loadNotes: suspend (TxKind) -> List<String>,
     onSave: (EntryDraft) -> Unit,
     onDelete: (Long) -> Unit,
-    /** Creates a subcategory under the given category, then hands back its id. */
-    onAddSubcategory: (Category, String, (Long) -> Unit) -> Unit,
     onBack: () -> Unit,
 ) {
     val s = remember { EntryState(start, ledger.zone, ledger.today) }
@@ -79,8 +77,6 @@ fun EntryPage(
     }
     LaunchedEffect(s.kind) { notes = if (s.kind == TxKind.TRANSFER) emptyList() else loadNotes(s.kind) }
 
-    val catKind = if (s.kind == TxKind.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val categoryChoices = remember(s.kind, ledger.recent.size, ledger.categories) { topCategories(ledger, catKind) }
     val accountChoices = remember(s.kind, ledger.recent.size, ledger.accounts.accounts) { openAccounts(ledger) }
     val toChoices = remember(ledger.recent.size, ledger.accounts.accounts) { openAccounts(ledger) }
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
@@ -114,10 +110,10 @@ fun EntryPage(
                     when (s.field) {
                         // The pad is the resting state: with nothing else open, it stays up with the save button under it.
                         Field.AMOUNT, null -> AmountPanel(s, toCard, saveLabel, save)
-                        Field.CATEGORY -> CategoryPanel(s, ledger, categoryChoices, wide)
+                        Field.CATEGORY -> CategoryPanel(s, ledger, wide)
                         Field.SUB -> {
                             val top = s.categoryId?.let { ledger.categoryById[it] }?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
-                            if (top == null) s.field = Field.CATEGORY else SubcategoryPanel(s, ledger, top, wide, onAddSubcategory)
+                            if (top == null) s.field = Field.CATEGORY else SubcategoryPanel(s, ledger, top, wide)
                         }
                         Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide)
                         Field.DATE -> DatePanel(s, ledger.today)

@@ -9,6 +9,7 @@ import app.kassa.money.domain.Budget
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.CardCycle
 import app.kassa.money.domain.CardSnapshot
+import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InvestmentTransfer
@@ -55,6 +56,16 @@ data class Ledger(
     val categoryById: Map<Long, Category> = categories.associateBy { it.id }
     val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }
 
+    /**
+     * [recent] as spending sees it (see [CountedSpending]): a loan payment's principal comes back as an expense in its
+     * principal category when the loan counts the whole payment. Every figure of spending, Insights and budgets reads this;
+     * balances, cards and bills read [recent], which is never changed.
+     */
+    val counted: List<Transaction> by lazy { counted(recent) }
+
+    /** Any list of entries (a month, a day) as spending sees it; see [counted]. */
+    fun counted(list: List<Transaction>): List<Transaction> = CountedSpending.apply(list, loans.payments, loans.terms, categories)
+
     /** The budget month containing today. */
     val period: Period get() = Period.containing(today, monthStartDay)
 
@@ -78,7 +89,7 @@ data class Ledger(
     /** "Groceries: $412 of $600. On pace." Shown after saving an expense. */
     fun spendingLine(categoryId: Long?): String? {
         val top = Spending.topOf(categoryId, categoryById) ?: return null
-        val spent = Spending.byTopCategory(recent, categoryById, period.start, period.endInclusive, zone)[top.id] ?: 0
+        val spent = Spending.byTopCategory(counted, categoryById, period.start, period.endInclusive, zone)[top.id] ?: 0
         val budget = Budgets.amountFor(top.id, period.yearMonth, budgets)
         if (budget == null || budget == 0L) return "${top.name}: ${Money.format(spent, wholeDollars = true)} this month."
         val pace = budget * period.progress(today)

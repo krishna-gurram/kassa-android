@@ -82,7 +82,7 @@ fun CategoryPage(
     val loaded by remember(first.start, current.endInclusive) {
         load(first.start.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), current.endInclusive.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
     }.collectAsState(initial = null)
-    val txs = loaded ?: ledger.recent
+    val txs = loaded ?: ledger.counted
     val ids = ledger.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
     fun inPeriod(t: Transaction, q: Period) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { it in q }
     val kind = if (c.kind == app.kassa.money.domain.CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE
