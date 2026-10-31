@@ -21,7 +21,18 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew --no-daemon :app:assembleDebug --stacktrace
+      - name: Build the debug APK
+        run: |
+          mkdir -p ci-output
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace 2>&1 | tee ci-output/build.log; test ${PIPESTATUS[0]} -eq 0
+      # Build logs aren't readable from outside GitHub, so failures are attached to a draft release.
+      - name: Save diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "diag-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
+            --draft --title "Store shots build diagnostics" --notes "Failed build log." || true
       - uses: actions/upload-artifact@v4
         with:
           name: debug-apk
