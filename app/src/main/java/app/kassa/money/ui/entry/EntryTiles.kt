@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -53,8 +53,8 @@ import app.kassa.money.ui.common.accountIcon
 import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
 import app.kassa.money.ui.theme.scaledSp
+import java.time.LocalDate
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 

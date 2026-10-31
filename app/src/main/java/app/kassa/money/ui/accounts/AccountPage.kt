@@ -302,7 +302,7 @@ private fun InvestmentBody(
                 if (holdings.isNotEmpty()) {
                     val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
-                    SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${shortDate(oldest)}")
+                    SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${shortDate(oldest.toLocalDate())}")
                     holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
                     TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add shares you own", color = Kassa.colors.ink) }
                 }

@@ -158,7 +158,11 @@ internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
                             when (k) { "del" -> "⌫"; "." -> NumberText.decimalMark().toString(); else -> k },
                             style = KassaType.body.copy(fontSize = keySize, fontWeight = FontWeight.Medium),
                             color = Kassa.colors.ink, textAlign = TextAlign.Center,
-                            modifier = if (k == "del") Modifier.clearAndSetSemantics { contentDescription = "Delete" } else Modifier,
+                            modifier = when (k) {
+                                "del" -> Modifier.clearAndSetSemantics { contentDescription = "Delete" }
+                                "." -> Modifier.clearAndSetSemantics { contentDescription = "Decimal mark" }
+                                else -> Modifier
+                            },
                         )
                     }
                 }
