@@ -334,7 +334,7 @@ fun LoanTermsSheet(
     onSave: (Account, LoanTerms, () -> Unit) -> Unit,
 ) {
     val current = ledger.accounts.balances[account.id] ?: 0
-    var form by remember { mutableStateOf(LoanForm.forAccount(owedToday = -current, today = ledger.today.loanDay(), payFromId = account.payFromId)) }
+    var form by rememberSaveable(stateSaver = LoanFormSaver) { mutableStateOf(LoanForm.forAccount(owedToday = -current, today = ledger.today.loanDay(), payFromId = account.payFromId)) }
     var problems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
     fun edit(field: LoanField?, change: (LoanForm) -> LoanForm) {
         form = change(form)
@@ -372,7 +372,7 @@ fun LoanDetailsSheet(
     onSave: (Account, LoanTerms, () -> Unit) -> Unit,
 ) {
     val owed = -(ledger.accounts.balances[account.id] ?: 0)
-    var form by remember { mutableStateOf(LoanDetailsForm.of(account.name, terms)) }
+    var form by rememberSaveable(stateSaver = LoanDetailsFormSaver) { mutableStateOf(LoanDetailsForm.of(account.name, terms)) }
     var problems by remember { mutableStateOf(emptyMap<LoanField, String>()) }
     fun edit(field: LoanField?, change: (LoanDetailsForm) -> LoanDetailsForm) {
         form = change(form)

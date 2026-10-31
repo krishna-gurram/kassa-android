@@ -48,6 +48,7 @@ import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.common.CategoryBadge
@@ -61,13 +62,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import app.kassa.money.ui.common.swipeShift
 import java.time.YearMonth
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -93,20 +95,34 @@ data class ActivityUi(
     val accounts: Map<Long, Account>,
 )
 
+/** What Activity's screen state is made from besides the data: the month, the search, the filter, and today. */
+private data class ActivityInputs(val month: YearMonth, val query: String, val filter: ActivityFilter, val day: app.kassa.money.data.DayClock.Day)
+
 @OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 class ActivityViewModel(app: Application) : AndroidViewModel(app) {
     private val entries = (app as KassaApplication).entries
     private val categories = (app as KassaApplication).categories.categories
     private val accounts = (app as KassaApplication).accounts.state
-    private val zone = ZoneId.systemDefault()
-    private val month = MutableStateFlow(YearMonth.now(zone))
+    /** Today and the time zone, kept current: the month on screen moves on with the calendar and follows a zone change. */
+    private val clock = (app as KassaApplication).clock.day
+    private val month = MutableStateFlow(YearMonth.from(clock.value.today))
     private val query = MutableStateFlow("")
     private val filter = MutableStateFlow(ActivityFilter.ALL)
 
-    private val txs = month.flatMapLatest { m ->
-        val from = m.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val to = m.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        entries.between(from, to)
+    init {
+        // Someone looking at the current month when midnight passes moves on to the new one; someone who paged back stays put.
+        viewModelScope.launch {
+            var before = clock.value.today
+            clock.collect { d ->
+                month.value = QueryWindows.followMonth(month.value, before, d.today)
+                before = d.today
+            }
+        }
+    }
+
+    private val txs = combine(month, clock) { m, d -> m to d.zone }.distinctUntilChanged().flatMapLatest { (m, zone) ->
+        val range = QueryWindows.monthRange(m, zone)
+        entries.between(range.first, range.last)
     }
 
     /** Searching reads the whole database, not just the month on screen. */
@@ -123,9 +139,10 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val ui: StateFlow<ActivityUi?> = combine(
-        combine(month, query, filter) { m, q, f -> Triple(m, q, f) },
+        combine(month, query, filter, clock) { m, q, f, d -> ActivityInputs(m, q, f, d) },
         counted, categories, accounts,
-    ) { (m, q, f), (list, hits), cats, accts ->
+    ) { (m, q, f, day), (list, hits), cats, accts ->
+        val zone = day.zone
         val catMap = cats.associateBy { it.id }
         val acctMap = accts.accounts.associateBy { it.id }
         val shown = list.filter {
@@ -138,7 +155,7 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
         val searching = q.isNotBlank()
         ActivityUi(
             month = m,
-            isCurrentMonth = m == YearMonth.now(zone),
+            isCurrentMonth = m == YearMonth.from(day.today),
             query = q,
             filter = f,
             days = if (searching) emptyList() else shown.groupBy { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }.toList(),
@@ -173,7 +190,7 @@ fun ActivityScreen(
 ) {
     val ui by vm.ui.collectAsState()
     val s = ui ?: return
-    val today = LocalDate.now()
+    val today = ledger.today
     val searching = s.query.isNotBlank()
     val layout = androidx.compose.ui.platform.LocalLayoutDirection.current
 
