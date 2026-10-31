@@ -101,7 +101,10 @@ if [ "$PREP" = prep ]; then
   scroll; sleep 1
   tap "Add an account"; sleep 1
   tap "Loan or mortgage"; sleep 1
+  adb exec-out screencap -p > ci-output/dbg-1-loan-sheet.png
   type_into "Name" "Car%sloan"
+  adb exec-out screencap -p > ci-output/dbg-2-after-name.png
+  adb shell uiautomator dump /sdcard/d.xml > /dev/null 2>&1; adb pull /sdcard/d.xml ci-output/dbg-dump.txt > /dev/null 2>&1
   type_into "Amount borrowed" "18000"
   type_into "Interest rate a year" "5.5"
   type_into "Term in months" "48"
