@@ -3,6 +3,7 @@ package app.kassa.money.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import app.kassa.money.data.backup.BackupFile
 import app.kassa.money.data.cashew.AndroidCashewSource
 import app.kassa.money.importer.NotReadableBackup
 import java.io.File
@@ -12,6 +13,8 @@ sealed interface PickedFile {
     data object MoneyManager : PickedFile
     /** A copy Kassa owns, ready for [AndroidCashewSource.open]. */
     data class Cashew(val copy: File) : PickedFile
+    /** A Kassa backup (.kassa): a copy Kassa owns, to read with the backup's password when [needsPassword]. */
+    data class Kassa(val copy: File, val needsPassword: Boolean) : PickedFile
 
     companion object {
         private const val SUPPORTED = "Kassa reads its own backups (.kassa), Money Manager backups (.mmbak) and Cashew backups (.sql)."
@@ -25,6 +28,9 @@ sealed interface PickedFile {
             }
             if (copy.length() == 0L) { copy.delete(); throw NotReadableBackup("The file is empty. Back up again and pick the new file.") }
             val head = copy.inputStream().use { s -> ByteArray(16).also { s.read(it) } }
+            BackupFile.kindOf(head)?.let { kind ->
+                return Kassa(File(context.cacheDir, "import-backup.kassa").also { copy.renameTo(it) }, needsPassword = kind == BackupFile.Kind.Protected)
+            }
             if (!String(head, Charsets.ISO_8859_1).startsWith("SQLite format 3")) {
                 val text = head.all { it.toInt() == 9 || it.toInt() == 10 || it.toInt() == 13 || it in 32..126 || it < 0 }
                 copy.delete()

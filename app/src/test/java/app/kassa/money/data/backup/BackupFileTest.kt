@@ -3,6 +3,7 @@ package app.kassa.money.data.backup
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class BackupFileTest {
@@ -27,5 +28,14 @@ class BackupFileTest {
     fun anythingElseIsNotABackup() {
         assertFailsWith<BackupFile.NotABackup> { BackupFile.decode("hello".toByteArray(), null) }
         assertFailsWith<BackupFile.NotABackup> { BackupFile.decode("KASSA0not gzip".toByteArray(), null) }
+    }
+
+    @Test
+    fun theHeaderSaysWhichKindOfBackup() {
+        assertEquals(BackupFile.Kind.Plain, BackupFile.kindOf(BackupFile.encode(json, null).copyOf(16)))
+        assertEquals(BackupFile.Kind.Protected, BackupFile.kindOf(BackupFile.encode(json, "pw".toCharArray()).copyOf(16)))
+        assertNull(BackupFile.kindOf("SQLite format 3\u0000".toByteArray()))
+        assertNull(BackupFile.kindOf("KASSA".toByteArray()))
+        assertNull(BackupFile.kindOf(ByteArray(0)))
     }
 }

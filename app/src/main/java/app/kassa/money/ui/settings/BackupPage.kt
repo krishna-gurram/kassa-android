@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,7 +17,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.backup.BackupFile
@@ -26,6 +24,7 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.PasswordField
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
@@ -141,30 +140,37 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
 
     SecondaryButton("Restore from a backup", { opener.launch(arrayOf("*/*")) })
     if (needsPassword) {
-        OutlinedTextField(
-            password, { password = InputRules.typed(it, 128) }, singleLine = true, label = { Text("This backup's password") },
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-        )
+        PasswordField(password, { password = it }, "This backup's password", Modifier.fillMaxWidth().padding(top = 10.dp))
         Gap(8)
         PrimaryButton("Open backup") { file?.let { read(it, password.toCharArray()) } }
     }
     contents?.let { c ->
-        val created = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).format(Instant.ofEpochMilli(c.createdAt).atZone(ZoneId.systemDefault()))
         Gap(14)
-        Text("From $created: ${c.summary}.", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+        BackupSummary(c)
         Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
         Gap(8)
         PrimaryButton("Replace with this backup") { confirm = true }
         TextButton(onClick = { contents = null }) { Text("Cancel", color = Kassa.colors.ink2) }
-        if (confirm) ConfirmDialog(
-            title = "Replace everything in Kassa?",
-            body = "All accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.",
-            confirm = "Replace",
-            onConfirm = { actions.restore(c); contents = null; onStatus("Restoring...") },
-            onDismiss = { confirm = false },
-        )
+        if (confirm) RestoreConfirm(onConfirm = { actions.restore(c); contents = null; onStatus("Restoring...") }, onDismiss = { confirm = false })
     }
 }
+
+/** When a backup was made and what's in it. Also on the Import page. */
+@Composable
+internal fun BackupSummary(c: BackupContents) {
+    val created = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).format(Instant.ofEpochMilli(c.createdAt).atZone(ZoneId.systemDefault()))
+    Text("From $created: ${c.summary}.", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+}
+
+/** Asked before a backup replaces what's in Kassa, here and on the Import page. */
+@Composable
+internal fun RestoreConfirm(onConfirm: () -> Unit, onDismiss: () -> Unit) = ConfirmDialog(
+    title = "Replace everything in Kassa?",
+    body = "All accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.",
+    confirm = "Replace",
+    onConfirm = onConfirm,
+    onDismiss = onDismiss,
+)
 
 @Composable
 private fun ProtectedCopy(actions: SettingsActions, onStatus: (String?) -> Unit) {
@@ -183,10 +189,8 @@ private fun ProtectedCopy(actions: SettingsActions, onStatus: (String?) -> Unit)
         return
     }
     Text("Anyone opening this copy needs the password. Kassa can't recover a lost one.", style = KassaType.small, color = Kassa.colors.ink2)
-    OutlinedTextField(password, { password = InputRules.typed(it, 128) }, singleLine = true, label = { Text("Password") },
-        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-    OutlinedTextField(repeat, { repeat = InputRules.typed(it, 128) }, singleLine = true, label = { Text("Repeat it") },
-        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    PasswordField(password, { password = it }, "Password", Modifier.fillMaxWidth().padding(top = 8.dp))
+    PasswordField(repeat, { repeat = it }, "Repeat it", Modifier.fillMaxWidth().padding(top = 8.dp))
     Gap(10)
     PrimaryButton("Save copy") {
         val problem = InputRules.passwordProblem(password, repeat)

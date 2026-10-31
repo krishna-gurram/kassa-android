@@ -24,11 +24,21 @@ object BackupFile {
     class NeedsPassword : Exception("This backup has a password. Enter it, then pick the file again.")
     class WrongPassword : Exception("That password doesn't open this backup.")
 
+    /** Which kind of .kassa file a header belongs to. */
+    enum class Kind { Plain, Protected }
+
     private val PLAIN = "KASSA0".toByteArray()
     private val PROTECTED = "KASSA1".toByteArray()
     private const val SALT = 16
     private const val IV = 12
     private const val ITERATIONS = 210_000
+
+    /** The kind of backup [head] (the first bytes of a file) starts, or null when it isn't a .kassa file. */
+    fun kindOf(head: ByteArray): Kind? = when {
+        head.startsWith(PLAIN) -> Kind.Plain
+        head.startsWith(PROTECTED) -> Kind.Protected
+        else -> null
+    }
 
     /** Wraps [json]; a null or empty [password] means no password. */
     fun encode(json: String, password: CharArray?): ByteArray {
