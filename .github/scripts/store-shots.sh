@@ -57,6 +57,7 @@ tap() {
   sleep 0.8
 }
 type_into() { tap "$1"; adb shell input text "$2" < /dev/null; sleep 0.6; }
+reach() { local i; for i in 1 2 3 4 5; do tap "$1" && return 0; scroll; sleep 1; done; return 1; }
 back() { adb shell input keyevent KEYCODE_BACK; sleep 1.5; }
 
 # Takes a screenshot as $OUT/$PREFIX-$1.png and checks it.
@@ -116,9 +117,9 @@ if [ "$PREP" = prep ]; then
   fill "Term in months" "48"
   for i in 1 2 3 4 5; do tap "Add loan" && break; scroll; sleep 1; done; sleep 3
   tap "Car loan"; sleep 3
-  tap "Record a payment"; sleep 1
-  tap "Everyday checking"; sleep 1
-  scroll; tap "Record payment"; sleep 2
+  reach "Record a payment"; sleep 1
+  reach "Everyday checking"; sleep 1
+  reach "Record payment"; sleep 2
   adb logcat -d | grep -A 30 "FATAL EXCEPTION" | grep -A 30 "$DPKG" > "ci-output/store-crash-$PREFIX.txt" || true
 fi
 
@@ -130,12 +131,12 @@ tap "Close tips" > /dev/null 2>&1 || true
 
 shot 01-overview 3
 tap "Accounts"; shot 02-accounts 3
-tap "Car loan"; sleep 2; scroll; shot 03-loan 2
+tap "Car loan"; sleep 2; shot 03-loan 2
 back
 tap "Overview"; sleep 1
 tap "Add an entry"; sleep 2
 tap "Category"; shot 04-add-category 2
-back; back
+launch; sleep 8
 tap "Activity"; shot 05-activity 3
 tap "Insights"; shot 06-insights 4
 # Notifications link exists on Overview only when something waits; otherwise the recurring bills list.
