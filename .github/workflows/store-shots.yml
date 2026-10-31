@@ -1,0 +1,115 @@
+name: Store screenshots
+
+# Google Play screenshots of the debug build with the made-up demo household. Run by hand; nothing here ships.
+# Result: a draft release store-<run_id>-<attempt> holding phone, tablet7 and tablet10 PNGs (phone also in dark).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the debug APK
+        run: |
+          mkdir -p ci-output
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace 2>&1 | tee ci-output/build.log; test ${PIPESTATUS[0]} -eq 0
+      # Build logs aren't readable from outside GitHub, so failures are attached to a draft release.
+      - name: Save diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "diag-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
+            --draft --title "Store shots build diagnostics" --notes "Failed build log." || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+  shots:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: phone, profile: pixel_7_pro }
+          - { name: tablet7, profile: 7in WSVGA (Tablet) }
+          - { name: tablet10, profile: 10.1in WXGA (Tablet) }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: debug-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Screenshots on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          script: |
+            adb install -r app-debug.apk
+            bash .github/scripts/store-shots.sh ${{ matrix.name }} light prep
+            bash .github/scripts/store-shots.sh ${{ matrix.name }}-dark dark
+            [ "${{ matrix.name }}" = phone ] || rm -f store-output/${{ matrix.name }}-dark-*.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-${{ matrix.name }}
+          path: |
+            store-output
+            ci-output
+
+  publish:
+    needs: shots
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shots-*
+          path: collected
+          merge-multiple: true
+
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p upload
+          find collected/store-output -name '*.png' -exec cp {} upload/ \; 2>/dev/null || true
+          find collected/ci-output -type f \( -name '*.txt' -o -name '*.log' -o -name '*.png' \) -exec sh -c 'cp "$1" "upload/diag-$(basename "$1")"' _ {} \; 2>/dev/null || true
+          find upload -type f -empty -delete
+          ls upload | sort > upload/LIST.txt
+          {
+            echo "Store screenshots from run ${{ github.run_id }}. Demo data only, USD."
+            echo
+            echo "Order: 01 overview, 02 accounts, 03 loan, 04 add entry categories, 05 activity, 06 insights, 07 bills, 08 accounts with balances hidden, 09 account picker, 10 add account kinds."
+            echo "Prefixes: phone, phone-dark, tablet7, tablet10."
+            echo
+            sed 's/^/- /' upload/LIST.txt
+          } > notes.md
+          gh release create "store-${{ github.run_id }}-${{ github.run_attempt }}" upload/* \
+            --draft --title "Store screenshots ${{ github.run_number }}" --notes-file notes.md
