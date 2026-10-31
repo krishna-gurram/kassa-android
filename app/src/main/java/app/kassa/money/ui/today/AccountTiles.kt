@@ -31,6 +31,7 @@ import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.cards.cardMoney
@@ -41,7 +42,6 @@ import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.format.DateTimeFormatter
 
 /** At most this many tiles on Overview. */
 const val MAX_PINS = 8
@@ -113,7 +113,7 @@ fun AccountTiles(
                                     if (a.type == AccountType.INVESTMENT) ledger.holdingsValue(a.id) else 0
                                 val due = cards[a.id]?.snapshot?.takeIf { it.payable > 0 }?.let {
                                     val amount = Money.format(it.payable, wholeDollars = true)
-                                    if (it.due.isBefore(ledger.today)) "$amount overdue" else "$amount due ${it.due.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                                    if (it.due.isBefore(ledger.today)) "$amount overdue" else "$amount due ${shortDate(it.due)}"
                                 }
                                 // Cards and loans show what you owe, with no minus; a credit shows as a green plus.
                                 val (text, color) = if (a.type.isDebt) cardMoney(-balance) to cardTint(-balance)

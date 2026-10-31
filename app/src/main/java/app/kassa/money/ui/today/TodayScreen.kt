@@ -45,6 +45,8 @@ import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.WeekPace
+import app.kassa.money.ui.common.monthYear
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.EntryRow
@@ -61,7 +63,6 @@ import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
@@ -330,7 +331,7 @@ fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
         HorizontalDivider(color = Kassa.colors.line)
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                u.date.format(DateTimeFormatter.ofPattern("MMM d")).uppercase(),
+                shortDate(u.date).uppercase(),
                 style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = if (soon) Kassa.colors.attention else Kassa.colors.ink2,
                 modifier = Modifier.widthIn(min = 56.dp),
             )
@@ -402,14 +403,13 @@ fun SpendingPage(
     val total = entries.sumOf { it.categoryAmount }
     val what = if (income) "income" else "spending"
     val monthName = period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
-    val short = DateTimeFormatter.ofPattern("MMM d")
     val title = when {
         month -> "$monthName $what"
         back == 0 -> "This week's $what"
-        else -> "Week of ${from.format(short)}"
+        else -> "Week of ${shortDate(from)}"
     }
-    val label = if (month) "$monthName ${period.yearMonth.year}" else "${from.format(short)} to ${from.plusDays(6).format(short)}"
-    val span = "${from.format(short)} to " + if (to == ledger.today) "today" else to.format(short)
+    val label = if (month) monthYear(period.yearMonth) else "${shortDate(from)} to ${shortDate(from.plusDays(6))}"
+    val span = "${shortDate(from)} to " + if (to == ledger.today) "today" else shortDate(to)
 
     Column(
         Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }

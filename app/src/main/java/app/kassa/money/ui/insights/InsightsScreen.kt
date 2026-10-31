@@ -54,6 +54,7 @@ import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.common.monthLines
 import app.kassa.money.ui.common.weekLines
 import app.kassa.money.ui.common.TransactionRow
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
@@ -143,7 +144,7 @@ private fun MonthHero(ledger: Ledger) {
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
     Hero("Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}", spent) {
-        if (hasBefore) Compare("${prev.yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} by the ${ordinal(to.dayOfMonth)}", before)
+        if (hasBefore) Compare("Up to ${shortDate(to)}", before)
     }
 }
 
@@ -388,10 +389,4 @@ private fun Toggle(options: List<Pair<Boolean, String>>, value: Boolean, onChang
             )
         }
     }
-}
-
-internal fun ordinal(n: Int): String = n.toString() + when {
-    n % 100 in 11..13 -> "th"
-    n % 10 == 1 -> "st"; n % 10 == 2 -> "nd"; n % 10 == 3 -> "rd"
-    else -> "th"
 }

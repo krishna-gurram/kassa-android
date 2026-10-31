@@ -32,6 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.ui.common.weekdayDateLong
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
@@ -185,7 +187,7 @@ fun InsightDetailPage(
 @Composable
 private fun RepeatRow(x: app.kassa.money.domain.Repeat, ledger: Ledger, onOpen: (String) -> Unit, last: Boolean) {
     val income = x.kind == app.kassa.money.domain.TxKind.INCOME
-    val next = x.next(ledger.today).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
+    val next = shortDate(x.next(ledger.today))
     val detail = listOfNotNull(
         "Next $next",
         if (!x.fixed) "${Money.format(x.low, wholeDollars = true)} to ${Money.format(x.high, wholeDollars = true)}" else null,
@@ -279,7 +281,7 @@ fun DayPage(
         .sortedWith(compareByDescending<app.kassa.money.domain.Transaction> { it.epochMillis }.thenByDescending { it.id })
     val spent = list.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }.sumOf { it.categoryAmount }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())), onBack)
+        PageTop(weekdayDateLong(date), onBack)
         Text("Spent", style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
         app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f)
         if (list.isEmpty()) Empty("Nothing recorded this day.")

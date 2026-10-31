@@ -50,6 +50,9 @@ import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.ui.common.weekdayDate
+import app.kassa.money.ui.common.shortDateYear
+import app.kassa.money.ui.common.monthYear
 import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.common.EntryRow
 import app.kassa.money.ui.common.GlyphBadge
@@ -68,7 +71,6 @@ import java.time.LocalDate
 import app.kassa.money.ui.common.swipeShift
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -187,7 +189,7 @@ fun ActivityScreen(
             app.kassa.money.ui.common.TabTop("Activity")
             if (!searching) {
                 app.kassa.money.ui.common.PeriodSwitcher(
-                    "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}", null,
+                    monthYear(s.month), null,
                     canBack = true, canForward = !s.isCurrentMonth, onBack = { vm.shift(-1) }, onForward = { vm.shift(1) },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -213,12 +215,12 @@ fun ActivityScreen(
                 }
                 s.results.forEach { (m, entries) ->
                     item(key = "m$m") {
-                        DayHeader("${m.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${m.year}", "${entries.size}")
+                        DayHeader(monthYear(m), "${entries.size}")
                     }
                     items(entries, key = { "r${it.id}" }) { t ->
                         app.kassa.money.ui.common.TransactionRow(
                             t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp),
-                            noteOverride = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                            noteOverride = shortDateYear(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()),
                             onClick = onEdit,
                         )
                     }
@@ -325,7 +327,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
 private fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
     today -> "Today"
     today.minusDays(1) -> "Yesterday"
-    else -> day.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    else -> weekdayDate(day)
 }
 
 /** A plain chevron, drawn here so the app doesn't need the large material-icons library. */

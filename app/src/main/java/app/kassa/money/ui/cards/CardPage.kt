@@ -46,6 +46,9 @@ import app.kassa.money.data.repo.EntryDraft
 import androidx.compose.ui.text.style.TextOverflow
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.InputRules
+import app.kassa.money.ui.common.weekdayDate
+import app.kassa.money.ui.common.shortDate
+import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.momentOn
@@ -72,7 +75,6 @@ import app.kassa.money.ui.theme.KassaType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /*
  * Wording follows Money Manager and card issuers:
@@ -81,8 +83,6 @@ import java.time.format.DateTimeFormatter
  * Total balance = the two together.
  */
 
-private val MONTH_DAY = DateTimeFormatter.ofPattern("MMM d")
-private val DAY_MONTH_DAY = DateTimeFormatter.ofPattern("EEE, MMM d")
 
 /** Cards with something payable first, by due date; the rest by their next closing date. */
 fun cardsByDueDate(ledger: Ledger): List<CardSnapshotFor> {
@@ -114,7 +114,7 @@ fun DueTile(date: LocalDate, tone: Tone, large: Boolean = false, caption: String
         Modifier.width(if (large) 66.dp else 48.dp).clip(RoundedCornerShape(if (large) 16.dp else 13.dp)).background(bg).padding(vertical = if (large) 8.dp else 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(date.format(DateTimeFormatter.ofPattern("MMM")).uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
+        Text(monthShort(date).uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
         Text(date.dayOfMonth.toString(), style = KassaType.stat.copy(fontSize = if (large) 26.sp else 19.sp, lineHeight = if (large) 30.sp else 22.sp), color = fg)
         if (caption != null) Text(caption.uppercase(), style = KassaType.tiny.copy(fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.6.sp), color = if (tone == Tone.NEUTRAL) Kassa.colors.ink2 else fg)
     }
@@ -152,7 +152,7 @@ fun CardPage(
     val s = c.snapshot
     val a = c.account
     val id = a.id
-    val dateNote: (Transaction) -> String = { t -> dateOf(t, ledger).format(MONTH_DAY) }
+    val dateNote: (Transaction) -> String = { t -> shortDate(dateOf(t, ledger)) }
 
     // Set further down, where the statement navigator is built; a plain holder so assigning it doesn't recompose.
     val pageShift = remember { arrayOf<(Int) -> Unit>({}) }
@@ -217,11 +217,11 @@ fun CardPage(
         Gap(18)
         Column {
             app.kassa.money.ui.common.PeriodSwitcher(
-                if (back == 0) "Outstanding" else "${to.format(MONTH_DAY)} statement",
+                if (back == 0) "Outstanding" else "${shortDate(to)} statement",
                 when (back) {
-                    0 -> "Since ${s.lastClose.format(MONTH_DAY)} \u00b7 closes ${s.nextClose.format(MONTH_DAY)}"
-                    1 -> "Due ${s.due.format(MONTH_DAY)}"
-                    else -> "${from.format(MONTH_DAY)} to ${to.minusDays(1).format(MONTH_DAY)}"
+                    0 -> "Since ${shortDate(s.lastClose)} \u00b7 closes ${shortDate(s.nextClose)}"
+                    1 -> "Due ${shortDate(s.due)}"
+                    else -> "${shortDate(from)} to ${shortDate(to.minusDays(1))}"
                 },
                 canBack, back > 0, onBack = { shift(-1) }, onForward = { shift(1) },
             )
@@ -270,7 +270,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
             Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Amount", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${s.due.format(DAY_MONTH_DAY)}", option == "payable") { option = "payable" }
+            if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${weekdayDate(s.due)}", option == "payable") { option = "payable" }
             if (total > 0) Option(
                 "Total balance, ${Money.format(total)}",
                 if (s.outstanding > 0 && s.payable > 0) "Balance payable plus ${Money.format(s.outstanding)} outstanding" else "Everything owed on this card",

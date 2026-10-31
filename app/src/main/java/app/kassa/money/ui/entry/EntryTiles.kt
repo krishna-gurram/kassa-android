@@ -47,11 +47,10 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.common.CategoryIconView
 import app.kassa.money.ui.common.accountIcon
+import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 
@@ -125,7 +124,7 @@ internal fun AccountTile(
 internal fun DateTile(date: LocalDate, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Tile("Date", on, empty = false, modifier = modifier, onClick = onClick) {
         Text(
-            date.month.getDisplayName(TextStyle.SHORT, Locale.US).uppercase(),
+            monthShort(date).uppercase(),
             style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp), color = Kassa.colors.ink2,
             modifier = Modifier.padding(top = 4.dp),
         )

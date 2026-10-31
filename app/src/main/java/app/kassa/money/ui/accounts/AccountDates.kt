@@ -10,21 +10,13 @@ import androidx.compose.ui.unit.dp
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import android.text.format.DateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Locale
 
 /** Accounts keep a maturity or closing day as an epoch day (the rules know nothing of java.time); these convert at the edge. */
 internal fun LocalDate.accountDay(): Int = toEpochDay().toInt()
 internal fun dateOfAccountDay(day: Int): LocalDate = LocalDate.ofEpochDay(day.toLong())
-
-/** "Nov 14" or "14 Nov": the phone's own order for a month and day. */
-internal fun accountShortDate(date: LocalDate): String {
-    val locale = Locale.getDefault()
-    return date.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "MMMd"), locale))
-}
 
 /** "Mar 18, 2027" in the phone's language and order. */
 internal fun accountDate(day: Int): String = dateOfAccountDay(day).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))

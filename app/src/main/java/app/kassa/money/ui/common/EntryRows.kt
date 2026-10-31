@@ -30,7 +30,7 @@ fun TransactionRow(
     showDate: Boolean = false,
 ) {
     val date = if (showDate) Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { d ->
-        d.format(java.time.format.DateTimeFormatter.ofPattern(if (d.year == ledger.today.year) "MMM d" else "MMM d, yyyy")) + " \u00b7 "
+        (if (d.year == ledger.today.year) shortDate(d) else shortDateYear(d)) + " \u00b7 "
     } else ""
     val m = if (onClick != null) modifier.clickable { onClick(t) } else modifier
     val acct = t.accountId?.let { ledger.accountById[it]?.name }
