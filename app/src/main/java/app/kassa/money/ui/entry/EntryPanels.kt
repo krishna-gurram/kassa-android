@@ -192,9 +192,10 @@ internal fun ColumnScope.NotePanel(s: EntryState, ledger: Ledger, frequentNotes:
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         suggestions.forEach { text ->
             Box(
-                Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
+                Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
                     s.pickNote(text, ledger.recent.firstOrNull { it.note == text && it.kind == s.kind }?.categoryId)
-                }.padding(horizontal = 14.dp, vertical = 9.dp),
+                }.padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
             ) { Text(text, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
