@@ -62,6 +62,11 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.
 - `app/data/backup`: the `.kassa` file format (`BackupFile`), its JSON (`BackupContents`), and `BackupRepository`.
+  Every table is in it, including waiting investment transfers (optional in the file, so older backups read none). A new table
+  or column that holds user data needs a `BackupContents` field (optional) and a line in the round-trip tests.
+  An import over existing data (`ImportRepository.replaceWith`) replaces everything that points at the old accounts and entries
+  (holdings, trades, transfers, loan terms and payments, bills, split shares) in the same transaction, and a restore or import
+  calls `Settings.forgetAccountReferences` (Overview pins, account order, cleared notices) and `DueNotifier.forgetPosted`.
 - `app/ui`: `MainActivity` (theme, lock) → `AppRoot` → `Shell` (tabs) with `Routes.kt` mapping tabs and pages to
   screens. `AppController` holds navigation and the actions screens call; `LedgerViewModel` exposes one `Ledger`
   (everything screens read) and runs changes. Phone preferences are read through `LocalSettings`.
@@ -89,6 +94,22 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 - Build logs aren't readable through the API from Claude sessions, so failures upload logs to a draft release
   `diag-<run>`, and emulator screenshots/logcat go to `ci-<run>`.
 
+## Opening, locking and recreation
+- **The database can fail to open** (Keystore key lost after a reset or restore, "file is not a database", a failed upgrade).
+  `KassaApplication.openDatabase()` returns `DatabaseOpen.Ready` or `Failed` and caches it; `MainActivity` opens it off the
+  main thread and shows `ui/start/CantOpenScreen.kt` ("Kassa can't open its data": Try again, Restore from a backup, Start over;
+  the last two ask first and erase the unreadable database and its key, then the first-run screen follows). `DatabaseKey.get`
+  never makes a new key over an existing database (`KeyPolicy.decide`, JVM tests); it throws `KeyUnreadable` instead.
+- **App lock** state survives recreation (saved instance state), so folding, rotating or a theme change never re-prompts; a
+  cold start locks, and so does coming back after more than a minute (`hiddenAt` is saved too, for a killed process).
+- **FLAG_SECURE** is set on the window while App lock or Hide balances is on (reactive, all Android versions), so recents
+  thumbnails and screenshots never show balances. Screenshots are blocked while it is set.
+- **Typed input survives recreation:** `EntryState` has a saver (`EntryState.saver`), the first-run account form and the pay-card
+  and loan-payment sheets use `rememberSaveable` (`AccountFormSaver`, `LoanPaymentFormSaver`), and which sheet is open lives in
+  `NavViewModel` (`AppController` only forwards to it). Other sheets reopen empty after a fold. New forms should do the same.
+- **Crash file** (`last-crash.txt`, attached to feedback if the user ticks it) holds exception class names and stack frames only,
+  never message text (`CrashReport.describe`).
+
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
@@ -104,6 +125,8 @@ Credit cards, Loans, Other debts, then People and a Closed group (folded by defa
 one second line: card "Pay <balance payable>" and "Due <date>", loan "Pay <payment>" and "Due <date>" (only with terms),
 fixed deposit "Matures <date>". Orange only for something payable and a payment due today or overdue. No bars,
 percentages, trends or forecasts here. Debts show what is owed, with no minus.
+Settings > Data > "Account to person" lists the user's own plain accounts (not cards, loans or investments, A to Z); the user picks
+one and names the person, and it becomes a person with the same balance while the account is archived. Nothing is matched by name.
 Fixed deposit is an asset with an optional maturity date. Close account (account and card pages) needs a zero balance
 (holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
 worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
@@ -250,12 +273,14 @@ that words a notification, with `showAmount` for a future Hide balances switch).
 filtered to due today or overdue. Settings keeps one `DueRule` per kind (cards and loans on, bills off; due day, 1 or 3 days
 before, or 0 to 14; time, default 9:00); the daily reminder keeps its own switch and time.
 `data/jobs/DueNotifier.kt` reads the database, posts what rings (one notification per item, one summary when two or more),
-and sets ONE alarm (request code 103, exact when allowed, else allow-while-idle) for the earliest next one, or a daily look
+and sets ONE inexact alarm (request code 103, `setAndAllowWhileIdle`; Kassa has no `SCHEDULE_EXACT_ALARM` permission, so a notification or the daily reminder may arrive a few minutes late) for the earliest next one, or a daily look
 at 00:05 so a card's new statement is noticed. `refresh` is called at boot, update, time and zone change, app start, Settings
 changes, `LedgerViewModel.change` and restore. Posted keys live in the private `kassa_due` prefs. A tap opens the card page,
 the loan's page with its payment sheet, or the bill (`MainActivity` `ACTION_OPEN_DUE` to `AppController.openDue`). Android's
 permission is asked once, with an explanation, after the first card with a due day or loan with terms is saved
 (`LedgerViewModel.askNotifications`); if refused, Settings > Notifications shows "Notifications are off for Kassa".
+A due notification is `VISIBILITY_PRIVATE` with a public version that says only "Payment due" (no amount, no account or bill
+name, no count), so nothing reaches a locked screen; its private text omits the amount while Hide balances is on.
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
