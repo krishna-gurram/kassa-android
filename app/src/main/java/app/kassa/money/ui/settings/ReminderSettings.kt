@@ -1,13 +1,16 @@
 package app.kassa.money.ui.settings
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +19,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.kassa.money.data.jobs.DailyJobs
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -46,6 +53,24 @@ internal fun DailyReminder(actions: SettingsActions) {
         }
     }
     if (on) NavRow("Time", timeLabel(minute)) { pickTime = true }
+    // Android 12+ can turn off exact alarms; then the reminder may come late. Checked again on return from Settings.
+    var onTime by remember { mutableStateOf(DailyJobs.canRemindOnTime(context)) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val now = DailyJobs.canRemindOnTime(context)
+                if (now != onTime) { onTime = now; actions.refreshDailyJobs() }
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    if (on && Build.VERSION.SDK_INT >= 31 && !onTime) NavRow("Remind on time", "Allow Alarms & reminders so the reminder isn't late") {
+        runCatching {
+            context.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + context.packageName)))
+        }
+    }
     if (denied) Text(
         "Notifications are off for Kassa. Allow them in the phone's Settings > Apps > Kassa > Notifications, then turn this on again.",
         style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp),
