@@ -10,6 +10,7 @@ import app.kassa.money.data.Settings
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.jobs.DailyJobs
 import app.kassa.money.data.repo.EntryDraft
+import app.kassa.money.data.repo.LoanPaymentDetail
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -51,6 +52,15 @@ class AppController(
     /** The card whose pay sheet is open, if any. */
     var paying by mutableStateOf<Long?>(null)
 
+    /** The loan whose payment sheet is open to record a new payment, if any. */
+    var payingLoan by mutableStateOf<Long?>(null)
+
+    /** The loan account that terms are being added to, if any. */
+    var addingTermsTo by mutableStateOf<Long?>(null)
+
+    /** The recorded loan payment whose sheet is open, if any. Any of its entries opens it. */
+    var editingLoanPayment by mutableStateOf<LoanPaymentDetail?>(null)
+
     /** The investment transfer being explained, if any. */
     var allocating by mutableStateOf<InvestmentTransfer?>(null)
 
@@ -86,11 +96,16 @@ class AppController(
 
     /**
      * Opens an entry where it's edited: expenses, income and transfers on the entry page (its split loaded;
-     * [withPerson] adds them to the split, as "Split a transaction" does), trades and person payments in their own
-     * sheets. The entry page only knows its three kinds, so nothing else may reach it.
+     * [withPerson] adds them to the split, as "Split a transaction" does), trades, person payments and loan payments in
+     * their own sheets. The entry page only knows its three kinds, so nothing else may reach it: an entry that is part
+     * of a loan payment (its principal, interest or escrow) opens the loan payment sheet, whichever kind it is.
      */
     fun openEntry(id: Long, fromPage: Boolean, withPerson: Long? = null) {
         scope.launch {
+            vm.loanPaymentForEntry(id)?.let { link ->
+                vm.loanPaymentDetail(link.id)?.let { editingLoanPayment = it }
+                return@launch
+            }
             val t = vm.entry(id) ?: return@launch
             when (t.kind) {
                 TxKind.BUY, TxKind.SELL -> editingTrade = t

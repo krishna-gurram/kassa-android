@@ -8,6 +8,9 @@ import app.kassa.money.KassaApplication
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.db.toEntity
 import app.kassa.money.data.repo.EntryDraft
+import app.kassa.money.data.repo.LoanPaymentDetail
+import app.kassa.money.data.repo.LoanPaymentDraft
+import app.kassa.money.data.repo.LoansState
 import app.kassa.money.data.repo.PeopleState
 import app.kassa.money.domain.Trade
 import app.kassa.money.domain.InvestmentTransfer
@@ -17,6 +20,8 @@ import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
+import app.kassa.money.domain.LoanPayment
+import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Recurring
@@ -50,7 +55,9 @@ import java.time.ZoneId
 /** Entries and what's derived from them, gathered before they go into the [Ledger]. */
 private data class Quad(val people: PeopleState, val recent: List<Transaction>, val repeats: List<Repeat>, val cleared: Set<String>)
 
-private data class Investing(val bills: List<Recurring>, val holdings: List<Holding>, val transfers: List<InvestmentTransfer>, val trades: List<Trade>)
+private data class Investing(
+    val bills: List<Recurring>, val holdings: List<Holding>, val transfers: List<InvestmentTransfer>, val trades: List<Trade>, val loans: LoansState,
+)
 
 class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private val kassa = app as KassaApplication
@@ -71,14 +78,14 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     val ledger: StateFlow<Ledger?> = combine(
         combine(kassa.categories.categories, kassa.accounts.state, kassa.categories.budgets) { c, a, b -> Triple(c, a, b) },
         combine(kassa.people.state, recent, repeats, settings.cleared) { p, r, rep, cl -> Quad(p, r, rep, cl) },
-        combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers, kassa.investments.trades) { b, h, t, tr ->
-            Investing(b, h, t, tr)
+        combine(kassa.bills.bills, kassa.investments.holdings, kassa.investments.transfers, kassa.investments.trades, kassa.loans.state) { b, h, t, tr, ln ->
+            Investing(b, h, t, tr, ln)
         },
         settings.monthStartDay,
     ) { (categories, accounts, budgets), (people, entries, rep, cleared), inv, monthStart ->
         Ledger(
             categories, accounts, budgets, people, entries, inv.bills, inv.holdings, inv.transfers,
-            inv.trades.associateBy { it.transactionId }, rep, cleared, monthStart, LocalDate.now(zone), zone,
+            inv.trades.associateBy { it.transactionId }, rep, cleared, inv.loans, monthStart, LocalDate.now(zone), zone,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -164,6 +171,27 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun convertToPerson(account: Account, balance: Long, name: String) =
         change("${account.name} is now ${name.trim()} under People. The account is archived with its history.") { kassa.people.fromAccount(account, balance, name) }
+
+    /* ---------- loans ---------- */
+
+    /** Adds a new loan account with its terms; [onDone] runs once it is saved, so a sheet stays open on a problem. */
+    fun addLoan(account: Account, terms: LoanTerms, newGroupName: String?, onDone: () -> Unit = {}) =
+        change("${account.name.trim()} added.", onDone) { kassa.loans.addLoan(account, terms, newGroupName) }
+
+    /** Adds terms to an existing loan account, keeping its entries. */
+    fun addLoanTerms(account: Account, terms: LoanTerms, onDone: () -> Unit = {}) =
+        change("Terms added to ${account.name.trim()}.", onDone) { kassa.loans.addTerms(account, terms) }
+
+    /** Records a loan payment (or saves an edit of one) as its linked entries. */
+    fun recordLoanPayment(draft: LoanPaymentDraft, onDone: () -> Unit = {}) =
+        change(if (draft.id == null) "Payment recorded." else "Payment saved.", onDone) { kassa.loans.recordPayment(draft) }
+
+    fun deleteLoanPayment(id: Long, onDone: () -> Unit = {}) = change("Payment deleted.", onDone) { kassa.loans.deletePayment(id) }
+
+    /** The loan payment an entry belongs to, if any: such an entry opens the payment sheet, not the entry page. */
+    suspend fun loanPaymentForEntry(entryId: Long): LoanPayment? = kassa.loans.paymentForEntry(entryId)
+
+    suspend fun loanPaymentDetail(paymentId: Long): LoanPaymentDetail? = kassa.loans.detail(paymentId)
 
     /** First run's "Start fresh": the starter categories picked and, unless skipped, a first account. */
     fun startFresh(categories: List<Category>, account: Account?) = change {

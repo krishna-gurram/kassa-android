@@ -223,9 +223,9 @@ private fun PickRow(label: String, value: String, last: Boolean = false, onClick
     }
 }
 
-/** A short list to pick one from. */
+/** A short list to pick one from; also used by the loan forms. */
 @Composable
-private fun Choices(title: String, options: List<Pair<Long, String>>, selected: Long?, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+internal fun Choices(title: String, options: List<Pair<Long, String>>, selected: Long?, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Kassa.colors.raised,

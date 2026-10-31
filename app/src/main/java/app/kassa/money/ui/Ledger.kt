@@ -1,6 +1,7 @@
 package app.kassa.money.ui
 
 import app.kassa.money.data.repo.AccountsState
+import app.kassa.money.data.repo.LoansState
 import app.kassa.money.data.repo.PeopleState
 import app.kassa.money.domain.Trade
 import app.kassa.money.domain.Account
@@ -45,6 +46,8 @@ data class Ledger(
     val repeats: List<Repeat>,
     /** Keys of notifications the user cleared (see Notice.key). */
     val cleared: Set<String>,
+    /** Loan terms, term changes and recorded payments (see [LoansState]). */
+    val loans: LoansState,
     val monthStartDay: Int,
     val today: LocalDate,
     val zone: ZoneId,

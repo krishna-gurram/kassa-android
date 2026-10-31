@@ -118,3 +118,30 @@ fun PasswordField(
 }
 
 private const val PASSWORD_MAX = 128
+
+/**
+ * A yearly rate or percentage: digits and one point, at most three whole digits and four decimals, so 6.125 is
+ * stored exactly (see [InputRules.parseRate]). Shows a % after the number.
+ */
+@Composable
+fun PercentField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    problem: String? = null,
+    placeholder: String? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onChange(InputRules.typedRate(it)) },
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        suffix = { Text("%") },
+        placeholder = placeholder?.let { { Text(it) } },
+        singleLine = true,
+        isError = problem != null,
+        supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = modifier,
+    )
+}
