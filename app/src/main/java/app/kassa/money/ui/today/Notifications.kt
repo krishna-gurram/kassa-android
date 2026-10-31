@@ -37,6 +37,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.domain.Account
+import app.kassa.money.domain.DueItems
+import app.kassa.money.domain.DueKind
+import app.kassa.money.domain.DueNotices
 import app.kassa.money.domain.InvestmentTransfer
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Recurring
@@ -52,15 +56,13 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
 import app.kassa.money.ui.common.PageTop
+import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-
-/** How far ahead bills and card payments start showing. */
-const val NOTICE_DAYS = 5L
 
 /**
  * One thing that needs the user. Nothing here posts by itself: each choice is theirs.
@@ -72,18 +74,25 @@ sealed interface Notice {
     /** A few words for Overview's summary line. */
     val label: String
 
-    /** A bill overdue or due within [NOTICE_DAYS]. Clearing it skips that month. */
+    /** A bill on its due day or overdue. Clearing it skips that month. */
     data class Bill(val bill: Recurring, val due: LocalDate) : Notice {
         override val key get() = "bill:${bill.id}:$due"
         override val date get() = due
         override val label get() = bill.name
     }
 
-    /** A card with a balance payable due within [NOTICE_DAYS]. Clearing it hides it until the next statement. */
+    /** A card with a balance payable, on its due day or overdue. Clearing it hides it until the next statement. */
     data class Card(val card: CardSnapshotFor) : Notice {
         override val key get() = "card:${card.account.id}:${card.snapshot.lastClose}"
         override val date get() = card.snapshot.due
         override val label get() = card.account.name
+    }
+
+    /** A loan's scheduled payment on its due day or overdue. Clearing it hides that due date; the next one shows later. */
+    data class Loan(val loan: Account, val due: LocalDate, val amount: Long) : Notice {
+        override val key get() = "loan:${loan.id}:${due.toEpochDay()}"
+        override val date get() = due
+        override val label get() = loan.name
     }
 
     /** Money moved into investments that hasn't been explained yet. Clearing it stops asking. */
@@ -100,17 +109,30 @@ sealed interface Notice {
     }
 }
 
-/** Everything on the Notifications page, in order. */
+/**
+ * Everything on the Notifications page, in order. A bill, card payment or loan payment is here from its due day, never
+ * before, and stays while it is overdue until the user acts or clears it (see [DueItems] for what counts as due).
+ */
 fun notices(ledger: Ledger): List<Notice> {
-    val until = ledger.today.plusDays(NOTICE_DAYS)
-    val bills = ledger.bills.mapNotNull { b -> RecurringRules.nextDue(b, ledger.recent, ledger.today, ledger.zone, NOTICE_DAYS)?.let { Notice.Bill(b, it) } }
-    val cards = ledger.cards().filter { it.snapshot.payable > 0 && !it.snapshot.due.isAfter(until) }.map { Notice.Card(it) }
+    val today = ledger.today.toEpochDay().toInt()
+    val cards = ledger.cards().associateBy { it.account.id }
+    val due = DueItems.build(
+        ledger.accounts.accounts, ledger.accounts.balances, ledger.recent, ledger.bills,
+        ledger.loans.terms, ledger.loans.changes, ledger.loans.payments, ledger.today, ledger.zone,
+    ).filter { DueNotices.isWaiting(it, today) }.mapNotNull { item ->
+        val day = LocalDate.ofEpochDay(item.dueDay.toLong())
+        when (item.kind) {
+            DueKind.CARD -> cards[item.id]?.let { Notice.Card(it) }
+            DueKind.LOAN -> ledger.accountById[item.id]?.let { Notice.Loan(it, day, item.amount ?: 0L) }
+            DueKind.BILL -> ledger.bills.firstOrNull { it.id == item.id }?.let { Notice.Bill(it, day) }
+        }
+    }
     val transfers = ledger.transfers.map { Notice.Transfer(it, Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate()) }
     val billKeys = ledger.bills.map { Repeats.key(it.name) }.toSet()
     val suggestions = ledger.repeats
         .filter { it.steadyMonthly && it.key !in billKeys && ledger.categoryById[it.categoryId]?.hidden == false }
         .map { Notice.Suggestion(it) }
-    return (bills + cards + transfers + suggestions).filter { it.key !in ledger.cleared }.sortedBy { it.date }
+    return (due + transfers + suggestions).filter { it.key !in ledger.cleared }.sortedBy { it.date }
 }
 
 /** What the Notifications page can do. */
@@ -120,6 +142,8 @@ interface NoticeActions {
     /** Opens the entry page filled in from the bill, to type what was actually paid. */
     fun editBill(n: Notice.Bill, amount: Long)
     fun payCard(accountId: Long)
+    /** Opens the loan payment sheet, with the scheduled payment. */
+    fun payLoan(accountId: Long)
     fun allocate(t: InvestmentTransfer)
     /** Opens a new bill filled in from the repeat. */
     fun trackAsBill(r: Repeat)
@@ -156,7 +180,7 @@ fun NotificationsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (()
     var confirmAll by remember { mutableStateOf(false) }
     if (confirmAll) ConfirmDialog(
         "Clear all notifications?",
-        "Nothing is added or paid. Bills come back next month, cards after their next statement.",
+        "Nothing is added or paid. Bills come back next month, cards after their next statement, loans on their next payment day.",
         "Clear all", onConfirm = { actions.clear(list) }, onDismiss = { confirmAll = false }, destructive = false,
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
@@ -164,8 +188,17 @@ fun NotificationsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (()
             if (list.isNotEmpty()) TextButton(onClick = { confirmAll = true }) { Text("Clear all", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
         if (list.isEmpty()) Text("Nothing needs you.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            list.forEach { n -> NoticeCard(ledger, n, actions) }
+        val payments = list.filter { it is Notice.Bill || it is Notice.Card || it is Notice.Loan }
+        listOf(
+            "Due today" to payments.filter { it.date == ledger.today },
+            "Overdue" to payments.filter { it.date.isBefore(ledger.today) },
+            "Investment transfers" to list.filterIsInstance<Notice.Transfer>(),
+            "Suggested bills" to list.filterIsInstance<Notice.Suggestion>(),
+        ).filter { it.second.isNotEmpty() }.forEach { (title, group) ->
+            SectionHeader(title)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                group.forEach { n -> NoticeCard(ledger, n, actions) }
+            }
         }
         Gap(24)
     }
@@ -200,6 +233,14 @@ private fun NoticeCard(ledger: Ledger, n: Notice, actions: NoticeActions) {
             amount = Money.format(n.card.snapshot.payable),
             onClear = clear,
         ) { Chip("Pay", selected = true) { actions.payCard(n.card.account.id) } }
+        is Notice.Loan -> Card(
+            kicker = "Loan payment, " + dueText(n.due, ledger.today).replaceFirstChar { it.lowercase() },
+            badge = { GlyphBadge(n.loan.name.take(1)) },
+            title = n.loan.name,
+            subtitle = "Scheduled payment",
+            amount = Money.format(n.amount),
+            onClear = clear,
+        ) { Chip("Pay", selected = true) { actions.payLoan(n.loan.id) } }
         is Notice.Transfer -> Card(
             kicker = "Investment transfer on ${n.date.format(DateTimeFormatter.ofPattern("MMM d"))}",
             badge = { GlyphBadge("↗") },

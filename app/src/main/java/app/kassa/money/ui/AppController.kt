@@ -14,6 +14,7 @@ import app.kassa.money.data.repo.LoanPaymentDetail
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
+import app.kassa.money.domain.DueKind
 import app.kassa.money.domain.InvestmentTransfer
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Repeat
@@ -38,6 +39,9 @@ val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings is
 
 /** A balance correction being made on [accountId], or [editing] an earlier one. */
 data class Correcting(val accountId: Long, val editing: Transaction? = null)
+
+/** Where a payment-due notification was tapped to go: a card, a loan or a bill by id. */
+data class DueTarget(val kind: DueKind, val id: Long)
 
 /**
  * Where screens go and what their buttons do. Screens call this instead of the view model and navigation
@@ -72,6 +76,22 @@ class AppController(
 
     /** The investment transfer being explained, if any. */
     var allocating by mutableStateOf<InvestmentTransfer?>(null)
+
+    /**
+     * A tapped payment-due notification: the card's page, the loan's page with its payment sheet open (when something
+     * is owed), or the bill. Opening pays and adds nothing.
+     */
+    fun openDue(target: DueTarget) {
+        val l = vm.ledger.value ?: return
+        when (target.kind) {
+            DueKind.CARD -> if (l.accountById[target.id] != null) openFromList(Page.CardDetail(target.id))
+            DueKind.LOAN -> if (l.accountById[target.id] != null) {
+                openFromList(Page.AccountDetail(target.id))
+                if (l.loans.terms[target.id] != null && (l.accounts.balances[target.id] ?: 0L) < 0) payingLoan = target.id
+            }
+            DueKind.BILL -> l.bills.firstOrNull { it.id == target.id }?.let { openFromList(Page.Bill(it)) }
+        }
+    }
 
     /** From a list: beside it when unfolded, over it on the cover screen. */
     fun openFromList(page: Page) = nav.open(page, besideList = split)
@@ -144,6 +164,7 @@ class AppController(
             openFromList(Page.Entry(EntryStart(prefill = draft, afterSave = { vm.billHandled(r, n.due) })))
         }
         override fun payCard(accountId: Long) { paying = accountId }
+        override fun payLoan(accountId: Long) { payingLoan = accountId }
         override fun allocate(t: InvestmentTransfer) { allocating = t }
         override fun trackAsBill(r: Repeat) {
             // The account is left for the user to pick: nothing guesses an account.
