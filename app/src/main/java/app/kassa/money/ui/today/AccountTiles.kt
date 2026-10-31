@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,17 +95,14 @@ fun AccountTiles(
     val pins = pinned(ledger, saved, arrangement)
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
-        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Accounts", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-            LinkText("All accounts", onAll)
-        }
+        app.kassa.money.ui.common.SectionHeader("Accounts", "All accounts", onClick = onAll)
         if (pins.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("No accounts pinned.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
             LinkText("Pin accounts", onPin)
         }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column {
             pins.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     pair.forEach { pin ->
                         val m = Modifier.weight(1f)
                         when (pin) {
@@ -138,13 +137,20 @@ fun AccountTiles(
     }
 }
 
+/** One pinned account as a hairline cell: its name over its balance, a due line when there is one, and a chevron. */
 @Composable
 private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp)) {
-        Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)
-        // Every tile keeps the due line's space, so tiles are the same height whichever accounts are pinned.
-        Text(note ?: "", style = KassaType.tiny, color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(modifier.clickable(onClick = onClick)) {
+        HorizontalDivider(color = Kassa.colors.line)
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)
+                // Every tile keeps the due line's space, so tiles are the same height whichever accounts are pinned.
+                Text(note ?: "", style = KassaType.tiny, color = app.kassa.money.ui.common.figureColor(Kassa.colors.attention), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+        }
     }
 }
 

@@ -44,3 +44,6 @@ internal fun monthYearShort(month: YearMonth): String = month.atDay(1).format(fo
 
 /** "Nov": the month alone, short, for a tile or a tab. */
 internal fun monthShort(date: LocalDate): String = date.format(formatter("MMM"))
+
+/** "2026": the year alone, in the phone's digits. */
+internal fun yearOnly(year: Int): String = YearMonth.of(year, 1).atDay(1).format(formatter("y"))

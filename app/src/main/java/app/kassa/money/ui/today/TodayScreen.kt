@@ -24,6 +24,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -183,17 +185,6 @@ private fun FitOrScroll(page: @Composable (Fit) -> Unit) {
     }
 }
 
-/** A section title on the left and a link to the full view on the right. */
-@Composable
-private fun SectionTop(title: String, link: String? = null, onLink: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.section, color = Kassa.colors.ink)
-        Box(Modifier.weight(1f))
-        trailing()
-        if (link != null && onLink != null) LinkText(link, onLink)
-    }
-}
-
 @Composable
 internal fun LinkText(text: String, onClick: () -> Unit) {
     Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,25 +219,10 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
     )
 }
 
-/** A small two-way switch. [dark] uses the filled style for the period; the other style reads as a title. */
-@Composable
-private fun Switch2(options: List<Pair<Boolean, String>>, value: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.chip).padding(3.dp)) {
-        options.forEach { (v, label) ->
-            val on = v == value
-            Text(
-                label, style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, softWrap = false,
-                color = if (on) Kassa.colors.onInk else Kassa.colors.ink2,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Kassa.colors.ink else Color.Transparent)
-                    .clickable { onChange(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-        }
-    }
-}
-
 /**
- * Spending or income, this week or this month, in the same layout: the total and the top three categories.
- * The title itself switches between spending and income.
+ * Spending or income, this week or this month, in one tonal hero: the two titles switch between spending and income,
+ * a small menu picks the period, then the total and the top three categories as a bar with a legend. A legend item
+ * opens its category; the chevron opens the full breakdown. The hero turns grey while balances are hidden.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -257,60 +233,74 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val total = rows.sumOf { it.second }
     val top = rows.take(3)
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    var menu by remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    // Titles on the left, the period switch on the right; on a narrow screen or a large font the switch moves
-    // under the titles instead of squeezing its words onto several lines.
-    androidx.compose.foundation.layout.FlowRow(
-        Modifier.fillMaxWidth().padding(bottom = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(Modifier.align(Alignment.CenterVertically)) {
-            listOf(false to "Spending", true to "Income").forEach { (v, label) ->
-                Text(
-                    label, style = KassaType.section, maxLines = 1, softWrap = false,
-                    color = if (v == income) Kassa.colors.ink else Kassa.colors.ink3,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { setIncome(v) }.padding(end = 14.dp, top = 2.dp, bottom = 2.dp),
-                )
+    app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
+        // Titles on the left, the period menu on the right; on a narrow screen or a large font the menu moves under the titles.
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.align(Alignment.CenterVertically)) {
+                listOf(false to "Spending", true to "Income").forEach { (v, label) ->
+                    Text(
+                        label, style = KassaType.section, maxLines = 1, softWrap = false,
+                        color = if (v == income) Kassa.colors.ink else app.kassa.money.ui.common.heroInk(),
+                        modifier = Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = androidx.compose.ui.semantics.Role.Tab) { setIncome(v) }
+                            .padding(end = 14.dp).wrapContentHeight(Alignment.CenterVertically),
+                    )
+                }
+            }
+            Box(Modifier.align(Alignment.CenterVertically)) {
+                Row(
+                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Choose period", role = androidx.compose.ui.semantics.Role.Button) { menu = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (month) monthName else "This week", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = app.kassa.money.ui.common.heroInk(), maxLines = 1)
+                    androidx.compose.material3.Icon(app.kassa.money.ui.activity.ChevronDown(), null, tint = app.kassa.money.ui.common.heroInk(), modifier = Modifier.size(18.dp))
+                }
+                androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(monthName, style = KassaType.body) }, onClick = { setMonth(true); menu = false })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("This week", style = KassaType.body) }, onClick = { setMonth(false); menu = false })
+                }
             }
         }
-        Box(Modifier.align(Alignment.CenterVertically)) { Switch2(listOf(true to monthName, false to "This week"), month, setMonth) }
+        BigMoney(total, sizeSp = if (roomy) 46f else 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
+        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = app.kassa.money.ui.common.heroInk(), modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+        else TopBar(top, total, if (income) "Where it came from" else "Where it went", onOpenCategory, onOpen)
     }
-    val link = if (income) "Where it came from" else "Where it went"
-    Row(verticalAlignment = Alignment.Bottom) {
-        Box(Modifier.weight(1f)) { BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)) }
-        Box(Modifier.padding(bottom = 6.dp)) { LinkText(link, onOpen) }
-    }
-    if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
-    else TopBar(top, onOpenCategory, onOpen)
 }
 
 /**
- * The top three categories as tinted tiles, each as wide as its share of the three (with a floor so a small one
- * still shows its name and amount): a stripe of the category's color, its icon, name and amount. Two categories
- * may share a color; the tiles keep them apart. Spending and income use the same tiles.
+ * The top three categories as one stacked bar (each as wide as its share of the total, the rest in a neutral
+ * segment) with a legend under it: a dot in the category's color, its name and amount. Two categories may share a
+ * color; the legend keeps them apart by name. Spending and income use the same bar.
  */
 @Composable
-private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
-    val sum = top.sumOf { it.second }.coerceAtLeast(1)
+private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, total: Long, openLabel: String, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
     val none = Kassa.colors.ink3
-    Text("Top categories", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
-    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    val sum = top.sumOf { it.second }
+    Row(
+        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp).height(8.dp).clip(RoundedCornerShape(50)),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        top.forEach { (c, amt) ->
+            Box(Modifier.weight(amt.toFloat().coerceAtLeast(1f)).fillMaxHeight().background(c?.let { Color(it.color) } ?: none))
+        }
+        val rest = total - sum
+        if (rest > 0) Box(Modifier.weight(rest.toFloat()).fillMaxHeight().background(app.kassa.money.ui.common.heroInk().copy(alpha = 0.25f)))
+    }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         top.forEach { (c, amt) ->
             val color = c?.let { Color(it.color) } ?: none
             val name = c?.name ?: "Uncategorized"
-            Row(
-                Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.3f)).fillMaxHeight().clip(RoundedCornerShape(10.dp))
-                    .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
-            ) {
-                Box(Modifier.width(3.dp).fillMaxHeight().background(color))
-                Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        app.kassa.money.ui.common.CategoryIconView(c?.icon, color, 30, fallback = name.take(1))
-                        Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
-                    }
-                    Text(Money.format(amt, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(color))
+                    Text(name, style = KassaType.tiny, color = app.kassa.money.ui.common.heroInk(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp))
                 }
+                Text(Money.format(amt, wholeDollars = true), style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+        androidx.compose.material3.IconButton(onClick = onOpen, modifier = Modifier.size(48.dp)) {
+            androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), openLabel, tint = app.kassa.money.ui.common.heroInk())
         }
     }
 }
@@ -319,8 +309,8 @@ private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOp
 private fun UpcomingSection(ledger: Ledger, show: Int, fill: Boolean, onOpenCard: (Long) -> Unit, onAll: () -> Unit, modifier: Modifier = Modifier) {
     val items = upcoming(ledger, 30).take(show)
     Column(modifier) {
-        SectionTop("Upcoming", "Next 30 days", onAll)
-        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
+        SectionHeader("Upcoming", "Next 30 days", onClick = onAll)
+        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
         // Filling the screen, the rows that don't fit whole are left out; Next 30 days lists them all.
         else if (fill) app.kassa.money.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) } }
         else items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
@@ -329,20 +319,20 @@ private fun UpcomingSection(ledger: Ledger, show: Int, fill: Boolean, onOpenCard
 
 @Composable
 fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
-    val soon = ChronoUnit.DAYS.between(ledger.today, u.date) <= 3
+    // A card payment is money you owe, so its amount is orange (plain ink while balances are hidden).
     Column(if (u.accountId != null) Modifier.clickable { onOpenCard(u.accountId) } else Modifier) {
         HorizontalDivider(color = Kassa.colors.line)
-        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                shortDate(u.date).uppercase(),
-                style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = if (soon) Kassa.colors.attention else Kassa.colors.ink2,
-                modifier = Modifier.widthIn(min = 56.dp),
-            )
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(u.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
-                Text(u.kind, style = KassaType.tiny, color = Kassa.colors.ink2)
+                Text(u.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(shortDate(u.date) + " \u00b7 " + u.kind, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(u.amount?.let { Money.format(it) } ?: "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text(
+                u.amount?.let { Money.format(it) } ?: "", style = KassaType.bodyStrong, maxLines = 1,
+                color = if (u.accountId != null) app.kassa.money.ui.common.figureColor(Kassa.colors.attention) else Kassa.colors.ink,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+            if (u.accountId != null) androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 4.dp).size(18.dp))
         }
     }
 }
@@ -353,10 +343,10 @@ fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> U
     val items = upcoming(ledger, 30)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop("Next 30 days", onBack)
-        RaisedPanel {
-            Text("Total due", style = KassaType.tiny, color = Kassa.colors.ink2)
-            BigMoney(items.sumOf { it.amount ?: 0 }, sizeSp = 34f)
-            Text(plural(items.size, "payment"), style = KassaType.small, color = Kassa.colors.ink2)
+        app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.ORANGE) {
+            app.kassa.money.ui.common.HeroLabel("Total due")
+            BigMoney(items.sumOf { it.amount ?: 0 }, sizeSp = 40f)
+            app.kassa.money.ui.common.HeroLabel(plural(items.size, "payment"))
         }
         Gap(12)
         if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2)
@@ -424,13 +414,13 @@ fun SpendingPage(
             }
         }
         app.kassa.money.ui.common.PeriodSwitcher(label, sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
-        RaisedPanel {
+        app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-                Text(span, style = KassaType.tiny, color = Kassa.colors.ink3)
+                app.kassa.money.ui.common.HeroLabel(if (income) "Received" else "Spent", Modifier.weight(1f))
+                app.kassa.money.ui.common.HeroLabel(span)
             }
-            BigMoney(total, sizeSp = 34f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
-            Text(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"), style = KassaType.small, color = Kassa.colors.ink2)
+            BigMoney(total, sizeSp = 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
+            app.kassa.money.ui.common.HeroLabel(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"))
         }
         SectionHeader("By category")
         // A category opens on the month shown here; from a week, on the month that week starts in.

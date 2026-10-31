@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -158,8 +159,8 @@ fun NotificationsRow(list: List<Notice>, onOpen: () -> Unit, modifier: Modifier 
     val shown = list.take(2).joinToString(" · ") { it.label }
     val more = list.size - 2
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised).clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.chip).clickable(onClick = onOpen)
+            .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(28.dp).clip(CircleShape).background(Kassa.colors.ink), contentAlignment = Alignment.Center) {

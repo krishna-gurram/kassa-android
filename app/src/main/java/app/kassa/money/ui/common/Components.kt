@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -54,15 +56,30 @@ fun GlyphBadge(text: String, size: Int = 40) {
     ) { Text(text, style = KassaType.bodyStrong, color = Kassa.colors.ink2) }
 }
 
+/**
+ * A small uppercase label over a list, a hairline under it, and an optional [trailing] note on the right. With
+ * [onClick] the whole line is a 48dp target and the note carries a chevron ("Next 30 days ›").
+ */
 @Composable
-fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().padding(top = 28.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.weight(1f, fill = false))
-        if (trailing != null) Text(trailing, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+fun SectionHeader(title: String, trailing: String? = null, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    Column(modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Row(
+            Modifier.fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick) else Modifier)
+                .heightIn(min = if (onClick != null) 48.dp else 32.dp).padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                title.uppercase(java.util.Locale.getDefault()), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = KassaType.label, color = Kassa.colors.ink2, modifier = Modifier.weight(1f, fill = false),
+            )
+            if (trailing != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
+                Text(trailing, style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = if (onClick != null) Kassa.colors.ink else Kassa.colors.ink2, maxLines = 1)
+                if (onClick != null) androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink, modifier = Modifier.size(16.dp))
+            }
+        }
+        HorizontalDivider(color = Kassa.colors.line, thickness = 1.dp)
     }
 }
 
