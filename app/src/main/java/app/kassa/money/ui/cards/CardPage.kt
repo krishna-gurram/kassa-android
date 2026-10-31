@@ -258,8 +258,9 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     val total = s.totalBalance
     var option by rememberSaveable { mutableStateOf(if (s.payable > 0) "payable" else if (total > 0) "total" else "other") }
     var other by rememberSaveable { mutableStateOf("") }
-    var from by remember { mutableStateOf(defaultPayFrom(c, ledger)) }
-    var date by remember { mutableStateOf(ledger.today) }
+    var from by rememberSaveable { mutableStateOf(defaultPayFrom(c, ledger)) }
+    var dateDay by rememberSaveable { mutableStateOf(ledger.today.toEpochDay()) }
+    val date = java.time.LocalDate.ofEpochDay(dateDay)
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
     var amountProblem by remember { mutableStateOf<String?>(null) }
@@ -282,7 +283,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
             Text("From", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             FlowRow { sources.forEach { a -> Chip(a.name, selected = from == a.id) { from = a.id; error = null } } }
             Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            DateRow(date, ledger.today) { date = it }
+            DateRow(date, ledger.today) { dateDay = it.toEpochDay() }
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Gap(12)
             PrimaryButton(if (amount > 0) "Record ${Money.format(amount)} payment" else "Enter an amount") {

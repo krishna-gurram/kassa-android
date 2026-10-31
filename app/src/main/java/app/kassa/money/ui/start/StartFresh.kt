@@ -30,6 +30,7 @@ import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.ui.accounts.AccountFields
+import app.kassa.money.ui.accounts.AccountFormSaver
 import app.kassa.money.ui.categories.IconCatalog
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.PageTop
@@ -73,7 +74,7 @@ private val firstTypes = listOf(AccountType.CHECKING, AccountType.SAVINGS, Accou
 fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
     var step by rememberSaveable { mutableStateOf(0) }
     var picked by rememberSaveable { mutableStateOf(starters.filter { it.on }.map { it.name }) }
-    var form by remember { mutableStateOf(AccountForm()) }
+    var form by rememberSaveable(stateSaver = AccountFormSaver) { mutableStateOf(AccountForm()) }
     var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
     BackHandler { if (step == 1) step = 0 else onBack() }
 

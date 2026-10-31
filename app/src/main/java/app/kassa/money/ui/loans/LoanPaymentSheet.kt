@@ -27,6 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +46,7 @@ import app.kassa.money.domain.LoanPaymentContext
 import app.kassa.money.domain.LoanPaymentField
 import app.kassa.money.domain.LoanPaymentForm
 import app.kassa.money.domain.LoanTerms
+import app.kassa.money.domain.SplitEdit
 import app.kassa.money.domain.Money
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
@@ -59,6 +63,27 @@ import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.settings.SwitchRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+
+/** Keeps what's typed in the payment sheet across the activity being recreated (folding, rotating), as plain strings. */
+private val LoanPaymentFormSaver: Saver<LoanPaymentForm, Any> = listSaver(
+    save = { f ->
+        listOf(
+            f.amount, f.day.toString(), f.principal, f.interest, f.edit.name, f.fromId?.toString().orEmpty(), f.categoryId?.toString().orEmpty(),
+            f.estimate?.toString().orEmpty(), f.principalCategoryId?.toString().orEmpty(), f.countOverride?.toString().orEmpty(),
+        )
+    },
+    restore = { v ->
+        if (v.size < 10) null
+        else v[1].toIntOrNull()?.let { day ->
+            LoanPaymentForm(
+                amount = v[0], day = day, principal = v[2], interest = v[3],
+                edit = SplitEdit.entries.firstOrNull { it.name == v[4] } ?: SplitEdit.NONE,
+                fromId = v[5].toLongOrNull(), categoryId = v[6].toLongOrNull(), estimate = v[7].toLongOrNull(),
+                principalCategoryId = v[8].toLongOrNull(), countOverride = v[9].toBooleanStrictOrNull(),
+            )
+        }
+    },
+)
 
 /**
  * Record a payment on a loan, or open one already recorded. Mirrors Pay a card: amount, date, the account it's paid from,
@@ -89,7 +114,7 @@ fun LoanPaymentSheet(
         )
     }
     val sources = remember(ledger.accounts) { payFromChoices(ledger.accounts.accounts, except = loan.id) }
-    var form by remember {
+    var form by rememberSaveable(stateSaver = LoanPaymentFormSaver) {
         mutableStateOf(
             if (editing != null) LoanPaymentForm.of(editing.payment, editing.principal, editing.interest, editing.fromId, editing.categoryId)
             else {
@@ -102,7 +127,7 @@ fun LoanPaymentSheet(
     }
     var problems by remember { mutableStateOf(emptyMap<LoanPaymentField, String>()) }
     // The escrow category: the one on this payment when it is opened again, else the one the loan's last escrow went to.
-    var escrowCategoryId by remember {
+    var escrowCategoryId by rememberSaveable {
         mutableStateOf(
             (if (editing != null) editing.escrowCategoryId else ledger.loans.escrowCategory[loan.id])?.takeIf { id -> ledger.categoryById[id]?.hidden == false }
         )
