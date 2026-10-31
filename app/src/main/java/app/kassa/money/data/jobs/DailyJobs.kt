@@ -19,17 +19,21 @@ import android.os.PersistableBundle
 import android.provider.DocumentsContract
 import app.kassa.money.KassaApplication
 import app.kassa.money.R
+import app.kassa.money.data.Failures
+import app.kassa.money.data.Failures.Doing
 import app.kassa.money.ui.MainActivity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.io.FileNotFoundException
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * The two things Kassa does by itself once a day, at times you set: save a backup to your folder, and remind you
@@ -45,6 +49,11 @@ object DailyJobs {
     const val REMINDER = 102
     private const val CHANNEL = "daily_reminder"
     const val ACTION_ADD = "app.kassa.money.ADD"
+    /** The "Backup needs attention" notification's tap: open Settings > Backup and restore. */
+    const val ACTION_OPEN_BACKUP = "app.kassa.money.OPEN_BACKUP"
+    private const val BACKUP_CHANNEL = "backup_problem"
+    /** Notification id and request code of the backup notification; different from the reminder's and the due ones. */
+    private const val BACKUP_ALERT = 104
     /** The time the pending backup job was booked for, kept in its extras. */
     private const val EXTRA_AT = "at"
     /** App-private, like Settings: when the reminder alarm is set for, so an overdue one isn't lost. */
@@ -149,29 +158,118 @@ object DailyJobs {
     )
 
     /**
-     * Saves a backup with no password into the chosen folder as Kassa_yyyyMMdd_HHmmss.kassa, the way Money Manager
-     * names its files. Every backup is kept; nothing is ever deleted. Returns the file's name.
+     * Saves a backup with no password into the chosen folder as Kassa_yyyyMMdd_HHmmss.kassa, the way Money Manager names its
+     * files, then keeps the newest [BackupNames.KEEP] of Kassa's own files there and deletes older ones (a file that doesn't
+     * carry exactly that naming pattern is never touched). Returns the file's name. A failure deletes the half-written file,
+     * is kept as the status Settings shows, and is thrown as a [Failures.UserFacing] whose message is safe to show.
      */
     suspend fun backupNow(context: Context): String {
         val app = context.applicationContext as KassaApplication
         val s = app.settings
+        val resolver = context.contentResolver
+        var doc: Uri? = null
         try {
-            val folder = s.backupFolder.value ?: throw IllegalStateException("Pick a backup folder first.")
+            val folder = s.backupFolder.value ?: throw Failures.UserFacing("Pick a backup folder first.")
             val tree = Uri.parse(folder)
-            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-            val name = "Kassa_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".kassa"
-            val doc = DocumentsContract.createDocument(context.contentResolver, parent, "application/octet-stream", name)
-                ?: throw IllegalStateException("The backup folder can't be written to. Pick it again.")
-            context.contentResolver.openOutputStream(doc)!!.use { app.backups.write(it, null) }
+            val parentId = DocumentsContract.getTreeDocumentId(tree)
+            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
+            val name = BackupNames.nameFor(LocalDateTime.now())
+            val created = DocumentsContract.createDocument(resolver, parent, "application/octet-stream", name)
+                ?: throw FileNotFoundException("The folder can't be written to")
+            doc = created
+            val out = resolver.openOutputStream(created) ?: throw FileNotFoundException("The file can't be opened")
+            out.use { app.backups.write(it, null) }
             s.backupDone(System.currentTimeMillis())
+            // The streak of failed days ends with a backup that worked, and so does the notification about it.
+            s.setBackupStreak(s.backupStreak().succeeded())
+            runCatching { context.getSystemService(NotificationManager::class.java)?.cancel(BACKUP_ALERT) }
+            // Tidying is secondary: the backup is safe even if an old file can't be deleted.
+            runCatching { trimOldBackups(context, tree, parentId) }
             return name
-        } catch (e: SecurityException) {
-            s.backupFailed("Kassa lost access to the backup folder. Pick it again.")
-            throw IllegalStateException("Kassa lost access to the backup folder. Pick it again.")
-        } catch (e: Exception) {
-            s.backupFailed(e.message ?: "The backup couldn't be saved.")
+        } catch (e: CancellationException) {
+            doc?.let { deletePartial(context, it) }
             throw e
+        } catch (e: Throwable) {
+            // Never leave a half-written .kassa file in the folder: it would look like a backup and not open.
+            doc?.let { deletePartial(context, it) }
+            val message = if (e is Failures.UserFacing) e.message.orEmpty() else Failures.message(e, Doing.WRITE_BACKUP)
+            s.backupFailed(message)
+            throw Failures.UserFacing(message, e)
         }
+    }
+
+    private fun deletePartial(context: Context, doc: Uri) {
+        runCatching { DocumentsContract.deleteDocument(context.contentResolver, doc) }
+    }
+
+    /** Deletes Kassa's own backups in the folder beyond the newest [BackupNames.KEEP]; see [BackupNames.toDelete]. */
+    private fun trimOldBackups(context: Context, tree: Uri, parentId: String) {
+        val resolver = context.contentResolver
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
+        val files = ArrayList<Pair<String, String>>()
+        resolver.query(
+            children,
+            arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE),
+            null, null, null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val id = c.getString(0) ?: continue
+                val displayName = c.getString(1) ?: continue
+                if (c.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) continue
+                files.add(id to displayName)
+            }
+        }
+        val doomed = BackupNames.toDelete(files.map { it.second }).toSet()
+        files.filter { it.second in doomed }.forEach { (id, _) ->
+            runCatching { DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, id)) }
+        }
+    }
+
+    /**
+     * The backup the daily job runs: [backupNow], and what a day's result means. A failure counts toward the streak of failed days; on
+     * the third, one private notification asks the person to look. A success ends the streak (see [backupNow]).
+     */
+    suspend fun scheduledBackup(context: Context) {
+        val s = (context.applicationContext as KassaApplication).settings
+        try {
+            backupNow(context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val outcome = s.backupStreak().failed(LocalDate.now().toEpochDay())
+            // Marked as told only when the notification really went out: without permission it is offered again the next failed day.
+            s.setBackupStreak(if (outcome.notifyNow && alertBackupProblem(context)) outcome.streak.wasAlerted() else outcome.streak)
+        }
+    }
+
+    /**
+     * "Backup needs attention": no amounts, nothing from the data, private on the lock screen; tapping it opens Settings > Backup.
+     * Returns false when it can't be shown (notifications aren't allowed).
+     */
+    private fun alertBackupProblem(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return false
+        if (!nm.areNotificationsEnabled()) return false
+        nm.createNotificationChannel(NotificationChannel(BACKUP_CHANNEL, "Backup problems", NotificationManager.IMPORTANCE_DEFAULT))
+        val open = Intent(context, MainActivity::class.java).setAction(ACTION_OPEN_BACKUP).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val tap = PendingIntent.getActivity(context, BACKUP_ALERT, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val public = android.app.Notification.Builder(context, BACKUP_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_kassa)
+            .setContentTitle("Backup needs attention")
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .build()
+        val n = android.app.Notification.Builder(context, BACKUP_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_kassa)
+            .setContentTitle("Backup needs attention")
+            .setContentText("Kassa couldn't save your last few daily backups. Tap to see why.")
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .setVisibility(android.app.Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
+            .build()
+        nm.notify(BACKUP_ALERT, n)
+        return true
     }
 
     /** The daily nudge. Tapping it opens Add. Does nothing if notifications aren't allowed. */
@@ -203,7 +301,7 @@ class DailyJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         scope.launch {
             when (params.jobId) {
-                DailyJobs.BACKUP -> runCatching { DailyJobs.backupNow(applicationContext) }
+                DailyJobs.BACKUP -> runCatching { DailyJobs.scheduledBackup(applicationContext) }
                 DailyJobs.REMINDER -> Unit
             }
             jobFinished(params, false)

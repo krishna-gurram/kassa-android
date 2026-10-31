@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.kassa.money.KassaApplication
+import android.util.Log
+import app.kassa.money.data.Failures
+import app.kassa.money.data.Failures.Doing
 import app.kassa.money.data.PickedFile
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.backup.BackupFile
@@ -20,6 +23,7 @@ import app.kassa.money.importer.ImportPlan
 import app.kassa.money.importer.LoanChoice
 import app.kassa.money.importer.MoneyManagerImporter
 import app.kassa.money.importer.NotReadableBackup
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -92,12 +96,11 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
                 ImportState.Failed(e.message.orEmpty())
             } catch (e: NotAMoneyManagerBackup) {
                 ImportState.Failed(e.message.orEmpty())
-            } catch (e: BackupFile.NotABackup) {
-                dropKassa()
-                ImportState.Failed("The file is damaged or cut short. Back up again and pick the new file.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 dropKassa()
-                ImportState.Failed("Couldn't read that file: ${e.message ?: e.javaClass.simpleName}")
+                failed(e, Doing.IMPORT_FILE)
             }
         }
     }
@@ -115,13 +118,25 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
                 ImportState.KassaPassword()
             } catch (e: BackupFile.WrongPassword) {
                 ImportState.KassaPassword(e.message)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 dropKassa()
-                ImportState.Failed(e.message ?: "Couldn't open that file.")
+                failed(e, Doing.IMPORT_FILE)
             } finally {
                 password.fill(' ')
             }
         }
+    }
+
+    /**
+     * A failure for the screen: Kassa's own messages about a file (not a Money Manager or Cashew backup, newer version) are
+     * already plain; everything else is worded by [Failures], and only its short code goes to the log.
+     */
+    private fun failed(e: Exception, doing: Doing): ImportState.Failed {
+        Log.w("Kassa", "An import step failed (${Failures.code(e)})")
+        val own = e is NotReadableBackup || e is NotAMoneyManagerBackup
+        return ImportState.Failed(if (own) e.message.orEmpty().ifBlank { Failures.message(e, doing) } else Failures.message(e, doing))
     }
 
     /** Reads [copy] without changing anything. Throws the [BackupFile] errors. */
@@ -137,9 +152,11 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { kassa.backups.restore(contents) }
                 dropKassa()
                 ImportState.Restored
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 dropKassa()
-                ImportState.Failed("Nothing was changed. ${e.message ?: e.javaClass.simpleName}")
+                failed(e, Doing.RESTORE)
             }
         }
     }
@@ -205,8 +222,10 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
                 val plan = withContext(Dispatchers.Default) { CashewImporter().plan(src, s.choices) }
                 val other = s.otherCurrency.filter { it.pk !in s.choices.leaveOut }.map { it.name }
                 ImportState.Review(if (other.isEmpty()) plan else plan.copy(issues = plan.issues + app.kassa.money.importer.ImportIssue.OtherCurrency(other)))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                ImportState.Failed("Couldn't read that file: ${e.message ?: e.javaClass.simpleName}")
+                failed(e, Doing.IMPORT_FILE)
             }
         }
     }
@@ -220,8 +239,10 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
                 kassa.forgetAccountReferences()
                 closeCashew()
                 ImportState.Done(plan.transactions.size, plan)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                ImportState.Failed("Nothing was saved. ${e.message ?: e.javaClass.simpleName}")
+                failed(e, Doing.IMPORT_SAVE)
             }
         }
     }
