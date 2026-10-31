@@ -108,7 +108,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   after the smoke test. The debug build is `app.kassa.money.debug`, so it installs beside the real app.
 - Every build on `main` runs tests, builds a release APK signed with the Kassa key (four repo secrets), checks the
   certificate and the no-network rule, installs it over the last release on an emulator, then publishes `v0.2.<commit count>`
-  as a GitHub release. The app's `versionName` is `1.0.<build number>` and `versionCode` is `100 + build number` (the release tag
+  as a GitHub release. The app's `versionName` is `0.9.<build number>` (testing; it becomes 1.0.<build number> at launch) and `versionCode` is `100 + build number` (the release tag
   stays `v0.2.<count>` until the workflow changes; the tag is not the version people see). Only the newest commit on `main` is published.
 - Pushes from the Claude GitHub App sometimes don't trigger a run; start one with a `workflow_dispatch`.
 - Build logs aren't readable through the API from Claude sessions, so failures upload logs to a draft release

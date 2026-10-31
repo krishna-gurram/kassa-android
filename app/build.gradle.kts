@@ -18,7 +18,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 100 + buildNumber
-        versionName = "1.0.$buildNumber"
+        versionName = "0.9.$buildNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Where feedback emails go. Set in CI; empty means the user types the address.
         buildConfigField("String", "SUPPORT_EMAIL", "\"${System.getenv("KASSA_SUPPORT_EMAIL") ?: ""}\"")
