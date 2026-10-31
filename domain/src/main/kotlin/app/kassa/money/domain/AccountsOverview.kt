@@ -46,9 +46,11 @@ data class AccountsOverview(
     val assetGroups: List<AccountGroupView>,
     val liabilityGroups: List<AccountGroupView>,
     val closed: List<Account>,
+    /** Every group in the user's own order, when they arranged accounts; otherwise assets then liabilities. */
+    private val arranged: List<AccountGroupView>? = null,
 ) {
     val netWorth: Long get() = assets - liabilities
-    val groups: List<AccountGroupView> get() = assetGroups + liabilityGroups
+    val groups: List<AccountGroupView> get() = arranged ?: (assetGroups + liabilityGroups)
 
     companion object {
         /**
@@ -62,13 +64,18 @@ data class AccountsOverview(
             receivable: Long = 0,
             payable: Long = 0,
             order: Comparator<AccountLine> = Names.order { it.account.name },
+            arrangement: AccountArrangement? = null,
         ): AccountsOverview {
             val open = accounts.filter { it.isActive }
             val lines = open.map { a -> AccountLine(a, if (a.type.isDebt) -value(a) else value(a)) }
-            val groups = AccountSection.entries.mapNotNull { s ->
+            val built = AccountSection.entries.mapNotNull { s ->
                 val mine = lines.filter { AccountSection.of(it.account.type) == s }
                 if (mine.isEmpty()) null else AccountGroupView(s, mine.sortedWith(order))
             }
+            // Your own order wins over [order]: groups, then the accounts inside each.
+            val groups = if (arrangement == null) built else arrangement
+                .orderGroups(built, { it.section.name }, { it.section.title })
+                .map { g -> g.copy(lines = arrangement.orderRows(g.section.name, g.lines, { it.account.id }, { it.account.name })) }
             val assetGroups = groups.filter { !it.section.isDebt }
             val liabilityGroups = groups.filter { it.section.isDebt }
             return AccountsOverview(
@@ -77,6 +84,7 @@ data class AccountsOverview(
                 assetGroups = assetGroups,
                 liabilityGroups = liabilityGroups,
                 closed = accounts.filter { !it.archived && it.isClosed }.sortedWith(Names.order { it.name }),
+                arranged = if (arrangement == null) null else groups,
             )
         }
 

@@ -15,7 +15,8 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 - **Nothing guesses an account.** A new entry, payment or card payment starts with no account unless the user set one
   (a card's own "pay from"). Nothing is preselected from a category or merchant.
 - **Lists of names are A to Z** (`Names.order`, the phone's language): categories, subcategories, accounts, people,
-  and the pickers on Add. Entries stay by date; spending breakdowns stay largest first.
+  and the pickers on Add. Entries stay by date; spending breakdowns stay largest first. The one exception: once the
+  user arranges their accounts (Accounts > Arrange), their order wins on Accounts and for the Overview tiles.
 - **Every input is bounded.** Limits live in `domain/InputRules` (names 40, categories 30, notes 120, amounts
   99,999,999.99). Forms filter as you type (`NameField`, `AmountField`, `DigitsField` in `ui/common/Fields.kt`) and
   show the problem under the field; repositories check the same rules again and throw `IllegalArgumentException`
@@ -88,7 +89,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to six pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to eight pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
 
@@ -103,6 +104,14 @@ percentages, trends or forecasts here. Debts show what is owed, with no minus.
 Fixed deposit is an asset with an optional maturity date. Close account (account and card pages) needs a zero balance
 (holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
 worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
+
+**Arrange accounts.** "Arrange" next to the sort turns on up and down arrow buttons (no drag) on each group header and
+account row; "Done" leaves, "Reset to A to Z" clears. `domain/AccountArrangement` holds the group order and each group's
+account order (ids) and moves one place at a time: groups only among their own column (assets or liabilities at 600dp+),
+accounts only inside their group. Anything new (account or kind of group) goes to the end, A to Z; closed or deleted ids
+are ignored. Settings stores it as one string (`accountArrangement`) and sets the sort to Custom; picking any other sort
+clears it. Overview tiles follow it (group order, then row order; People last). It rides in the `.kassa` backup beside
+the month start and currency (`accountArrangement`, absent in older files). Rows don't open while arranging.
 
 ## One component per job
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before

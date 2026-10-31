@@ -37,6 +37,8 @@ data class BackupContents(
     val loanChanges: List<LoanTermChangeEntity> = emptyList(),
     val loanPayments: List<LoanPaymentEntity> = emptyList(),
     val icons: Map<String, ByteArray>,
+    /** The user's account order, as [app.kassa.money.domain.AccountArrangement.encode]; absent in older backups. */
+    val accountArrangement: String? = null,
 ) {
     /** One line for the confirm step before restoring. */
     val summary: String
@@ -51,6 +53,7 @@ data class BackupContents(
         .put("createdAt", createdAt)
         .put("monthStartDay", monthStartDay)
         .putOpt("currency", currency)
+        .putOpt("accountArrangement", accountArrangement)
         .put("groups", array(groups) { put("id", it.id).put("name", it.name).put("sortOrder", it.sortOrder) })
         .put("accounts", array(accounts) {
             put("id", it.id).put("name", it.name).put("type", it.type).putOpt("groupId", it.groupId).put("openingBalance", it.openingBalance)
@@ -108,6 +111,7 @@ data class BackupContents(
                 createdAt = j.optLong("createdAt"),
                 monthStartDay = j.optInt("monthStartDay", 1),
                 currency = j.optString("currency").ifEmpty { null },
+                accountArrangement = j.optString("accountArrangement").ifEmpty { null },
                 groups = j.rows("groups") { GroupEntity(getLong("id"), getString("name"), getInt("sortOrder")) },
                 accounts = j.rows("accounts") {
                     AccountEntity(getLong("id"), getString("name"), getString("type"), longOrNull("groupId"), getLong("openingBalance"),

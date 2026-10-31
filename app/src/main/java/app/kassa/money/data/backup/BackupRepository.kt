@@ -24,6 +24,7 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
             createdAt = System.currentTimeMillis(),
             monthStartDay = settings.monthStartDay.value,
             currency = settings.currency.value,
+            accountArrangement = settings.accountArrangement.value?.encode(),
             groups = db.groups().all(),
             accounts = db.accounts().all(),
             categories = db.categories().all(),
@@ -69,5 +70,7 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
         if (c.icons.isNotEmpty()) iconDir.apply { mkdirs() }.let { dir -> c.icons.forEach { (name, bytes) -> File(dir, File(name).name).writeBytes(bytes) } }
         settings.setMonthStartDay(c.monthStartDay)
         c.currency?.takeIf { code -> Currencies.all.any { it.code == code } }?.let(settings::setCurrency)
+        // An older backup has none: keep whatever order this phone has.
+        app.kassa.money.domain.AccountArrangement.decode(c.accountArrangement)?.let(settings::setAccountArrangement)
     }
 }

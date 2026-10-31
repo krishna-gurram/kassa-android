@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -34,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.Account
+import app.kassa.money.domain.AccountArrangement
 import app.kassa.money.domain.AccountLine
 import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
@@ -68,12 +71,13 @@ import app.kassa.money.ui.theme.KassaType
 
 /** How the Accounts tab orders every group; stored in Settings as these names. */
 private enum class AccountSort(val label: String) {
-    NAME("Name"), BALANCE("Balance"), DUE("Due date");
+    NAME("Name"), BALANCE("Balance"), DUE("Due date"), CUSTOM("Custom");
 
     fun direction(desc: Boolean) = when (this) {
         NAME -> if (desc) "Z to A" else "A to Z"
         BALANCE -> if (desc) "Smallest first" else "Largest first"
         DUE -> if (desc) "Latest due first" else "Soonest due first"
+        CUSTOM -> "Your order"
     }
 
     companion object {
@@ -119,6 +123,9 @@ fun AccountsScreen(
     var addingAccount by remember { mutableStateOf(false) }
     var addingPerson by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
+    var arranging by rememberSaveable { mutableStateOf(false) }
+    val savedArrangement by settings.accountArrangement.collectAsState()
+    val arrangement = savedArrangement.takeIf { sort == AccountSort.CUSTOM }
     val toggle: (String) -> Unit = { k -> onFolded(if (k in folded) folded - k else folded + k) }
 
     // An investment account is worth its cash plus its holdings.
@@ -139,28 +146,50 @@ fun AccountsScreen(
         AccountSort.NAME -> byName
         AccountSort.BALANCE -> compareByDescending<AccountLine> { Math.abs(it.shown) }.then(byName)
         AccountSort.DUE -> compareBy<AccountLine, Int?>(nullsLast<Int>()) { dueDay(it.account) }.then(byName)
-    }.let { if (desc) it.reversed() else it }
+        AccountSort.CUSTOM -> byName
+    }.let { if (desc && sort != AccountSort.CUSTOM) it.reversed() else it }
 
     val personBalances = ledger.personBalances()
     val owed = ledger.openPersonBalances().values
     val receivable = owed.filter { it > 0 }.sum()
     val payable = -owed.filter { it < 0 }.sum()
-    val overview = AccountsOverview.of(state.accounts, valueOf, receivable, payable, order)
+    val overview = AccountsOverview.of(state.accounts, valueOf, receivable, payable, order, arrangement)
     val people = ledger.people.people.filter { !it.archived }.sortedWith(Names.order { it.name })
     val archived = state.accounts.filter { it.archived }.sortedWith(Names.order { it.name })
     val archivedPeople = ledger.people.people.filter { it.archived }
 
-    val groupCard: @Composable (AccountSection, List<AccountLine>, Long) -> Unit = { section, lines, total ->
+    // Arranging starts from what is shown now, so a first move keeps every other group and row where it is.
+    val shownGroups = overview.groups.map { it.section.name }
+    val shownRows = overview.groups.associate { g -> g.section.name to g.lines.map { it.account.id } }
+    val moveGroup: (String, List<String>, Int) -> Unit = { key, within, d ->
+        settings.setAccountArrangement(AccountArrangement(shownGroups, shownRows).moveGroup(shownGroups, within, key, d))
+    }
+    val moveAccount: (String, Long, Int) -> Unit = { key, id, d ->
+        settings.setAccountArrangement(AccountArrangement(shownGroups, shownRows).moveAccount(shownGroups, key, shownRows.getValue(key), id, d))
+    }
+
+    // [within] is the groups of the column this one sits in, so a group moves only among its own column.
+    val groupCard: @Composable (AccountSection, List<AccountLine>, Long, List<String>) -> Unit = { section, lines, total, within ->
         val key = section.name
         val debt = section.isDebt
+        val at = within.indexOf(key)
         GroupCard(
             section.title, if (debt) cardMoney(total) else Money.format(total),
             if (debt) cardTint(total) else figureColor(if (total < 0) Kassa.colors.attention else Kassa.colors.ink),
             open = key !in folded, onToggle = { toggle(key) },
+            trailing = if (arranging) ({
+                MoveButtons(section.title, canUp = at > 0, canDown = at in 0 until within.lastIndex,
+                    onUp = { moveGroup(key, within, -1) }, onDown = { moveGroup(key, within, 1) })
+            }) else null,
         ) {
-            lines.forEach { line ->
+            lines.forEachIndexed { i, line ->
                 HorizontalDivider(color = Kassa.colors.line)
-                AccountRow(line, ledger, cards, selected = line.account.id == selectedAccount) { onOpenAccount(line.account.id) }
+                val id = line.account.id
+                AccountRow(
+                    line, ledger, cards, selected = id == selectedAccount, arranging = arranging,
+                    mover = { MoveButtons(line.account.name, canUp = i > 0, canDown = i < lines.lastIndex,
+                        onUp = { moveAccount(key, id, -1) }, onDown = { moveAccount(key, id, 1) }) },
+                ) { onOpenAccount(id) }
             }
         }
     }
@@ -215,9 +244,18 @@ fun AccountsScreen(
         val allFolded = keys.all { it in folded }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             SortHeader(sort, desc, onSort = { settings.setAccountSort(it.name) }, onFlip = { settings.setAccountSortDesc(!desc) })
+            TextButton(onClick = { arranging = !arranging }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(if (arranging) "Done" else "Arrange", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = { onFolded(if (allFolded) emptySet() else keys.toSet()) }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(if (allFolded) "Expand all" else "Collapse all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+            }
+        }
+        if (arranging) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Move groups and accounts with the arrows.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+            TextButton(onClick = { settings.resetAccountArrangement() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("Reset to A to Z", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
     }
@@ -255,11 +293,11 @@ fun AccountsScreen(
             if (two) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        overview.assetGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                        overview.assetGroups.map { it.section.name }.let { within -> overview.assetGroups.forEach { groupCard(it.section, it.lines, it.total, within) } }
                         peopleCard()
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total) }
+                        overview.liabilityGroups.map { it.section.name }.let { within -> overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total, within) } }
                         if (overview.liabilityGroups.isEmpty()) Text(
                             "Cards and loans show here when you add one.", style = KassaType.small, color = Kassa.colors.ink2,
                             modifier = Modifier.padding(12.dp),
@@ -270,7 +308,7 @@ fun AccountsScreen(
                 closedCard()
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    overview.groups.forEach { groupCard(it.section, it.lines, it.total) }
+                    overview.groups.forEach { groupCard(it.section, it.lines, it.total, shownGroups) }
                     peopleCard()
                     closedCard()
                 }
@@ -298,7 +336,10 @@ fun AccountsScreen(
  * fixed deposit, when it matures. Orange is for something to pay and for a payment due today or overdue.
  */
 @Composable
-private fun AccountRow(line: AccountLine, ledger: Ledger, cards: Map<Long, CardSnapshotFor>, selected: Boolean, onClick: () -> Unit) {
+private fun AccountRow(
+    line: AccountLine, ledger: Ledger, cards: Map<Long, CardSnapshotFor>, selected: Boolean,
+    arranging: Boolean = false, mover: (@Composable () -> Unit)? = null, onClick: () -> Unit,
+) {
     val a = line.account
     val debt = a.type.isDebt
     var note: String? = null
@@ -340,7 +381,8 @@ private fun AccountRow(line: AccountLine, ledger: Ledger, cards: Map<Long, CardS
     OneLineRow(
         a.name, a.last4, if (debt) cardMoney(line.shown) else Money.format(line.shown), selected = selected, grouped = true,
         amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown),
-        note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor, onClick = onClick,
+        note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor,
+        enabled = !arranging, trailing = if (arranging) mover else null, onClick = onClick,
     )
 }
 
@@ -361,6 +403,7 @@ private fun PersonRow(p: Person, balance: Long, onClick: () -> Unit) {
 @Composable
 private fun GroupCard(
     title: String, total: String?, totalColor: Color, open: Boolean, onToggle: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
@@ -371,6 +414,7 @@ private fun GroupCard(
             Icon(Icons.Outlined.ChevronRight, null, tint = Kassa.colors.ink3, modifier = Modifier.size(22.dp).rotate(if (open) 90f else 0f))
             Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp))
             if (total != null) Text(total, style = KassaType.bodyStrong, color = totalColor, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 10.dp))
+            trailing?.invoke()
         }
         if (open) content()
     }
@@ -389,7 +433,8 @@ private fun SortHeader(sort: AccountSort, desc: Boolean, onSort: (AccountSort) -
                 Text(sort.label, style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
             DropdownMenu(menu, { menu = false }, containerColor = Kassa.colors.raised) {
-                AccountSort.entries.forEach { option ->
+                // Custom is only listed while it's the order in use; arranging is what makes it.
+                AccountSort.entries.filter { it != AccountSort.CUSTOM || sort == AccountSort.CUSTOM }.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option.label, style = KassaType.body, color = Kassa.colors.ink) },
                         leadingIcon = { Box(Modifier.size(24.dp)) { if (option == sort) Icon(Icons.Outlined.Check, null, tint = Kassa.colors.ink) } },
@@ -399,8 +444,21 @@ private fun SortHeader(sort: AccountSort, desc: Boolean, onSort: (AccountSort) -
             }
         }
         Spacer(Modifier.size(12.dp))
-        IconButton(onClick = onFlip, modifier = Modifier.size(48.dp)) {
+        if (sort != AccountSort.CUSTOM) IconButton(onClick = onFlip, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Outlined.ArrowUpward, sort.direction(desc), tint = Kassa.colors.ink, modifier = Modifier.size(20.dp).rotate(if (desc) 180f else 0f))
+        }
+    }
+}
+
+/** Up and down for one group or account while arranging: two 48dp buttons, each off at its end of the list. */
+@Composable
+private fun MoveButtons(label: String, canUp: Boolean, canDown: Boolean, onUp: () -> Unit, onDown: () -> Unit) {
+    Row {
+        IconButton(onClick = onUp, enabled = canUp, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Outlined.ArrowUpward, "Move $label up", tint = if (canUp) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = onDown, enabled = canDown, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Outlined.ArrowDownward, "Move $label down", tint = if (canDown) Kassa.colors.ink else Kassa.colors.ink3, modifier = Modifier.size(20.dp))
         }
     }
 }
