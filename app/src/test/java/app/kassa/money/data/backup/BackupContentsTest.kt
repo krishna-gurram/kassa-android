@@ -98,7 +98,7 @@ class BackupContentsTest {
         assertTrue(back.loanChanges.isEmpty())
         assertTrue(back.loanPayments.isEmpty())
         // The loan account and its entries are still there; it is a plain loan account again.
-        assertEquals("LOAN", back.accounts.last().type)
+        assertEquals("LOAN", back.accounts.first { it.id == 3L }.type)
         assertEquals(7, back.transactions.size)
     }
 
