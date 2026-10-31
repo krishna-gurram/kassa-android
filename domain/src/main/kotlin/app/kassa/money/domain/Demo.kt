@@ -104,7 +104,7 @@ object Demo {
             .map { (c, a) -> Budget(c, 0, a) }
         val people = listOf(Person(1, "Sam"), Person(2, "Alex"))
         val loans = listOf(
-            LoanEntry(1, 1, 2_500, at(today.minusDays(6)), "Dinner, Sam's share"),
+            LoanEntry(1, 1, 2_500, at(today.minusDays(6)), "Dinner, Friend A's share"),
             LoanEntry(2, 2, -4_000, at(today.minusDays(12)), "Concert tickets"),
         )
         val recurring = listOf(

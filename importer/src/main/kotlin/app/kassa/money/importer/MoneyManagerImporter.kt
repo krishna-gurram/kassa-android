@@ -41,7 +41,7 @@ data class ImportPlan(
 )
 
 sealed interface ImportIssue {
-    /** Accounts whose names look like the same account entered twice, e.g. "Amex Platinum" and "amex plat". */
+    /** Accounts whose names look like the same account entered twice, e.g. "Card B Plus" and "card b pl". */
     data class PossibleDuplicateAccounts(val names: List<String>) : ImportIssue
     /** A transfer whose two halves disagree on amount, date or accounts. The "out" half is used. */
     data class MismatchedTransfers(val count: Int) : ImportIssue

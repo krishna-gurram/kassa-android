@@ -15,14 +15,14 @@ class AccountFormTest {
 
     @Test
     fun namesAreUniqueIgnoringCase() {
-        val form = AccountForm(name = "chase checking")
-        assertTrue(AccountField.NAME in form.problems(listOf("Chase Checking")))
-        assertTrue(form.problems(listOf("Chase Savings")).isEmpty())
+        val form = AccountForm(name = "bank a checking")
+        assertTrue(AccountField.NAME in form.problems(listOf("Bank A Checking")))
+        assertTrue(form.problems(listOf("Bank A Savings")).isEmpty())
     }
 
     @Test
     fun aDebtIsStoredNegative() {
-        val card = AccountForm(type = AccountType.CREDIT_CARD, name = "Citi", balance = "250", statementDay = "16", dueDay = "10")
+        val card = AccountForm(type = AccountType.CREDIT_CARD, name = "Card C", balance = "250", statementDay = "16", dueDay = "10")
         val saved = card.toAccount(Account(name = "", type = AccountType.CREDIT_CARD), currentBalance = 0)
         assertEquals(-25_000, saved.openingBalance)
         assertEquals(16, saved.statementDay)
@@ -30,7 +30,7 @@ class AccountFormTest {
 
     @Test
     fun editingShiftsOnlyTheStartingBalance() {
-        val account = Account(id = 3, name = "Chase", type = AccountType.CHECKING, openingBalance = 10_000)
+        val account = Account(id = 3, name = "Bank A", type = AccountType.CHECKING, openingBalance = 10_000)
         // Entries have brought it to 400.00; the person says it's really 450.00.
         val saved = AccountForm.of(account, 40_000).copy(balance = "450").toAccount(account, 40_000)
         assertEquals(15_000, saved.openingBalance)
@@ -38,7 +38,7 @@ class AccountFormTest {
 
     @Test
     fun anOverpaidCardKeepsItsCreditThroughAnEdit() {
-        val card = Account(id = 1, name = "Citi", type = AccountType.CREDIT_CARD, openingBalance = 0, statementDay = 1, dueDay = 20)
+        val card = Account(id = 1, name = "Card C", type = AccountType.CREDIT_CARD, openingBalance = 0, statementDay = 1, dueDay = 20)
         val form = AccountForm.of(card, 5_000)
         assertEquals("-50", form.balance)
         assertEquals(0, form.toAccount(card, 5_000).openingBalance)
