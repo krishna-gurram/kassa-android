@@ -47,7 +47,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: phone, profile: pixel_6 }
+          - { name: phone, profile: pixel_7_pro }
           - { name: tablet7, profile: 7in WSVGA (Tablet) }
           - { name: tablet10, profile: 10.1in WXGA (Tablet) }
     steps:
