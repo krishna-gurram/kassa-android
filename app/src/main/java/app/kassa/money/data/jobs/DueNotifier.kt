@@ -145,7 +145,7 @@ object DueNotifier {
         val grouped = showing.size >= 2
         items.forEach { item ->
             val id = notificationId(item)
-            val words = DueNotices.text(item, (item.dueDay - today))
+            val words = DueNotices.text(item, (item.dueDay - today), showAmount = !app.kassa.money.domain.Money.isHidden)
             val open = Intent(context, MainActivity::class.java).setAction(ACTION_OPEN_DUE)
                 .putExtra(EXTRA_KIND, item.kind.name).putExtra(EXTRA_ID, item.id)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
