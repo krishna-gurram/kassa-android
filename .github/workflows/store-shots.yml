@@ -108,7 +108,7 @@ jobs:
           {
             echo "Store screenshots from run ${{ github.run_id }}. Demo data only, USD."
             echo
-            echo "Order: 01 overview, 02 accounts, 03 loan, 04 add entry categories, 05 activity, 06 insights, 07 bills, 08 accounts with balances hidden."
+            echo "Order: 01 overview, 02 accounts, 03 loan, 04 add entry categories, 05 activity, 06 insights, 07 bills, 08 accounts with balances hidden, 09 account picker, 10 add account kinds."
             echo "Prefixes: phone, phone-dark, tablet7, tablet10."
             echo
             sed 's/^/- /' upload/LIST.txt
