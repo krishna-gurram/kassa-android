@@ -5,6 +5,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import app.kassa.money.ui.activity.Chevron
+import app.kassa.money.ui.common.IconBadge
+import app.kassa.money.ui.common.SectionHeader
+import app.kassa.money.ui.common.accountIcon
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -62,7 +74,10 @@ fun AddAccountSheet(
     onDismiss: () -> Unit,
     onSave: (Account, String?) -> Unit,
     onSaveLoan: (Account, LoanTerms, String?) -> Unit,
+    /** The "Add a person" row at the end of the type list; the caller closes this sheet and opens its person sheet. */
+    onAddPerson: () -> Unit = {},
 ) {
+    var typed by remember { mutableStateOf(false) }
     var form by remember { mutableStateOf(AccountForm(groupId = groups.firstOrNull()?.id)) }
     var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
     var loan by remember { mutableStateOf(LoanForm.starting(today.loanDay())) }
@@ -78,12 +93,25 @@ fun AddAccountSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
-        CategoryPickerHost(categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding()) {
-            Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
+        CategoryPickerHost(categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding(), accounts = payFromOptions) {
+            if (!typed) {
+                // Type first: a short list of what the account is, then a form with only that type's fields.
+                Text("Add an account", style = KassaType.section, color = Kassa.colors.ink)
+                TypeList(onPick = { t -> edit(null) { it.copy(type = t) }; typed = true }, onAddPerson = onAddPerson)
+                Gap(24)
+                return@CategoryPickerHost
+            }
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { typed = false }) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
+                Column(Modifier.weight(1f)) {
+                    Text("Add an account", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(form.type.label, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             Gap(8)
             val isLoan = form.type == AccountType.LOAN
             AccountFields(
-                form, problems, ::edit, groups, payFromOptions, today = today,
+                form, problems, ::edit, groups, payFromOptions, today = today, showType = false,
                 loanFields = { LoanFields(loan, loanProblems, ::editLoan, today, payFromOptions, categories) },
             )
             Gap(12)
@@ -117,14 +145,18 @@ fun AccountFields(
     payFromOptions: List<Account>,
     types: List<AccountType> = AccountType.entries,
     showGroup: Boolean = true,
+    /** The Type chips; the Add account sheet picks the type first, so it hides them. */
+    showType: Boolean = true,
     /** Today, for the fixed deposit's maturity date; without it that field isn't offered. */
     today: LocalDate? = null,
     /** Replaces the balance field for a loan or mortgage, which has its own setup (see [LoanFields]). */
     loanFields: (@Composable () -> Unit)? = null,
 ) {
-    Label("Type")
-    FlowRow {
-        types.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(null) { it.copy(type = t) } } }
+    if (showType) {
+        Label("Type")
+        FlowRow {
+            types.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(null) { it.copy(type = t) } } }
+        }
     }
     NameField(form.name, { v -> edit(AccountField.NAME) { it.copy(name = v) } }, "Name", Modifier.fillMaxWidth(), problem = problems[AccountField.NAME])
     DigitsField(form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = v) } }, "Last 4 digits (optional)", 4, Modifier.fillMaxWidth(),
@@ -144,8 +176,10 @@ fun AccountFields(
         AmountField(form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = v) } }, "Credit limit (optional)", Modifier.fillMaxWidth(),
             problem = problems[AccountField.LIMIT])
         if (payFromOptions.isNotEmpty()) {
-            Label("Pay from")
-            FlowRow { payFromOptions.forEach { a -> Chip(a.name, form.payFromId == a.id, small = true) { edit(null) { it.copy(payFromId = a.id) } } } }
+            app.kassa.money.ui.common.AccountChoiceRow(
+                "Pay from", form.payFromId, payFromOptions, { id -> edit(null) { it.copy(payFromId = id) } },
+                modifier = Modifier.padding(top = 10.dp), noneOption = "No account",
+            )
         }
     }
     if (showGroup && groups.isNotEmpty()) {
@@ -162,3 +196,50 @@ fun AccountFields(
 
 @Composable
 private fun Label(text: String) = Text(text, style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+
+/** What each kind of account is, in a few words, under its name in the type list. */
+private fun typeHint(t: AccountType): String = when (t) {
+    AccountType.CHECKING -> "Day to day account"
+    AccountType.SAVINGS -> "Money you set aside"
+    AccountType.CASH -> "Notes and coins"
+    AccountType.PREPAID -> "Loaded card or app balance"
+    AccountType.FIXED_DEPOSIT -> "Locked until a date"
+    AccountType.CREDIT_CARD -> "Statement and due day"
+    AccountType.LOAN -> "Rate, term and payments"
+    AccountType.INVESTMENT -> "Cash now, holdings after"
+    AccountType.OTHER_ASSET -> "Something you own"
+    AccountType.OTHER_DEBT -> "Something you owe"
+}
+
+/** The kinds of account in groups, as hairline rows with an icon, a name, a hint and a chevron; then Add a person. */
+@Composable
+private fun TypeList(onPick: (AccountType) -> Unit, onAddPerson: () -> Unit) {
+    val groups = listOf(
+        "Cash and bank" to listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID, AccountType.FIXED_DEPOSIT),
+        "Credit and loans" to listOf(AccountType.CREDIT_CARD, AccountType.LOAN),
+        "Investments" to listOf(AccountType.INVESTMENT),
+        "Other" to listOf(AccountType.OTHER_ASSET, AccountType.OTHER_DEBT),
+    )
+    groups.forEach { (title, types) ->
+        SectionHeader(title)
+        types.forEach { t -> TypeRow(accountIcon(t), t.label, typeHint(t)) { onPick(t) } }
+    }
+    HorizontalDivider(color = Kassa.colors.line)
+    TypeRow(androidx.compose.material.icons.Icons.Outlined.Person, "Add a person", "Someone you lend to, borrow from or split costs with", onAddPerson)
+}
+
+@Composable
+private fun TypeRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String, onClick: () -> Unit) {
+    HorizontalDivider(color = Kassa.colors.line)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onClick).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconBadge(icon, size = 36)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(hint, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Chevron(left = false), null, tint = Kassa.colors.ink3)
+    }
+}

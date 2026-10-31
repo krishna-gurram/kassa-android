@@ -229,15 +229,27 @@ class CategoryRequest(
 val LocalCategoryPicker = staticCompositionLocalOf<((CategoryRequest) -> Unit)?> { null }
 
 /**
- * The body of a bottom sheet: [content] in a scrolling column, replaced by the category picker while one is open. The
- * form's scroll position is kept while the picker shows. [modifier] is applied after the scroll, like padding.
+ * The body of a bottom sheet: [content] in a scrolling column, replaced by the category picker (or, when [accounts] are
+ * given, the account picker, see AccountPicker.kt) while one is open. The form's scroll position is kept while a picker
+ * shows. [modifier] is applied after the scroll, like padding.
  */
 @Composable
-fun CategoryPickerHost(categories: List<Category>, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun CategoryPickerHost(
+    categories: List<Category>,
+    modifier: Modifier = Modifier,
+    accounts: List<app.kassa.money.domain.Account> = emptyList(),
+    content: @Composable ColumnScope.() -> Unit,
+) {
     var request by remember { mutableStateOf<CategoryRequest?>(null) }
+    var accountRequest by remember { mutableStateOf<AccountRequest?>(null) }
     val scroll = rememberScrollState()
     val open = request
-    if (open == null) CompositionLocalProvider(LocalCategoryPicker provides { r -> request = r }) {
+    val openAccount = accountRequest
+    if (openAccount != null) AccountPickerPage(accounts, openAccount, onClose = { accountRequest = null }, modifier = modifier)
+    else if (open == null) CompositionLocalProvider(
+        LocalCategoryPicker provides { r -> request = r },
+        LocalAccountPicker provides { r -> accountRequest = r },
+    ) {
         Column(Modifier.verticalScroll(scroll).then(modifier), verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
     } else CategoryPickerPage(categories, open, onClose = { request = null }, modifier = modifier)
 }

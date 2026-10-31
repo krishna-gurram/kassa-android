@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,8 +52,8 @@ internal fun OneLineRow(
     val box = if (grouped) Modifier.heightIn(min = 52.dp) else Modifier.clip(shape).background(Kassa.colors.raised)
     Row(
         Modifier.fillMaxWidth().then(box)
-            .then(if (selected && grouped) Modifier.background(Kassa.colors.chip) else if (selected) Modifier.border(1.5.dp, Kassa.colors.ink, shape) else Modifier)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 12.dp, vertical = 8.dp),
+            .then(if (selected && grouped) Modifier.clip(RoundedCornerShape(10.dp)).background(Kassa.colors.chip) else if (selected) Modifier.border(1.5.dp, Kassa.colors.ink, shape) else Modifier)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = if (grouped) 4.dp else 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -72,6 +73,9 @@ internal fun OneLineRow(
             }
         }
         trailing?.invoke()
+        if (grouped && enabled && trailing == null) androidx.compose.material3.Icon(
+            app.kassa.money.ui.activity.Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.padding(start = 4.dp).size(18.dp),
+        )
     }
 }
 

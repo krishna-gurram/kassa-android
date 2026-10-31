@@ -61,6 +61,7 @@ import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.AccountPickerPanel
 import app.kassa.money.ui.common.CategoryPickerPanel
 import app.kassa.money.ui.common.SubcategoryPickerPanel
 import app.kassa.money.ui.common.CategoryIconView
@@ -106,6 +107,7 @@ fun BillPage(
     BackHandler(enabled = dirty) { confirmDiscard = true }
 
     var categoryQuery by remember { mutableStateOf("") }
+    var accountFilter by remember { mutableStateOf(app.kassa.money.domain.AccountKindFilter.ALL) }
     val focus = LocalFocusManager.current
     val nameFocus = remember { FocusRequester() }
     LaunchedEffect(field) { categoryQuery = ""; if (field == BillField.NAME) runCatching { nameFocus.requestFocus() } else focus.clearFocus() }
@@ -211,17 +213,10 @@ fun BillPage(
                             }
                         }
                         BillField.ACCOUNT -> {
-                            PanelTitle("Paid with") { field = null }
-                            LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(accountChoices, key = { it.id }) { a ->
-                                    PickTile(on = accountId == a.id, onClick = { accountId = a.id; advance() }) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(a.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                            a.last4?.takeIf { it.isNotBlank() }?.let { Text("  ··$it", style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1) }
-                                        }
-                                    }
-                                }
-                            }
+                            AccountPickerPanel(
+                                accountChoices, accountId, emptySet(), app.kassa.money.ui.common.recentAccountIds(ledger), categoryQuery, { categoryQuery = it }, {},
+                                accountFilter, { accountFilter = it }, wide, onDone = { field = null },
+                            ) { id -> accountId = id; advance() }
                         }
                         BillField.DAY -> {
                             PanelTitle("Day of the month") { field = null }

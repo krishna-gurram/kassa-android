@@ -118,7 +118,7 @@ fun EntryPage(
                             val top = s.categoryId?.let { ledger.categoryById[it] }?.let { c -> c.parentId?.let { ledger.categoryById[it] } ?: c }
                             if (top == null) s.field = Field.CATEGORY else SubcategoryPanel(s, ledger, top, wide)
                         }
-                        Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide)
+                        Field.ACCOUNT, Field.TO -> AccountPanel(s, accountChoices, toChoices, cards, wide, app.kassa.money.ui.common.recentAccountIds(ledger))
                         Field.DATE -> DatePanel(s, ledger.today)
                         Field.SPLIT -> SplitPanel(s, ledger)
                         Field.NOTE -> NotePanel(s, ledger, notes)

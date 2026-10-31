@@ -199,16 +199,17 @@ internal fun PaymentSheet(
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+        app.kassa.money.ui.common.AccountPickerHost(banks, Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(if (editing != null) "Edit payment" else "Record a payment", style = KassaType.section, color = Kassa.colors.ink)
             FlowRow(Modifier.padding(top = 10.dp)) {
                 Chip("${p.name} paid me", selected = direction == TxKind.PERSON_IN) { direction = TxKind.PERSON_IN }
                 Chip("I paid or lent ${p.name}", selected = direction == TxKind.PERSON_OUT) { direction = TxKind.PERSON_OUT }
             }
             AmountField(amount, { amount = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth(), problem = amountProblem)
-            Text(if (direction == TxKind.PERSON_IN) "Into" else "From", style = KassaType.tiny, color = Kassa.colors.ink2,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-            FlowRow { banks.forEach { a -> Chip(a.name, selected = account == a.id) { account = a.id; accountProblem = null } } }
+            app.kassa.money.ui.common.AccountChoiceRow(
+                if (direction == TxKind.PERSON_IN) "Into" else "From", account, banks, { id -> account = id; accountProblem = null },
+                modifier = Modifier.padding(top = 8.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger),
+            )
             accountProblem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { date = it }
