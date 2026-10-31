@@ -13,6 +13,9 @@ import app.kassa.money.data.db.GroupEntity
 import app.kassa.money.data.db.HoldingEntity
 import app.kassa.money.data.db.KassaDatabase
 import app.kassa.money.data.db.LoanEntryEntity
+import app.kassa.money.data.db.LoanPaymentEntity
+import app.kassa.money.data.db.LoanTermChangeEntity
+import app.kassa.money.data.db.LoanTermsEntity
 import app.kassa.money.data.db.PersonEntity
 import app.kassa.money.data.db.RecurringEntity
 import app.kassa.money.data.db.TradeEntity
@@ -84,6 +87,9 @@ class BackupRoundTripTest {
         assertEquals(a.recurring().all(), b.recurring().all())
         assertEquals(a.holdings().all(), b.holdings().all())
         assertEquals(a.trades().all(), b.trades().all())
+        assertEquals(a.loanTerms().all(), b.loanTerms().all())
+        assertEquals(a.loanChanges().all(), b.loanChanges().all())
+        assertEquals(a.loanPayments().all(), b.loanPayments().all())
     }
 
     /** Synthetic data shaped like a real ledger: every table, nullable columns both set and empty. */
@@ -95,6 +101,7 @@ class BackupRoundTripTest {
         accounts = listOf(
             AccountEntity(1, "Everyday checking", "CHECKING", 1, 150_000, null, null, null, null, false, 0, "mm-1", null),
             AccountEntity(2, "Travel card", "CREDIT_CARD", null, -42_000, 16, 10, 1, 500_000, false, 1, null, "1004"),
+            AccountEntity(3, "Car loan", "LOAN", null, -2_148_000, null, null, null, null, false, 2, null, null),
         ),
         categories = listOf(
             CategoryEntity(1, "Food", "EXPENSE", null, "emoji:🍜", -3_000_000, true, false, 0, null),
@@ -104,6 +111,8 @@ class BackupRoundTripTest {
             TransactionEntity(1, "EXPENSE", 6_000, 2, null, 2, null, 1_760_000_100_000, "Corner market", 2_000, null),
             TransactionEntity(2, "EXPENSE", 3_000, null, null, 1, 1, 1_760_000_200_000, "Dinner, Sam paid", 1_500, null),
             TransactionEntity(3, "TRANSFER", 10_000, 1, 2, null, null, 1_760_000_300_000, "", null, "mm-t3"),
+            TransactionEntity(4, "TRANSFER", 47_260, 1, 3, null, null, 1_760_000_400_000, "Car loan principal", null, null),
+            TransactionEntity(5, "EXPENSE", 10_740, 1, null, 2, null, 1_760_000_400_000, "Car loan interest", null, null),
         ),
         budgets = listOf(BudgetEntity(1, 0, 40_000), BudgetEntity(1, 202610, 45_000)),
         people = listOf(PersonEntity(1, "Sam", false), PersonEntity(2, "Alex", true)),
@@ -114,6 +123,9 @@ class BackupRoundTripTest {
         bills = listOf(RecurringEntity(1, "Rent", 1, 1, 1, 120_000, true, 202609)),
         holdings = listOf(HoldingEntity(1, 1, "VTI", 2_500_000, 25_050, 1_760_000_000_000, 21_333), HoldingEntity(2, 1, "SCHD", 80_000_000, 2_750, 1_760_000_000_000)),
         trades = listOf(TradeEntity(1, 3, "VTI", 2_500_000, 25_050)),
+        loanTerms = listOf(LoanTermsEntity(3, "REDUCING", false, 61_250, 58_000, 60, 3_000_000, 20_500, 20_758, 1, 20_000, 15_000, 10_000, 2, 1)),
+        loanChanges = listOf(LoanTermChangeEntity(1, 3, 21_000, 72_500, null, null, null)),
+        loanPayments = listOf(LoanPaymentEntity(1, 3, 20_758, 78_000, 4, 5, null, 20_000, 0, true, 10_740, true)),
         icons = emptyMap(),
     )
 }

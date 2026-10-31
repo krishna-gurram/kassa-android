@@ -6,6 +6,9 @@ import app.kassa.money.data.db.CategoryEntity
 import app.kassa.money.data.db.GroupEntity
 import app.kassa.money.data.db.HoldingEntity
 import app.kassa.money.data.db.LoanEntryEntity
+import app.kassa.money.data.db.LoanPaymentEntity
+import app.kassa.money.data.db.LoanTermChangeEntity
+import app.kassa.money.data.db.LoanTermsEntity
 import app.kassa.money.data.db.PersonEntity
 import app.kassa.money.data.db.RecurringEntity
 import app.kassa.money.data.db.TradeEntity
@@ -29,6 +32,10 @@ data class BackupContents(
     val holdings: List<HoldingEntity>,
     /** Absent in backups from before trades were kept. */
     val trades: List<TradeEntity> = emptyList(),
+    /** Absent in backups from before loans knew their terms: a loan account then comes back as a plain account. */
+    val loanTerms: List<LoanTermsEntity> = emptyList(),
+    val loanChanges: List<LoanTermChangeEntity> = emptyList(),
+    val loanPayments: List<LoanPaymentEntity> = emptyList(),
     val icons: Map<String, ByteArray>,
 ) {
     /** One line for the confirm step before restoring. */
@@ -74,6 +81,21 @@ data class BackupContents(
         .put("trades", array(trades) {
             put("id", it.id).put("transactionId", it.transactionId).put("ticker", it.ticker).put("microShares", it.microShares).put("price", it.price)
         })
+        .put("loanTerms", array(loanTerms) {
+            put("accountId", it.accountId).put("type", it.type).put("profit", it.profit).put("rate", it.rate).put("payment", it.payment)
+                .putOpt("termMonths", it.termMonths).putOpt("originalAmount", it.originalAmount).putOpt("startDay", it.startDay)
+                .put("nextPaymentDay", it.nextPaymentDay).put("dueDay", it.dueDay).put("escrow", it.escrow).put("fee", it.fee)
+                .put("earlyCharge", it.earlyCharge).putOpt("interestCategoryId", it.interestCategoryId).putOpt("payFromId", it.payFromId)
+        })
+        .put("loanChanges", array(loanChanges) {
+            put("id", it.id).put("accountId", it.accountId).put("effectiveDay", it.effectiveDay).putOpt("rate", it.rate)
+                .putOpt("payment", it.payment).putOpt("termMonths", it.termMonths).putOpt("type", it.type)
+        })
+        .put("loanPayments", array(loanPayments) {
+            put("id", it.id).put("accountId", it.accountId).put("day", it.day).put("amount", it.amount)
+                .putOpt("principalEntryId", it.principalEntryId).putOpt("interestEntryId", it.interestEntryId).putOpt("otherEntryId", it.otherEntryId)
+                .put("escrow", it.escrow).put("charge", it.charge).put("edited", it.edited).put("estimate", it.estimate).put("scheduled", it.scheduled)
+        })
         .put("icons", JSONObject().also { o -> icons.forEach { (name, bytes) -> o.put(name, encodeBytes(bytes)) } })
         .toString()
 
@@ -110,6 +132,20 @@ data class BackupContents(
                     HoldingEntity(getLong("id"), getLong("accountId"), getString("ticker"), getLong("microShares"), getLong("price"), getLong("priceMillis"), longOrNull("avgCost"))
                 },
                 trades = j.rows("trades") { TradeEntity(getLong("id"), getLong("transactionId"), getString("ticker"), getLong("microShares"), getLong("price")) },
+                loanTerms = j.rows("loanTerms") {
+                    LoanTermsEntity(getLong("accountId"), getString("type"), getBoolean("profit"), getLong("rate"), getLong("payment"),
+                        intOrNull("termMonths"), longOrNull("originalAmount"), intOrNull("startDay"), getInt("nextPaymentDay"), getInt("dueDay"),
+                        getLong("escrow"), getLong("fee"), getLong("earlyCharge"), longOrNull("interestCategoryId"), longOrNull("payFromId"))
+                },
+                loanChanges = j.rows("loanChanges") {
+                    LoanTermChangeEntity(getLong("id"), getLong("accountId"), getInt("effectiveDay"), longOrNull("rate"), longOrNull("payment"),
+                        intOrNull("termMonths"), stringOrNull("type"))
+                },
+                loanPayments = j.rows("loanPayments") {
+                    LoanPaymentEntity(getLong("id"), getLong("accountId"), getInt("day"), getLong("amount"), longOrNull("principalEntryId"),
+                        longOrNull("interestEntryId"), longOrNull("otherEntryId"), getLong("escrow"), getLong("charge"), getBoolean("edited"),
+                        getLong("estimate"), getBoolean("scheduled"))
+                },
                 icons = j.optJSONObject("icons")?.let { o -> o.keys().asSequence().associateWith { decodeBytes(o.getString(it)) } }.orEmpty(),
             )
         } catch (e: org.json.JSONException) {

@@ -11,6 +11,7 @@ import app.kassa.money.data.repo.CategoryRepository
 import app.kassa.money.data.repo.EntryRepository
 import app.kassa.money.data.repo.ImportRepository
 import app.kassa.money.data.repo.InvestmentRepository
+import app.kassa.money.data.repo.LoanRepository
 import app.kassa.money.data.repo.PeopleRepository
 import java.io.File
 import java.io.PrintWriter
@@ -28,6 +29,7 @@ class KassaApplication : Application() {
     val people by lazy { PeopleRepository(database) }
     val bills by lazy { BillRepository(database) }
     val investments by lazy { InvestmentRepository(database, entries) }
+    val loans by lazy { LoanRepository(database, accounts, categories) }
     val imports by lazy { ImportRepository(database) }
     val backups by lazy { BackupRepository(this, database, settings) }
 

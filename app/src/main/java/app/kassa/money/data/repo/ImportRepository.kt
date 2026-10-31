@@ -19,6 +19,10 @@ class ImportRepository(private val db: KassaDatabase) {
         db.categories().deleteAll()
         db.accounts().deleteAll()
         db.groups().deleteAll()
+        // Loan terms and payments belong to the accounts and entries being replaced.
+        db.loanTerms().deleteAll()
+        db.loanChanges().deleteAll()
+        db.loanPayments().deleteAll()
         db.groups().insertAll(plan.groups.map { it.toEntity() })
         db.accounts().insertAll(plan.accounts.map { it.toEntity() })
         db.categories().insertAll(plan.categories.map { it.toEntity() })
