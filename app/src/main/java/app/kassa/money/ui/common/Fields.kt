@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
@@ -93,3 +94,27 @@ fun DigitsField(
         modifier = modifier,
     )
 }
+
+/** A backup password, hidden as it's typed. Used wherever a .kassa file is saved or opened with one. */
+@Composable
+fun PasswordField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    problem: String? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onChange(InputRules.typed(it, PASSWORD_MAX)) },
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        singleLine = true,
+        isError = problem != null,
+        supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = modifier,
+    )
+}
+
+private const val PASSWORD_MAX = 128

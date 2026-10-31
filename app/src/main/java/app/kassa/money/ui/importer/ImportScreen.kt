@@ -22,17 +22,24 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
 import app.kassa.money.importer.ImportIssue
 import app.kassa.money.importer.ImportPlan
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.Panel
+import app.kassa.money.ui.common.PasswordField
 import app.kassa.money.ui.common.SectionHeader
+import app.kassa.money.ui.settings.BackupSummary
+import app.kassa.money.ui.settings.RestoreConfirm
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import java.text.NumberFormat
@@ -75,6 +82,15 @@ fun ImportScreen(
                 is ImportState.Cashew -> {
                     androidx.activity.compose.BackHandler(onBack = vm::back)
                     CashewSteps(s, vm)
+                }
+                is ImportState.KassaPassword -> KassaPassword(s.problem, onOpen = vm::openKassa, onCancel = vm::reset)
+                is ImportState.KassaReady -> KassaReady(s.contents, firstRun, onRestore = vm::restoreKassa, onCancel = vm::reset)
+                ImportState.Restored -> {
+                    Text("Backup restored", style = KassaType.title, color = Kassa.colors.ink)
+                    Gap(8)
+                    Text("Everything from the backup is now in Kassa, on this phone only.", style = KassaType.body, color = Kassa.colors.ink2)
+                    Gap(24)
+                    PrimaryButton("Open Kassa") { vm.reset(); onFinished() }
                 }
                 is ImportState.Review -> Review(s.plan, firstRun, onImport = vm::confirm, onPickAgain = { vm.reset(); pick() })
                 is ImportState.Done -> {
@@ -131,7 +147,7 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
             Text(if (firstRun) "Have a backup?" else "Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             Gap(4)
             Text(
-                "Money Manager backups (.mmbak) and Cashew backups (.sql). Kassa works out which one you picked, reads it on the phone and never uploads it.",
+                "A Kassa backup (.kassa), or one from Money Manager (.mmbak) or Cashew (.sql). Kassa works out which you picked, reads it on the phone and never uploads it.",
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
             Gap(14)
@@ -140,6 +156,39 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
     }
     Gap(12)
     if (onCancel != null) TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+}
+
+/** A Kassa backup with a password: the same field as Settings › Backup and restore. */
+@Composable
+private fun KassaPassword(problem: String?, onOpen: (CharArray) -> Unit, onCancel: () -> Unit) {
+    // Not saveable on purpose: a password shouldn't sit in saved instance state.
+    var password by remember { mutableStateOf("") }
+    Text("This backup has a password", style = KassaType.title, color = Kassa.colors.ink)
+    Gap(8)
+    Text("Enter the password it was saved with. Kassa can't recover a lost one.", style = KassaType.body, color = Kassa.colors.ink2)
+    PasswordField(password, { password = it }, "This backup's password", Modifier.fillMaxWidth().padding(top = 16.dp), problem = problem)
+    Gap(12)
+    PrimaryButton("Open backup") { if (password.isNotEmpty()) onOpen(password.toCharArray()) }
+    Gap(4)
+    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+}
+
+/** A Kassa backup, read: what's in it, then restore. Over existing data it asks first, like the Backup page. */
+@Composable
+private fun KassaReady(contents: BackupContents, firstRun: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
+    Text("Restore this backup?", style = KassaType.title, color = Kassa.colors.ink)
+    Gap(8)
+    BackupSummary(contents)
+    if (!firstRun) {
+        Gap(6)
+        Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
+    }
+    Gap(24)
+    PrimaryButton(if (firstRun) "Restore backup" else "Replace with this backup") { if (firstRun) onRestore() else confirm = true }
+    Gap(4)
+    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Choose a different file", color = Kassa.colors.ink2) }
+    if (confirm) RestoreConfirm(onConfirm = onRestore, onDismiss = { confirm = false })
 }
 
 @Composable
