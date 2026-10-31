@@ -4,6 +4,8 @@ name: Store screenshots
 # Result: a draft release store-<run_id>-<attempt> holding phone, tablet7 and tablet10 PNGs (phone also in dark).
 on:
   workflow_dispatch:
+  push:
+    branches: [ci/store-shots]  # TEMPORARY: lets the branch test itself before it is on main
 
 permissions:
   contents: write
