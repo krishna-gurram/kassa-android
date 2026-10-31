@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +48,9 @@ import app.kassa.money.ui.loans.LoanPaymentSheet
 import app.kassa.money.ui.loans.LoanTermsSheet
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.ConfirmDialog
+import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.MessageHost
+import app.kassa.money.ui.common.Messages
 import app.kassa.money.ui.common.PanePlaceholder
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.importer.ImportScreen
@@ -81,6 +84,7 @@ fun AppRoot(
     // First run: "Start fresh" opens the setup (starter categories and a first account).
     var settingUp by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
+    val messages = remember(snackbar, scope) { Messages(snackbar, scope) }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(openDue, ledger != null) {
@@ -126,7 +130,7 @@ fun AppRoot(
                 else ImportScreen(firstRun = true, onFinished = { fresh = true; onStartFresh() }, onStartFresh = { settingUp = true })
             }
             else -> Shell(nav.tab, onTab = nav::select, onAdd = { app.newEntry(from = nav.top) }, showAdd = nav.stack.isEmpty()) { padding ->
-                Tabs(app, l, padding, wide)
+                CompositionLocalProvider(LocalMessages provides messages) { Tabs(app, l, padding, wide) }
             }
         }
 

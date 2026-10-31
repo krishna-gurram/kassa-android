@@ -16,7 +16,7 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
   (a card's own "pay from"). Nothing is preselected from a category or merchant.
 - **Lists of names are A to Z** (`Names.order`, the phone's language): categories, subcategories, accounts, people,
   and the pickers on Add. Entries stay by date; spending breakdowns stay largest first. The one exception: once the
-  user arranges their accounts (Accounts > Arrange), their order wins on Accounts and for the Overview tiles.
+  user arranges their accounts (Accounts > Order > Your order), their order wins on Accounts and for the Overview tiles.
 - **Every input is bounded.** Limits live in `domain/InputRules` (names 40, categories 30, notes 120, amounts
   99,999,999.99). Forms filter as you type (`NameField`, `AmountField`, `DigitsField` in `ui/common/Fields.kt`) and
   show the problem under the field; repositories check the same rules again and throw `IllegalArgumentException`
@@ -105,13 +105,28 @@ Fixed deposit is an asset with an optional maturity date. Close account (account
 (holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
 worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
 
-**Arrange accounts.** "Arrange" next to the sort turns on up and down arrow buttons (no drag) on each group header and
-account row; "Done" leaves, "Reset to A to Z" clears. `domain/AccountArrangement` holds the group order and each group's
-account order (ids) and moves one place at a time: groups only among their own column (assets or liabilities at 600dp+),
-accounts only inside their group. Anything new (account or kind of group) goes to the end, A to Z; closed or deleted ids
-are ignored. Settings stores it as one string (`accountArrangement`) and sets the sort to Custom; picking any other sort
-clears it. Overview tiles follow it (group order, then row order; People last). It rides in the `.kassa` backup beside
-the month start and currency (`accountArrangement`, absent in older files). Rows don't open while arranging.
+**Order and arrange accounts.** One quiet line under the Assets, Liabilities and Net worth strip reads "Order  A to Z" (or
+Largest first, Due soonest, Your order) with a chevron, 48dp tall and tappable, and opens the "Order accounts" bottom sheet
+(`ui/accounts/OrderSheet.kt`; "Overview tiles follow this order."). Radio rows: Name (A to Z), Balance (Largest first),
+Due date (soonest first, the rest A to Z), and Your order, which has an Arrange pill (Edit once arranged). Picking Name,
+Balance or Due sets that sort and clears any arrangement; picking Your order or tapping Arrange/Edit closes the sheet and
+starts arrange mode. The footer has "Reset to A to Z" (applies at once, then a "Back to A to Z" message with Undo that
+restores the previous sort and arrangement: `Messages.withAction`, provided as `LocalMessages`, shown by `MessageHost`)
+and Close. There is no reverse-direction button; the sort says what it gives. "Collapse all" stays at the end of the line.
+Arrange mode (`ui/accounts/ArrangeAccounts.kt`): the top becomes "Arrange" with one Done button, the strip and Order line
+are hidden, and the hint reads "Drag the handles. Open a group to move its accounts. Saved as you go." Every group is one
+row (chevron, name and count, drag handle); an open group lists its accounts as a name and a handle, with no balances.
+Which groups are open is local (`rememberSaveable`). Every drop saves at once; Done only leaves the mode. Entering it from
+a sort first keeps what is shown as Your order. Dragging is hand-written (`ui/common/Reorder.kt`: `ReorderState`,
+`reorderItem`, `ReorderHandle`, auto-scroll at the screen edges; the index maths is the plain-Kotlin `ReorderMath` with JVM
+tests, no library): groups drag only among their own column (assets or liabilities at 600dp+), accounts only inside their
+group. Each handle is 48dp, reads "Reorder <name>" and offers TalkBack the actions Move up and Move down (missing at the
+ends), which call the domain's one-step moves. `domain/AccountArrangement` holds the group order and each group's account
+order (ids); a drag stores the whole new order through `Settings.setAccountArrangement`. Anything new (account or kind of
+group) goes to the end, A to Z; closed or deleted ids are ignored. Settings stores it as one string (`accountArrangement`)
+and sets the sort to Your order (stored as CUSTOM); picking any other sort clears it. Overview tiles follow it (group
+order, then row order; People last). It rides in the `.kassa` backup beside the month start and currency
+(`accountArrangement`, absent in older files). The old stored reverse flag is no longer read.
 
 ## One component per job
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before

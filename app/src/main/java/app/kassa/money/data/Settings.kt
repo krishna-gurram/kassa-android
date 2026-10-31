@@ -51,23 +51,19 @@ class Settings(context: Context) {
     private val _accountSort = MutableStateFlow(prefs.getString(ACCOUNT_SORT, "NAME")!!)
     /** How the Accounts tab orders every section: NAME, BALANCE, DUE (cards by due date, the rest by name) or CUSTOM (the user's arrangement). */
     val accountSort: StateFlow<String> = _accountSort
-    private val _accountSortDesc = MutableStateFlow(prefs.getBoolean(ACCOUNT_SORT_DESC, false))
-    /** Reverses [accountSort]: Z to A, smallest first, latest due first. */
-    val accountSortDesc: StateFlow<Boolean> = _accountSortDesc
     /** Picking any sort other than CUSTOM drops the user's arrangement. */
     fun setAccountSort(v: String) {
-        val e = prefs.edit().putString(ACCOUNT_SORT, v).putBoolean(ACCOUNT_SORT_DESC, false)
+        val e = prefs.edit().putString(ACCOUNT_SORT, v)
         if (v != "CUSTOM") { e.remove(ACCOUNT_ARRANGEMENT); _arrangement.value = null }
-        e.apply(); _accountSort.value = v; _accountSortDesc.value = false
+        e.apply(); _accountSort.value = v
     }
-    fun setAccountSortDesc(v: Boolean) { prefs.edit().putBoolean(ACCOUNT_SORT_DESC, v).apply(); _accountSortDesc.value = v }
 
     private val _arrangement = MutableStateFlow(app.kassa.money.domain.AccountArrangement.decode(prefs.getString(ACCOUNT_ARRANGEMENT, null)))
     /** The user's own order of account groups and accounts; null until they arrange (then sort is CUSTOM). */
     val accountArrangement: StateFlow<app.kassa.money.domain.AccountArrangement?> = _arrangement
     fun setAccountArrangement(a: app.kassa.money.domain.AccountArrangement) {
-        prefs.edit().putString(ACCOUNT_ARRANGEMENT, a.encode()).putString(ACCOUNT_SORT, "CUSTOM").putBoolean(ACCOUNT_SORT_DESC, false).apply()
-        _arrangement.value = a; _accountSort.value = "CUSTOM"; _accountSortDesc.value = false
+        prefs.edit().putString(ACCOUNT_ARRANGEMENT, a.encode()).putString(ACCOUNT_SORT, "CUSTOM").apply()
+        _arrangement.value = a; _accountSort.value = "CUSTOM"
     }
     /** Reset to A to Z: no arrangement, sort by name. */
     fun resetAccountArrangement() = setAccountSort("NAME")
@@ -170,7 +166,6 @@ class Settings(context: Context) {
         const val BACKUP_PROBLEM = "backup_problem"
         const val REMINDER = "daily_reminder"
         const val REMINDER_MINUTE = "daily_reminder_minute"
-        const val ACCOUNT_SORT_DESC = "account_sort_desc"
         const val STARTED_FRESH = "started_fresh"
         const val LOCK = "app_lock"
         const val THEME = "theme"
