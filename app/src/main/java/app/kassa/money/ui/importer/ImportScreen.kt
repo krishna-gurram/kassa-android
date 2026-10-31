@@ -249,7 +249,7 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
         Gap(6)
         Text(
             if (plan.people.isEmpty() && plan.bills.isEmpty()) "This replaces what's in Kassa now."
-            else "This replaces your accounts, categories, entries and budgets. People and bills you already have are kept; these are added.",
+            else "This replaces your accounts, categories, entries, budgets and bills. People you already have are kept; the ones from this file are added.",
             style = KassaType.small, color = Kassa.colors.attention,
         )
     }
@@ -261,7 +261,6 @@ private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, on
 private fun Issue(issue: ImportIssue) {
     val text = when (issue) {
         is ImportIssue.PossibleDuplicateAccounts -> "These look like the same account: ${issue.names.joinToString(" and ")}. You can archive one after importing."
-        is ImportIssue.SplitwiseRows -> "${issue.entries} entries use Splitwise accounts or categories (${(issue.accountNames + issue.categoryNames).joinToString()}). They import as they are now; turning them into money owed by people comes with the next update."
         is ImportIssue.MismatchedTransfers -> "Transfers whose two sides didn't agree (Kassa kept the sending side; balances still match): ${count(issue.count)}"
         is ImportIssue.UnpairedTransfers -> "${issue.count} transfers had only one half. They were kept so balances match."
         is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of ${Money.format(0)}. They were kept."

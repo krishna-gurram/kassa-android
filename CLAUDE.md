@@ -33,7 +33,7 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 
 ## Built for public release
 Kassa is headed to the Play Store, so code is written for strangers' phones, not one Fold:
-- No personal assumptions: nothing tied to the owner's banks, cards, Money Manager setup or Splitwise habits.
+- No personal assumptions: nothing tied to the owner's banks, cards, Money Manager setup or expense-splitting habits. Nothing is recognised by a brand or a name: where Kassa can't classify something, the user picks.
   Defaults must make sense for someone starting fresh.
 - Locale-aware: dates, weekdays and numbers come from the phone's locale (never a hardcoded `Locale.US`);
   currencies cover what real users need. New UI copy should be easy to move into `strings.xml` later.
