@@ -1,0 +1,240 @@
+package app.kassa.money.domain
+
+/** Starting a loan from scratch, or adding one that is already under way. */
+enum class LoanStage { NEW, PARTWAY }
+
+/** The interest chips on the setup form. Islamic finance is one chip with a contract pick under it. */
+enum class LoanKind(val label: String) {
+    REDUCING("Monthly on balance"),
+    DAILY("Daily on balance"),
+    FLAT("Flat rate"),
+    INTEREST_ONLY("Interest only"),
+    ISLAMIC("Islamic (profit)"),
+}
+
+/** Murabaha behaves as a flat rate, Ijara as a reducing balance. */
+enum class IslamicContract(val label: String, val type: InterestType) {
+    MURABAHA("Murabaha (fixed profit)", InterestType.FLAT),
+    IJARA("Ijara (rent on balance)", InterestType.REDUCING),
+}
+
+/** The fields of the loan form that can have a problem. */
+enum class LoanField { AMOUNT, RATE, TERM, BALANCE, PAYMENT, PAYMENTS_LEFT, ORIGINAL, DUE_DAY, ESCROW, FEE, EARLY_CHARGE }
+
+/** What the live calculation under the form shows. Null fields are not worked out yet or not known. */
+data class LoanPreview(
+    val payment: Long?,
+    val totalInterest: Long?,
+    val paymentsLeft: Int?,
+    val payoffDay: Int?,
+    /** Interest still to pay, from today's balance, for a loan already under way. */
+    val interestLeft: Long?,
+    /** For a flat rate: the rate on the reducing balance that costs the same. */
+    val equivalentRate: Long?,
+    /** For interest only: what is still owed at the end. */
+    val owedAtEnd: Long?,
+    /** The payment doesn't cover the interest; the biggest thing to tell the person. */
+    val warning: String?,
+)
+
+/**
+ * The loan setup form, as typed. The Add account sheet and "Add terms" on an existing loan keep one of these, so
+ * a loan is checked and built the same way wherever it is entered. Dates are epoch days (see [LoanDates]).
+ *
+ * Two ways in: [LoanStage.NEW] takes the amount, rate, term and first payment and works out the payment (type your own
+ * to overwrite it); [LoanStage.PARTWAY] takes today's balance, rate, payment and next payment date, and the original
+ * amount and start date only for a progress bar. A flat rate loan under way also needs its payments left (or its
+ * original amount), since the interest in each payment depends on the amount it started with.
+ */
+data class LoanForm(
+    val stage: LoanStage = LoanStage.NEW,
+    /** An existing loan account can only be added as already under way. */
+    val stageLocked: Boolean = false,
+    val kind: LoanKind = LoanKind.REDUCING,
+    val contract: IslamicContract = IslamicContract.MURABAHA,
+    val amount: String = "",
+    val rate: String = "",
+    val termMonths: String = "",
+    val firstDay: Int,
+    val balance: String = "",
+    /** New loans: leave empty for Kassa's payment. Loans under way: the payment. */
+    val payment: String = "",
+    val nextDay: Int,
+    val paymentsLeft: String = "",
+    val original: String = "",
+    val startDay: Int? = null,
+    /** Empty means the day of the month of the first or next payment. */
+    val dueDay: String = "",
+    val payFromId: Long? = null,
+    val escrow: String = "",
+    val fee: String = "",
+    val earlyCharge: String = "",
+    val interestCategoryId: Long? = null,
+) {
+    val type: InterestType
+        get() = when (kind) {
+            LoanKind.REDUCING -> InterestType.REDUCING
+            LoanKind.DAILY -> InterestType.DAILY
+            LoanKind.FLAT -> InterestType.FLAT
+            LoanKind.INTEREST_ONLY -> InterestType.INTEREST_ONLY
+            LoanKind.ISLAMIC -> contract.type
+        }
+
+    val profit: Boolean get() = kind == LoanKind.ISLAMIC
+
+    /** "Profit" or "Interest", for labels. */
+    val word: String get() = if (profit) "Profit" else "Interest"
+
+    private val rateValue: Long? get() = InputRules.parseRate(rate)
+    private val newAmount: Long? get() = Money.parseCents(amount)
+    private val balanceValue: Long? get() = Money.parseCents(balance)
+    private val months: Int? get() = termMonths.toIntOrNull()
+    private val left: Int? get() = paymentsLeft.toIntOrNull()
+    private fun optional(text: String): Long? = if (text.isBlank()) 0L else Money.parseCents(text)
+    private fun optionalRate(text: String): Long? = if (text.isBlank()) 0L else InputRules.parseRate(text)
+
+    /** The amount owed once the loan is added: what was borrowed, or today's balance. Null until it is valid. */
+    val owed: Long? get() = if (stage == LoanStage.NEW) newAmount else balanceValue
+
+    private val anchorDay: Int get() = LoanDates.dayOfMonth(if (stage == LoanStage.NEW) firstDay else nextDay)
+    private val due: Int get() = dueDay.toIntOrNull() ?: anchorDay
+
+    /** Each field's problem; empty when the form can be saved. */
+    fun problems(): Map<LoanField, String> = buildMap {
+        val sharedRate = InputRules.rateProblem(rateValue, "${word.lowercase()} rate")
+        if (stage == LoanStage.NEW) {
+            InputRules.amountProblem(newAmount)?.let { put(LoanField.AMOUNT, it) }
+            InputRules.monthsProblem(months, "a term in months")?.let { put(LoanField.TERM, it) }
+            if (payment.isNotBlank()) InputRules.amountProblem(Money.parseCents(payment))?.let { put(LoanField.PAYMENT, it) }
+        } else {
+            InputRules.amountProblem(balanceValue)?.let { put(LoanField.BALANCE, it) }
+            // Interest only can leave the payment out: it is the interest.
+            if (payment.isNotBlank() || type != InterestType.INTEREST_ONLY) InputRules.amountProblem(Money.parseCents(payment))?.let { put(LoanField.PAYMENT, it) }
+            if (original.isNotBlank()) {
+                val o = Money.parseCents(original)
+                val b = balanceValue
+                val problem = InputRules.amountProblem(o)
+                    ?: if (o != null && b != null && o < b) "The original amount can't be less than what is owed." else null
+                if (problem != null) put(LoanField.ORIGINAL, problem)
+            }
+            if (type == InterestType.FLAT && original.isBlank()) {
+                InputRules.monthsProblem(left, "the payments left")?.let { put(LoanField.PAYMENTS_LEFT, it) }
+            }
+        }
+        sharedRate?.let { put(LoanField.RATE, it) }
+        if (dueDay.isNotBlank()) InputRules.dayProblem(dueDay.toIntOrNull(), "due day")?.let { put(LoanField.DUE_DAY, it) }
+        InputRules.amountProblem(optional(escrow), zeroAllowed = true)?.let { put(LoanField.ESCROW, it) }
+        InputRules.amountProblem(optional(fee), zeroAllowed = true)?.let { put(LoanField.FEE, it) }
+        InputRules.rateProblem(optionalRate(earlyCharge), "early repayment charge")?.let { put(LoanField.EARLY_CHARGE, it) }
+        // A partway flat loan's payment has to leave something for principal.
+        if (LoanField.PAYMENT !in this && LoanField.PAYMENTS_LEFT !in this && LoanField.BALANCE !in this && LoanField.RATE !in this && stage == LoanStage.PARTWAY && type == InterestType.FLAT && original.isBlank()) {
+            if (derivedFlatBase() == null) put(LoanField.PAYMENT, "The payment is too small for that many payments left.")
+        }
+    }
+
+    /** The original amount of a flat loan under way, worked out from what is left when it wasn't typed. */
+    private fun derivedFlatBase(): Long? {
+        val b = balanceValue ?: return null
+        val p = Money.parseCents(payment) ?: return null
+        val n = left ?: return null
+        val r = rateValue ?: return null
+        return LoanEngine.flatBaseFrom(b, p, r, n)
+    }
+
+    /**
+     * The terms to save for [accountId]: call only when [problems] is empty. The payment is Kassa's own unless one
+     * was typed. The first or next payment date is stored as the next payment; the start date stays empty unless
+     * one was given.
+     */
+    fun toTerms(accountId: Long): LoanTerms {
+        val rate = checkNotNull(rateValue) { "toTerms called with an invalid rate" }
+        val shared = LoanTerms(
+            accountId = accountId, type = type, profit = profit, rate = rate, payment = 0, dueDay = due, nextPaymentDay = 0,
+            escrow = optional(escrow) ?: 0L, fee = optional(fee) ?: 0L, earlyCharge = optionalRate(earlyCharge) ?: 0L,
+            interestCategoryId = interestCategoryId, payFromId = payFromId,
+        )
+        if (stage == LoanStage.NEW) {
+            val amount = checkNotNull(newAmount)
+            val n = checkNotNull(months)
+            return shared.copy(
+                payment = Money.parseCents(payment) ?: LoanEngine.suggestedPayment(type, amount, rate, n),
+                termMonths = n, originalAmount = amount, nextPaymentDay = firstDay,
+            )
+        }
+        val owed = checkNotNull(balanceValue)
+        val typed = Money.parseCents(payment)
+        val originalAmount = Money.parseCents(original)?.takeIf { original.isNotBlank() }
+            ?: if (type == InterestType.FLAT) derivedFlatBase() else null
+        return shared.copy(
+            payment = typed ?: LoanEngine.monthlyInterest(owed, rate),
+            originalAmount = originalAmount, startDay = startDay, nextPaymentDay = nextDay,
+        )
+    }
+
+    /**
+     * The calculation shown under the form, or null while the figures it needs aren't valid yet. A loan under way is
+     * forecast from its next payment date.
+     */
+    fun preview(): LoanPreview? {
+        val problems = problems()
+        val needed = if (stage == LoanStage.NEW) listOf(LoanField.AMOUNT, LoanField.RATE, LoanField.TERM, LoanField.PAYMENT)
+        else listOf(LoanField.BALANCE, LoanField.RATE, LoanField.PAYMENT, LoanField.PAYMENTS_LEFT, LoanField.ORIGINAL)
+        if (needed.any { it in problems }) return null
+        val terms = toTerms(0)
+        val owed = checkNotNull(owed)
+        val cursor = LoanCursor(owed, terms.nextPaymentDay, terms.startDay ?: LoanDates.addMonths(terms.nextPaymentDay, -1, terms.dueDay))
+        val outlook = LoanEngine.outlook(terms, emptyList(), cursor)
+        val covers = LoanEngine.coversInterest(terms.type, terms.rate, owed, terms.payment, terms.flatBase(owed))
+        val warning = if (covers) null else
+            "The payment doesn't cover the ${word.lowercase()}. It needs to be more than ${Money.format(LoanEngine.interestDue(terms.type, terms.rate, owed, null, terms.flatBase(owed)))}."
+        val fresh = stage == LoanStage.NEW
+        return LoanPreview(
+            payment = terms.payment.takeIf { fresh },
+            totalInterest = if (fresh && type != InterestType.INTEREST_ONLY) outlook.interestLeft else null,
+            paymentsLeft = outlook.paymentsLeft.takeIf { !fresh },
+            payoffDay = outlook.payoffDay,
+            interestLeft = outlook.interestLeft.takeIf { !fresh },
+            equivalentRate = if (type == InterestType.FLAT && fresh) LoanEngine.equivalentReducingRate(owed, terms.payment, checkNotNull(months)) else null,
+            owedAtEnd = owed.takeIf { fresh && type == InterestType.INTEREST_ONLY },
+            warning = warning,
+        )
+    }
+
+    /**
+     * The loan account's starting balance after this form: its balance today becomes [owed], so the account's own
+     * entries stay as they are, the same way editing an account's balance works.
+     */
+    fun openingBalance(base: Account, currentBalance: Long): Long =
+        base.openingBalance + (-checkNotNull(owed) - currentBalance)
+
+    companion object {
+        /** The form for a new loan on [today]: the first payment a month away. */
+        fun starting(today: Int, payFromId: Long? = null) = LoanForm(
+            firstDay = LoanDates.addMonths(today, 1), nextDay = today, payFromId = payFromId,
+        )
+
+        /** The form for adding terms to an existing loan account that owes [owedToday] now: already under way. */
+        fun forAccount(owedToday: Long, today: Int, payFromId: Long? = null) = LoanForm(
+            stage = LoanStage.PARTWAY, stageLocked = true,
+            balance = if (owedToday > 0) Money.toInput(owedToday) else "",
+            firstDay = LoanDates.addMonths(today, 1), nextDay = today, payFromId = payFromId,
+        )
+    }
+}
+
+/** The categories a payment's interest can go to: any expense category, in A to Z order. */
+object LoanCategories {
+    /** Id to label for every active expense category and subcategory ("Loan interest: Car loan"), A to Z. */
+    fun choices(categories: List<Category>): List<Pair<Long, String>> {
+        val byId = categories.associateBy { it.id }
+        return categories.filter { it.kind == CategoryKind.EXPENSE && !it.hidden }
+            .map { c -> c.id to (c.parentId?.let { byId[it]?.name }?.let { "$it: ${c.name}" } ?: c.name) }
+            .sortedWith(Names.order { it.second })
+    }
+
+    /** The "Loan interest" category: the top-level expense category with that name, if it exists and isn't archived. */
+    fun interestCategory(categories: List<Category>): Category? =
+        categories.firstOrNull { it.parentId == null && it.kind == CategoryKind.EXPENSE && !it.hidden && it.name.equals(NAME, ignoreCase = true) }
+
+    const val NAME = "Loan interest"
+}
