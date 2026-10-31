@@ -33,6 +33,7 @@ import app.kassa.money.domain.InterestType
 import app.kassa.money.domain.LenderKept
 import app.kassa.money.domain.LoanChangeContext
 import app.kassa.money.domain.LoanChangeForm
+import app.kassa.money.domain.PaymentBasis
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
@@ -99,22 +100,28 @@ fun ChangeTermsPage(
                         Chip("Kept the term, payment changes", form.kept == LenderKept.TERM, small = true) { edit(null) { it.copy(kept = LenderKept.TERM) } }
                     }
                 }
-                ChangeKind.PAYMENT -> AmountField(
-                    form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
-                    Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
-                    placeholder = if (ctx.terms.effective(ctx.changes, form.day).type == InterestType.INTEREST_ONLY) "Just the ${word.lowercase()}" else null,
-                )
+                ChangeKind.PAYMENT -> {
+                    PaymentBasisChips(form, ctx, ::edit)
+                    AmountField(
+                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
+                        Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
+                        placeholder = if (ctx.terms.effective(ctx.changes, form.day).type == InterestType.INTEREST_ONLY) "Just the ${word.lowercase()}" else null,
+                    )
+                    form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
+                }
                 ChangeKind.TYPE -> {
                     Label("New interest type")
                     FlowRow {
                         InterestType.entries.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(ChangeField.TYPE) { it.copy(type = t) } } }
                     }
                     problems[ChangeField.TYPE]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
+                    PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
                         form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
                         placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: "Worked out from the term",
                     )
+                    form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
                     DigitsField(
                         form.termMonths, { v -> edit(ChangeField.TERM) { it.copy(termMonths = v) } }, "Term in months", 3,
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.TERM],
@@ -131,11 +138,13 @@ fun ChangeTermsPage(
                             Modifier.weight(1f), problem = problems[ChangeField.TERM],
                         )
                     }
+                    PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
                         form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
                         placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: "Worked out for you",
                     )
+                    form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
                 }
             }
 
@@ -152,6 +161,20 @@ fun ChangeTermsPage(
             }
             Gap(24)
         }
+    }
+}
+
+/**
+ * Under "New payment": does the amount include the loan's escrow? A change has no escrow of its own, so the choice is
+ * offered only when the loan has some; the escrow taken off the total is the loan's.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PaymentBasisChips(form: LoanChangeForm, ctx: LoanChangeContext, edit: (ChangeField?, (LoanChangeForm) -> LoanChangeForm) -> Unit) {
+    if (ctx.terms.escrow <= 0) return
+    Label("Payment is")
+    FlowRow {
+        PaymentBasis.entries.forEach { b -> Chip(b.label, form.paymentBasis == b, small = true) { edit(null) { it.copy(paymentBasis = b) } } }
     }
 }
 
