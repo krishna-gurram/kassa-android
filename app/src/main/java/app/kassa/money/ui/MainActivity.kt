@@ -2,6 +2,7 @@ package app.kassa.money.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,14 +22,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.kassa.money.KassaApplication
+import app.kassa.money.data.db.DatabaseOpen
 import app.kassa.money.data.jobs.DailyJobs
 import app.kassa.money.data.jobs.DueNotifier
 import app.kassa.money.domain.DueKind
+import app.kassa.money.ui.start.CantOpenScreen
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaTheme
 import app.kassa.money.ui.theme.KassaType
@@ -38,6 +47,10 @@ import app.kassa.money.ui.theme.KassaType
  * A FragmentActivity because the biometric prompt needs one.
  */
 class MainActivity : FragmentActivity() {
+    /**
+     * Whether the lock screen is up. Kept across recreation (folding, rotating, a theme change) in the saved state, so
+     * only a cold start or a minute away locks; see [onStart].
+     */
     private val locked = mutableStateOf(false)
     /** Set when the daily reminder is tapped: open Add once the app is showing. */
     private val openAdd = mutableStateOf(false)
@@ -57,7 +70,12 @@ class MainActivity : FragmentActivity() {
         if (app.kassa.money.BuildConfig.DEBUG && savedInstanceState == null)
             intent?.getStringExtra("importFile")?.let { app.kassa.money.ui.importer.DebugImport.pending = android.net.Uri.fromFile(java.io.File(filesDir, it)) }
         val app = application as KassaApplication
-        if (app.settings.lockEnabled.value) locked.value = true
+        // A cold start locks when App lock is on. After recreation the state it had comes back, and so does the time the
+        // app was last hidden, which matters if the process was killed meanwhile: a minute away still locks.
+        locked.value = savedInstanceState?.getBoolean(STATE_LOCKED) ?: app.settings.lockEnabled.value
+        hiddenAt = savedInstanceState?.getLong(STATE_HIDDEN_AT) ?: 0L
+        // Before the first frame, so a thumbnail of the opening screen is never taken; the effect below keeps it in step.
+        if (app.settings.lockEnabled.value || app.settings.hideAmounts) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
             val theme by app.settings.theme.collectAsState()
             val dark = when (theme) { "DARK" -> true; "LIGHT" -> false; else -> isSystemInDarkTheme() }
@@ -68,8 +86,20 @@ class MainActivity : FragmentActivity() {
             }
             val currency by app.settings.currency.collectAsState()
             val lockOn by app.settings.lockEnabled.collectAsState()
-            val count by app.entries.count.collectAsState(initial = -1)
-            LaunchedEffect(lockOn) { if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn) }
+            // Recents thumbnails and screenshots would show balances: keep them out while App lock or Hide balances is on.
+            // FLAG_SECURE works on every Android version, unlike setRecentsScreenshotEnabled (33 and later).
+            val secure = lockOn || app.settings.hideAmounts
+            LaunchedEffect(secure) {
+                if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+            // null while the database opens (off the main thread); a failure shows the can't-open page, not a crash.
+            var database by remember { mutableStateOf<DatabaseOpen?>(null) }
+            val scope = rememberCoroutineScope()
+            LaunchedEffect(Unit) { database = withContext(Dispatchers.IO) { app.openDatabase() } }
+            val reopen: (() -> DatabaseOpen) -> Unit = { action ->
+                database = null
+                scope.launch { database = withContext(Dispatchers.IO) { action() } }
+            }
 
             // key(currency): everything redraws in the new currency when it changes.
             CompositionLocalProvider(LocalSettings provides app.settings) {
@@ -78,11 +108,21 @@ class MainActivity : FragmentActivity() {
                         if (locked.value && lockOn) {
                             LockScreen(onUnlock = ::unlock)
                             LaunchedEffect(Unit) { unlock() }
-                        } else {
-                            AppRoot(
-                                entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
-                                openAdd = openAdd.value, onAddOpened = { openAdd.value = false },
-                                openDue = openDue.value, onDueOpened = { openDue.value = null },
+                        } else when (val db = database) {
+                            null, is DatabaseOpen.Ready -> {
+                                if (db != null) {
+                                    val count by app.entries.count.collectAsState(initial = -1)
+                                    AppRoot(
+                                        entryCount = count, startedFresh = app.settings.startedFresh, onStartFresh = { app.settings.startedFresh = true },
+                                        openAdd = openAdd.value, onAddOpened = { openAdd.value = false },
+                                        openDue = openDue.value, onDueOpened = { openDue.value = null },
+                                    )
+                                }
+                            }
+                            is DatabaseOpen.Failed -> CantOpenScreen(
+                                db.problem,
+                                onRetry = { reopen { app.retryOpenDatabase() } },
+                                onErase = { reopen { app.eraseAndStartOver() } },
                             )
                         }
                     }
@@ -111,11 +151,22 @@ class MainActivity : FragmentActivity() {
         hiddenAt = System.currentTimeMillis()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_LOCKED, locked.value)
+        outState.putLong(STATE_HIDDEN_AT, hiddenAt)
+    }
+
     override fun onStart() {
         super.onStart()
         val app = application as KassaApplication
         // Lock again after a minute away.
         if (app.settings.lockEnabled.value && hiddenAt > 0 && System.currentTimeMillis() - hiddenAt > 60_000) locked.value = true
+    }
+
+    private companion object {
+        const val STATE_LOCKED = "locked"
+        const val STATE_HIDDEN_AT = "hiddenAt"
     }
 
     private fun unlock() {
