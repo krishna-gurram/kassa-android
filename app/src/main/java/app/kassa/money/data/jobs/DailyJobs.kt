@@ -52,8 +52,12 @@ object DailyJobs {
     private const val REMINDER_AT = "reminder_at"
     private const val OVERDUE_GRACE = 3 * 60 * 60_000L
 
-    /** Books or cancels both to match Settings. Safe to call any time: what's already booked for the same time stays. */
-    fun refresh(context: Context) {
+    /**
+     * Books or cancels both to match Settings, and brings the payments-due notifier up to date too ([done] runs when
+     * that finishes, for a receiver's goAsync). Safe to call any time: what's already booked for the same time stays.
+     */
+    fun refresh(context: Context, done: () -> Unit = {}) {
+        DueNotifier.refresh(context, done)
         val s = (context.applicationContext as KassaApplication).settings
         val js = context.getSystemService(JobScheduler::class.java)
         // Earlier versions booked the reminder as a job; the alarm replaces it.
@@ -233,11 +237,12 @@ class ReminderReceiver : BroadcastReceiver() {
 }
 
 /**
- * Sets the reminder and backup again when something may have dropped or moved them: a restart, an update, a clock or
+ * Sets the reminder, backup and payments-due alarm again when something may have dropped or moved them: a restart, an update, a clock or
  * time zone change, or "Alarms & reminders" being allowed or taken away.
  */
 class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        runCatching { DailyJobs.refresh(context) }
+        val pending = goAsync()
+        runCatching { DailyJobs.refresh(context) { runCatching { pending.finish() } } }.onFailure { runCatching { pending.finish() } }
     }
 }

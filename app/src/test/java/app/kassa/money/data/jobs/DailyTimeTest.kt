@@ -42,4 +42,14 @@ class DailyTimeTest {
         val next = DailyTime.next(at("2026-03-07T12:00"), 2 * 60 + 30)
         assertEquals(LocalDateTime.parse("2026-03-08T03:30"), next.toLocalDateTime())
     }
+
+    @Test
+    fun atPutsATimeOnAGivenDay() {
+        val day = java.time.LocalDate.parse("2026-11-14").toEpochDay()
+        assertEquals(at("2026-11-14T09:00"), DailyTime.at(day, 9 * 60, zone))
+        assertEquals(at("2026-11-14T00:05"), DailyTime.at(day, 5, zone))
+        // 2:30 doesn't exist on 8 March 2026 in New York.
+        val gap = java.time.LocalDate.parse("2026-03-08").toEpochDay()
+        assertEquals(LocalDateTime.parse("2026-03-08T03:30"), DailyTime.at(gap, 2 * 60 + 30, zone).toLocalDateTime())
+    }
 }
