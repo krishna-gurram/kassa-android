@@ -41,7 +41,7 @@ data class ImportPlan(
 )
 
 sealed interface ImportIssue {
-    /** Accounts whose names look like the same account entered twice, e.g. "Amex Platinum" and "amex plat". */
+    /** Accounts whose names look like the same account entered twice, e.g. "Card B Plus" and "card b pl". */
     data class PossibleDuplicateAccounts(val names: List<String>) : ImportIssue
     /** A transfer whose two halves disagree on amount, date or accounts. The "out" half is used. */
     data class MismatchedTransfers(val count: Int) : ImportIssue
@@ -128,7 +128,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
                 name = accountNames[i],
                 type = type,
                 groupId = a.groupUid?.let { groupIds[it] },
-                openingBalance = a.startingAmount?.let { Money.parseCents(it) } ?: 0L,
+                openingBalance = a.startingAmount?.let { Money.parsePlain(it) } ?: 0L,
                 statementDay = if (type.hasStatement) a.statementDay?.takeIf { it in 1..31 } else null,
                 dueDay = if (type.hasStatement) a.dueDay?.takeIf { it in 1..31 } else null,
                 sortOrder = i,
@@ -377,8 +377,8 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
     private fun amountOf(r: MmTransaction, assetCurrency: Map<String, String?>): Long? {
         val own = assetCurrency[r.assetUid]
         val foreign = r.currencyUid != null && own != null && r.currencyUid != own
-        val inAccount = if (foreign) r.accountAmount?.let { Money.parseCents(it) } else null
-        return inAccount ?: Money.parseCents(r.amount)
+        val inAccount = if (foreign) r.accountAmount?.let { Money.parsePlain(it) } else null
+        return inAccount ?: Money.parsePlain(r.amount)
     }
 
     private fun transferNote(note: String, other: String?): String =

@@ -6,10 +6,10 @@ import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.domain.NumberText
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.Ledger
 import java.math.BigDecimal
-import java.text.NumberFormat
 
 /* Plain functions behind the entry and bill pages: the number pad, and the order things are offered in. */
 
@@ -25,15 +25,18 @@ internal fun applyKey(current: String, key: String): String = when (key) {
     }
 }
 
-/** What the pad has typed, grouped for reading: "12345.6" shows as "12,345.6" (or the currency's own grouping). */
+/**
+ * What the pad has typed, shown the way the phone writes numbers: "12345.6" reads "12,345.6" (12,345.6 in the US, 12.345,6
+ * in Germany, 12,345.6 with lakh grouping in India). The typed text itself always keeps a point, so it reads the same anywhere.
+ */
 internal fun displayAmount(typed: String): String {
     if (typed.isEmpty()) return "0"
     val whole = typed.substringBefore('.').ifEmpty { "0" }
-    val grouped = whole.toLongOrNull()?.let { NumberFormat.getIntegerInstance(Money.style.locale).format(it) } ?: whole
-    return if (typed.contains('.')) grouped + "." + typed.substringAfter('.') else grouped
+    val grouped = NumberText.group(whole)
+    return if (typed.contains('.')) grouped + NumberText.decimalMark() + typed.substringAfter('.') else grouped
 }
 
-/** Cents as pad input: 1250 is "12.50", 1200 is "12". */
+/** Cents as pad input, which always keeps a point whatever the phone writes: 1250 is "12.50", 1200 is "12". */
 internal fun centsToInput(cents: Long): String = BigDecimal.valueOf(cents).movePointLeft(2).toPlainString().removeSuffix(".00")
 
 /** Visible top-level categories of [kind], A to Z, so each stays in the same place in the picker. */

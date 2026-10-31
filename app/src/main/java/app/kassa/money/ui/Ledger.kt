@@ -91,7 +91,8 @@ data class Ledger(
         val top = Spending.topOf(categoryId, categoryById) ?: return null
         val spent = Spending.byTopCategory(counted, categoryById, period.start, period.endInclusive, zone)[top.id] ?: 0
         val budget = Budgets.amountFor(top.id, period.yearMonth, budgets)
-        if (budget == null || budget == 0L) return "${top.name}: ${Money.format(spent, wholeDollars = true)} this month."
+        // While hidden, only the masked figure: "over budget" or a percentage ahead of pace would give the size away.
+        if (budget == null || budget == 0L || Money.isHidden) return "${top.name}: ${Money.format(spent, wholeDollars = true)} this month."
         val pace = budget * period.progress(today)
         val tail = when {
             spent > budget -> "${Money.format(spent - budget, wholeDollars = true)} over budget."

@@ -62,6 +62,7 @@ import androidx.compose.ui.draw.rotate
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.entry.Chip
+import app.kassa.money.ui.theme.scaledDp
 
 /**
  * One category, one month at a time. Arrows (or a tap on the six-month bars) move between months: spent against that
@@ -116,7 +117,7 @@ fun CategoryPage(
         }
         // Six months of this category; tap a bar to jump to that month.
         val max = (totals.maxOrNull() ?: 0L).coerceAtLeast(1L)
-        Row(Modifier.fillMaxWidth().height(130.dp).padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().height(scaledDp(130.dp)).padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             months.forEachIndexed { i, q ->
                 val sel = i == 5
                 Column(

@@ -31,6 +31,7 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 
 /** Category icon in a circle tinted with the category's own color. */
 @Composable
@@ -137,7 +138,7 @@ fun Gap(h: Int) = androidx.compose.foundation.layout.Spacer(Modifier.height(h.dp
 @Composable
 fun CategoryIconView(icon: CategoryIcon?, tint: Color, size: Int, fallback: String = "?") {
     when (icon) {
-        is CategoryIcon.Emoji -> Text(icon.value, fontSize = (size * 0.46).sp)
+        is CategoryIcon.Emoji -> Text(icon.value, fontSize = scaledSp((size * 0.46).toFloat(), maxScale = 1f))
         is CategoryIcon.Symbol -> {
             val v = app.kassa.money.ui.categories.IconCatalog.vector(icon.name)
             if (v != null) androidx.compose.material3.Icon(v, null, tint = tint, modifier = Modifier.size((size * 0.55).dp))

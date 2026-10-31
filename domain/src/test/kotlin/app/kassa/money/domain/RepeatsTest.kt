@@ -24,7 +24,7 @@ class RepeatsTest {
     fun changingWordsAtTheEndAreIgnored() {
         assertEquals("mortgage", Repeats.key("Mortgage October 2026"))
         assertEquals("mortgage", Repeats.key("mortgage - nov"))
-        assertEquals("netflix", Repeats.key("Netflix #48213"))
+        assertEquals("streaming a", Repeats.key("Streaming A #48213"))
         assertEquals("Water bill", Repeats.name("Water bill 10/2026"))
         assertEquals("2026", Repeats.key("2026"))
     }
@@ -86,7 +86,7 @@ class RepeatsTest {
 
     @Test
     fun aPriceRiseShowsAsAChange() {
-        val ts = monthly("2026-06-07", 4, 7, { "Netflix" }) { if (it < 3) 1_549 else 1_799 }
+        val ts = monthly("2026-06-07", 4, 7, { "Streaming A" }) { if (it < 3) 1_549 else 1_799 }
         val r = find(ts).single()
         assertEquals(1_799, r.typical)
         assertEquals(250, r.change)

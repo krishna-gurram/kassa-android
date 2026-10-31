@@ -9,13 +9,13 @@ class InputRulesTest {
 
     @Test
     fun typingDropsLineBreaksAndStopsAtTheLimit() {
-        assertEquals("Chase  checking", InputRules.typed("Chase\n\tchecking", 40))
+        assertEquals("Bank A  checking", InputRules.typed("Bank A\n\tchecking", 40))
         assertEquals("a".repeat(40), InputRules.typed("a".repeat(55), 40))
     }
 
     @Test
     fun namesAreStoredTidy() {
-        assertEquals("Chase Sapphire", InputRules.clean("  Chase   Sapphire \u0000"))
+        assertEquals("Bank A Premier", InputRules.clean("  Bank A   Premier \u0000"))
     }
 
     @Test
@@ -23,7 +23,7 @@ class InputRulesTest {
         assertNotNull(InputRules.nameProblem("   ", "account"))
         assertNotNull(InputRules.nameProblem("a".repeat(41), "account"))
         assertNull(InputRules.nameProblem("a".repeat(40), "account"))
-        assertNotNull(InputRules.nameProblem("bofa alaska", "account", taken = { it.equals("BofA Alaska", ignoreCase = true) }))
+        assertNotNull(InputRules.nameProblem("bank d travel", "account", taken = { it.equals("Bank D Travel", ignoreCase = true) }))
         assertNotNull(InputRules.nameProblem("a".repeat(31), "category", max = InputRules.CATEGORY_NAME_MAX))
     }
 

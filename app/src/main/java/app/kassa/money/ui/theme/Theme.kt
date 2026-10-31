@@ -9,10 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.R
 
@@ -69,6 +73,20 @@ object KassaType {
     val tiny = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Medium, fontSize = 12.sp, fontFeatureSettings = TNUM)
     val stat = TextStyle(fontFamily = Hanken, fontWeight = FontWeight.Bold, fontSize = 20.sp, fontFeatureSettings = TNUM)
 }
+
+/**
+ * A text size that follows the phone's font setting only up to [maxScale] (130% unless told otherwise): for big numerals
+ * and keys, which sit in boxes that can't grow with the text. Everything else uses [KassaType] and scales fully.
+ */
+@Composable
+fun scaledSp(sp: Float, maxScale: Float = 1.3f): TextUnit {
+    val density = LocalDensity.current
+    return with(density) { (sp * minOf(density.fontScale, maxScale)).dp.toSp() }
+}
+
+/** [base] grown with the font setting (never below it), for a chart or bar whose labels grow with the text. */
+@Composable
+fun scaledDp(base: Dp): Dp = base * LocalDensity.current.fontScale.coerceAtLeast(1f)
 
 @Composable
 fun KassaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {

@@ -75,30 +75,27 @@ object Shares {
     const val WHOLE_DIGITS = 9
     const val DECIMALS = 6
 
-    /** "1.5" becomes 1,500,000. Null unless it's a number above zero. */
-    fun parse(text: String): Long? = try {
-        BigDecimal(text.trim()).movePointRight(DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact().takeIf { it > 0 }
-    } catch (e: NumberFormatException) {
-        null
-    } catch (e: ArithmeticException) {
-        null
+    /** "1.5" (or "1,5" where the phone writes it so) becomes 1,500,000. Null unless it's a number above zero. */
+    fun parse(text: String): Long? {
+        val parts = NumberText.parts(text.trim(), grouping = false) ?: return null
+        if (!parts.hasDigits) return null
+        return try {
+            parts.toBigDecimal().movePointRight(DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact().takeIf { it > 0 }
+        } catch (e: ArithmeticException) {
+            null
+        }
     }
 
-    /** 1,500,000 as "1.5" for showing or for a field. */
-    fun format(microShares: Long): String = BigDecimal.valueOf(microShares).movePointLeft(DECIMALS).stripTrailingZeros().toPlainString()
+    /** 1,500,000 as "1.5" for showing or for a field, with the phone's decimal mark. */
+    fun format(microShares: Long): String = NumberText.toField(BigDecimal.valueOf(microShares).movePointLeft(DECIMALS))
 
     /** What [microShares] cost at [price] each, rounded to the nearest minor unit. Capped at [Long.MAX_VALUE] so a typo can't wrap around. */
     fun cost(microShares: Long, price: Long): Long =
         BigDecimal.valueOf(microShares).multiply(BigDecimal.valueOf(price)).movePointLeft(DECIMALS).setScale(0, RoundingMode.HALF_UP)
             .min(BigDecimal.valueOf(Long.MAX_VALUE)).toLong()
 
-    /** For a shares field's onValueChange: digits and one point, [WHOLE_DIGITS] whole digits and [DECIMALS] decimals. */
-    fun typed(raw: String): String {
-        val kept = raw.filter { it.isDigit() || it == '.' }
-        val dot = kept.indexOf('.')
-        val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(WHOLE_DIGITS)
-        return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(DECIMALS)
-    }
+    /** For a shares field's onValueChange: digits and one decimal mark, [WHOLE_DIGITS] whole digits and [DECIMALS] decimals. */
+    fun typed(raw: String): String = NumberText.fieldText(NumberText.partsForField(raw, grouping = false), WHOLE_DIGITS, DECIMALS)
 
     /** The average cost per share after adding [addShares] at [addPrice] to [shares] that averaged [avg]. */
     fun average(shares: Long, avg: Long, addShares: Long, addPrice: Long): Long {

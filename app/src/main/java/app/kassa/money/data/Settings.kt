@@ -1,6 +1,8 @@
 package app.kassa.money.data
 
 import android.content.Context
+import app.kassa.money.domain.Currencies
+import app.kassa.money.domain.Money
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -37,15 +39,23 @@ class Settings(context: Context) {
     val theme: StateFlow<String> = _theme
     fun setTheme(v: String) { prefs.edit().putString(THEME, v).apply(); _theme.value = v }
 
-    private val _currency = MutableStateFlow(prefs.getString(CURRENCY, "USD")!!).also {
-        app.kassa.money.domain.Money.style = app.kassa.money.domain.Currencies.byCode(it.value)
-    }
+    // A phone in a region whose currency Kassa shows starts with it; anywhere else the first-run screen asks. Saved at once,
+    // so moving the phone to another region never changes the currency under amounts that are already entered.
+    private val _currency = MutableStateFlow(
+        prefs.getString(CURRENCY, null) ?: Currencies.forLocale()?.code?.also { prefs.edit().putString(CURRENCY, it).apply() } ?: Currencies.fallback.code,
+    ).also { Money.style = Currencies.byCode(it.value) }
     /** The one currency this phone shows. Amounts are never converted when it changes. */
     val currency: StateFlow<String> = _currency
+
+    private val _currencyChosen = MutableStateFlow(prefs.contains(CURRENCY))
+    /** False only on first run in a region Kassa has no currency for, until the person picks one. */
+    val currencyChosen: StateFlow<Boolean> = _currencyChosen
+
     fun setCurrency(code: String) {
         prefs.edit().putString(CURRENCY, code).apply()
-        app.kassa.money.domain.Money.style = app.kassa.money.domain.Currencies.byCode(code)
+        Money.style = Currencies.byCode(code)
         _currency.value = code
+        _currencyChosen.value = true
     }
 
     /**
@@ -57,7 +67,7 @@ class Settings(context: Context) {
         private set
 
     init {
-        app.kassa.money.domain.Money.hideAmounts = { hideAmounts }
+        Money.hideAmounts = { hideAmounts }
     }
 
     fun chooseHideAmounts(on: Boolean) { prefs.edit().putBoolean(HIDE_AMOUNTS, on).apply(); hideAmounts = on }

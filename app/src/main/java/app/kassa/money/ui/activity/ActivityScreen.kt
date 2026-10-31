@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
@@ -28,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -51,6 +53,10 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.ui.common.figureColor
+import app.kassa.money.ui.common.weekdayDate
+import app.kassa.money.ui.common.shortDateYear
+import app.kassa.money.ui.common.monthYear
 import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.common.EntryRow
 import app.kassa.money.ui.common.GlyphBadge
@@ -70,7 +76,6 @@ import java.time.Instant
 import java.time.LocalDate
 import app.kassa.money.ui.common.swipeShift
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -204,12 +209,12 @@ fun ActivityScreen(
             app.kassa.money.ui.common.TabTop("Activity")
             if (!searching) {
                 app.kassa.money.ui.common.PeriodSwitcher(
-                    "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}", null,
+                    monthYear(s.month), null,
                     canBack = true, canForward = !s.isCurrentMonth, onBack = { vm.shift(-1) }, onForward = { vm.shift(1) },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
-                    FilterTile("Income", Money.format(s.income), Kassa.colors.positive, s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
+                    FilterTile("Income", Money.format(s.income), figureColor(Kassa.colors.positive), s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
                 }
             }
             SearchField(s.query, vm::search)
@@ -230,12 +235,12 @@ fun ActivityScreen(
                 }
                 s.results.forEach { (m, entries) ->
                     item(key = "m$m") {
-                        DayHeader("${m.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${m.year}", "${entries.size}")
+                        DayHeader(monthYear(m), "${entries.size}")
                     }
                     items(entries, key = { "r${it.id}" }) { t ->
                         app.kassa.money.ui.common.TransactionRow(
                             t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp),
-                            noteOverride = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                            noteOverride = shortDateYear(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()),
                             onClick = onEdit,
                         )
                     }
@@ -244,8 +249,9 @@ fun ActivityScreen(
                 if (s.filter != ActivityFilter.ALL) item {
                     Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(if (s.filter == ActivityFilter.EXPENSE) "Spending only" else "Income only", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-                        Text("Show all", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink,
-                            modifier = Modifier.clickable { vm.toggle(s.filter) }.padding(4.dp))
+                        TextButton(onClick = { vm.toggle(s.filter) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text("Show all", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
+                        }
                     }
                 }
                 if (s.days.isEmpty()) item {
@@ -254,7 +260,8 @@ fun ActivityScreen(
                 s.days.forEach { (day, entries) ->
                     item(key = "h$day") {
                         val spent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-                        DayHeader(dayLabel(day, today), (if (spent > 0) Money.format(spent) else "") + "  \u203a") { onOpenDay(day) }
+                        // A zero would give away which days had spending, so while hidden every day shows the mask.
+                        DayHeader(dayLabel(day, today), (if (spent > 0 || Money.isHidden) Money.format(spent) else "") + "  \u203a") { onOpenDay(day) }
                     }
                     items(entries, key = { it.id }) { t ->
                         val sel = t.id == selectedId
@@ -308,7 +315,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
     val shape = RoundedCornerShape(50)
     val active = value.isNotEmpty()
     Row(
-        Modifier.fillMaxWidth().height(46.dp).clip(shape).background(Kassa.colors.raised)
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(Kassa.colors.raised)
             .border(1.dp, if (active) Kassa.colors.ink else Kassa.colors.line, shape).padding(start = 14.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -342,7 +349,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
 private fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
     today -> "Today"
     today.minusDays(1) -> "Yesterday"
-    else -> day.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    else -> weekdayDate(day)
 }
 
 /** A plain chevron, drawn here so the app doesn't need the large material-icons library. */

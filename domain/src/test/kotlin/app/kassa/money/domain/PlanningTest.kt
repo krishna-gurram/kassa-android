@@ -12,7 +12,7 @@ class PlanningTest {
     private fun at(d: String) = LocalDate.parse(d).atTime(10, 0).toInstant(zone).toEpochMilli()
 
     private val groceries = Category(id = 1, name = "Groceries", kind = CategoryKind.EXPENSE, color = 0)
-    private val costco = Category(id = 2, name = "Costco", kind = CategoryKind.EXPENSE, parentId = 1, color = 0)
+    private val costco = Category(id = 2, name = "Store C", kind = CategoryKind.EXPENSE, parentId = 1, color = 0)
     private val home = Category(id = 3, name = "Home", kind = CategoryKind.EXPENSE, color = 0, countsTowardDaily = false)
 
     @Test

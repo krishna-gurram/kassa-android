@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
@@ -120,8 +123,8 @@ fun CategoryEditor(
             listOf("Emoji", "Icons").forEachIndexed { i, label ->
                 val on = iconTab == i
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
-                        .clickable { iconTab = i }.padding(vertical = 9.dp),
+                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(9.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
+                        .selectable(selected = on, role = Role.Tab) { iconTab = i },
                     contentAlignment = Alignment.Center,
                 ) { Text(label, style = KassaType.bodyStrong, color = if (on) Kassa.colors.ink else Kassa.colors.ink2) }
             }
@@ -136,8 +139,8 @@ fun CategoryEditor(
                     IconCatalog.emoji.forEach { e ->
                         val on = icon == CategoryIcon.Emoji(e)
                         Box(
-                            Modifier.padding(2.dp).size(44.dp).clip(RoundedCornerShape(12.dp))
-                                .background(if (on) Kassa.colors.chip else Color.Transparent).clickable { icon = CategoryIcon.Emoji(e) },
+                            Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                                .background(if (on) Kassa.colors.chip else Color.Transparent).clickable(role = Role.Button) { icon = CategoryIcon.Emoji(e) },
                             contentAlignment = Alignment.Center,
                         ) { Text(e, fontSize = 22.sp) }
                     }
@@ -149,9 +152,9 @@ fun CategoryEditor(
                     IconCatalog.search(iconQuery).forEach { ci ->
                         val on = icon == CategoryIcon.Symbol(ci.name)
                         Box(
-                            Modifier.padding(2.dp).size(48.dp).clip(RoundedCornerShape(12.dp))
+                            Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
                                 .background(if (on) Color(color).copy(alpha = 0.2f) else Color.Transparent)
-                                .clickable { icon = CategoryIcon.Symbol(ci.name) },
+                                .clickable(role = Role.Button) { icon = CategoryIcon.Symbol(ci.name) },
                             contentAlignment = Alignment.Center,
                         ) { Icon(ci.vector, ci.name, tint = if (on) Color(color) else Kassa.colors.ink2) }
                     }
@@ -168,17 +171,22 @@ fun CategoryEditor(
                 IconCatalog.colors.forEach { c ->
                     val on = c == color
                     val used = c in usedBy
-                    Box(Modifier.padding(4.dp).size(40.dp)) {
-                        Box(
-                            Modifier.fillMaxSize().clip(CircleShape).background(Color(c))
-                                .then(if (on) Modifier.border(3.dp, Kassa.colors.ink, CircleShape) else Modifier)
-                                .clickable { color = c }
-                                .semantics { contentDescription = (if (on) "Picked color" else "Color") + if (used) ", also used by ${usedBy[c].orEmpty().joinToString()}" else "" },
-                        )
-                        if (used) Box(
-                            Modifier.align(Alignment.BottomEnd).size(12.dp).clip(CircleShape).background(Kassa.colors.ground)
-                                .padding(2.dp).clip(CircleShape).background(Kassa.colors.ink3),
-                        )
+                    // The whole 48dp cell is the target; the swatch is drawn 40dp inside it.
+                    Box(
+                        Modifier.size(48.dp).clickable(role = Role.RadioButton) { color = c }
+                            .semantics { contentDescription = (if (on) "Picked color" else "Color") + if (used) ", also used by ${usedBy[c].orEmpty().joinToString()}" else "" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.size(40.dp)) {
+                            Box(
+                                Modifier.fillMaxSize().clip(CircleShape).background(Color(c))
+                                    .then(if (on) Modifier.border(3.dp, Kassa.colors.ink, CircleShape) else Modifier),
+                            )
+                            if (used) Box(
+                                Modifier.align(Alignment.BottomEnd).size(12.dp).clip(CircleShape).background(Kassa.colors.ground)
+                                    .padding(2.dp).clip(CircleShape).background(Kassa.colors.ink3),
+                            )
+                        }
                     }
                 }
             }

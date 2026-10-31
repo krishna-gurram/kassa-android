@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
 import app.kassa.money.domain.AccountGroupView
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.common.AutoScroll
 import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.ReorderMath
@@ -396,7 +397,7 @@ private fun AccountRow(
             if (s != null && s.payable > 0) {
                 note = "Pay ${Money.format(s.payable)}"
                 noteColor = Kassa.colors.attention
-                dueNote = "Due ${accountShortDate(s.due)}"
+                dueNote = "Due ${shortDate(s.due)}"
                 if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = Kassa.colors.attention
             } else if (s != null) {
                 note = "Nothing to pay"
@@ -407,7 +408,7 @@ private fun AccountRow(
             val t = ledger.loans.terms[a.id]
             if (t != null && line.shown > 0) {
                 note = "Pay ${Money.format(t.scheduledTotal)}"
-                dueNote = "Due ${accountShortDate(dateOfAccountDay(t.nextPaymentDay))}"
+                dueNote = "Due ${shortDate(dateOfAccountDay(t.nextPaymentDay))}"
                 if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) {
                     noteColor = Kassa.colors.attention
                     dueColor = Kassa.colors.attention
@@ -416,7 +417,7 @@ private fun AccountRow(
         }
         AccountType.FIXED_DEPOSIT -> {
             val matures = a.maturityDay
-            if (matures != null) dueNote = "Matures ${accountShortDate(dateOfAccountDay(matures))}"
+            if (matures != null) dueNote = "Matures ${shortDate(dateOfAccountDay(matures))}"
         }
         else -> Unit
     }

@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,18 +97,19 @@ fun SubcategoryList(
                 var moveMenu by remember(s.id) { mutableStateOf(false) }
                 var mergeMenu by remember(s.id) { mutableStateOf(false) }
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { renaming = s.id; adding = false }.padding(vertical = 10.dp),
-                    )
+                    Box(
+                        Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { renaming = s.id; adding = false },
+                        contentAlignment = Alignment.CenterStart,
+                    ) { Text(s.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     val (amt, n) = figures[s.id] ?: (0L to 0)
                     Column(horizontalAlignment = Alignment.End) {
                         Text(Money.format(amt), style = KassaType.bodyStrong, color = if (n == 0) Kassa.colors.ink3 else Kassa.colors.ink)
                         Text("$n this month", style = KassaType.tiny, color = Kassa.colors.ink3)
                     }
                     Box {
-                        Text("⋯", style = KassaType.section, color = Kassa.colors.ink2,
-                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { menu = true }.padding(horizontal = 10.dp, vertical = 6.dp))
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { menu = true }, contentAlignment = Alignment.Center) {
+                            Text("⋯", style = KassaType.section, color = Kassa.colors.ink2, modifier = Modifier.clearAndSetSemantics { contentDescription = "More for ${s.name}" })
+                        }
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem({ Text("Rename") }, { menu = false; renaming = s.id })
                             DropdownMenuItem({ Text("Move to another category") }, { menu = false; moveMenu = true })

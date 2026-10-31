@@ -39,32 +39,22 @@ object InputRules {
     fun typedLines(raw: String, max: Int): String = raw.replace('\t', ' ').take(max)
 
     /**
-     * For an amount field's onValueChange: digits and one decimal point only, at most [AMOUNT_DIGITS] whole digits
-     * and two decimals. Commas are dropped, so pasting "1,250.50" works.
+     * For an amount field's onValueChange: digits and one decimal mark only, at most [AMOUNT_DIGITS] whole digits and
+     * two decimals. The mark is the phone's ("12,5" in Germany); a pasted "1,250.50" or "1.250,50" is read right
+     * ([NumberText.parts]) and becomes "1250.50" or "1250,50".
      */
-    fun typedAmount(raw: String): String {
-        val kept = raw.filter { it.isDigit() || it == '.' }
-        val dot = kept.indexOf('.')
-        val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(AMOUNT_DIGITS)
-        return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(2)
-    }
+    fun typedAmount(raw: String): String = NumberText.fieldText(NumberText.partsForField(raw), AMOUNT_DIGITS, 2)
 
-    /** For a rate field: digits and one decimal point, at most three whole digits and four decimals ("6.125"). */
-    fun typedRate(raw: String): String {
-        val kept = raw.filter { it.isDigit() || it == '.' }
-        val dot = kept.indexOf('.')
-        val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(RATE_WHOLE_DIGITS)
-        return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(RATE_DECIMALS)
-    }
+    /** For a rate field: digits and one decimal mark, at most three whole digits and four decimals ("6.125"). */
+    fun typedRate(raw: String): String =
+        NumberText.fieldText(NumberText.partsForField(raw, grouping = false), RATE_WHOLE_DIGITS, RATE_DECIMALS)
 
-    /** "6.125" as 61,250. Null for anything that is not a number. */
+    /** "6.125" (or "6,125" where the phone says so) as 61,250. Null for anything that is not a number. */
     fun parseRate(text: String): Long? {
-        val t = text.trim().removeSuffix("%").trim()
-        if (t.isEmpty() || t == ".") return null
+        val parts = NumberText.parts(text.trim(), grouping = false) ?: return null
+        if (!parts.hasDigits) return null
         return try {
-            java.math.BigDecimal(t).movePointRight(RATE_DECIMALS).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
-        } catch (e: NumberFormatException) {
-            null
+            parts.toBigDecimal().movePointRight(RATE_DECIMALS).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
         } catch (e: ArithmeticException) {
             null
         }
@@ -83,8 +73,8 @@ object InputRules {
 
     /** Like [typedAmount], but keeps a leading minus: a bank balance can be overdrawn. */
     fun typedBalance(raw: String): String {
-        val minus = raw.trimStart().startsWith("-") || raw.trimStart().startsWith("−")
-        return (if (minus) "-" else "") + typedAmount(raw)
+        val parts = NumberText.partsForField(raw)
+        return (if (parts.negative) "-" else "") + NumberText.fieldText(parts, AMOUNT_DIGITS, 2)
     }
 
     /** Digits only, at most [max] of them: last 4, days of the month. */

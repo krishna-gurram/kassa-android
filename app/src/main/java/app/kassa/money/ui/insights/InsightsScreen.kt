@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -50,12 +52,15 @@ import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.common.CategoryLines
 import app.kassa.money.ui.common.FIT_MIN_HEIGHT
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.common.monthLines
 import app.kassa.money.ui.common.weekLines
 import app.kassa.money.ui.common.TransactionRow
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledDp
 import app.kassa.money.ui.today.BigMoney
 import java.time.Instant
 import java.time.LocalDate
@@ -143,7 +148,7 @@ private fun MonthHero(ledger: Ledger) {
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
     Hero("Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}", spent) {
-        if (hasBefore) Compare("${prev.yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} by the ${ordinal(to.dayOfMonth)}", before)
+        if (hasBefore) Compare("Up to ${shortDate(to)}", before)
     }
 }
 
@@ -221,7 +226,7 @@ private fun WeekHero(ledger: Ledger, actions: InsightActions) {
     val max = (days.maxOfOrNull { it.second ?: 0L } ?: 0L).coerceAtLeast(1L)
     Hero("Spent this week", spent) {
         Compare("Last week by ${ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}", before)
-        Row(Modifier.fillMaxWidth().height(84.dp).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().height(scaledDp(84.dp)).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             days.forEach { (date, v) ->
                 val today = date == ledger.today
                 val d = date.dayOfWeek
@@ -276,9 +281,9 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
     val dues = duesThisWeek(ledger)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { "↑ " + Money.format(it.change, wholeDollars = true) }, Kassa.colors.attention,
+            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { (if (Money.isHidden) "" else "↑ ") + Money.format(it.change, wholeDollars = true) }, figureColor(Kassa.colors.attention),
                 Modifier.weight(1f).then(if (up != null) Modifier.clickable { actions.openCategory(up.category) } else Modifier))
-            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { "↓ " + Money.format(-it.change, wholeDollars = true) }, Kassa.colors.positive, 
+            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { (if (Money.isHidden) "" else "↓ ") + Money.format(-it.change, wholeDollars = true) }, figureColor(Kassa.colors.positive),
                 Modifier.weight(1f).then(if (down != null) Modifier.clickable { actions.openCategory(down.category) } else Modifier))
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -329,10 +334,12 @@ private fun Compare(label: String, amount: Long) {
 
 @Composable
 internal fun Head(title: String, link: String? = null, onLink: () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-        if (link != null) Text("$link  ›", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onLink).padding(horizontal = 4.dp, vertical = 4.dp))
+    Row(Modifier.fillMaxWidth().heightIn(min = 34.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong.copy(fontSize = 17.sp), color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        if (link != null) Box(
+            Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onLink).padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text("$link  ›", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2) }
     }
 }
 
@@ -388,10 +395,4 @@ private fun Toggle(options: List<Pair<Boolean, String>>, value: Boolean, onChang
             )
         }
     }
-}
-
-internal fun ordinal(n: Int): String = n.toString() + when {
-    n % 100 in 11..13 -> "th"
-    n % 10 == 1 -> "st"; n % 10 == 2 -> "nd"; n % 10 == 3 -> "rd"
-    else -> "th"
 }

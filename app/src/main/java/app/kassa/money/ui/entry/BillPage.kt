@@ -13,13 +13,14 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -42,6 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -221,14 +225,19 @@ fun BillPage(
                         }
                         BillField.DAY -> {
                             PanelTitle("Day of the month") { field = null }
-                            LazyVerticalGrid(GridCells.Fixed(7), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // No gaps: each day's cell is the 48dp target, and the picked circle sits inside it.
+                            LazyVerticalGrid(GridCells.Fixed(7), Modifier.weight(1f)) {
                                 items((1..31).toList(), key = { it }) { d ->
                                     val sel = d == day
                                     Box(
-                                        Modifier.aspectRatio(1f).clip(CircleShape).background(if (sel) Kassa.colors.ink else Color.Transparent)
-                                            .clickable { day = d; advance() },
+                                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { day = d; advance() }
+                                            .semantics { selected = sel },
                                         contentAlignment = Alignment.Center,
-                                    ) { Text(d.toString(), style = KassaType.body.copy(fontWeight = FontWeight.Medium), color = if (sel) Kassa.colors.onInk else Kassa.colors.ink) }
+                                    ) {
+                                        Box(Modifier.size(38.dp).clip(CircleShape).background(if (sel) Kassa.colors.ink else Color.Transparent), contentAlignment = Alignment.Center) {
+                                            Text(d.toString(), style = KassaType.body.copy(fontWeight = FontWeight.Medium), color = if (sel) Kassa.colors.onInk else Kassa.colors.ink)
+                                        }
+                                    }
                                 }
                             }
                             if (day > 28) Text("Shorter months use their last day.", style = KassaType.tiny, color = Kassa.colors.ink3)
@@ -244,14 +253,15 @@ fun BillPage(
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 sugg.forEach { s ->
                                     Box(
-                                        Modifier.clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
+                                        Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
                                             name = s.take(InputRules.NAME_MAX)
                                             if (categoryId == null) ledger.recent.firstOrNull { it.note.trim() == s && it.kind == TxKind.EXPENSE }?.let { last ->
                                                 categoryId = last.categoryId
                                                 day = minOf(java.time.Instant.ofEpochMilli(last.epochMillis).atZone(ledger.zone).dayOfMonth, 31)
                                             }
                                             advance()
-                                        }.padding(horizontal = 14.dp, vertical = 9.dp),
+                                        }.padding(horizontal = 14.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) { Text(s, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                                 }
                             }

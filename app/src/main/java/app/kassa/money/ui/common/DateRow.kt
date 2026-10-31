@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -51,7 +51,7 @@ fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onP
         var month by remember { mutableStateOf(YearMonth.from(date)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Kassa.colors.raised).padding(16.dp)) {
             Text("Date", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
-            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.height(300.dp), allowFuture = allowFuture) { picked ->
+            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.heightIn(min = 300.dp), allowFuture = allowFuture) { picked ->
                 onPick(picked)
                 picking = false
             }

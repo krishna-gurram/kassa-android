@@ -3,7 +3,6 @@ package app.kassa.money.domain
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
-import java.text.NumberFormat
 
 /*
  * Loans that know their terms. Plain Kotlin, no Android and no java.time: dates are epoch days (see LoanDates),
@@ -223,16 +222,12 @@ object LoanNotes {
 
 /** How a rate field is shown and typed. */
 object LoanRate {
-    /** "6.125" for a field; no grouping and no trailing zeros. */
-    fun toInput(rate: Long): String = BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS).stripTrailingZeros().let {
-        if (it.scale() < 0) it.setScale(0).toPlainString() else it.toPlainString()
-    }
+    /** "6.125" for a field (a comma in "6,125" where the phone writes one); no grouping and no trailing zeros. */
+    fun toInput(rate: Long): String = NumberText.toField(BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS))
 
     /** "6.125%" in the phone's number style, up to four decimals. */
-    fun display(rate: Long): String {
-        val nf = NumberFormat.getNumberInstance(Money.style.locale).apply { minimumFractionDigits = 0; maximumFractionDigits = InputRules.RATE_DECIMALS }
-        return nf.format(BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS)) + "%"
-    }
+    fun display(rate: Long): String =
+        NumberText.decimal(BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS), InputRules.RATE_DECIMALS, trim = true) + "%"
 }
 
 /** Where a loan stands: what is owed, the scheduled payment date, and the date interest was last paid up to. */

@@ -15,20 +15,25 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.layout.Spacer
+import app.kassa.money.ui.activity.Chevron
+import app.kassa.money.domain.NumberText
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,10 +47,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 
 /* The building blocks of the bottom panel on the entry and bill pages, and the app-wide Chip. */
 
@@ -63,9 +68,8 @@ internal fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Un
 /** The panel's title row: an optional back arrow, the title, and Done when [onDone] is given. */
 @Composable
 internal fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (back != null) Text("‹", style = KassaType.body.copy(fontSize = 22.sp), color = Kassa.colors.ink,
-            modifier = Modifier.clip(CircleShape).clickable(onClick = back).padding(horizontal = 8.dp))
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (back != null) IconButton(onClick = back, modifier = Modifier.size(48.dp)) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
         Text(title, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 4.dp))
         if (onDone != null) DoneButton(onDone)
@@ -74,14 +78,16 @@ internal fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -
 
 @Composable
 private fun DoneButton(onClick: () -> Unit) {
-    Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink,
-        modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp))
+    Box(
+        Modifier.padding(start = 6.dp).heightIn(min = 48.dp).widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
 }
 
 /** The panel's title row as a search box, with Done on the right, so searching adds no row of its own. */
 @Composable
 internal fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String, onFocus: (Boolean) -> Unit, onDone: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         BasicTextField(
             value = query, onValueChange = { onQuery(InputRules.typed(it, InputRules.NAME_MAX)) }, singleLine = true,
             textStyle = KassaType.body.copy(color = Kassa.colors.ink),
@@ -90,7 +96,7 @@ internal fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String,
             modifier = Modifier.weight(1f).onFocusChanged { onFocus(it.isFocused) },
             decorationBox = { inner ->
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).padding(horizontal = 10.dp, vertical = 9.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).padding(start = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.Search, null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
@@ -98,8 +104,10 @@ internal fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String,
                         if (query.isEmpty()) Text(hint, style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         inner()
                     }
-                    if (query.isNotEmpty()) Text("✕", style = KassaType.body, color = Kassa.colors.ink3,
-                        modifier = Modifier.clip(CircleShape).clickable { onQuery("") }.padding(horizontal = 6.dp))
+                    if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+                    }
+                    else Spacer(Modifier.size(10.dp))
                 }
             },
         )
@@ -124,26 +132,38 @@ internal fun PickTile(on: Boolean, minHeight: Dp = 54.dp, onClick: () -> Unit, c
 internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Box(
-        modifier.height(48.dp).clip(shape).background(Kassa.colors.ground)
-            .border(1.5.dp, if (on) Kassa.colors.ink else Color.Transparent, shape).clickable(onClick = onClick),
+        modifier.heightIn(min = 48.dp).clip(shape).background(Kassa.colors.ground)
+            .border(1.5.dp, if (on) Kassa.colors.ink else Color.Transparent, shape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    ) { Text(label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center) }
 }
 
-/** Keys that fill whatever height the panel has, so the pad is as big as the screen allows. Sends "0"-"9", "." or "del". */
+/**
+ * Keys that fill whatever height the panel has, so the pad is as big as the screen allows. Sends "0"-"9", "." or "del"
+ * (the point key shows the phone's decimal mark). The digits follow the font size up to 130%, since the keys don't grow.
+ */
 @Composable
 internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
     val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del")
+    val keySize = scaledSp(24f)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.chunked(3).forEach { row ->
             Row(Modifier.weight(1f).heightIn(max = 64.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { k ->
                     Box(
-                        Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).clickable { onKey(k) },
+                        Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Kassa.colors.ground).clickable(role = Role.Button) { onKey(k) },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (k == "del") "⌫" else k, style = KassaType.body.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium),
-                            color = Kassa.colors.ink, textAlign = TextAlign.Center)
+                        Text(
+                            when (k) { "del" -> "⌫"; "." -> NumberText.decimalMark().toString(); else -> k },
+                            style = KassaType.body.copy(fontSize = keySize, fontWeight = FontWeight.Medium),
+                            color = Kassa.colors.ink, textAlign = TextAlign.Center,
+                            modifier = when (k) {
+                                "del" -> Modifier.clearAndSetSemantics { contentDescription = "Delete" }
+                                "." -> Modifier.clearAndSetSemantics { contentDescription = "Decimal mark" }
+                                else -> Modifier
+                            },
+                        )
                     }
                 }
             }
