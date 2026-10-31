@@ -69,7 +69,9 @@ fun ChangeTermsPage(
     val changes = ledger.loans.changesFor(account.id)
     val payments = ledger.loans.paymentsFor(account.id)
     val ctx = remember(terms, changes, payments, owed) { LoanChangeContext(terms, changes, payments, owed) }
-    var form by remember { mutableStateOf(LoanChangeForm.starting(ledger.today.loanDay())) }
+    // A change starts on the payment that is waiting when that one is already due, so it isn't left on the old terms.
+    val firstDay = ledger.today.loanDay().let { today -> terms.nextPaymentDay.takeIf { it > 0 }?.let { minOf(it, today) } ?: today }
+    var form by remember { mutableStateOf(LoanChangeForm.starting(firstDay)) }
     var problems by remember { mutableStateOf(emptyMap<ChangeField, String>()) }
     val preview = remember(form, ctx) { form.preview(ctx) }
     fun edit(field: ChangeField?, change: (LoanChangeForm) -> LoanChangeForm) {

@@ -221,8 +221,8 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
 
 /**
  * Spending or income, this week or this month, in one tonal hero: the two titles switch between spending and income,
- * a small menu picks the period, then the total and the top three categories as a bar with a legend. A legend item
- * opens its category; the chevron opens the full breakdown. The hero turns grey while balances are hidden.
+ * a small menu picks the period, then the total with a chevron to the full breakdown. The top three categories sit just
+ * under it as tinted tiles; a tile opens its category. The hero turns grey while balances are hidden.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -262,45 +262,49 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
                 }
             }
         }
-        BigMoney(total, sizeSp = if (roomy) 46f else 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
-        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = app.kassa.money.ui.common.heroInk(), modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-        else TopBar(top, total, if (income) "Where it came from" else "Where it went", onOpenCategory, onOpen)
+        val openLabel = if (income) "Where it came from" else "Where it went"
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                BigMoney(total, sizeSp = if (roomy) 46f else 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
+            }
+            androidx.compose.material3.IconButton(onClick = onOpen, modifier = Modifier.size(48.dp)) {
+                androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), openLabel, tint = app.kassa.money.ui.common.heroInk())
+            }
+        }
+        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = app.kassa.money.ui.common.heroInk(), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     }
+    if (top.isNotEmpty()) TopTiles(top, onOpenCategory, onOpen)
 }
 
 /**
- * The top three categories as one stacked bar (each as wide as its share of the total, the rest in a neutral
- * segment) with a legend under it: a dot in the category's color, its name and amount. Two categories may share a
- * color; the legend keeps them apart by name. Spending and income use the same bar.
+ * The top three categories as tinted tiles just under the hero, each as wide as its share of the three (with a floor
+ * so a small one still shows its name and amount): a stripe of the category's color, its icon, name and amount. Two
+ * categories may share a color; the tiles keep them apart. Spending and income use the same tiles.
  */
 @Composable
-private fun TopBar(top: List<Pair<app.kassa.money.domain.Category?, Long>>, total: Long, openLabel: String, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
+private fun TopTiles(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
+    val sum = top.sumOf { it.second }.coerceAtLeast(1)
     val none = Kassa.colors.ink3
-    val sum = top.sumOf { it.second }
     Row(
-        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp).height(8.dp).clip(RoundedCornerShape(50)),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        Modifier.fillMaxWidth().padding(top = 8.dp).height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        top.forEach { (c, amt) ->
-            Box(Modifier.weight(amt.toFloat().coerceAtLeast(1f)).fillMaxHeight().background(c?.let { Color(it.color) } ?: none))
-        }
-        val rest = total - sum
-        if (rest > 0) Box(Modifier.weight(rest.toFloat()).fillMaxHeight().background(app.kassa.money.ui.common.heroInk().copy(alpha = 0.25f)))
-    }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         top.forEach { (c, amt) ->
             val color = c?.let { Color(it.color) } ?: none
             val name = c?.name ?: "Uncategorized"
-            Column(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() }.padding(vertical = 6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(color))
-                    Text(name, style = KassaType.tiny, color = app.kassa.money.ui.common.heroInk(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp))
+            Row(
+                Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.3f)).fillMaxHeight().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
+            ) {
+                Box(Modifier.width(3.dp).fillMaxHeight().background(color))
+                Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        app.kassa.money.ui.common.CategoryIconView(c?.icon, color, 30, fallback = name.take(1))
+                        Text(name, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                    }
+                    Text(Money.format(amt, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(Money.format(amt, wholeDollars = true), style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-        }
-        androidx.compose.material3.IconButton(onClick = onOpen, modifier = Modifier.size(48.dp)) {
-            androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), openLabel, tint = app.kassa.money.ui.common.heroInk())
         }
     }
 }
