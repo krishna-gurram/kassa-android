@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.NumberText
 import app.kassa.money.importer.CashewScan
 import app.kassa.money.importer.LoanChoice
 import app.kassa.money.ui.common.Gap
@@ -22,7 +23,6 @@ import app.kassa.money.ui.common.Panel
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -174,6 +174,6 @@ internal fun Bullet(text: String) {
 /** An amount in the phone's currency, or as a plain number with its code when it's another currency. */
 private fun amountIn(cents: Long, otherCode: String?): String =
     if (otherCode == null) Money.format(cents)
-    else NumberFormat.getNumberInstance().apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(java.math.BigDecimal.valueOf(cents, 2)) + " " + otherCode
+    else NumberText.decimal(java.math.BigDecimal.valueOf(cents, 2), 2) + " " + otherCode
 
-private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
+private fun count(n: Int): String = NumberText.group(n.toString())

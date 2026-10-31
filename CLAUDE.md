@@ -5,9 +5,20 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
 ## Rules that matter
 - **No network, ever.** The manifest removes `INTERNET`; CI fails if it appears. Don't add libraries that need it.
 - **Money is `Long` cents.** Never `Double` for stored or summed amounts. Shares are millionths (`microShares`).
-- **No currency is written anywhere.** Each phone picks one currency (Settings > Currency, or on first run); amounts
-  are minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`,
-  and use `Money.symbol` for a bare symbol. Never type `$` in UI code.
+- **No currency is written anywhere.** Each phone shows one currency (Settings > Currency); it starts as the phone's region
+  currency when Kassa lists it (`Currencies.forLocale`, saved at once so moving regions never changes entered amounts), and
+  otherwise the first-run screen asks (Start fresh and Choose backup file open the list until one is picked). Amounts are
+  minor units and are never converted. Format with `Money.format`, put numbers in fields with `Money.toInput`, and use
+  `Money.symbol` for a bare symbol. Never type `$` in UI code.
+- **Numbers follow the phone's language, not the currency** (`domain/NumberText`, `Money.locale`): grouping and decimal mark
+  (1,234.50, 1.234,50, 1 234,50, lakh grouping 12,34,567.50 for India, Bangladesh and Nepal, which java.text can't do). The
+  symbol is always in front. Typed amounts, rates and share counts accept either mark: `Money.parseCents`, `InputRules.parseRate`
+  and `Shares.parse` read what the person typed or pasted (`NumberText.parts`), and fields rewrite it with the phone's mark.
+  The number pad keeps a point in its own text and only shows the phone's mark. **Files from other apps use
+  `Money.parsePlain`** (a point is always a decimal there). Only currencies with two minor-unit digits are listed: JPY, KRW,
+  VND, KWD, BHD and OMR need whole-unit or three-digit rules through fields, limits, importers and loan rounding first, and IDR
+  would hit the 99,999,999.99 limit at about 6,000 US dollars. Tests pin the style with `Money.withLocale`; the Gradle test
+  tasks run as en-US.
 - **Nothing posts by itself.** Bills, card payments and loan payments wait on the Notifications page
   (`ui/today/Notifications.kt`, linked from Overview only when something waits) from their due day, never before, and
   stay while overdue; so do investment transfers and suggested bills. They wait until the user acts or clears them.
