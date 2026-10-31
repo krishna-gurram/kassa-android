@@ -26,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +47,7 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.common.rememberSavedDate
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
@@ -103,9 +106,9 @@ fun PersonPage(
     /** Saves the person and, when it changed, their starting balance; then calls the callback. */
     onUpdate: (Person, Long?, () -> Unit) -> Unit,
 ) {
-    var editing by remember(p.id) { mutableStateOf(false) }
-    var recording by remember(p.id) { mutableStateOf(false) }
-    var splitting by remember(p.id) { mutableStateOf(false) }
+    var editing by rememberSaveable(p.id) { mutableStateOf(false) }
+    var recording by rememberSaveable(p.id) { mutableStateOf(false) }
+    var splitting by rememberSaveable(p.id) { mutableStateOf(false) }
     val history = remember(p, ledger.people) { historyOf(p, ledger) }
     val since = remember(history) { openSince(history) }
     val shortDate = DateTimeFormatter.ofPattern("MMM d")
@@ -163,6 +166,9 @@ fun PersonPage(
     if (splitting) SplitSheet(p, ledger, onDismiss = { splitting = false }) { id -> splitting = false; onSplit(id) }
 }
 
+/** A payment's direction kept across recreation by its name. */
+private val TxKindSaver: Saver<TxKind, String> = Saver(save = { it.name }, restore = { TxKind.valueOf(it) })
+
 /**
  * Money between you and one person, either way. A new payment starts on settling the balance; [editing] opens an
  * existing one filled in, with Delete ([onDelete]) under Save.
@@ -180,17 +186,18 @@ internal fun PaymentSheet(
 ) {
     // An edited payment keeps its account in the list even if that account was archived since.
     val banks = ledger.accounts.accounts.filter { (it.isActive && it.type in PAYMENT_ACCOUNT_TYPES) || it.id == editing?.accountId }
-    var direction by remember(p.id) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
-    var amount by remember(p.id) {
+    // What is typed here survives folding or rotating the phone.
+    var direction by rememberSaveable(p.id, stateSaver = TxKindSaver) { mutableStateOf(editing?.kind ?: if (balance < 0) TxKind.PERSON_OUT else TxKind.PERSON_IN) }
+    var amount by rememberSaveable(p.id) {
         mutableStateOf(editing?.let { Money.toInput(it.amount) } ?: if (balance != 0L) Money.toInput(Math.abs(balance)) else "")
     }
     // Nothing guesses an account: you pick where the money went.
-    var account by remember { mutableStateOf(editing?.accountId) }
+    var account by rememberSaveable { mutableStateOf(editing?.accountId) }
     val originalDate = editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
-    var date by remember { mutableStateOf(originalDate ?: ledger.today) }
-    var amountProblem by remember { mutableStateOf<String?>(null) }
-    var accountProblem by remember { mutableStateOf<String?>(null) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var date by rememberSavedDate { originalDate ?: ledger.today }
+    var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var accountProblem by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {

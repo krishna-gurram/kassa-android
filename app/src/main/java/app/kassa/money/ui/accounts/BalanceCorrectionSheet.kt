@@ -20,7 +20,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +40,7 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.common.rememberSavedDate
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
@@ -70,10 +71,11 @@ fun BalanceCorrectionSheet(
     // What Kassa shows without the correction being edited: the difference is measured from this.
     val without = now - (editing?.effectOn(account.id) ?: 0)
     val shownWithout = BalanceCorrection.shownFrom(without, debt)
-    var text by remember { mutableStateOf(editing?.let { Money.toInput(BalanceCorrection.shownFrom(now, debt)) } ?: "") }
-    var date by remember { mutableStateOf(editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() } ?: ledger.today) }
-    var problem by remember { mutableStateOf<String?>(null) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    // Typed input survives folding or rotating the phone.
+    var text by rememberSaveable { mutableStateOf(editing?.let { Money.toInput(BalanceCorrection.shownFrom(now, debt)) } ?: "") }
+    var date by rememberSavedDate { editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() } ?: ledger.today }
+    var problem by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     val typed = Money.parseCents(text)
     val difference = typed?.let { it - shownWithout }

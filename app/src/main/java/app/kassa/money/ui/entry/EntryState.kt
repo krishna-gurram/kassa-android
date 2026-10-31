@@ -50,7 +50,10 @@ private val PAGE_KINDS = setOf(TxKind.EXPENSE, TxKind.INCOME, TxKind.TRANSFER)
  * The composables only lay this out and call its methods. Each property is Compose state, so changes redraw the page.
  */
 @Stable
-internal class EntryState(val start: EntryStart, private val zone: ZoneId, private val today: LocalDate) {
+internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate) {
+    /** The phone's zone and today's date, kept current by [updateClock] when the page stays open past midnight or across a zone change. */
+    private var zone: ZoneId = zone
+    private var today: LocalDate = today
     val editing: Transaction? = start.editing
     private val prefill: EntryDraft? = start.prefill
     private val originalMillis: Long? = editing?.epochMillis ?: prefill?.epochMillis
@@ -141,6 +144,12 @@ internal class EntryState(val start: EntryStart, private val zone: ZoneId, priva
         editingShare = v[12].toLongOrNull()
         shareInput = v[13]
     }
+
+    /**
+     * The date or zone changed while the page was open. What was picked stays as picked; only "today" moves, so a new entry saved
+     * on the date picked still gets the right time of day, and the calendar's today marker follows.
+     */
+    fun updateClock(zone: ZoneId, today: LocalDate) { this.zone = zone; this.today = today }
 
     fun typeNote(raw: String) { note = InputRules.typed(raw, InputRules.NOTE_MAX) }
 

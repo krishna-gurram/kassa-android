@@ -88,6 +88,12 @@ class NavViewModel : ViewModel() {
     /** The payment to or from a person whose sheet is open. */
     var editingPayment by mutableStateOf<app.kassa.money.domain.Transaction?>(null)
 
+    /**
+     * A Settings page asked for from outside Settings (the "Backup needs attention" notification asks for the backup page).
+     * Settings opens it and clears this. Kept here so it survives the tab being recreated before it is read.
+     */
+    var settingsRequest by mutableStateOf<String?>(null)
+
     val stack = mutableStateListOf<Page>()
     val top: Page? get() = stack.lastOrNull()
 

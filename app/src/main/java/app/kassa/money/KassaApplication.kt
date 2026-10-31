@@ -2,6 +2,7 @@ package app.kassa.money
 
 import android.app.Application
 import app.kassa.money.data.CrashReport
+import app.kassa.money.data.DayClock
 import app.kassa.money.data.Settings
 import app.kassa.money.data.backup.BackupRepository
 import app.kassa.money.data.db.DatabaseOpen
@@ -71,11 +72,14 @@ class KassaApplication : Application() {
         get() = (openDatabase() as? DatabaseOpen.Ready)?.database ?: throw IllegalStateException("Kassa's data can't be opened.")
 
     val settings by lazy { Settings(this) }
+
+    /** Today's date and the phone's time zone, kept current (see [DayClock]). */
+    val clock by lazy { DayClock(this) }
     val entries by lazy { EntryRepository(database) }
     val accounts by lazy { AccountRepository(database) }
     val categories by lazy { CategoryRepository(database) }
     val people by lazy { PeopleRepository(database) }
-    val bills by lazy { BillRepository(database) }
+    val bills by lazy { BillRepository(database, entries) }
     val investments by lazy { InvestmentRepository(database, entries) }
     val loans by lazy { LoanRepository(database, accounts, categories) }
     val imports by lazy { ImportRepository(database) }
@@ -106,6 +110,8 @@ class KassaApplication : Application() {
         }
         // Loading settings sets the currency and the hide-balances hook before anything formats an amount.
         settings.currency
+        // Follow the date and time zone for as long as the process lives.
+        runCatching { clock.start() }
         // Re-book the daily backup and reminder in case something dropped them. Refresh keeps what's already booked
         // for the same time, so a process started to run the backup or reminder doesn't push it to tomorrow.
         runCatching { DailyJobs.refresh(this) }
