@@ -193,7 +193,7 @@ Top: a Net worth tonal hero (green; orange with its minus below zero) with Asset
 from `AccountsOverview`: Cash and bank (checking, savings, cash, prepaid, fixed deposit), Investments, Other assets,
 Credit cards, Loans, Other debts, then People and a Closed group (folded by default; fold state lives in `NavViewModel`).
 600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are name and main figure, with
-one second line: card "Pay <balance payable>" and "Due <date>", loan "Pay <payment>" and "Due <date>" (only with terms),
+the main figure on the right is what is payable (card balance payable, loan payment, with terms only) and the second line is "Total balance <x>" (card) or "Outstanding <x>" (loan) with "Due <date>",
 fixed deposit "Matures <date>". Orange only for something payable and a payment due today or overdue. No bars,
 percentages, trends or forecasts here. Debts show what is owed, with no minus.
 Settings > Data > "Account to person" lists the user's own plain accounts (not cards, loans or investments, A to Z); the user picks

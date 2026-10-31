@@ -385,17 +385,21 @@ private fun AccountRow(
     val a = line.account
     val debt = a.type.isDebt
     var note: String? = null
-    var noteColor = Kassa.colors.ink2
+    val noteColor = Kassa.colors.ink2
     var dueNote: String? = null
     var dueColor = Kassa.colors.ink2
+    // What owed shows big on the right; with a payment waiting that is the payment, and the balance moves under the name.
+    var amount = if (debt) cardMoney(line.shown) else Money.format(line.shown)
+    var amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown)
     val todayDay = ledger.today.accountDay()
     when (a.type) {
         AccountType.CREDIT_CARD -> {
             // A card without statement days has nothing to split yet, so it shows only its total.
             val s = cards[a.id]?.snapshot
             if (s != null && s.payable > 0) {
-                note = "Pay ${Money.format(s.payable)}"
-                noteColor = figureColor(Kassa.colors.attention)
+                note = "Total balance ${amount}"
+                amount = Money.format(s.payable)
+                amountColor = figureColor(Kassa.colors.attention)
                 dueNote = "Due ${shortDate(s.due)}"
                 if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = figureColor(Kassa.colors.attention)
             } else if (s != null) {
@@ -406,10 +410,12 @@ private fun AccountRow(
             // A loan without terms shows only what's outstanding; so does one that's paid off.
             val t = ledger.loans.terms[a.id]
             if (t != null && line.shown > 0) {
-                note = "Pay ${Money.format(t.scheduledTotal)}"
+                note = "Outstanding ${amount}"
+                amount = Money.format(t.scheduledTotal)
+                amountColor = Kassa.colors.ink
                 dueNote = "Due ${shortDate(dateOfAccountDay(t.nextPaymentDay))}"
                 if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) {
-                    noteColor = figureColor(Kassa.colors.attention)
+                    amountColor = figureColor(Kassa.colors.attention)
                     dueColor = figureColor(Kassa.colors.attention)
                 }
             }
@@ -421,8 +427,8 @@ private fun AccountRow(
         else -> Unit
     }
     OneLineRow(
-        a.name, a.last4, if (debt) cardMoney(line.shown) else Money.format(line.shown), selected = selected, grouped = true,
-        amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown),
+        a.name, a.last4, amount, selected = selected, grouped = true,
+        amountColor = amountColor,
         note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor,
         onClick = onClick,
     )
