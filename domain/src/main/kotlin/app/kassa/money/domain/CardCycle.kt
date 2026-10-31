@@ -76,9 +76,18 @@ object CardCycle {
     fun nextClose(statementDay: Int, close: LocalDate): LocalDate =
         closeIn(YearMonth.from(close).plusMonths(1), statementDay)
 
+    /**
+     * The due date of the statement that closed on [close]: always after it. A due day on or before the statement day
+     * means the following month. In a short month the statement day itself moves back (a statement on the 31st closes
+     * on February 28), so a due day that is after the statement day on paper can land on or before the close; that too
+     * means the following month, never the close date or a day earlier.
+     */
     fun dueFor(statementDay: Int, dueDay: Int, close: LocalDate): LocalDate {
-        val month = if (dueDay <= statementDay) YearMonth.from(close).plusMonths(1) else YearMonth.from(close)
-        return month.atDay(dueDay.coerceIn(1, month.lengthOfMonth()))
+        val month = YearMonth.from(close)
+        val sameMonth = month.atDay(dueDay.coerceIn(1, month.lengthOfMonth()))
+        if (dueDay > statementDay && sameMonth.isAfter(close)) return sameMonth
+        val next = month.plusMonths(1)
+        return next.atDay(dueDay.coerceIn(1, next.lengthOfMonth()))
     }
 
     /**

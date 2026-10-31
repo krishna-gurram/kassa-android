@@ -4,6 +4,7 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CardCycleTest {
 
@@ -35,6 +36,51 @@ class CardCycleTest {
         val close = CardCycle.lastClose(9, today)
         assertEquals(LocalDate.of(2026, 10, 9), close)
         assertEquals(LocalDate.of(2026, 11, 4), CardCycle.dueFor(9, 4, close))
+    }
+
+    @Test
+    fun dueAlwaysFallsAfterTheCloseInShortMonths() {
+        // Statement on the 30th, due on the 31st: February closes on the 28th, and a due day clamped to the 28th would
+        // be the close itself, so it is due in March.
+        val feb = CardCycle.lastClose(30, LocalDate.of(2026, 3, 5))
+        assertEquals(LocalDate.of(2026, 2, 28), feb)
+        assertEquals(LocalDate.of(2026, 3, 31), CardCycle.dueFor(30, 31, feb))
+        // The same card in a 31-day month keeps its same-month due date.
+        assertEquals(LocalDate.of(2026, 1, 31), CardCycle.dueFor(30, 31, LocalDate.of(2026, 1, 30)))
+        // A 30-day month: statement on the 29th, due on the 30th, closes on the 29th, due the next day.
+        assertEquals(LocalDate.of(2026, 4, 30), CardCycle.dueFor(29, 30, LocalDate.of(2026, 4, 29)))
+        // Statement on the 28th, due on the 30th: February closes on the 28th, due in March on the 30th.
+        assertEquals(LocalDate.of(2026, 3, 30), CardCycle.dueFor(28, 30, LocalDate.of(2026, 2, 28)))
+    }
+
+    @Test
+    fun dueOnOrBeforeTheStatementDayIsNextMonthEvenWhenTheCloseMovedBack() {
+        // Statement on the 31st, due on the 31st or the 30th: always the following month.
+        assertEquals(LocalDate.of(2026, 3, 31), CardCycle.dueFor(31, 31, LocalDate.of(2026, 2, 28)))
+        assertEquals(LocalDate.of(2026, 3, 30), CardCycle.dueFor(31, 30, LocalDate.of(2026, 2, 28)))
+        // Following month shorter than the due day: clamped to its last day (January's close, February's due).
+        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.dueFor(31, 31, LocalDate.of(2026, 1, 31)))
+        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.dueFor(31, 29, LocalDate.of(2026, 1, 31)))
+    }
+
+    @Test
+    fun leapYearFebruaryHasA29th() {
+        val close = CardCycle.lastClose(30, LocalDate.of(2028, 3, 5))
+        assertEquals(LocalDate.of(2028, 2, 29), close)
+        assertEquals(LocalDate.of(2028, 3, 31), CardCycle.dueFor(30, 31, close))
+        // Statement on the 28th, due on the 29th: a leap February has room, a plain one does not.
+        assertEquals(LocalDate.of(2028, 2, 29), CardCycle.dueFor(28, 29, LocalDate.of(2028, 2, 28)))
+        assertEquals(LocalDate.of(2026, 3, 29), CardCycle.dueFor(28, 29, LocalDate.of(2026, 2, 28)))
+    }
+
+    @Test
+    fun theDueDateIsAfterTheCloseForEveryDayPairInEveryMonthOfTwoYears() {
+        for (year in listOf(2026, 2028)) for (m in 1..12) for (statement in 1..31) for (due in 1..31) {
+            val close = CardCycle.closeIn(java.time.YearMonth.of(year, m), statement)
+            val d = CardCycle.dueFor(statement, due, close)
+            assertTrue(d.isAfter(close), "statement $statement due $due close $close gave $d")
+            assertTrue(d.isBefore(close.plusDays(63)), "statement $statement due $due close $close gave $d")
+        }
     }
 
     @Test
