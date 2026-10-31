@@ -101,7 +101,6 @@ if [ "$PREP" = prep ]; then
   scroll; sleep 1
   tap "Add an account"; sleep 1
   tap "Loan or mortgage"; sleep 1
-  adb exec-out screencap -p > ci-output/dbg-1-loan-sheet.png
   # The keyboard covers the lower fields, so close it and scroll until each label is on screen.
   fill() {
     local i
@@ -115,8 +114,7 @@ if [ "$PREP" = prep ]; then
   fill "Amount borrowed" "18000"
   fill "Interest rate a year" "5.5"
   fill "Term in months" "48"
-  scroll; sleep 1
-  tap "Add loan"; sleep 3
+  for i in 1 2 3 4 5; do tap "Add loan" && break; scroll; sleep 1; done; sleep 3
   tap "Car loan"; sleep 3
   tap "Record a payment"; sleep 1
   tap "Everyday checking"; sleep 1
