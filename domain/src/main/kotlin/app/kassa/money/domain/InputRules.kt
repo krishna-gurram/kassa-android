@@ -24,6 +24,14 @@ object InputRules {
 
     val DAYS = 1..31
 
+    /** A yearly rate is stored in 1/10000 of a percent, so 6.125% is 61,250 and needs no floating point. */
+    const val RATE_MAX = 1_000_000L
+    const val RATE_WHOLE_DIGITS = 3
+    const val RATE_DECIMALS = 4
+
+    /** The longest loan term or count of payments left, in months: fifty years. */
+    const val MONTHS_MAX = 600
+
     /** For a text field's onValueChange: no line breaks, never longer than [max]. */
     fun typed(raw: String, max: Int): String = raw.replace(Regex("[\\r\\n\\t]"), " ").take(max)
 
@@ -40,6 +48,38 @@ object InputRules {
         val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(AMOUNT_DIGITS)
         return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(2)
     }
+
+    /** For a rate field: digits and one decimal point, at most three whole digits and four decimals ("6.125"). */
+    fun typedRate(raw: String): String {
+        val kept = raw.filter { it.isDigit() || it == '.' }
+        val dot = kept.indexOf('.')
+        val whole = (if (dot < 0) kept else kept.substring(0, dot)).take(RATE_WHOLE_DIGITS)
+        return if (dot < 0) whole else whole + "." + kept.substring(dot + 1).filter(Char::isDigit).take(RATE_DECIMALS)
+    }
+
+    /** "6.125" as 61,250. Null for anything that is not a number. */
+    fun parseRate(text: String): Long? {
+        val t = text.trim().removeSuffix("%").trim()
+        if (t.isEmpty() || t == ".") return null
+        return try {
+            java.math.BigDecimal(t).movePointRight(RATE_DECIMALS).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+        } catch (e: NumberFormatException) {
+            null
+        } catch (e: ArithmeticException) {
+            null
+        }
+    }
+
+    /** A yearly rate from 0% to 100%. [what] reads in the message: "Enter the interest rate." */
+    fun rateProblem(rate: Long?, what: String = "interest rate"): String? = when {
+        rate == null -> "Enter the $what."
+        rate < 0 || rate > RATE_MAX -> "The $what has to be between 0% and 100%."
+        else -> null
+    }
+
+    /** A number of months from 1 to [MONTHS_MAX]. */
+    fun monthsProblem(months: Int?, what: String): String? =
+        if (months == null || months !in 1..MONTHS_MAX) "Enter $what from 1 to $MONTHS_MAX." else null
 
     /** Like [typedAmount], but keeps a leading minus: a bank balance can be overdrawn. */
     fun typedBalance(raw: String): String {
