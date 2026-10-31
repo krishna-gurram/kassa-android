@@ -102,7 +102,7 @@ fun CategoryPage(
         PageTop(c.name, onBack)
         PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         val over = budget != null && spent > budget
-        app.kassa.money.ui.common.TonalHero(if (over) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN, Modifier.padding(top = 4.dp)) {
+        app.kassa.money.ui.common.TonalHero(if (over) app.kassa.money.ui.common.HeroTone.ORANGE else if (kind == TxKind.INCOME) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY, Modifier.padding(top = 4.dp)) {
         app.kassa.money.ui.common.HeroLabel("Spent in " + monthName(p))
         Row(verticalAlignment = Alignment.Bottom) {
             app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f, color = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))

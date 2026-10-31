@@ -235,14 +235,14 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
     var menu by remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
+    app.kassa.money.ui.common.TonalHero(if (income) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY) {
         // Titles on the left, the period menu on the right; on a narrow screen or a large font the menu moves under the titles.
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.align(Alignment.CenterVertically)) {
                 listOf(false to "Spending", true to "Income").forEach { (v, label) ->
                     Text(
                         label, style = KassaType.section, maxLines = 1, softWrap = false,
-                        color = if (v == income) Kassa.colors.ink else app.kassa.money.ui.common.heroInk(),
+                        color = if (v == income) Kassa.colors.ink else Kassa.colors.ink2,
                         modifier = Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = androidx.compose.ui.semantics.Role.Tab) { setIncome(v) }
                             .padding(end = 14.dp).wrapContentHeight(Alignment.CenterVertically),
                     )
@@ -418,7 +418,7 @@ fun SpendingPage(
             }
         }
         app.kassa.money.ui.common.PeriodSwitcher(label, sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
-        app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
+        app.kassa.money.ui.common.TonalHero(if (income) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY) {
             Row(verticalAlignment = Alignment.Bottom) {
                 app.kassa.money.ui.common.HeroLabel(if (income) "Received" else "Spent", Modifier.weight(1f))
                 app.kassa.money.ui.common.HeroLabel(span)

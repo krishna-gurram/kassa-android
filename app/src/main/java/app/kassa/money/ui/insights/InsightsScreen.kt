@@ -318,7 +318,7 @@ private fun LargestBuys(ledger: Ledger, actions: InsightActions, limit: Int?, mo
 
 @Composable
 private fun Hero(label: String, amount: Long, extra: @Composable ColumnScope.() -> Unit) {
-    app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREEN) {
+    app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREY) {
         app.kassa.money.ui.common.HeroLabel(label)
         BigMoney(amount, sizeSp = 40f)
         extra()
