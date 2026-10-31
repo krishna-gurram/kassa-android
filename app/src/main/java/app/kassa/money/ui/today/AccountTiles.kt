@@ -89,13 +89,16 @@ fun AccountTiles(
     onPeople: () -> Unit,
     onAll: () -> Unit,
     onPin: () -> Unit,
+    unfolded: Boolean = false,
 ) {
     val saved by LocalSettings.current.pins.collectAsState()
     val arrangement by LocalSettings.current.accountArrangement.collectAsState()
     val pins = pinned(ledger, saved, arrangement)
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
-        app.kassa.money.ui.common.SectionHeader("Accounts", "All accounts", onClick = onAll)
+        // Unfolded, the header sits flush with the top of the hero beside it, and the cells are a little taller.
+        app.kassa.money.ui.common.SectionHeader("Accounts", "All accounts", onClick = onAll, top = if (unfolded) 0.dp else 20.dp)
+        val tileMin = if (unfolded) 80.dp else 56.dp
         if (pins.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("No accounts pinned.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
             LinkText("Pin accounts", onPin)
@@ -117,7 +120,7 @@ fun AccountTiles(
                                 // Cards and loans show what you owe, with no minus; a credit shows as a green plus.
                                 val (text, color) = if (a.type.isDebt) cardMoney(-balance) to cardTint(-balance)
                                 else Money.format(balance) to balanceColor(a.type, balance)
-                                Tile(a.name, text, due, m, color) { onOpenAccount(a.id) }
+                                Tile(a.name, text, due, m, color, tileMin) { onOpenAccount(a.id) }
                             }
                             Pin.People -> {
                                 val owed = ledger.openPersonBalances().values
@@ -126,7 +129,7 @@ fun AccountTiles(
                                 val net = if (theyOwe > 0 || youOwe == 0L) theyOwe else -youOwe
                                 Tile(
                                     "People", (if (Money.isHidden) "" else if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
-                                    if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, favourColor(net), onPeople,
+                                    if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, favourColor(net), tileMin, onPeople,
                                 )
                             }
                         }
@@ -139,10 +142,10 @@ fun AccountTiles(
 
 /** One pinned account as a hairline cell: its name over its balance, a due line when there is one, and a chevron. */
 @Composable
-private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+private fun Tile(name: String, amount: String, note: String?, modifier: Modifier, color: androidx.compose.ui.graphics.Color, minHeight: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick)) {
         HorizontalDivider(color = Kassa.colors.line)
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(name, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(amount, style = KassaType.bodyStrong, color = color, maxLines = 1)

@@ -132,7 +132,7 @@ fun TodayScreen(
             }
         }
         val most = if (wide) 5 else 3
-        val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts) }
+        val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts, unfolded = wide) }
 
         // One layout, three ways to run it. PROBE measures with a single Upcoming row; FIT fills the screen with no
         // scrolling, Upcoming showing as many rows (up to [most]) as the space left allows; SCROLL is the last resort
@@ -150,8 +150,9 @@ fun TodayScreen(
                 app.kassa.money.ui.common.TabTop("Overview")
                 if (wide) {
                     banner()
+                    // Both columns start level at the top; spare room stays empty at the bottom (a fixed gap, nothing stretches).
                     Row(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (roomy) 24.dp else 14.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             spending(); coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier)
                         }
                         Column(Modifier.weight(1f)) { worth() }
