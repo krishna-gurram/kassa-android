@@ -395,9 +395,9 @@ private fun AccountRow(
             val s = cards[a.id]?.snapshot
             if (s != null && s.payable > 0) {
                 note = "Pay ${Money.format(s.payable)}"
-                noteColor = Kassa.colors.attention
+                noteColor = figureColor(Kassa.colors.attention)
                 dueNote = "Due ${shortDate(s.due)}"
-                if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = Kassa.colors.attention
+                if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = figureColor(Kassa.colors.attention)
             } else if (s != null) {
                 note = "Nothing to pay"
             }
@@ -409,8 +409,8 @@ private fun AccountRow(
                 note = "Pay ${Money.format(t.scheduledTotal)}"
                 dueNote = "Due ${shortDate(dateOfAccountDay(t.nextPaymentDay))}"
                 if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) {
-                    noteColor = Kassa.colors.attention
-                    dueColor = Kassa.colors.attention
+                    noteColor = figureColor(Kassa.colors.attention)
+                    dueColor = figureColor(Kassa.colors.attention)
                 }
             }
         }
