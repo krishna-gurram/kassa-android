@@ -137,7 +137,34 @@ pay from), `loan_term_changes` (a new rate, payment, term or type from a date; e
   `LoanDates.kt` (epoch-day calendar), and the state holders `LoanForm` (setup) and `LoanPaymentForm` (payment sheet), all plain
   Kotlin with JVM tests. Interest rounds half-up to the cent, principal is the remainder, never negative or above the balance,
   and the last payment clears it. Nothing posts by itself; due loan payments will wait on Notifications from `nextPaymentDay`.
-- Screens are in `ui/loans/` (setup fields, payment sheet); the loan's own page body is `AccountPage`'s `LoanActions` for now.
+- **Escrow category:** one shared "Escrow" expense category is made the first time a loan with escrow is saved (like Loan
+  interest). The escrow (and early repayment charge) entry of a payment goes there unless the payment sheet names another; a
+  loan starts its next payment from the category its last escrow entry went to (`LoansState.escrowCategory`), since a stored
+  per-loan override would need a `loan_terms` column. A loan's payment entries carry `LoanNotes`, which also keeps a steady
+  escrow or flat-rate interest out of the suggested bills.
+- **Loan page** (`AccountPage` for a loan with terms; `ui/loans/LoanPage.kt`): Outstanding balance (ink, no minus), a progress bar
+  only when the original amount is known, then Payment (with its due date), Paid off, Interest (Profit) paid so far (the linked
+  interest entries) and remaining, the Payment schedule (next 6 rows, "Show full schedule"), Terms with each dated change (tap to
+  remove), and Record a payment, Change terms, Edit details, Correct balance. Figures come from `LoanSummary.of`, so they use the
+  terms in effect on each date. Activity rows of a payment carry a small tag (principal, interest, escrow, charge) and open the
+  payment sheet (`LoansState.tagFor`); never split such an entry (the person page's list leaves them out).
+- **Change terms** (`Page.ChangeTerms`, `LoanChangeForm`): Rate, Payment, Interest type or Refinanced, from a date (future allowed,
+  never before the loan's start). A rate change asks what the lender kept and previews the new payment or payoff from
+  `LoanEngine.rateChange`. It saves one `loan_term_changes` row (`LoanRepository.addChange`); payments before it keep their split
+  because the engine reads each date's terms. A change that gives a term always saves the payment that goes with it.
+- **Edit details** (`LoanDetailsForm`, `LoanDetailsSheet`): name, due day (moves the next payment date), pay from, escrow, fee, early
+  repayment charge, interest category, original amount and start. It reuses the setup form's pieces (`PayFromPicker`,
+  `DueDayField`, `CostFields`, `InterestCategoryRow`, `ProgressFields`).
+- **Balance correction** (`domain/BalanceCorrection.kt`, `EntryRepository.correctBalance`, `BalanceCorrectionSheet`): a dated entry
+  of kind `ADJUST_IN` (balance up) or `ADJUST_OUT` (down), amount positive. It is stored as text, so no schema change, moves the
+  balance (the SQL balance sums and `effectOn` know it, so the loan engine and every payment check see it), backs up like any
+  entry, and is in no spending, income, budget or daily figure because those count only `EXPENSE` and `INCOME`: keep it that way,
+  and give a new money figure the same explicit kind filter. Activity shows it as "Balance correction" with an arrow and the size
+  (in what the account shows: owed, for a debt), never a minus; it opens the correction sheet to edit or delete. The sheet asks for
+  the balance the lender shows, shows Kassa's balance and the difference, and leaves earlier entries untouched. Loan pages offer it
+  first; any account can.
+- Screens are in `ui/loans/` (setup and details fields, payment sheet, loan page, change terms); `LoanForm`, `LoanPaymentForm`,
+  `LoanChangeForm` and `LoanDetailsForm` hold the state, all plain Kotlin with JVM tests.
 
 ## Style
 Plain, specific UI copy in sentence case. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
