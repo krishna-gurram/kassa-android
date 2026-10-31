@@ -12,7 +12,11 @@ import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
+import app.kassa.money.domain.InterestType
 import app.kassa.money.domain.InvestmentTransfer
+import app.kassa.money.domain.LoanPayment
+import app.kassa.money.domain.LoanTermChange
+import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Person
@@ -146,6 +150,58 @@ data class TradeEntity(
     val price: Long,
 )
 
+/** A [LoanTerms]: one row per loan account. Dates are epoch days, rates 1/10000 of a percent. */
+@Entity(tableName = "loan_terms")
+data class LoanTermsEntity(
+    @PrimaryKey val accountId: Long,
+    val type: String,
+    val profit: Boolean,
+    val rate: Long,
+    val payment: Long,
+    val termMonths: Int?,
+    val originalAmount: Long?,
+    val startDay: Int?,
+    val nextPaymentDay: Int,
+    val dueDay: Int,
+    val escrow: Long,
+    val fee: Long,
+    val earlyCharge: Long,
+    val interestCategoryId: Long?,
+    val payFromId: Long?,
+)
+
+/** A [LoanTermChange]: new terms from a date on. */
+@Entity(tableName = "loan_term_changes", indices = [Index("accountId")])
+data class LoanTermChangeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val accountId: Long,
+    val effectiveDay: Int,
+    val rate: Long?,
+    val payment: Long?,
+    val termMonths: Int?,
+    val type: String?,
+)
+
+/** A [LoanPayment]: the link that makes a principal entry, an interest entry and an optional costs entry one payment. */
+@Entity(
+    tableName = "loan_payments",
+    indices = [Index("accountId"), Index("principalEntryId"), Index("interestEntryId"), Index("otherEntryId")],
+)
+data class LoanPaymentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val accountId: Long,
+    val day: Int,
+    val amount: Long,
+    val principalEntryId: Long?,
+    val interestEntryId: Long?,
+    val otherEntryId: Long?,
+    val escrow: Long,
+    val charge: Long,
+    val edited: Boolean,
+    val estimate: Long,
+    val scheduled: Boolean,
+)
+
 /** Result row for the balance query. */
 data class AccountBalance(
     @ColumnInfo(name = "id") val id: Long,
@@ -196,3 +252,20 @@ fun InvestmentTransferEntity.toDomain() = InvestmentTransfer(id, transactionId, 
 fun InvestmentTransfer.toEntity() = InvestmentTransferEntity(id, transactionId, accountId, amount, epochMillis)
 fun TradeEntity.toDomain() = Trade(id, transactionId, ticker, microShares, price)
 fun Trade.toEntity() = TradeEntity(id, transactionId, ticker, microShares, price)
+
+fun LoanTermsEntity.toDomain() = LoanTerms(
+    accountId, InterestType.valueOf(type), profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay,
+    escrow, fee, earlyCharge, interestCategoryId, payFromId,
+)
+fun LoanTerms.toEntity() = LoanTermsEntity(
+    accountId, type.name, profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay,
+    escrow, fee, earlyCharge, interestCategoryId, payFromId,
+)
+fun LoanTermChangeEntity.toDomain() = LoanTermChange(id, accountId, effectiveDay, rate, payment, termMonths, type?.let(InterestType::valueOf))
+fun LoanTermChange.toEntity() = LoanTermChangeEntity(id, accountId, effectiveDay, rate, payment, termMonths, type?.name)
+fun LoanPaymentEntity.toDomain() = LoanPayment(
+    id, accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled,
+)
+fun LoanPayment.toEntity() = LoanPaymentEntity(
+    id, accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled,
+)

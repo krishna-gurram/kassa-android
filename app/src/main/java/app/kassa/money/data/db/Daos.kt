@@ -52,6 +52,19 @@ interface AccountDao {
     )
     fun observeBalances(): Flow<List<AccountBalance>>
 
+    /** One account's balance today, by the same sum as [observeBalances]; null when there is no such account. */
+    @Query(
+        """
+        SELECT a.openingBalance
+          + COALESCE((SELECT SUM(CASE WHEN t.kind IN ('INCOME', 'PERSON_IN', 'SELL') THEN t.amount ELSE -t.amount END)
+                      FROM transactions t WHERE t.accountId = a.id), 0)
+          + COALESCE((SELECT SUM(t.amount) FROM transactions t
+                      WHERE t.kind = 'TRANSFER' AND t.toAccountId = a.id), 0)
+        FROM accounts a WHERE a.id = :id
+        """
+    )
+    suspend fun balanceOf(id: Long): Long?
+
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM accounts")
     suspend fun maxSortOrder(): Int
 
@@ -318,5 +331,79 @@ interface TradeDao {
     suspend fun deleteForTransaction(transactionId: Long)
 
     @Query("DELETE FROM trades")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface LoanTermsDao {
+    @Query("SELECT * FROM loan_terms")
+    suspend fun all(): List<LoanTermsEntity>
+
+    @Query("SELECT * FROM loan_terms")
+    fun observeAll(): Flow<List<LoanTermsEntity>>
+
+    @Query("SELECT * FROM loan_terms WHERE accountId = :accountId")
+    suspend fun forAccount(accountId: Long): LoanTermsEntity?
+
+    /** Inserts the terms, or replaces the loan's existing ones. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(terms: LoanTermsEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(terms: List<LoanTermsEntity>)
+
+    @Query("UPDATE loan_terms SET nextPaymentDay = :day WHERE accountId = :accountId")
+    suspend fun setNextPaymentDay(accountId: Long, day: Int)
+
+    @Query("DELETE FROM loan_terms")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface LoanTermChangeDao {
+    @Query("SELECT * FROM loan_term_changes")
+    suspend fun all(): List<LoanTermChangeEntity>
+
+    @Query("SELECT * FROM loan_term_changes ORDER BY effectiveDay, id")
+    fun observeAll(): Flow<List<LoanTermChangeEntity>>
+
+    @Insert
+    suspend fun insert(change: LoanTermChangeEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(changes: List<LoanTermChangeEntity>)
+
+    @Query("DELETE FROM loan_term_changes")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface LoanPaymentDao {
+    @Query("SELECT * FROM loan_payments")
+    suspend fun all(): List<LoanPaymentEntity>
+
+    @Query("SELECT * FROM loan_payments ORDER BY day, id")
+    fun observeAll(): Flow<List<LoanPaymentEntity>>
+
+    @Query("SELECT * FROM loan_payments WHERE id = :id")
+    suspend fun byId(id: Long): LoanPaymentEntity?
+
+    /** The payment an entry belongs to, whichever of its entries it is. */
+    @Query("SELECT * FROM loan_payments WHERE principalEntryId = :entryId OR interestEntryId = :entryId OR otherEntryId = :entryId LIMIT 1")
+    suspend fun forEntry(entryId: Long): LoanPaymentEntity?
+
+    @Insert
+    suspend fun insert(payment: LoanPaymentEntity): Long
+
+    @Update
+    suspend fun update(payment: LoanPaymentEntity)
+
+    @Query("DELETE FROM loan_payments WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(payments: List<LoanPaymentEntity>)
+
+    @Query("DELETE FROM loan_payments")
     suspend fun deleteAll()
 }

@@ -108,4 +108,33 @@ class MigrationTest {
             db.query("SELECT amount FROM transactions WHERE id = 4").use { c -> c.moveToFirst(); assertEquals(200000L, c.getLong(0)) }
         }
     }
+
+    @Test
+    fun loanTablesStartEmptyAndAnExistingLoanAccountKeepsItsEntries() {
+        helper.createDatabase("loans-v7.db", 7).apply {
+            execSQL(
+                "INSERT INTO accounts (id, name, type, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4) " +
+                    "VALUES (3, 'Car loan', 'LOAN', NULL, -2148000, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL)"
+            )
+            execSQL("INSERT INTO transactions (id, kind, amount, accountId, toAccountId, categoryId, personId, epochMillis, note, myShare, externalId) VALUES (9, 'TRANSFER', 58000, 1, 3, NULL, NULL, 1760000000000, 'Payment', NULL, NULL)")
+            close()
+        }
+        helper.runMigrationsAndValidate("loans-v7.db", DATABASE_VERSION, true, *ALL_MIGRATIONS).use { db ->
+            for (table in listOf("loan_terms", "loan_term_changes", "loan_payments")) {
+                db.query("SELECT COUNT(*) FROM $table").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0), table) }
+            }
+            db.query("SELECT type, openingBalance FROM accounts WHERE id = 3").use { c ->
+                c.moveToFirst()
+                assertEquals("LOAN", c.getString(0))
+                assertEquals(-2148000L, c.getLong(1))
+            }
+            db.query("SELECT amount FROM transactions WHERE id = 9").use { c -> c.moveToFirst(); assertEquals(58000L, c.getLong(0)) }
+            // The new tables take rows: a loan's terms, and a payment linking its entries.
+            db.execSQL(
+                "INSERT INTO loan_terms (accountId, type, profit, rate, payment, termMonths, originalAmount, startDay, nextPaymentDay, dueDay, escrow, fee, earlyCharge, interestCategoryId, payFromId) " +
+                    "VALUES (3, 'REDUCING', 0, 60000, 58000, NULL, NULL, NULL, 20758, 1, 0, 0, 0, NULL, NULL)"
+            )
+            db.execSQL("INSERT INTO loan_payments (accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled) VALUES (3, 20758, 58000, 9, NULL, NULL, 0, 0, 0, 0, 1)")
+        }
+    }
 }

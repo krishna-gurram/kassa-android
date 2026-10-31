@@ -34,6 +34,9 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
             bills = db.recurring().all(),
             holdings = db.holdings().all(),
             trades = db.trades().all(),
+            loanTerms = db.loanTerms().all(),
+            loanChanges = db.loanChanges().all(),
+            loanPayments = db.loanPayments().all(),
             icons = iconDir.listFiles()?.associate { it.name to it.readBytes() }.orEmpty(),
         )
         out.write(BackupFile.encode(contents.toJson { Base64.encodeToString(it, Base64.NO_WRAP) }, password))
@@ -48,7 +51,7 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
         db.withTransaction {
             db.transactions().deleteAll(); db.budgets().deleteAll(); db.categories().deleteAll(); db.accounts().deleteAll(); db.groups().deleteAll()
             db.people().deleteAll(); db.loans().deleteAll(); db.recurring().deleteAll(); db.holdings().deleteAll(); db.investmentTransfers().deleteAll()
-            db.trades().deleteAll()
+            db.trades().deleteAll(); db.loanTerms().deleteAll(); db.loanChanges().deleteAll(); db.loanPayments().deleteAll()
             db.groups().insertAll(c.groups)
             db.accounts().insertAll(c.accounts)
             db.categories().insertAll(c.categories)
@@ -59,6 +62,9 @@ class BackupRepository(private val context: Context, private val db: KassaDataba
             db.recurring().insertAll(c.bills)
             db.holdings().insertAll(c.holdings)
             db.trades().insertAll(c.trades)
+            db.loanTerms().insertAll(c.loanTerms)
+            db.loanChanges().insertAll(c.loanChanges)
+            db.loanPayments().insertAll(c.loanPayments)
         }
         if (c.icons.isNotEmpty()) iconDir.apply { mkdirs() }.let { dir -> c.icons.forEach { (name, bytes) -> File(dir, File(name).name).writeBytes(bytes) } }
         settings.setMonthStartDay(c.monthStartDay)

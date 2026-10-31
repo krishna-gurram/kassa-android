@@ -110,5 +110,33 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/**
+ * v8: loans that know their terms. Three new tables (terms, term changes and the links that make a loan payment's
+ * entries one payment); nothing existing changes, so loan accounts, entries and balances stay exactly as they were.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `loan_terms` (`accountId` INTEGER NOT NULL, `type` TEXT NOT NULL, `profit` INTEGER NOT NULL, " +
+                "`rate` INTEGER NOT NULL, `payment` INTEGER NOT NULL, `termMonths` INTEGER, `originalAmount` INTEGER, `startDay` INTEGER, " +
+                "`nextPaymentDay` INTEGER NOT NULL, `dueDay` INTEGER NOT NULL, `escrow` INTEGER NOT NULL, `fee` INTEGER NOT NULL, " +
+                "`earlyCharge` INTEGER NOT NULL, `interestCategoryId` INTEGER, `payFromId` INTEGER, PRIMARY KEY(`accountId`))"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `loan_term_changes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `accountId` INTEGER NOT NULL, " +
+                "`effectiveDay` INTEGER NOT NULL, `rate` INTEGER, `payment` INTEGER, `termMonths` INTEGER, `type` TEXT)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_loan_term_changes_accountId` ON `loan_term_changes` (`accountId`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `loan_payments` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `accountId` INTEGER NOT NULL, " +
+                "`day` INTEGER NOT NULL, `amount` INTEGER NOT NULL, `principalEntryId` INTEGER, `interestEntryId` INTEGER, `otherEntryId` INTEGER, " +
+                "`escrow` INTEGER NOT NULL, `charge` INTEGER NOT NULL, `edited` INTEGER NOT NULL, `estimate` INTEGER NOT NULL, `scheduled` INTEGER NOT NULL)"
+        )
+        for (col in listOf("accountId", "principalEntryId", "interestEntryId", "otherEntryId")) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_loan_payments_$col` ON `loan_payments` (`$col`)")
+        }
+    }
+}
+
 /** Every migration, oldest first. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
