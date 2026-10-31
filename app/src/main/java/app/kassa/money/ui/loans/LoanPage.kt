@@ -203,7 +203,7 @@ private fun LoanTermsSection(ledger: Ledger, terms: LoanTerms, word: String, onR
     SectionHeader("Terms")
     TermLine("Interest type", eff.type.label)
     TermLine("$word rate", LoanRate.display(eff.rate))
-    TermLine("Payment", Money.format(eff.payment))
+    TermLine(if (terms.escrow > 0) "Principal and interest" else "Payment", Money.format(eff.payment))
     if (terms.escrow > 0) TermLine("Escrow", Money.format(terms.escrow))
     terms.termMonths?.let { TermLine("Term", "$it months") }
     TermLine("Due day", terms.dueDay.toString())
