@@ -52,6 +52,7 @@ import app.kassa.money.domain.AccountLine
 import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.AccountsOverview
+import app.kassa.money.domain.LoanEngine
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
@@ -385,19 +386,23 @@ private fun AccountRow(
     val a = line.account
     val debt = a.type.isDebt
     var note: String? = null
-    var noteColor = Kassa.colors.ink2
+    val noteColor = Kassa.colors.ink2
     var dueNote: String? = null
     var dueColor = Kassa.colors.ink2
+    // What is payable is the big figure on the right, with its due date under it; the balance moves under the name.
+    var amount = if (debt) cardMoney(line.shown) else Money.format(line.shown)
+    var amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown)
     val todayDay = ledger.today.accountDay()
     when (a.type) {
         AccountType.CREDIT_CARD -> {
             // A card without statement days has nothing to split yet, so it shows only its total.
             val s = cards[a.id]?.snapshot
             if (s != null && s.payable > 0) {
-                note = "Pay ${Money.format(s.payable)}"
-                noteColor = Kassa.colors.attention
+                note = "Total balance $amount"
+                amount = Money.format(s.payable)
+                amountColor = figureColor(Kassa.colors.attention)
                 dueNote = "Due ${shortDate(s.due)}"
-                if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = Kassa.colors.attention
+                if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = figureColor(Kassa.colors.attention)
             } else if (s != null) {
                 note = "Nothing to pay"
             }
@@ -406,12 +411,15 @@ private fun AccountRow(
             // A loan without terms shows only what's outstanding; so does one that's paid off.
             val t = ledger.loans.terms[a.id]
             if (t != null && line.shown > 0) {
-                note = "Pay ${Money.format(t.scheduledTotal)}"
+                // The terms in effect on the due date, so a dated change to the payment is already in this figure.
+                val changes = ledger.loans.changesFor(a.id)
+                val last = LoanEngine.lastDay(t, ledger.loans.paymentsFor(a.id))
+                val payable = LoanEngine.amountDue(t, changes, line.shown, last, t.nextPaymentDay)
+                note = "Outstanding $amount"
+                amount = Money.format(payable)
+                amountColor = figureColor(Kassa.colors.attention)
                 dueNote = "Due ${shortDate(dateOfAccountDay(t.nextPaymentDay))}"
-                if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) {
-                    noteColor = Kassa.colors.attention
-                    dueColor = Kassa.colors.attention
-                }
+                if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) dueColor = figureColor(Kassa.colors.attention)
             }
         }
         AccountType.FIXED_DEPOSIT -> {
@@ -421,8 +429,8 @@ private fun AccountRow(
         else -> Unit
     }
     OneLineRow(
-        a.name, a.last4, if (debt) cardMoney(line.shown) else Money.format(line.shown), selected = selected, grouped = true,
-        amountColor = if (debt) cardTint(line.shown) else balanceColor(a.type, line.shown),
+        a.name, a.last4, amount, selected = selected, grouped = true,
+        amountColor = amountColor,
         note = note, noteColor = noteColor, dueNote = dueNote, dueColor = dueColor,
         onClick = onClick,
     )
