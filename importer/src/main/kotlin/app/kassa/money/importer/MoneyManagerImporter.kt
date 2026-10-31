@@ -43,8 +43,6 @@ data class ImportPlan(
 sealed interface ImportIssue {
     /** Accounts whose names look like the same account entered twice, e.g. "Amex Platinum" and "amex plat". */
     data class PossibleDuplicateAccounts(val names: List<String>) : ImportIssue
-    /** Splitwise-style accounts or categories. Kassa tracks these as money owed by or to people instead. */
-    data class SplitwiseRows(val accountNames: List<String>, val categoryNames: List<String>, val entries: Int) : ImportIssue
     /** A transfer whose two halves disagree on amount, date or accounts. The "out" half is used. */
     data class MismatchedTransfers(val count: Int) : ImportIssue
     /** A transfer half with no partner. Imported as a one-sided transfer so balances still match. */
@@ -291,14 +289,6 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
         // Only compare accounts of the same type: "SoFi" and "SoFi Savings" are different accounts.
         accountsWithPayFrom.groupBy { it.type }.values.forEach { sameType ->
             duplicateNames(sameType.map { it.name }).forEach { issues += ImportIssue.PossibleDuplicateAccounts(it) }
-        }
-        val swAccounts = accountsWithPayFrom.filter { it.name.contains("splitwise", true) }
-        val swCats = categories.filter { it.name.contains("splitwise", true) }
-        if (swAccounts.isNotEmpty() || swCats.isNotEmpty()) {
-            val accIds = swAccounts.map { it.id }.toSet()
-            val catSet = swCats.map { it.id }.toSet()
-            val entries = transactions.count { it.accountId in accIds || it.toAccountId in accIds || it.categoryId in catSet }
-            issues += ImportIssue.SplitwiseRows(swAccounts.map { it.name }, swCats.map { it.name }, entries)
         }
         if (mismatched > 0) issues += ImportIssue.MismatchedTransfers(mismatched)
         if (unpaired > 0) issues += ImportIssue.UnpairedTransfers(unpaired)

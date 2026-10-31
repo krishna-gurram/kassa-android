@@ -68,6 +68,16 @@ class Settings(context: Context) {
     /** Reset to A to Z: no arrangement, sort by name. */
     fun resetAccountArrangement() = setAccountSort("NAME")
 
+    /**
+     * Forgets everything the phone remembers by account or entry id: the Overview pins, the account order and sort, and
+     * the notifications that were cleared. For when accounts are replaced by an import or a restore, so nothing points
+     * at an id that is gone or now means another account.
+     */
+    fun forgetAccountReferences() {
+        prefs.edit().remove(PINS).remove(ACCOUNT_ARRANGEMENT).remove(CLEARED).putString(ACCOUNT_SORT, "NAME").apply()
+        _pins.value = null; _arrangement.value = null; _accountSort.value = "NAME"; _cleared.value = emptySet()
+    }
+
     // Automatic backups: on or off, the folder picked once (a persisted document tree), the time of day in minutes.
     private val _autoBackup = MutableStateFlow(prefs.getBoolean(AUTO_BACKUP, false))
     val autoBackup: StateFlow<Boolean> = _autoBackup

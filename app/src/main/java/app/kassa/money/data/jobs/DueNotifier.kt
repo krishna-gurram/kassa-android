@@ -26,11 +26,11 @@ import java.time.ZonedDateTime
 
 /**
  * Phone notifications for payments that come due. It reads the data, finds what wants a notification now and posts it,
- * then sets ONE alarm for the earliest moment anything wants one next (exact when Android allows it, otherwise
- * allow-while-idle, like the daily reminder). Every trigger just calls [refresh], which does both and is safe to
+ * then sets ONE inexact alarm (allow-while-idle, like the daily reminder) for the earliest moment anything wants one
+ * next, so a notification may arrive a few minutes late. Every trigger just calls [refresh], which does both and is safe to
  * repeat: what was posted for a due date is remembered, so nothing rings twice.
  *
- * Triggers: the alarm, boot, an app update, a time or time zone change, a change to "Alarms & reminders", the app
+ * Triggers: the alarm, boot, an app update, a time or time zone change, the app
  * starting, a change in Settings, and any saved change to cards, loans, bills or payments. The rules (what is due,
  * which day, which text) are in `domain/DueNotices.kt`, the same ones the Notifications page uses.
  * A notification only tells; it never pays or adds anything.
@@ -51,6 +51,11 @@ object DueNotifier {
     private const val KEEP_DAYS = 60
     /** The same window the Ledger reads: enough for card statements. */
     private const val RECENT_DAYS = 130L
+
+    /** Forgets which due dates were already notified, for when the accounts they name are replaced. */
+    fun forgetPosted(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(POSTED).apply()
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
@@ -103,7 +108,7 @@ object DueNotifier {
 
     private fun canNotify(context: Context): Boolean = context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
 
-    /** One alarm for the earliest moment; the daily look after midnight is inexact, a notification's time is exact when allowed. */
+    /** One inexact alarm for the earliest moment. */
     private fun book(context: Context, next: DueNotices.Next, zone: ZoneId) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val nowMillis = System.currentTimeMillis()
@@ -111,9 +116,7 @@ object DueNotifier {
         // A clock that repeats an hour can put the time behind us; look again in a minute rather than ring in a loop.
         if (at <= nowMillis) at = nowMillis + 60_000L
         val pi = alarmIntent(context)
-        val exact = next.forNotification && DailyJobs.canRemindOnTime(context) &&
-            runCatching { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }.isSuccess
-        if (!exact) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
 
     private fun cancel(context: Context) {
@@ -134,6 +137,18 @@ object DueNotifier {
         mine.filter { it.id !in live }.forEach { nm.cancel(it.id) }
         if (mine.count { it.id in live } < 2) nm.cancel(SUMMARY_ID)
     }
+
+    /**
+     * What the lock screen shows when the phone is locked and notifications are private: a generic title, with no
+     * amount, no card, loan or bill name and no count.
+     */
+    private fun publicVersion(context: Context, tap: PendingIntent): Notification =
+        Notification.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_kassa)
+            .setContentTitle("Payment due")
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .build()
 
     /** One notification per item, under one summary when two or more are showing. */
     private fun post(context: Context, items: List<DueItem>, today: Int) {
@@ -157,6 +172,8 @@ object DueNotifier {
                 .setContentText(words.body)
                 .setContentIntent(tap)
                 .setAutoCancel(true)
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion(context, tap))
                 .setGroup(GROUP)
                 .apply { if (grouped) setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY) }
                 .build()
@@ -173,6 +190,8 @@ object DueNotifier {
                     .setContentText("${showing.size} payments due")
                     .setContentIntent(tap)
                     .setAutoCancel(true)
+                    .setVisibility(Notification.VISIBILITY_PRIVATE)
+                    .setPublicVersion(publicVersion(context, tap))
                     .setGroup(GROUP)
                     .setGroupSummary(true)
                     .build(),

@@ -89,10 +89,10 @@ internal fun NotificationSettingsPage(actions: SettingsActions) {
     Gap(16)
     DueSection(DueKind.BILL, "Bills and repeating payments", "A notification for each bill", actions)
 
-    RemindOnTimeRow(show = daily || card.enabled || loan.enabled || bill.enabled, actions = actions)
     Gap(12)
     Text(
         "A notification shows the amount due and opens the card, the loan payment or the bill. It never pays or adds anything. " +
+            "Notifications may arrive a few minutes after their time. " +
             "A card needs a payment due day, and a loan needs its terms, to notify.",
         style = KassaType.small, color = Kassa.colors.ink2,
     )

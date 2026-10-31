@@ -67,6 +67,27 @@ class NavViewModel : ViewModel() {
 
     fun setFolded(keys: Set<String>) { foldedGroups = keys }
 
+    // The sheets that float over everything (pay a card or loan, record a correction and so on). Kept here, not in
+    // AppController, so folding or rotating the phone doesn't close the one that's open; AppController reads and writes them.
+    /** The card whose pay sheet is open. */
+    var paying by mutableStateOf<Long?>(null)
+    /** The loan whose payment sheet is open to record a new payment. */
+    var payingLoan by mutableStateOf<Long?>(null)
+    /** The loan account that terms are being added to. */
+    var addingTermsTo by mutableStateOf<Long?>(null)
+    /** The loan whose details are being edited. */
+    var editingLoanDetails by mutableStateOf<Long?>(null)
+    /** The balance correction sheet that is open. */
+    var correcting by mutableStateOf<Correcting?>(null)
+    /** The recorded loan payment whose sheet is open. */
+    var editingLoanPayment by mutableStateOf<app.kassa.money.data.repo.LoanPaymentDetail?>(null)
+    /** The investment transfer being explained. */
+    var allocating by mutableStateOf<app.kassa.money.domain.InvestmentTransfer?>(null)
+    /** The buy or sale whose sheet is open. */
+    var editingTrade by mutableStateOf<app.kassa.money.domain.Transaction?>(null)
+    /** The payment to or from a person whose sheet is open. */
+    var editingPayment by mutableStateOf<app.kassa.money.domain.Transaction?>(null)
+
     val stack = mutableStateListOf<Page>()
     val top: Page? get() = stack.lastOrNull()
 

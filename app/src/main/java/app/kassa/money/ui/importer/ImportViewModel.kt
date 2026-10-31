@@ -217,6 +217,7 @@ class ImportViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.value = try {
                 withContext(Dispatchers.IO) { imports.replaceWith(plan) }
+                kassa.forgetAccountReferences()
                 closeCashew()
                 ImportState.Done(plan.transactions.size, plan)
             } catch (e: Exception) {

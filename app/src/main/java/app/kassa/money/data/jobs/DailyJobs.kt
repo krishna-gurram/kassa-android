@@ -35,8 +35,8 @@ import java.time.format.DateTimeFormatter
  * The two things Kassa does by itself once a day, at times you set: save a backup to your folder, and remind you
  * to record the day's spending. No library and no network: nothing here talks to anything.
  *
- * - The reminder is an alarm ([ReminderReceiver]), exact when Android allows it, so it arrives on time even while
- *   the phone dozes or the app is put to sleep. Without "Alarms & reminders" it can be a little late, never a day late.
+ * - The reminder is an inexact alarm ([ReminderReceiver], allow-while-idle): it may arrive a few minutes late while
+ *   the phone dozes, never a day late. Kassa asks for no exact-alarm permission.
  * - The backup is a JobScheduler job: it may wait for a quiet moment, which is fine for a backup, and it survives
  *   restarts. A pending job for the same time is left alone, so refreshing never pushes it to tomorrow.
  */
@@ -105,10 +105,6 @@ object DailyJobs {
 
     /* ---------- reminder ---------- */
 
-    /** True when Android lets Kassa set exact alarms. Always true before Android 12. */
-    fun canRemindOnTime(context: Context): Boolean =
-        Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-
     /**
      * Sets the reminder alarm for the next [minuteOfDay]. Setting it again for the same time just replaces it.
      * A reminder that was due within the last few hours and hasn't gone off yet (the phone restarted, or Android
@@ -124,9 +120,7 @@ object DailyJobs {
         val at = if (overdue) booked else DailyTime.next(after, minuteOfDay).toInstant().toEpochMilli()
         prefs.edit().putLong(REMINDER_AT, at).apply()
         val pi = reminderIntent(context)
-        // Exact needs "Alarms & reminders"; if it's taken away between the check and the call, fall back.
-        val exact = canRemindOnTime(context) && runCatching { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }.isSuccess
-        if (!exact) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
 
     /**
@@ -239,7 +233,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
 /**
  * Sets the reminder, backup and payments-due alarm again when something may have dropped or moved them: a restart, an update, a clock or
- * time zone change, or "Alarms & reminders" being allowed or taken away.
+ * time zone change.
  */
 class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

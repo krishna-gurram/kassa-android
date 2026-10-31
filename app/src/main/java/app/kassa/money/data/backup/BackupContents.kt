@@ -5,6 +5,7 @@ import app.kassa.money.data.db.BudgetEntity
 import app.kassa.money.data.db.CategoryEntity
 import app.kassa.money.data.db.GroupEntity
 import app.kassa.money.data.db.HoldingEntity
+import app.kassa.money.data.db.InvestmentTransferEntity
 import app.kassa.money.data.db.LoanEntryEntity
 import app.kassa.money.data.db.LoanPaymentEntity
 import app.kassa.money.data.db.LoanTermChangeEntity
@@ -39,6 +40,8 @@ data class BackupContents(
     val icons: Map<String, ByteArray>,
     /** The user's account order, as [app.kassa.money.domain.AccountArrangement.encode]; absent in older backups. */
     val accountArrangement: String? = null,
+    /** Investment transfers still waiting to be explained. Absent in older backups, which then restore none. */
+    val investmentTransfers: List<InvestmentTransferEntity> = emptyList(),
 ) {
     /** One line for the confirm step before restoring. */
     val summary: String
@@ -102,6 +105,9 @@ data class BackupContents(
                 .put("escrow", it.escrow).put("charge", it.charge).put("edited", it.edited).put("estimate", it.estimate).put("scheduled", it.scheduled)
                 .putOpt("countAllAsSpending", it.countAllAsSpending).putOpt("principalCategoryId", it.principalCategoryId)
         })
+        .put("investmentTransfers", array(investmentTransfers) {
+            put("id", it.id).put("transactionId", it.transactionId).put("accountId", it.accountId).put("amount", it.amount).put("epochMillis", it.epochMillis)
+        })
         .put("icons", JSONObject().also { o -> icons.forEach { (name, bytes) -> o.put(name, encodeBytes(bytes)) } })
         .toString()
 
@@ -157,6 +163,9 @@ data class BackupContents(
                         booleanOrNull("countAllAsSpending"), longOrNull("principalCategoryId"))
                 },
                 icons = j.optJSONObject("icons")?.let { o -> o.keys().asSequence().associateWith { decodeBytes(o.getString(it)) } }.orEmpty(),
+                investmentTransfers = j.rows("investmentTransfers") {
+                    InvestmentTransferEntity(getLong("id"), getLong("transactionId"), getLong("accountId"), getLong("amount"), getLong("epochMillis"))
+                },
             )
         } catch (e: org.json.JSONException) {
             throw BackupFile.NotABackup()
