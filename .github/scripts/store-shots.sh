@@ -154,13 +154,7 @@ shot 01-overview 3
 tap "Accounts"; shot 02-accounts 3
 # The loan row (name, payable on the right, "Outstanding ..." under it) may sit below the first screen.
 reach "Car loan"; sleep 2
-# Nudge until the Payment schedule header is in the upper part of the screen, keeping the hero in view.
-wh=$(screen_size); sh=${wh#*x}
-for i in 1 2 3; do
-  y=$(find_y "Payment schedule")
-  [ -n "$y" ] && [ "$y" -lt $((sh * 7 / 10)) ] && break
-  nudge
-done
+# The loan page opens at its top: hero, then the start of the payment schedule.
 shot 03-loan 2
 back
 tap "Overview"; sleep 1
