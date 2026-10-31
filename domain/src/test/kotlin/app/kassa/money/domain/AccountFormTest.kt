@@ -51,4 +51,22 @@ class AccountFormTest {
         assertNull(saved.statementDay)
         assertNull(saved.creditLimit)
     }
+
+    @Test
+    fun onlyAFixedDepositKeepsAMaturityDay() {
+        val deposit = AccountForm(type = AccountType.FIXED_DEPOSIT, name = "FD", balance = "3000", maturityDay = 20_000)
+            .toAccount(Account(name = "", type = AccountType.FIXED_DEPOSIT), 0)
+        assertEquals(20_000, deposit.maturityDay)
+        val savings = AccountForm(type = AccountType.SAVINGS, name = "Ally", maturityDay = 20_000)
+            .toAccount(Account(name = "", type = AccountType.SAVINGS), 0)
+        assertNull(savings.maturityDay)
+    }
+
+    @Test
+    fun editingKeepsTheClosedDayAndShowsTheMaturityDay() {
+        val deposit = Account(id = 3, name = "FD", type = AccountType.FIXED_DEPOSIT, maturityDay = 20_000, closedDay = 21_000)
+        val form = AccountForm.of(deposit, 0)
+        assertEquals(20_000, form.maturityDay)
+        assertEquals(21_000, form.toAccount(deposit, 0).closedDay)
+    }
 }

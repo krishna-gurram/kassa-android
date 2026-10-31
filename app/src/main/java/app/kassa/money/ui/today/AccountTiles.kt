@@ -62,7 +62,7 @@ sealed interface Pin {
 
 /** Every open account A to Z, then People when anyone is listed. */
 fun pinChoices(ledger: Ledger): List<Pin> =
-    ledger.accounts.accounts.filter { !it.archived }.sortedWith(Names.order { it.name }).map { Pin.Acct(it) } +
+    ledger.accounts.accounts.filter { it.isActive }.sortedWith(Names.order { it.name }).map { Pin.Acct(it) } +
         listOfNotNull(Pin.People.takeIf { ledger.people.people.any { !it.archived } })
 
 /** What Overview shows: the user's picks, or until they pick, the first six choices. */
@@ -120,7 +120,7 @@ fun AccountTiles(
                                 val youOwe = -owed.filter { it < 0 }.sum()
                                 val net = if (theyOwe > 0 || youOwe == 0L) theyOwe else -youOwe
                                 Tile(
-                                    "People", (if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
+                                    "People", (if (Money.isHidden) "" else if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
                                     if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, favourColor(net), onPeople,
                                 )
                             }
@@ -153,7 +153,7 @@ fun PinAccountsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -
     val choices = pinChoices(ledger)
     val picked = pinned(ledger, saved).map { it.key }.toSet()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop("Accounts on Overview", onBack)
+        PageTop("Accounts on Overview", onBack, amounts = false)
         Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
             Text("Pick up to $MAX_PINS. They show A to Z.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
             Text("${picked.size} of $MAX_PINS", style = KassaType.small, color = Kassa.colors.ink)

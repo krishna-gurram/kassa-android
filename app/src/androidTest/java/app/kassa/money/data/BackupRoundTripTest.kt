@@ -102,6 +102,8 @@ class BackupRoundTripTest {
             AccountEntity(1, "Everyday checking", "CHECKING", 1, 150_000, null, null, null, null, false, 0, "mm-1", null),
             AccountEntity(2, "Travel card", "CREDIT_CARD", null, -42_000, 16, 10, 1, 500_000, false, 1, null, "1004"),
             AccountEntity(3, "Car loan", "LOAN", null, -2_148_000, null, null, null, null, false, 2, null, null),
+            AccountEntity(4, "Term deposit", "FIXED_DEPOSIT", 1, 300_000, null, null, null, null, false, 3, null, null, maturityDay = 20_800),
+            AccountEntity(5, "Old card", "CREDIT_CARD", null, 0, 16, 10, null, null, false, 4, null, "0099", closedDay = 20_000),
         ),
         categories = listOf(
             CategoryEntity(1, "Food", "EXPENSE", null, "emoji:🍜", -3_000_000, true, false, 0, null),

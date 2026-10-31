@@ -102,16 +102,16 @@ fun CategoryPage(
         PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         val over = budget != null && spent > budget
         Row(verticalAlignment = Alignment.Bottom) {
-            app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f, color = if (over) Kassa.colors.attention else Kassa.colors.ink)
+            app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f, color = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
             if (budget != null) Text("  of ${Money.format(budget, wholeDollars = true)} budget", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
         }
         if (budget != null) {
             Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.track)) {
-                Box(Modifier.fillMaxWidth((spent.toFloat() / budget).coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(if (over) Kassa.colors.attention else Color(c.color)))
+                Box(Modifier.fillMaxWidth((spent.toFloat() / budget).coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(if (over) app.kassa.money.ui.common.figureColor(Kassa.colors.attention) else Color(c.color)))
             }
         }
         Row(Modifier.padding(top = 12.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (budget != null) Figure(if (over) "Over budget" else "Left", Money.format(kotlin.math.abs(budget - spent), wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = if (over) Kassa.colors.attention else Kassa.colors.ink)
+            if (budget != null) Figure(if (over) "Over budget" else "Left", Money.format(kotlin.math.abs(budget - spent), wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
             Figure(monthName(months[4]), Money.format(prevTotal, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
         }
         // Six months of this category; tap a bar to jump to that month.

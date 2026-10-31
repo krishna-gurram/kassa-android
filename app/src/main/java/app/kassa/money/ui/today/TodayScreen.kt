@@ -46,7 +46,6 @@ import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.WeekPace
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.cards.CardRow
 import app.kassa.money.ui.cards.cardsByDueDate
 import app.kassa.money.ui.common.EntryRow
 import app.kassa.money.ui.common.Gap
@@ -143,7 +142,7 @@ fun TodayScreen(
                 Fit.PROBE -> Modifier
             }
             Column(outer.padding(contentPadding)) {
-                Text("Overview", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 6.dp))
+                app.kassa.money.ui.common.TabTop("Overview")
                 if (wide) {
                     banner()
                     Row(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -206,14 +205,18 @@ fun BigMoney(cents: Long, sizeSp: Float = 38f, color: Color = Kassa.colors.ink) 
     val ink = Kassa.colors.ink
     val centsColor = if (color == ink) Kassa.colors.ink2 else color
     val text = Money.format(cents)
+    // Hidden amounts are a mask with no decimal point, so there are no cents to set apart.
     val dot = text.lastIndexOf('.')
     Text(
         buildAnnotatedString {
-            append(text.substring(0, dot))
-            // Cents sit on the same baseline and smaller, so the dollars read first. A colored total (income) keeps
-            // its color for the cents too; a plain one shows them a shade lighter.
-            withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = centsColor, fontWeight = FontWeight.SemiBold)) {
-                append(text.substring(dot))
+            if (dot < 0) append(text)
+            else {
+                append(text.substring(0, dot))
+                // Cents sit on the same baseline and smaller, so the dollars read first. A colored total (income) keeps
+                // its color for the cents too; a plain one shows them a shade lighter.
+                withStyle(SpanStyle(fontSize = (sizeSp * (if (sizeSp < 24f) 0.8f else 0.5f)).sp, color = centsColor, fontWeight = FontWeight.SemiBold)) {
+                    append(text.substring(dot))
+                }
             }
         },
         style = KassaType.hero.copy(fontSize = sizeSp.sp, letterSpacing = (-sizeSp / 32f).sp),
@@ -270,7 +273,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     }
     val link = if (income) "Where it came from" else "Where it went"
     Row(verticalAlignment = Alignment.Bottom) {
-        Box(Modifier.weight(1f)) { BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink) }
+        Box(Modifier.weight(1f)) { BigMoney(total, sizeSp = if (roomy) 46f else 38f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)) }
         Box(Modifier.padding(bottom = 6.dp)) { LinkText(link, onOpen) }
     }
     if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 18.dp))
@@ -423,7 +426,7 @@ fun SpendingPage(
                 Text(if (income) "Received" else "Spent", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
                 Text(span, style = KassaType.tiny, color = Kassa.colors.ink3)
             }
-            BigMoney(total, sizeSp = 34f, color = if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink)
+            BigMoney(total, sizeSp = 34f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
             Text(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"), style = KassaType.small, color = Kassa.colors.ink2)
         }
         SectionHeader("By category")

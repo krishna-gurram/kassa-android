@@ -95,10 +95,10 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
         val scroll: @Composable () -> Modifier = { if (fit) Modifier else Modifier.verticalScroll(rememberScrollState()) }
         val grow: ColumnScope.() -> Modifier = { if (fit) Modifier.weight(1f) else Modifier }
         val head: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Insights", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-                Toggle(listOf(false to monthName, true to "This week"), week) { week = it }
-            }
+            // The toggle shares the title row when there's room; on a narrow screen it sits under it, so the title stays whole.
+            val toggle: @Composable () -> Unit = { Toggle(listOf(false to monthName, true to "This week"), week) { week = it } }
+            app.kassa.money.ui.common.TabTop("Insights", Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle() }
+            if (!wide) Box(Modifier.padding(bottom = 12.dp)) { toggle() }
         }
         if (wide) {
             Column(Modifier.fillMaxSize().padding(contentPadding)) {

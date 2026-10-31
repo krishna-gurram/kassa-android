@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
@@ -167,7 +168,7 @@ internal fun SplitRow(who: String, mine: Long?, on: Boolean, onClick: () -> Unit
         Text("Split", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.width(44.dp))
         Column(Modifier.weight(1f)) {
             Text(who, style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (mine != null) Text("Your share ${Money.format(mine)}", style = KassaType.tiny, color = if (mine < 0) Kassa.colors.attention else Kassa.colors.ink2)
+            if (mine != null) Text("Your share ${Money.format(mine)}", style = KassaType.tiny, color = if (mine < 0) figureColor(Kassa.colors.attention) else Kassa.colors.ink2)
         }
     }
 }

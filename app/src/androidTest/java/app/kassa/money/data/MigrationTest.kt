@@ -137,4 +137,30 @@ class MigrationTest {
             db.execSQL("INSERT INTO loan_payments (accountId, day, amount, principalEntryId, interestEntryId, otherEntryId, escrow, charge, edited, estimate, scheduled) VALUES (3, 20758, 58000, 9, NULL, NULL, 0, 0, 0, 0, 1)")
         }
     }
+
+    @Test
+    fun accountsGainMaturityAndClosedDaysAndEveryExistingOneStaysOpen() {
+        helper.createDatabase("accounts-v8.db", 8).apply {
+            execSQL(
+                "INSERT INTO accounts (id, name, type, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4) " +
+                    "VALUES (1, 'Everyday checking', 'CHECKING', NULL, 150000, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL)"
+            )
+            close()
+        }
+        helper.runMigrationsAndValidate("accounts-v8.db", DATABASE_VERSION, true, *ALL_MIGRATIONS).use { db ->
+            db.query("SELECT openingBalance, maturityDay, closedDay FROM accounts WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertEquals(150000L, c.getLong(0))
+                assertTrue(c.isNull(1))
+                assertTrue(c.isNull(2))
+            }
+            // The new columns take values: a fixed deposit with a maturity day, and a closed account.
+            db.execSQL(
+                "INSERT INTO accounts (id, name, type, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4, maturityDay, closedDay) " +
+                    "VALUES (2, 'Term deposit', 'FIXED_DEPOSIT', NULL, 300000, NULL, NULL, NULL, NULL, 0, 1, NULL, NULL, 20800, NULL)"
+            )
+            db.execSQL("UPDATE accounts SET closedDay = 20900 WHERE id = 1")
+            db.query("SELECT closedDay FROM accounts WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(20900L, c.getLong(0)) }
+        }
+    }
 }

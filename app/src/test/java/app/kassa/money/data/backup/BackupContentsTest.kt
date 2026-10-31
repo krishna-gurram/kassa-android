@@ -30,6 +30,8 @@ internal fun sampleContents() = BackupContents(
         AccountEntity(1, "Everyday checking", "CHECKING", 1, 150_000, null, null, null, null, false, 0, "mm-1", null),
         AccountEntity(2, "Travel card", "CREDIT_CARD", null, -42_000, 16, 10, 1, 500_000, false, 1, null, "1004"),
         AccountEntity(3, "Car loan", "LOAN", null, -2_148_000, null, null, null, null, false, 2, null, null),
+        AccountEntity(4, "Term deposit", "FIXED_DEPOSIT", 1, 300_000, null, null, null, null, false, 3, null, null, maturityDay = 20_800),
+        AccountEntity(5, "Old card", "CREDIT_CARD", null, 0, 16, 10, null, null, false, 4, null, "0099", closedDay = 20_000),
     ),
     categories = listOf(
         CategoryEntity(1, "Food", "EXPENSE", null, "emoji:🍜", -3_000_000, true, false, 0, null),
@@ -98,6 +100,20 @@ class BackupContentsTest {
         // The loan account and its entries are still there; it is a plain loan account again.
         assertEquals("LOAN", back.accounts.last().type)
         assertEquals(7, back.transactions.size)
+    }
+
+    @Test
+    fun maturityAndClosedDaysSurviveAndOlderBackupsReadThemAsNull() {
+        val back = BackupContents.fromJson(sampleContents().toJson(encode), decode)
+        assertEquals(20_800, back.accounts.first { it.id == 4L }.maturityDay)
+        assertEquals(20_000, back.accounts.first { it.id == 5L }.closedDay)
+        // A backup made before schema 9 has neither key on any account.
+        val old = org.json.JSONObject(sampleContents().toJson(encode))
+        val accounts = old.getJSONArray("accounts")
+        for (i in 0 until accounts.length()) accounts.getJSONObject(i).apply { remove("maturityDay"); remove("closedDay") }
+        val older = BackupContents.fromJson(old.toString(), decode)
+        assertTrue(older.accounts.all { it.maturityDay == null && it.closedDay == null })
+        assertEquals(sampleContents().accounts.size, older.accounts.size)
     }
 
     @Test

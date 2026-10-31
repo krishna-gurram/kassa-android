@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,13 +31,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
-/** The bar at the top of every page: back, then the page's name. Without [onBack] the space stays empty. */
+/**
+ * The bar at the top of every page: back, then the page's name, then [trailing] and the Hide balances switch. Without
+ * [onBack] the space stays empty. [amounts] is false only for pages that show no amounts (most of Settings, forms),
+ * so a new page gets the switch by default.
+ */
 @Composable
-fun PageTop(title: String, onBack: (() -> Unit)?, trailing: @Composable RowScope.() -> Unit = {}) {
+fun PageTop(title: String, onBack: (() -> Unit)?, amounts: Boolean = true, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
             IconButton(onClick = onBack, modifier = Modifier.padding(end = 4.dp)) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
@@ -43,6 +51,37 @@ fun PageTop(title: String, onBack: (() -> Unit)?, trailing: @Composable RowScope
         }
         Text(title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         trailing()
+        if (amounts) HideBalancesButton()
+    }
+}
+
+/**
+ * The top of a tab: its title, then [trailing] and the Hide balances switch. Every tab that shows amounts uses this, so
+ * the switch sits in the same corner everywhere.
+ */
+@Composable
+fun TabTop(title: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = KassaType.title, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        trailing()
+        HideBalancesButton()
+    }
+}
+
+/**
+ * The eye that hides or shows every amount in the app at once (see Settings.hideAmounts). It shows what the screen is
+ * doing now: an open eye while amounts show, a crossed one while they're hidden.
+ */
+@Composable
+fun HideBalancesButton() {
+    val settings = LocalSettings.current
+    val hidden = settings.hideAmounts
+    IconButton(onClick = { settings.setHideAmounts(!hidden) }, modifier = Modifier.size(48.dp)) {
+        Icon(
+            if (hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+            if (hidden) "Show balances" else "Hide balances",
+            tint = Kassa.colors.ink,
+        )
     }
 }
 

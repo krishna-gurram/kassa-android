@@ -85,7 +85,7 @@ fun AddAccountSheet(
             Gap(8)
             val isLoan = form.type == AccountType.LOAN
             AccountFields(
-                form, problems, ::edit, groups, payFromOptions,
+                form, problems, ::edit, groups, payFromOptions, today = today,
                 loanFields = { LoanFields(loan, loanProblems, ::editLoan, today, payFromOptions, categories) },
             )
             Gap(12)
@@ -119,6 +119,8 @@ fun AccountFields(
     payFromOptions: List<Account>,
     types: List<AccountType> = AccountType.entries,
     showGroup: Boolean = true,
+    /** Today, for the fixed deposit's maturity date; without it that field isn't offered. */
+    today: LocalDate? = null,
     /** Replaces the balance field for a loan or mortgage, which has its own setup (see [LoanFields]). */
     loanFields: (@Composable () -> Unit)? = null,
 ) {
@@ -131,8 +133,9 @@ fun AccountFields(
         problem = problems[AccountField.LAST4])
     if (form.type == AccountType.LOAN && loanFields != null) loanFields()
     else AmountField(form.balance, { v -> edit(AccountField.BALANCE) { it.copy(balance = v) } },
-        if (form.type.isDebt) "Amount owed today" else "Balance today", Modifier.fillMaxWidth(),
+        if (form.type.hasStatement) "Total balance today" else if (form.type.isDebt) "Outstanding balance today" else "Balance today", Modifier.fillMaxWidth(),
         problem = problems[AccountField.BALANCE], placeholder = "0", signed = true)
+    if (form.type.hasMaturity && today != null) MaturityField(form.maturityDay, today) { d -> edit(null) { it.copy(maturityDay = d) } }
     if (form.type.hasStatement) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DigitsField(form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = v) } }, "Statement day", 2,

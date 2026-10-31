@@ -58,6 +58,15 @@ class NavViewModel : ViewModel() {
 
     /** Picks the opening tab once per launch; folding the phone or returning to the app keeps the current one. */
     fun start(t: Tab) { if (!started) { started = true; if (stack.isEmpty()) tab = t } }
+    /**
+     * The Accounts groups that are folded: an AccountSection name, "people" or "closed". Closed starts folded. Kept here
+     * with the other navigation state, so rotating or folding the phone, or visiting another tab, leaves them as they were.
+     */
+    var foldedGroups by mutableStateOf(setOf("closed"))
+        private set
+
+    fun setFolded(keys: Set<String>) { foldedGroups = keys }
+
     val stack = mutableStateListOf<Page>()
     val top: Page? get() = stack.lastOrNull()
 

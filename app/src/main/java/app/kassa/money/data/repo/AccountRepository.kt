@@ -7,6 +7,7 @@ import app.kassa.money.data.db.toEntity
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountGroup
 import app.kassa.money.domain.InputRules
+import app.kassa.money.domain.closeProblem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -39,6 +40,19 @@ class AccountRepository(private val db: KassaDatabase) {
     suspend fun update(account: Account, newGroupName: String? = null) = db.withTransaction {
         val clean = checked(account)
         db.accounts().update(clean.copy(groupId = groupFor(clean, newGroupName)).toEntity())
+    }
+
+    /**
+     * Closes the account on [closedDay] (an epoch day), or reopens it when null. Only a settled account closes: its
+     * balance, and for an investment account the value of its holdings, has to be zero. Nothing is deleted.
+     */
+    suspend fun setClosed(accountId: Long, closedDay: Int?) = db.withTransaction {
+        val row = db.accounts().all().firstOrNull { it.id == accountId } ?: throw IllegalArgumentException("That account is no longer here.")
+        if (closedDay != null) {
+            val held = db.holdings().all().filter { it.accountId == accountId }.map { it.toDomain() }.sumOf { it.value }
+            closeProblem((db.accounts().balanceOf(accountId) ?: 0L) + held)?.let { throw IllegalArgumentException(it) }
+        }
+        db.accounts().update(row.copy(closedDay = closedDay))
     }
 
     private suspend fun groupFor(account: Account, newGroupName: String?): Long? =

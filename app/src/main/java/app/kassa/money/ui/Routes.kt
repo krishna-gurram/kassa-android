@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.kassa.money.domain.subcategory
+import app.kassa.money.ui.accounts.AccountClosing
 import app.kassa.money.ui.accounts.AccountPage
 import app.kassa.money.ui.accounts.AccountsScreen
 import app.kassa.money.ui.accounts.EditAccountPage
@@ -66,6 +67,7 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
         Tab.ACCOUNTS -> AccountsScreen(
             l, padding,
             selectedAccount = (selected as? Page.AccountDetail)?.accountId,
+            folded = app.nav.foldedGroups, onFolded = app.nav::setFolded,
             onOpenAccount = { app.openFromList(Page.AccountDetail(it)) },
             onOpenPerson = { app.openFromList(Page.PersonDetail(it)) },
             onAddAccount = { account, group, done -> app.vm.addAccount(account, group, done) },
@@ -160,15 +162,21 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
     val a = l.accountById[accountId]
     if (a == null) { Gone(padding, onBack); return }
     val history by remember(a.id) { app.vm.accountHistory(a.id) }.collectAsState(initial = emptyList())
-    val card = l.cards().firstOrNull { it.account.id == a.id }.takeIf { !a.archived }
+    val card = l.cards().firstOrNull { it.account.id == a.id }.takeIf { a.isActive }
+    val closing = AccountClosing(
+        onMessage = app.vm::say,
+        onClose = { app.vm.setClosed(a, l.today.toEpochDay().toInt()) },
+        onReopen = { app.vm.setClosed(a, null) },
+    )
     if (card != null) CardPage(
         card, l, padding, onBack, onEdit = app.editFromPage, onPay = { app.paying = a.id },
-        onEditCard = { app.push(Page.EditAccount(a.id)) }, history = history,
+        onEditCard = { app.push(Page.EditAccount(a.id)) }, history = history, closing = closing,
     )
     else AccountPage(
         l, a, history, padding, onBack,
         onEditEntry = app.editFromPage,
         onEditAccount = { app.push(Page.EditAccount(a.id)) },
+        closing = closing,
         onSaveHolding = { app.vm.saveHolding(it) },
         onDeleteHolding = { app.vm.deleteHolding(it.id) },
         onBuy = { o -> app.vm.buy(a.id, o.ticker, o.microShares, o.price, o.at, transferId = null) },
@@ -187,7 +195,7 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
 @Composable
 private fun Gone(padding: PaddingValues, onBack: (() -> Unit)?) {
     Column(Modifier.padding(padding)) {
-        PageTop("", onBack)
+        PageTop("", onBack, amounts = false)
         Text("This is no longer here.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
     }
 }

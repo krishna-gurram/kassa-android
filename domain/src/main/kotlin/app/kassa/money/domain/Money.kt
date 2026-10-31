@@ -45,6 +45,19 @@ object Money {
 
     val symbol: String get() = style.symbol.trim()
 
+    /** What every hidden amount shows instead of its figure. */
+    const val MASK = "••••"
+
+    /**
+     * Asked by [format] each time: true while the person has chosen Hide balances. The app sets it to read a Compose
+     * state, so every screen that formats money redraws when the switch flips. Plain Kotlin here on purpose.
+     */
+    @Volatile
+    var hideAmounts: () -> Boolean = { false }
+
+    /** True while amounts are hidden; screens use it to drop signs and state colors that would give a figure away. */
+    val isHidden: Boolean get() = hideAmounts()
+
     /** Parses "1234.5", "1,234.50", "£12" or "AED 12" into minor units. Returns null for anything that is not a number. */
     fun parseCents(text: String): Long? {
         val cleaned = text.trim().filter { it.isDigit() || it == '.' || it == '-' }
@@ -63,8 +76,19 @@ object Money {
         if (it.scale() < 0) it.setScale(0).toPlainString() else it.toPlainString()
     }
 
-    /** £1,234.56 or −£12.00 in the phone's currency. Uses a real minus sign so negatives line up with tabular figures. */
+    /**
+     * £1,234.56 or −£12.00 in the phone's currency. Uses a real minus sign so negatives line up with tabular figures.
+     * Returns [MASK] while amounts are hidden, with no sign and no currency. Text for editable fields uses [toInput].
+     */
     fun format(cents: Long, wholeDollars: Boolean = false, showPlus: Boolean = false, style: CurrencyStyle = this.style): String {
+        return if (isHidden) MASK else sample(cents, wholeDollars, showPlus, style)
+    }
+
+    /**
+     * Like [format] but never masked. Only for an example that isn't anyone's money, such as the currency list showing
+     * what 1,234.50 looks like in each currency. Every real amount goes through [format].
+     */
+    fun sample(cents: Long, wholeDollars: Boolean = false, showPlus: Boolean = false, style: CurrencyStyle = this.style): String {
         val nf = NumberFormat.getNumberInstance(style.locale).apply {
             minimumFractionDigits = if (wholeDollars) 0 else 2
             maximumFractionDigits = if (wholeDollars) 0 else 2

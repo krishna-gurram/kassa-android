@@ -96,8 +96,20 @@ tap "Where it went"; shot 05-unfolded-page
 adb shell input keyevent KEYCODE_BACK
 sleep 2; scroll; shot 04b-unfolded-scrolled
 tap "Accounts"; shot 06-unfolded-accounts
+# Hide balances on the unfolded Accounts tab. Best effort: a tap that finds nothing only prints a line.
+tap "Hide balances"; shot 06b-unfolded-accounts-hidden 2
+tap "Show balances"
 tap "Overview"
 adb shell wm size reset; adb shell wm density reset
+# Accounts on the cover screen (one column), then with balances hidden, then Overview still hidden, then back to shown.
+adb shell wm size 1248x1972; adb shell wm density 360
+sleep 3
+tap "Accounts"; shot 06c-cover-accounts 4
+tap "Hide balances"; shot 06d-cover-accounts-hidden 3
+tap "Overview"; shot 06e-cover-overview-hidden 3
+tap "Show balances"
+adb shell wm size reset; adb shell wm density reset
+sleep 3
 adb shell cmd uimode night yes
 shot 07-dark 5
 adb shell settings put system font_scale 1.6; shot 07b-large-font 5; adb shell settings put system font_scale 1.0; sleep 3

@@ -175,7 +175,7 @@ fun ActivityScreen(
         ),
     ) {
         Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Activity", style = KassaType.title, color = Kassa.colors.ink)
+            app.kassa.money.ui.common.TabTop("Activity")
             if (!searching) {
                 app.kassa.money.ui.common.PeriodSwitcher(
                     "${s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${s.month.year}", null,

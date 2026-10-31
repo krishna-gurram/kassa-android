@@ -38,6 +38,9 @@ object Demo {
             Account(CARD, "Travel card", AccountType.CREDIT_CARD, statementDay = 15, dueDay = 10, payFromId = CHECKING, creditLimit = 800_000, sortOrder = 2),
             Account(CASH, "Wallet", AccountType.CASH, openingBalance = 6_000, sortOrder = 3),
             Account(BROKERAGE, "Brokerage", AccountType.INVESTMENT, sortOrder = 4),
+            // A deposit that matures later and a card closed two months ago, so the Accounts tab shows both.
+            Account(6, "Fixed deposit", AccountType.FIXED_DEPOSIT, openingBalance = 1_000_000, sortOrder = 5, maturityDay = today.plusDays(200).toEpochDay().toInt()),
+            Account(7, "Old card", AccountType.CREDIT_CARD, statementDay = 1, dueDay = 25, sortOrder = 6, closedDay = today.minusDays(60).toEpochDay().toInt()),
         )
 
         val cats = mutableListOf<Category>()

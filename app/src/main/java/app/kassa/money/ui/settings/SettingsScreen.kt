@@ -76,15 +76,19 @@ interface SettingsActions {
 /** The pages inside the Settings tab. They stack on the tab itself; Back returns to the list. */
 private sealed interface SettingsPage {
     val title: String
+
+    /** Whether the page shows amounts, and so gets the Hide balances switch. */
+    val amounts: Boolean get() = false
     data object Main : SettingsPage { override val title = "Settings" }
     data class Categories(val kind: CategoryKind) : SettingsPage {
         override val title get() = if (kind == CategoryKind.EXPENSE) "Expense categories" else "Income categories"
+        override val amounts: Boolean get() = true
     }
     data class EditCategory(val category: Category, val back: SettingsPage) : SettingsPage {
         override val title get() = if (category.id == 0L) "New category" else "Edit category"
     }
-    data object Splitwise : SettingsPage { override val title = "Splitwise accounts" }
-    data object Bills : SettingsPage { override val title = "Recurring bills" }
+    data object Splitwise : SettingsPage { override val title = "Splitwise accounts"; override val amounts = true }
+    data object Bills : SettingsPage { override val title = "Recurring bills"; override val amounts = true }
     data object Notifications : SettingsPage { override val title = "Notifications" }
     data object Backup : SettingsPage { override val title = "Backup and restore" }
     data object BudgetMonth : SettingsPage { override val title = "Budget month" }
@@ -114,7 +118,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
             Text("Kassa ${BuildConfigInfo.versionName}", style = KassaType.small, color = Kassa.colors.ink2)
             Text("Settings", style = KassaType.title, color = Kassa.colors.ink)
         } else {
-            PageTop(page.title, onBack = back)
+            PageTop(page.title, onBack = back, amounts = page.amounts)
         }
         when (val p = page) {
             SettingsPage.Main -> MainList(ledger, actions, open = { page = it })
@@ -161,7 +165,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     }
     HorizontalDivider(color = Kassa.colors.line)
     val cur = Currencies.byCode(currency)
-    NavRow("Currency", "${cur.name}, ${Money.format(123_450, style = cur)}") { open(SettingsPage.Currency) }
+    NavRow("Currency", "${cur.name}, ${Money.sample(123_450, style = cur)}") { open(SettingsPage.Currency) }
 
     SectionHeader("Home screen")
     val openTab by settings.openTab.collectAsState()

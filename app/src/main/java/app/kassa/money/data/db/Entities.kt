@@ -48,6 +48,10 @@ data class AccountEntity(
     val sortOrder: Int,
     val externalId: String?,
     val last4: String? = null,
+    /** Fixed deposits: the day it matures, as an epoch day. */
+    val maturityDay: Int? = null,
+    /** The day the account was closed, as an epoch day; null while open. */
+    val closedDay: Int? = null,
 )
 
 @Entity(tableName = "categories", indices = [Index("parentId")])
@@ -222,9 +226,10 @@ fun AccountEntity.toDomain() = Account(
     id = id, name = name, type = AccountType.valueOf(type), groupId = groupId, openingBalance = openingBalance,
     statementDay = statementDay, dueDay = dueDay, payFromId = payFromId, creditLimit = creditLimit,
     archived = archived, sortOrder = sortOrder, externalId = externalId, last4 = last4,
+    maturityDay = maturityDay, closedDay = closedDay,
 )
 fun Account.toEntity() = AccountEntity(
-    id, name, type.name, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4,
+    id, name, type.name, groupId, openingBalance, statementDay, dueDay, payFromId, creditLimit, archived, sortOrder, externalId, last4, maturityDay, closedDay,
 )
 
 fun CategoryEntity.toDomain() = Category(

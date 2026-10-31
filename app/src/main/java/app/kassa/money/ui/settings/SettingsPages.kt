@@ -72,7 +72,7 @@ internal fun CurrencyPage(ledger: Ledger) {
                     Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink)
                     Text(c.code, style = KassaType.small, color = Kassa.colors.ink2)
                 }
-                Text(Money.format(123_450, style = c), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
+                Text(Money.sample(123_450, style = c), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
                 Text(if (c.code == selected) "✓" else "", style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
             HorizontalDivider(color = Kassa.colors.line)
@@ -90,7 +90,7 @@ internal fun CurrencyPage(ledger: Ledger) {
 }
 
 internal fun splitwiseAccounts(ledger: Ledger): List<Account> =
-    ledger.accounts.accounts.filter { !it.archived && it.name.contains("splitwise", ignoreCase = true) }
+    ledger.accounts.accounts.filter { it.isActive && it.name.contains("splitwise", ignoreCase = true) }
 
 /**
  * Money Manager had no idea of people, so Splitwise balances lived in pretend accounts. Each one becomes a

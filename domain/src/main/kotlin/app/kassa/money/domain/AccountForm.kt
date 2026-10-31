@@ -23,6 +23,8 @@ data class AccountForm(
     val groupId: Long? = null,
     /** A group to create and put the account in; blank to use [groupId]. */
     val newGroup: String = "",
+    /** Fixed deposits: the day it matures, as an epoch day. Optional, and a future day is fine. */
+    val maturityDay: Int? = null,
 ) {
     private val todayCents: Long? get() = if (balance.isBlank()) 0L else Money.parseCents(balance)
 
@@ -60,6 +62,7 @@ data class AccountForm(
             creditLimit = if (card && limit.isNotBlank()) Money.parseCents(limit) else null,
             payFromId = if (card) payFromId else null,
             groupId = groupId,
+            maturityDay = if (type.hasMaturity) maturityDay else null,
         )
     }
 
@@ -78,6 +81,7 @@ data class AccountForm(
             limit = a.creditLimit?.let(Money::toInput).orEmpty(),
             payFromId = a.payFromId,
             groupId = a.groupId,
+            maturityDay = a.maturityDay,
         )
     }
 }

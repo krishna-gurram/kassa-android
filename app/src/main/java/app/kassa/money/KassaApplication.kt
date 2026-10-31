@@ -46,7 +46,7 @@ class KassaApplication : Application() {
             }
             previous?.uncaughtException(thread, e)
         }
-        // Loading settings sets the currency before anything formats an amount.
+        // Loading settings sets the currency and the hide-balances hook before anything formats an amount.
         settings.currency
         // Re-book the daily backup and reminder in case something dropped them. Refresh keeps what's already booked
         // for the same time, so a process started to run the backup or reminder doesn't push it to tomorrow.

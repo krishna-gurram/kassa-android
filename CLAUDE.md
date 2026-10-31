@@ -21,6 +21,13 @@ Offline personal finance app for Android. Kotlin, Jetpack Compose, Room on SQLCi
   show the problem under the field; repositories check the same rules again and throw `IllegalArgumentException`
   with a message, which `LedgerViewModel.change` shows. Any text that shows a name or note sets `maxLines` and
   `TextOverflow.Ellipsis`.
+- **Hide balances: every amount goes through `Money.format`; never build amount text by hand.** `Money.toInput` is for
+  fields (typed amounts are never masked), `Money.sample` only for examples that aren't anyone's money. While hidden,
+  `Money.format` returns `Money.MASK` (no sign, no symbol): a Compose state in `Settings.hideAmounts` backs
+  `Money.hideAmounts`, so every composable that formats money redraws at once. So don't split or measure formatted text,
+  and give any color or sign that follows a figure (over budget, a loss, net worth below zero) through `figureColor`,
+  `favourColor`, `balanceColor` or `cardTint`, which turn plain ink while hidden. The eye lives in `PageTop` and
+  `TabTop` (`amounts = false` only where a page shows none), so a new screen gets it free.
 - **User data never goes in the repo.** Tests use synthetic data shaped like the Money Manager schema.
 
 ## Built for public release
@@ -41,7 +48,8 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   and easy to move.
 
 ## Layout
-- `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares).
+- `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares,
+  `AccountsOverview` for the Accounts tab's groups and totals).
   Fast JVM tests.
 - `importer/`: imports from other apps, plain Kotlin so the same rules can serve an iOS app later: Money Manager `.mmbak`
   (`MoneyManagerImporter`) and Cashew backups (`CashewImporter`: scan, then a plan from the user's answers about account
@@ -60,6 +68,7 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   `AccountForm` for the account forms) so the composables only lay things out.
 
 ## Database changes
+Schema 9 added `accounts.maturityDay` and `closedDay` (nullable epoch days); older backups read them as null.
 Bump `DATABASE_VERSION` and add a `Migration` to `ALL_MIGRATIONS`. Columns must match the entity exactly
 (type, nullability, indexes named `index_<table>_<column>`). CI installs the last published release on an emulator
 first and upgrades over it, so a bad migration fails the build instead of reaching the phone.
@@ -79,9 +88,21 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
 ## Navigation
 `ui/Nav.kt` holds the tabs and a back stack of `Page`s in `NavViewModel`, so folding the phone keeps your place.
 Anything you browse or fill in at length is a page with a back button (entry, card, account, person, category, week).
-Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to six pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
+Tabs: Overview, Activity, Insights, Accounts, Settings, with Add as a floating button above the bar. Overview, top to bottom: Notifications (when anything waits), Spending/Income with three top-category tiles, Upcoming (three rows; five unfolded), and up to six pinned account tiles, all the same height. It fits the screen without scrolling (Upcoming drops rows first) and scrolls only when even one row won't fit; unfolded with nothing beside it, the tiles sit in a second column (`ui/today/AccountTiles.kt`; Settings › Home screen also picks the tab Kassa opens on). Over pages Add is hidden, except on card, account and category pages, where it starts the entry with that account or category picked (`AppController.presetFor`); the rail's Add does the same for the page beside the list. Cards live in Accounts. Settings is its own tab. The eye (Hide balances) sits in the top bar of every tab and page that shows amounts. Quick actions stay bottom sheets (pay a card, holdings, add an account). On the cover screen a page replaces
 the tabs; at 720dp+ it opens beside the list it came from, except Add/Edit, which always takes the full screen. Anything that removes or replaces data asks first
 (`ConfirmDialog`).
+
+## Accounts tab
+Top: Assets, Liabilities, Net worth (orange with its minus below zero). Then a foldable card for each kind the user has,
+from `AccountsOverview`: Cash and bank (checking, savings, cash, prepaid, fixed deposit), Investments, Other assets,
+Credit cards, Loans, Other debts, then People and a Closed group (folded by default; fold state lives in `NavViewModel`).
+600dp+: assets on the left, liabilities on the right; the cover screen is one column. Rows are name and main figure, with
+one second line: card "Pay <balance payable>" and "Due <date>", loan "Pay <payment>" and "Due <date>" (only with terms),
+fixed deposit "Matures <date>". Orange only for something payable and a payment due today or overdue. No bars,
+percentages, trends or forecasts here. Debts show what is owed, with no minus.
+Fixed deposit is an asset with an optional maturity date. Close account (account and card pages) needs a zero balance
+(holdings included) and asks first; Reopen undoes it. A closed account (`closedDay`) is out of Assets, Liabilities, Net
+worth, every picker and the Overview tiles (`Account.isActive`); its entries stay everywhere. Nothing is deleted.
 
 ## One component per job
 Every screen uses the same piece for the same job, so a change in one place looks the same everywhere. Before

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -92,13 +93,13 @@ fun InsightDetailPage(
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Figure("Income", Money.format(now.income, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                     Figure("Spent", Money.format(now.spent, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Saved so far", Money.format(now.saved, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention)
+                    Figure("Saved so far", Money.format(now.saved, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = figureColor(if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention))
                 }
-                BarChart(months.map { short(it.month) to maxOf(0L, it.saved) }, months.lastIndex, Kassa.colors.positive, labels = months.map { m -> m.rate?.let { "$it%" } ?: "" })
+                BarChart(months.map { short(it.month) to maxOf(0L, it.saved) }, months.lastIndex, Kassa.colors.positive, labels = months.map { m -> m.rate?.takeIf { !Money.isHidden }?.let { "$it%" } ?: "" })
                 Column {
                     months.reversed().forEachIndexed { i, m ->
-                        ListRow(short(m.month), m.rate?.let { "$it%" } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex,
-                            valueColor = if (m.saved < 0) Kassa.colors.attention else Kassa.colors.ink)
+                        ListRow(short(m.month), m.rate?.takeIf { !Money.isHidden }?.let { "$it%" } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex,
+                            valueColor = figureColor(if (m.saved < 0) Kassa.colors.attention else Kassa.colors.ink))
                     }
                 }
             }
@@ -197,7 +198,7 @@ private fun RepeatRow(x: app.kassa.money.domain.Repeat, ledger: Ledger, onOpen: 
                 Text(x.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 when {
                     // An arrow, not a sign: a cheaper charge is good news, and a minus always means against you.
-                    x.change != 0L -> Tag((if (x.change > 0) "↑ " else "↓ ") + Money.format(Math.abs(x.change)),
+                    x.change != 0L -> Tag((if (Money.isHidden) "" else if (x.change > 0) "↑ " else "↓ ") + Money.format(Math.abs(x.change)),
                         app.kassa.money.ui.common.favourColor(if (income) x.change else -x.change))
                     !x.fixed -> Tag("varies", Kassa.colors.ink2)
                 }
