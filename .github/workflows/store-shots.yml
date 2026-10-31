@@ -30,6 +30,7 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release create "diag-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
             --draft --title "Store shots build diagnostics" --notes "Failed build log." || true
@@ -97,6 +98,7 @@ jobs:
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p upload
           find collected/store-output -name '*.png' -exec cp {} upload/ \; 2>/dev/null || true
