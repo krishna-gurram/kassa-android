@@ -441,7 +441,7 @@ private fun AccountRow(
 private fun PersonRow(p: Person, balance: Long, onClick: () -> Unit) {
     OneLineRow(
         p.name, null, Money.format(Math.abs(balance)), grouped = true,
-        suffix = when { balance > 0 -> "owes you"; balance < 0 -> "you owe"; else -> "settled" },
+        suffix = when { Money.isHidden -> null; balance > 0 -> "owes you"; balance < 0 -> "you owe"; else -> "settled" },
         amountColor = favourColor(balance), onClick = onClick,
     )
 }
