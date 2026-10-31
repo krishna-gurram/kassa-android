@@ -7,15 +7,15 @@ import org.junit.Test
 class CrashReportTest {
     @Test
     fun keepsClassNamesAndFramesButNeverMessages() {
-        val cause = IllegalStateException("account Maria Savings 1234.56")
-        val error = RuntimeException("note: rent for flat 7", cause)
+        val cause = IllegalStateException("account Maria Savings 98765.43")
+        val error = RuntimeException("note: zebra rooftop flat 7", cause)
         val text = CrashReport.describe(error)
         assertTrue(text.startsWith("java.lang.RuntimeException\n"))
         assertTrue(text.contains("Caused by: java.lang.IllegalStateException\n"))
         assertTrue(text.contains("at app.kassa.money.data.CrashReportTest"))
-        assertFalse(text.contains("rent"))
+        assertFalse(text.contains("zebra"))
         assertFalse(text.contains("Maria"))
-        assertFalse(text.contains("1234"))
+        assertFalse(text.contains("98765"))
     }
 
     @Test
