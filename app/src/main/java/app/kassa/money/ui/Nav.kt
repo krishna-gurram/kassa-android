@@ -24,6 +24,8 @@ sealed interface Page {
     data class AccountDetail(val accountId: Long) : Page
     /** Edit an account or card: name, last 4 digits, statement days, balance and details. */
     data class EditAccount(val accountId: Long) : Page
+    /** Change a loan's rate, payment, term or interest type from a date: a form, so it gets its own page. */
+    data class ChangeTerms(val accountId: Long) : Page
     data class PersonDetail(val personId: Long) : Page
     data class CategoryDetail(val categoryId: Long, val monthsBack: Int = 0) : Page
     /** The full view behind an Insights tile or "All" link. */

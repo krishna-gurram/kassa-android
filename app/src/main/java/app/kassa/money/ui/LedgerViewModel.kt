@@ -20,7 +20,9 @@ import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
+import app.kassa.money.domain.LoanNotes
 import app.kassa.money.domain.LoanPayment
+import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
@@ -83,9 +85,11 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         },
         settings.monthStartDay,
     ) { (categories, accounts, budgets), (people, entries, rep, cleared), inv, monthStart ->
+        // A loan's steady escrow or interest is already tracked by the loan, so it isn't suggested as a bill.
+        val loanNotes = inv.loans.terms.keys.mapNotNull { id -> accounts.accounts.firstOrNull { it.id == id }?.name }.flatMap { LoanNotes.repeatKeys(it) }.toSet()
         Ledger(
             categories, accounts, budgets, people, entries, inv.bills, inv.holdings, inv.transfers,
-            inv.trades.associateBy { it.transactionId }, rep, cleared, inv.loans, monthStart, LocalDate.now(zone), zone,
+            inv.trades.associateBy { it.transactionId }, rep.filterNot { it.key in loanNotes }, cleared, inv.loans, monthStart, LocalDate.now(zone), zone,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -149,6 +153,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             TxKind.TRANSFER -> if (to?.type?.hasStatement == true) "Paid ${Money.format(saved.amount)} to ${to.name}." else "Moved ${Money.format(saved.amount)} to ${to?.name ?: "the account"}."
             TxKind.PERSON_IN, TxKind.PERSON_OUT -> "Payment recorded."
             TxKind.BUY, TxKind.SELL -> "Saved."
+            TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> "Balance corrected."
         }
         return if (draft.id != null) "Saved. $text" else text
     }
@@ -187,6 +192,22 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         change(if (draft.id == null) "Payment recorded." else "Payment saved.", onDone) { kassa.loans.recordPayment(draft) }
 
     fun deleteLoanPayment(id: Long, onDone: () -> Unit = {}) = change("Payment deleted.", onDone) { kassa.loans.deletePayment(id) }
+
+    /** Saves a loan's undated details; the account carries its name. */
+    fun updateLoanDetails(account: Account, terms: LoanTerms, onDone: () -> Unit = {}) =
+        change("Details saved.", onDone) { kassa.loans.updateDetails(account, terms) }
+
+    /** Saves a change of terms from a date on; earlier payments keep their split. */
+    fun addLoanChange(termChange: LoanTermChange, onDone: () -> Unit = {}) = change("Change saved.", onDone) { kassa.loans.addChange(termChange) }
+
+    fun deleteLoanChange(id: Long) = change("Change removed.") { kassa.loans.deleteChange(id) }
+
+    /** Makes [accountId] show [target] by saving a dated correction, or replaces the earlier one [editingId]. */
+    fun correctBalance(accountId: Long, target: Long, epochMillis: Long, editingId: Long?, onDone: () -> Unit = {}) =
+        change(if (editingId == null) "Balance corrected." else "Correction saved.", onDone) { kassa.entries.correctBalance(accountId, target, epochMillis, editingId) }
+
+    /** Deletes a balance correction: the balance goes back to what it was without it. */
+    fun deleteCorrection(id: Long, onDone: () -> Unit = {}) = change("Correction deleted.", onDone) { kassa.entries.delete(id) }
 
     /** The loan payment an entry belongs to, if any: such an entry opens the payment sheet, not the entry page. */
     suspend fun loanPaymentForEntry(entryId: Long): LoanPayment? = kassa.loans.paymentForEntry(entryId)

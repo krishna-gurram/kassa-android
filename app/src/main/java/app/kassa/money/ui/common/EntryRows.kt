@@ -5,8 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
+import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Shares
 import app.kassa.money.domain.Transaction
@@ -34,7 +36,20 @@ fun TransactionRow(
     val acct = t.accountId?.let { ledger.accountById[it]?.name }
     val intoCard = t.accountId?.let { ledger.accountById[it]?.type?.hasStatement } == true
     val person = t.personId?.let { id -> ledger.people.people.firstOrNull { it.id == id }?.name }
+    // An entry of a loan payment (principal, interest, escrow or charge) says which, and opens the whole payment.
+    val loanTag = ledger.loans.tagFor(t.id)
     when (t.kind) {
+        TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> {
+            // A change, not money moving: an arrow and the size, in what the account shows (owed, for a debt).
+            val debt = ledger.accountById[t.accountId]?.type?.isDebt == true
+            EntryRow(
+                badge = { IconBadge(androidx.compose.material.icons.Icons.Outlined.Tune) },
+                title = t.note.ifBlank { BalanceCorrection.TITLE },
+                subtitle = date + (acct ?: ""),
+                amount = BalanceCorrection.describe(BalanceCorrection.shown(t, debt)), amountColor = Kassa.colors.ink2,
+                note = noteOverride, showDivider = showDivider, modifier = m,
+            )
+        }
         TxKind.TRANSFER -> {
             val to = ledger.accountById[t.toAccountId]
             EntryRow(
@@ -45,7 +60,7 @@ fun TransactionRow(
                 amount = Money.format(t.amount, showPlus = to?.type?.hasStatement == true),
                 amountColor = if (to?.type?.hasStatement == true) Kassa.colors.positive else Kassa.colors.ink2,
                 note = noteOverride ?: when { to?.type?.hasStatement == true -> "Card payment"; t.note.isNotBlank() -> t.note; else -> "Transfer" },
-                showDivider = showDivider, modifier = m,
+                showDivider = showDivider, modifier = m, tag = loanTag,
             )
         }
         TxKind.BUY, TxKind.SELL -> EntryRow(
@@ -74,7 +89,7 @@ fun TransactionRow(
                 amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
                 amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
                 note = noteOverride ?: acct ?: person?.let { "Paid by $it" },
-                showDivider = showDivider, modifier = m,
+                showDivider = showDivider, modifier = m, tag = loanTag,
             )
         }
     }

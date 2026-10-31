@@ -24,6 +24,7 @@ import app.kassa.money.ui.entry.BillPage
 import app.kassa.money.ui.entry.EntryPage
 import app.kassa.money.ui.importer.ImportScreen
 import app.kassa.money.ui.insights.CategoryPage
+import app.kassa.money.ui.loans.ChangeTermsPage
 import app.kassa.money.ui.insights.DayPage
 import app.kassa.money.ui.insights.InsightDetailPage
 import app.kassa.money.ui.insights.InsightStorePage
@@ -112,6 +113,12 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
                 )
             }
         }
+        is Page.ChangeTerms -> {
+            val a = l.accountById[page.accountId]
+            val t = l.loans.terms[page.accountId]
+            if (a == null || t == null) Gone(padding, onBack)
+            else key(a.id) { ChangeTermsPage(l, a, t, padding, back, onSave = { change -> vm.addLoanChange(change, onDone = app::back) }) }
+        }
         is Page.PersonDetail -> {
             val p = l.people.people.firstOrNull { it.id == page.personId }
             if (p == null) Gone(padding, onBack)
@@ -169,6 +176,10 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
         loanTerms = l.loans.terms[a.id],
         onPayLoan = { app.payingLoan = a.id },
         onAddTerms = { app.addingTermsTo = a.id },
+        onChangeTerms = { app.push(Page.ChangeTerms(a.id)) },
+        onEditDetails = { app.editingLoanDetails = a.id },
+        onCorrectBalance = { app.correcting = Correcting(a.id) },
+        onRemoveChange = { id -> app.vm.deleteLoanChange(id) },
     )
 }
 

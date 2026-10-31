@@ -243,7 +243,7 @@ private fun SplitSheet(p: Person, ledger: Ledger, onDismiss: () -> Unit, onPick:
     val alreadySplit = ledger.people.loans.filter { it.personId == p.id }.mapNotNull { it.transactionId }.toSet()
     val from = ledger.today.minusDays(60)
     val choices = ledger.recent
-        .filter { it.kind == TxKind.EXPENSE && it.accountId != null && it.id !in alreadySplit }
+        .filter { it.kind == TxKind.EXPENSE && it.accountId != null && it.id !in alreadySplit && !ledger.loans.isLoanEntry(it.id) }
         .filter { !Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate().isBefore(from) }
         .sortedByDescending { it.epochMillis }
 

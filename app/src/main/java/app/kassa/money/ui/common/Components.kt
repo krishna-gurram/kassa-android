@@ -78,12 +78,20 @@ fun EntryRow(
     /** Shows a chevron when the row opens a page. */
     chevron: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    /** A small label after the title, like "interest" on a loan payment's entry. */
+    tag: String? = null,
 ) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             badge()
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (tag != null) Text(
+                        tag, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1,
+                        modifier = Modifier.padding(start = 6.dp).border(1.dp, Kassa.colors.line, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp),
+                    )
+                }
                 Text(subtitle, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Column(horizontalAlignment = Alignment.End) {
