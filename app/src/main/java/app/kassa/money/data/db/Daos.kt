@@ -66,6 +66,13 @@ interface AccountDao {
     )
     suspend fun balanceOf(id: Long): Long?
 
+    @Query("SELECT * FROM accounts WHERE id = :id")
+    suspend fun byId(id: Long): AccountEntity?
+
+    /** The accounts among [ids] that have been closed. */
+    @Query("SELECT * FROM accounts WHERE id IN (:ids) AND closedDay IS NOT NULL")
+    suspend fun closedAmong(ids: List<Long>): List<AccountEntity>
+
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM accounts")
     suspend fun maxSortOrder(): Int
 
@@ -114,6 +121,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions")
     suspend fun all(): List<TransactionEntity>
 
+    /** One page of every transaction in id order: the ones after [afterId], at most [limit], for writing a long table piece by piece. */
+    @Query("SELECT * FROM transactions WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE epochMillis BETWEEN :fromMillis AND :toMillis ORDER BY epochMillis DESC, id DESC")
     fun observeBetween(fromMillis: Long, toMillis: Long): Flow<List<TransactionEntity>>
 
@@ -122,7 +133,8 @@ interface TransactionDao {
 
     /**
      * Every transaction whose note, category, parent category, account, destination account or person
-     * matches [like] (a LIKE pattern), or whose amount equals [cents]. Newest first, capped for speed.
+     * matches [like] (a LIKE pattern whose `%`, `_` and backslash the typed text escaped with a backslash: see
+     * `SearchText.contains`), or whose amount equals [cents]. Newest first, capped for speed.
      */
     @Query(
         """
@@ -132,8 +144,8 @@ interface TransactionDao {
         LEFT JOIN accounts a ON a.id = t.accountId
         LEFT JOIN accounts b ON b.id = t.toAccountId
         LEFT JOIN people pe ON pe.id = t.personId
-        WHERE t.note LIKE :like OR c.name LIKE :like OR p.name LIKE :like OR a.name LIKE :like
-           OR b.name LIKE :like OR pe.name LIKE :like OR t.amount = :cents
+        WHERE t.note LIKE :like ESCAPE '\' OR c.name LIKE :like ESCAPE '\' OR p.name LIKE :like ESCAPE '\' OR a.name LIKE :like ESCAPE '\'
+           OR b.name LIKE :like ESCAPE '\' OR pe.name LIKE :like ESCAPE '\' OR t.amount = :cents
         ORDER BY t.epochMillis DESC, t.id DESC
         LIMIT 1000
         """
@@ -244,6 +256,10 @@ interface RecurringDao {
 
     @Query("DELETE FROM recurring WHERE id = :id")
     suspend fun delete(id: Long)
+
+    /** Marks one bill handled for [month] (yyyyMM) and leaves the rest of it alone. Returns how many rows changed: 0 when the bill is gone. */
+    @Query("UPDATE recurring SET handledMonth = :month WHERE id = :id")
+    suspend fun setHandledMonth(id: Long, month: Int): Int
 }
 
 @Dao
@@ -262,6 +278,14 @@ interface InvestmentTransferDao {
 
     @Query("DELETE FROM investment_transfers WHERE id = :id")
     suspend fun delete(id: Long)
+
+    /** Stops waiting on the transfer that [transactionId] made, when it is still waiting. */
+    @Query("DELETE FROM investment_transfers WHERE transactionId = :transactionId")
+    suspend fun deleteForTransaction(transactionId: Long)
+
+    /** Brings the waiting row of the transfer [transactionId] in line with the entry after an edit. Returns how many rows changed. */
+    @Query("UPDATE investment_transfers SET accountId = :accountId, amount = :amount, epochMillis = :epochMillis WHERE transactionId = :transactionId")
+    suspend fun updateForTransaction(transactionId: Long, accountId: Long, amount: Long, epochMillis: Long): Int
 
     @Query("DELETE FROM investment_transfers")
     suspend fun deleteAll()
