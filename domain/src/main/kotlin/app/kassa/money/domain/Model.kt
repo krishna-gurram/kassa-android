@@ -113,6 +113,13 @@ enum class TxKind {
     BUY,
     /** Shares sold back to cash in an investment account. */
     SELL,
+    /**
+     * A balance correction that raises the account's balance: the account was short of what its bank shows. Not
+     * spending, not income, and in no category. Stored as text, so it needs no database change; see [BalanceCorrection].
+     */
+    ADJUST_IN,
+    /** A balance correction that lowers the account's balance. See [ADJUST_IN]. */
+    ADJUST_OUT,
 }
 
 /** Someone you split costs with or lend to. Their balance lives in [LoanEntry] rows and person transactions. */
@@ -178,7 +185,8 @@ val PERSON_KINDS = setOf(TxKind.PERSON_OUT, TxKind.PERSON_IN)
 
 fun Transaction.effectOn(accountId: Long): Long = when (kind) {
     TxKind.EXPENSE, TxKind.PERSON_OUT, TxKind.BUY -> if (this.accountId == accountId) -amount else 0
-    TxKind.INCOME, TxKind.PERSON_IN, TxKind.SELL -> if (this.accountId == accountId) amount else 0
+    TxKind.INCOME, TxKind.PERSON_IN, TxKind.SELL, TxKind.ADJUST_IN -> if (this.accountId == accountId) amount else 0
+    TxKind.ADJUST_OUT -> if (this.accountId == accountId) -amount else 0
     TxKind.TRANSFER -> when (accountId) {
         this.accountId -> -amount
         toAccountId -> amount
