@@ -102,14 +102,20 @@ if [ "$PREP" = prep ]; then
   tap "Add an account"; sleep 1
   tap "Loan or mortgage"; sleep 1
   adb exec-out screencap -p > ci-output/dbg-1-loan-sheet.png
-  type_into "Name" "Car%sloan"
-  adb exec-out screencap -p > ci-output/dbg-2-after-name.png
-  adb shell uiautomator dump /sdcard/d.xml > /dev/null 2>&1; adb pull /sdcard/d.xml ci-output/dbg-dump.txt > /dev/null 2>&1
-  type_into "Amount borrowed" "18000"
-  type_into "Interest rate a year" "5.5"
-  type_into "Term in months" "48"
-  back
-  scroll
+  # The keyboard covers the lower fields, so close it and scroll until each label is on screen.
+  fill() {
+    local i
+    for i in 1 2 3 4; do
+      if tap "$1"; then adb shell input text "$2" < /dev/null; sleep 0.6; adb shell input keyevent KEYCODE_BACK; sleep 1; return 0; fi
+      scroll; sleep 1
+    done
+    return 1
+  }
+  fill "Name" "Car%sloan"
+  fill "Amount borrowed" "18000"
+  fill "Interest rate a year" "5.5"
+  fill "Term in months" "48"
+  scroll; sleep 1
   tap "Add loan"; sleep 3
   tap "Car loan"; sleep 3
   tap "Record a payment"; sleep 1
