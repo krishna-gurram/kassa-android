@@ -244,7 +244,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     SectionHeader(stringResource(R.string.settings_section_about))
     NavRow(stringResource(R.string.settings_page_feedback), "") { open(SettingsPage.Feedback) }
     // A plain link to the website, which then goes to the tip page. Kassa itself never goes online.
-    NavRow(stringResource(R.string.settings_coffee_title), "kassamoney.com") {
+    NavRow(stringResource(R.string.settings_coffee_title), "www.kassamoney.com") {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.kassamoney.com/support.html"))) }
             .onFailure { messages?.say(coffeeFailed) }
     }

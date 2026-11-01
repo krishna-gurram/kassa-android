@@ -239,6 +239,15 @@ internal fun PrivacyPage() {
             Text(stringResource(body), style = KassaType.small, color = Kassa.colors.ink2)
         }
     }
+    // The same policy as a web page. A plain link out to the browser; Kassa itself never goes online.
+    val context = LocalContext.current
+    val messages = LocalMessages.current
+    val webFailed = stringResource(R.string.settings_privacy_web_failed)
+    Gap(12)
+    NavRow(stringResource(R.string.settings_privacy_web_title), "www.kassamoney.com") {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.kassamoney.com/privacy.html"))) }
+            .onFailure { messages?.say(webFailed) }
+    }
     Gap(24)
 }
 
