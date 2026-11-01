@@ -49,7 +49,7 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - No personal assumptions: nothing tied to the owner's banks, cards, Money Manager setup or expense-splitting habits. Nothing is recognised by a brand or a name: where Kassa can't classify something, the user picks.
   Defaults must make sense for someone starting fresh.
 - Locale-aware: dates, weekdays and numbers come from the phone's locale (never a hardcoded `Locale.US`);
-  currencies cover what real users need. New UI copy should be easy to move into `strings.xml` later.
+  currencies cover what real users need. New UI copy goes in string resources (below).
 - Accessible: content descriptions on icon buttons and glyph buttons (a "‹", "⋯" or "⌫" text glyph gets
   `clearAndSetSemantics { contentDescription = ... }` or is an `IconButton` with an `Icon`), and **every tap target at least
   48dp** (`IconButton`, `heightIn(min = 48.dp)`, or a 48dp cell with the smaller visual drawn inside it, as in the calendar days,
@@ -64,8 +64,14 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
 - Android comes first. A native iOS app (SwiftUI) is planned for later. One set of rules for every app: `domain/`
   and `importer/` become a Kotlin Multiplatform library the iOS app calls, with native screens on each platform (no
   shared UI). Keep them free of Android APIs, and prefer `kotlinx-datetime` over `java.time` in new rule code.
-- Screen text moves into `strings.xml` in one pass right before the Play Store launch; until then, keep new copy plain
-  and easy to move.
+- **Screen text lives in string resources**, English only for now, in `app/src/main/res/values/strings_<area>.xml` (accounts, settings,
+  importer, loans, app) with the area as the name prefix (`accounts_`, `cards_`, `today_`, `entry_`, `loans_`, ...). Composables use
+  `stringResource` / `pluralStringResource` (plurals wherever the English differs by count), other code uses `getString` on a Context or
+  Resources it already has. Use positional placeholders (`%1$s`, `%2$d`), pass amounts as `Money.format(...)` arguments (never build
+  amount text by hand), escape apostrophes (`\'`), and build a sentence as ONE resource so a translator can reorder it. Never call
+  `stringResource` inside `onClick`, `semantics`, `remember` or other non-composable lambdas: read it into a `val` first. Still in code on
+  purpose: text produced in `domain/` and `importer/` (plain Kotlin, no Android), `data/Failures.kt`, `IconCatalog` names, stored text
+  (default notes, starter category names) and decorative glyphs. Moving those needs keys instead of English from the rules.
 
 ## Layout
 - `domain/`: plain Kotlin rules (money, card cycles, periods, splits, insights, input rules, account form, shares,
