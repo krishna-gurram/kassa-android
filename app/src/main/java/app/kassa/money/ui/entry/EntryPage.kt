@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -103,13 +102,9 @@ fun EntryPage(
     }
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
-        PageTop(title, onBack = leave) {
+        // No balances here (typed amounts are never masked), and the one ink button is the one under the pad.
+        PageTop(title, onBack = leave, amounts = false) {
             if (s.editing != null) TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Kassa.colors.attention, style = KassaType.bodyStrong) }
-            else androidx.compose.material3.Button(
-                onClick = save, shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk),
-                modifier = Modifier.padding(end = 4.dp).androidx_minHeight(),
-            ) { Text("Save", style = KassaType.bodyStrong) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 600.dp
@@ -209,6 +204,3 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
     ) { s.field = Field.SPLIT; s.editingShare = null }
     s.error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp)) }
 }
-
-/** The one ink Save button at the top of the entry page keeps the 48dp touch target. */
-private fun Modifier.androidx_minHeight(): Modifier = this.then(Modifier.heightIn(min = 48.dp))

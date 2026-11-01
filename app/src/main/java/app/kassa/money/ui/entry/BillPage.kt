@@ -145,9 +145,8 @@ fun BillPage(
     val saveLabel = if (existing != null) "Save changes" else "Add bill"
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
-        PageTop(if (existing != null) "Edit bill" else "New bill", onBack = leave) {
+        PageTop(if (existing != null) "Edit bill" else "New bill", onBack = leave, amounts = false) {
             if (existing != null) TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Kassa.colors.attention, style = KassaType.bodyStrong) }
-            else TextButton(onClick = ::save) { Text("Save", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 600.dp

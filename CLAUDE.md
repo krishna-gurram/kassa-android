@@ -364,7 +364,7 @@ A due notification is `VISIBILITY_PRIVATE` with a public version that says only 
 name, no count), so nothing reaches a locked screen; its private text omits the amount while Hide balances is on.
 
 ## Style
-Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (Save sits in the entry page's top bar); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
+Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (on the entry and bill pages it is the button under the pad, which reads Next until everything is set, then Add or Save; their top bar has no Save and no eye); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
 Money has one color rule (`favourColor`, `balanceColor` in `ui/common/Components.kt`): **green** when it's in your favour
 (income, profit, someone owes you, a card in credit), **orange** when it's against you beyond ordinary spending (an
 investment loss, you owe someone, over budget, a card payment due or overdue, a bank or cash balance below zero, net
