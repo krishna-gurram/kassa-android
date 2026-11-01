@@ -186,7 +186,7 @@ private fun sendFeedback(context: Context, kind: FeedbackKind, text: String, sho
     for (intent in attempts) {
         try { context.startActivity(intent); return null } catch (e: ActivityNotFoundException) { /* try the next way */ }
     }
-    return "No email app on this phone."
+    return "No email app found. You can write to ${BuildConfigInfo.supportEmail.ifBlank { "us" }} yourself instead."
 }
 
 /** Copies a picked screenshot into the feedback folder, the only place Kassa shares files from. */
