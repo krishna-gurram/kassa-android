@@ -221,7 +221,6 @@ fun AccountChoiceRow(
     val chosen = selectedId?.let { id -> accounts.firstOrNull { it.id == id } }
     val value = chosen?.name ?: placeholder
     val description = stringResource(R.string.common_label_value, label, value)
-    val description = stringResource(R.string.common_label_value, label, value)
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape).border(1.dp, Kassa.colors.line, shape)

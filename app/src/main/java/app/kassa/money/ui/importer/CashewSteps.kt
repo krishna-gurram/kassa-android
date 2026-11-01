@@ -83,7 +83,7 @@ private fun Accounts(s: ImportState.Cashew, vm: ImportViewModel) {
             FlowRow {
                 AccountType.entries.forEach { t -> Chip(t.label, selected = s.choices.accountTypes[a.pk] == t, small = true) { vm.setAccountType(a.pk, t) } }
             }
-            if (a.pk in other) Text(stringResource(R.string.importer_cashew_other_currency_note, a.currency, s.phoneCurrency), style = KassaType.small, color = Kassa.colors.attention)
+            if (a.pk in other) Text(stringResource(R.string.importer_cashew_other_currency_note, a.currency.orEmpty(), s.phoneCurrency), style = KassaType.small, color = Kassa.colors.attention)
         }
         HorizontalDivider(color = Kassa.colors.line)
     }
@@ -135,7 +135,7 @@ private fun Loans(s: ImportState.Cashew, vm: ImportViewModel) {
 @Composable
 private fun Currency(s: ImportState.Cashew, a: CashewScan.Wallet, vm: ImportViewModel) {
     val out = a.pk in s.choices.leaveOut
-    Text(stringResource(R.string.importer_cashew_currency_title, a.name, a.currency), style = KassaType.title, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Text(stringResource(R.string.importer_cashew_currency_title, a.name, a.currency.orEmpty()), style = KassaType.title, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
     Gap(8)
     Text(stringResource(R.string.importer_cashew_currency_body, s.phoneCurrency), style = KassaType.body, color = Kassa.colors.ink2)
     Gap(12)
