@@ -52,6 +52,7 @@ import app.kassa.money.KassaApplication
 import app.kassa.money.R
 import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
