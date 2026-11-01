@@ -71,7 +71,7 @@
     <string name="settings_categories_new">New category</string>
     <string name="settings_categories_no_budget">No budget</string>
     <string name="settings_categories_subs">%1$d sub</string>
-    <string name="settings_coffee_failed">Open kassamoney.com in a browser to say thanks.</string>
+    <string name="settings_coffee_failed">Open www.kassamoney.com in a browser to say thanks.</string>
     <string name="settings_coffee_title">Buy me a coffee</string>
     <string name="settings_currency_confirm_body">Every amount already in Kassa keeps its number and shows as %1$s. Nothing is converted.</string>
     <string name="settings_currency_confirm_switch">Switch to %1$s</string>
@@ -173,6 +173,8 @@
     <string name="settings_privacy_feedback_title">Feedback</string>
     <string name="settings_privacy_local_body">Kassa has no internet permission. It can\'t send your data anywhere, and there\'s no account, no ads and no analytics.</string>
     <string name="settings_privacy_local_title">Everything stays on this phone</string>
+    <string name="settings_privacy_web_failed">Open www.kassamoney.com/privacy.html in a browser to read it.</string>
+    <string name="settings_privacy_web_title">Privacy policy on the web</string>
     <string name="settings_reminder_denied">Notifications are off for Kassa. Allow them in the phone\'s Settings > Apps > Kassa > Notifications, then turn this on again.</string>
     <string name="settings_reminder_detail">A nudge to record the day\'s transactions</string>
     <string name="settings_reminder_title">Daily reminder</string>

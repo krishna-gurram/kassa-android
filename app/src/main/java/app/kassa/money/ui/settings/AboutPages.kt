@@ -52,6 +52,7 @@ import app.kassa.money.KassaApplication
 import app.kassa.money.R
 import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.LocalMessages
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
@@ -238,6 +239,15 @@ internal fun PrivacyPage() {
             Text(stringResource(title), style = KassaType.bodyStrong, color = Kassa.colors.ink)
             Text(stringResource(body), style = KassaType.small, color = Kassa.colors.ink2)
         }
+    }
+    // The same policy as a web page. A plain link out to the browser; Kassa itself never goes online.
+    val context = LocalContext.current
+    val messages = LocalMessages.current
+    val webFailed = stringResource(R.string.settings_privacy_web_failed)
+    Gap(12)
+    NavRow(stringResource(R.string.settings_privacy_web_title), "www.kassamoney.com") {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.kassamoney.com/privacy.html"))) }
+            .onFailure { messages?.say(webFailed) }
     }
     Gap(24)
 }
