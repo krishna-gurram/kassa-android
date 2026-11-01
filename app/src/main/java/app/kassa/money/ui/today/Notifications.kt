@@ -35,9 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.DueItems
 import app.kassa.money.domain.DueKind
@@ -156,7 +158,8 @@ interface NoticeActions {
 @Composable
 fun NotificationsRow(list: List<Notice>, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     if (list.isEmpty()) return
-    val shown = list.take(2).joinToString(" · ") { it.label }
+    val transferLabel = stringResource(R.string.today_notice_transfer)
+    val shown = list.take(2).joinToString(" · ") { if (it is Notice.Transfer) transferLabel else it.label }
     val more = list.size - 2
     Row(
         modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.chip).clickable(onClick = onOpen)
@@ -167,8 +170,8 @@ fun NotificationsRow(list: List<Notice>, onOpen: () -> Unit, modifier: Modifier 
             Text(list.size.toString(), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.onInk, maxLines = 1)
         }
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text("Notifications", style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
-            Text(if (more > 0) "$shown · $more more" else shown, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.today_notifications_title), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
+            Text(if (more > 0) stringResource(R.string.today_notifications_more, shown, more) else shown, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Icon(Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
     }
@@ -181,21 +184,21 @@ fun NotificationsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (()
     val list = remember(ledger) { notices(ledger) }
     var confirmAll by remember { mutableStateOf(false) }
     if (confirmAll) ConfirmDialog(
-        "Clear all notifications?",
-        "Nothing is added or paid. Bills come back next month, cards after their next statement, loans on their next payment day.",
-        "Clear all", onConfirm = { actions.clear(list) }, onDismiss = { confirmAll = false }, destructive = false,
+        stringResource(R.string.today_notifications_clear_all_title),
+        stringResource(R.string.today_notifications_clear_all_body),
+        stringResource(R.string.today_notifications_clear_all), onConfirm = { actions.clear(list) }, onDismiss = { confirmAll = false }, destructive = false,
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop("Notifications", onBack) {
-            if (list.isNotEmpty()) TextButton(onClick = { confirmAll = true }) { Text("Clear all", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
+        PageTop(stringResource(R.string.today_notifications_title), onBack) {
+            if (list.isNotEmpty()) TextButton(onClick = { confirmAll = true }) { Text(stringResource(R.string.today_notifications_clear_all), style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
-        if (list.isEmpty()) Text("Nothing needs you.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
+        if (list.isEmpty()) Text(stringResource(R.string.today_notifications_empty), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
         val payments = list.filter { it is Notice.Bill || it is Notice.Card || it is Notice.Loan }
         listOf(
-            "Due today" to payments.filter { it.date == ledger.today },
-            "Overdue" to payments.filter { it.date.isBefore(ledger.today) },
-            "Investment transfers" to list.filterIsInstance<Notice.Transfer>(),
-            "Suggested bills" to list.filterIsInstance<Notice.Suggestion>(),
+            stringResource(R.string.today_notifications_group_today) to payments.filter { it.date == ledger.today },
+            stringResource(R.string.today_notifications_group_overdue) to payments.filter { it.date.isBefore(ledger.today) },
+            stringResource(R.string.today_notifications_group_transfers) to list.filterIsInstance<Notice.Transfer>(),
+            stringResource(R.string.today_notifications_group_suggested) to list.filterIsInstance<Notice.Suggestion>(),
         ).filter { it.second.isNotEmpty() }.forEach { (title, group) ->
             SectionHeader(title)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -216,63 +219,64 @@ private fun NoticeCard(ledger: Ledger, n: Notice, actions: NoticeActions) {
             val last = RecurringRules.recent(r, ledger.recent)
             Card(
                 kicker = dueText(n.due, ledger.today) +
-                    if (r.fixedAmount == null && last.isNotEmpty()) ". Last ${last.size}: ${last.joinToString { Money.format(it, wholeDollars = true) }}" else "",
+                    if (r.fixedAmount == null && last.isNotEmpty()) stringResource(R.string.today_notice_last, last.size, last.joinToString { Money.format(it, wholeDollars = true) }) else "",
                 badge = { CategoryBadge(Spending.topOf(r.categoryId, ledger.categoryById)) },
                 title = r.name,
-                subtitle = if (r.fixedAmount != null) "Fixed amount" else if (est != null) "Estimated, edit if the bill differs" else "No history yet, enter the amount",
+                subtitle = stringResource(if (r.fixedAmount != null) R.string.today_notice_bill_fixed else if (est != null) R.string.today_notice_bill_estimated else R.string.today_notice_bill_no_history),
                 amount = est?.let { Money.format(it) } ?: "",
                 onClear = clear,
             ) {
-                if (est != null) Chip("Add ${Money.format(est)}", selected = true) { actions.addBill(n, est) }
-                Chip(if (est != null) "Edit amount" else "Enter amount", selected = est == null) { actions.editBill(n, est ?: 0) }
+                if (est != null) Chip(stringResource(R.string.today_notice_add_amount, Money.format(est)), selected = true) { actions.addBill(n, est) }
+                Chip(stringResource(if (est != null) R.string.today_notice_edit_amount else R.string.today_notice_enter_amount), selected = est == null) { actions.editBill(n, est ?: 0) }
             }
         }
         is Notice.Card -> Card(
-            kicker = "Card payment, " + dueText(n.card.snapshot.due, ledger.today).replaceFirstChar { it.lowercase() },
+            kicker = stringResource(R.string.today_notice_card_kicker, dueText(n.card.snapshot.due, ledger.today).replaceFirstChar { it.lowercase() }),
             badge = { GlyphBadge(n.card.account.name.take(1)) },
             title = n.card.account.name,
-            subtitle = "Balance payable",
+            subtitle = stringResource(R.string.today_notice_balance_payable),
             amount = Money.format(n.card.snapshot.payable),
             onClear = clear,
-        ) { Chip("Pay", selected = true) { actions.payCard(n.card.account.id) } }
+        ) { Chip(stringResource(R.string.today_notice_pay), selected = true) { actions.payCard(n.card.account.id) } }
         is Notice.Loan -> Card(
-            kicker = "Loan payment, " + dueText(n.due, ledger.today).replaceFirstChar { it.lowercase() },
+            kicker = stringResource(R.string.today_notice_loan_kicker, dueText(n.due, ledger.today).replaceFirstChar { it.lowercase() }),
             badge = { GlyphBadge(n.loan.name.take(1)) },
             title = n.loan.name,
-            subtitle = "Scheduled payment",
+            subtitle = stringResource(R.string.today_notice_scheduled),
             amount = Money.format(n.amount),
             onClear = clear,
-        ) { Chip("Pay", selected = true) { actions.payLoan(n.loan.id) } }
+        ) { Chip(stringResource(R.string.today_notice_pay), selected = true) { actions.payLoan(n.loan.id) } }
         is Notice.Transfer -> Card(
-            kicker = "Investment transfer on ${shortDate(n.date)}",
+            kicker = stringResource(R.string.today_notice_transfer_kicker, shortDate(n.date)),
             badge = { GlyphBadge("↗") },
-            title = "Where did it go?",
-            subtitle = "Moved to ${ledger.accountById[n.transfer.accountId]?.name ?: "investments"}",
+            title = stringResource(R.string.today_notice_transfer_title),
+            subtitle = stringResource(R.string.today_notice_transfer_subtitle, ledger.accountById[n.transfer.accountId]?.name ?: stringResource(R.string.today_notice_transfer_fallback)),
             amount = Money.format(n.transfer.amount),
             onClear = clear,
-        ) { Chip("Answer", selected = true) { actions.allocate(n.transfer) } }
+        ) { Chip(stringResource(R.string.today_notice_answer), selected = true) { actions.allocate(n.transfer) } }
         is Notice.Suggestion -> {
             val r = n.repeat
             val same = r.amounts.reversed().takeWhile { it == r.amounts.last() }.size
             Card(
-                kicker = "Looks like a bill",
+                kicker = stringResource(R.string.today_notice_suggest_kicker),
                 badge = { CategoryBadge(Spending.topOf(r.categoryId, ledger.categoryById)) },
                 title = r.name,
-                subtitle = "Every month, the same amount $same times",
+                subtitle = stringResource(R.string.today_notice_suggest_subtitle, same),
                 amount = Money.format(r.typical),
                 onClear = clear,
-            ) { Chip("Track as bill", selected = true) { actions.trackAsBill(r) } }
+            ) { Chip(stringResource(R.string.today_notice_track), selected = true) { actions.trackAsBill(r) } }
         }
     }
 }
 
 /** "Due today", "Due Thu, Oct 29" or "Overdue, was due Tue, Oct 20". */
+@Composable
 private fun dueText(due: LocalDate, today: LocalDate): String {
     val day = weekdayDate(due)
     return when {
-        due == today -> "Due today"
-        due.isBefore(today) -> "Overdue, was due $day"
-        else -> "Due $day"
+        due == today -> stringResource(R.string.today_due_today)
+        due.isBefore(today) -> stringResource(R.string.today_due_overdue, day)
+        else -> stringResource(R.string.today_due_on, day)
     }
 }
 
@@ -292,7 +296,7 @@ private fun Card(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(kicker, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             IconButton(onClick = onClear, modifier = Modifier.size(48.dp).offset(x = 12.dp)) {
-                Icon(Icons.Outlined.Close, "Clear", tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Close, stringResource(R.string.today_notice_clear), tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

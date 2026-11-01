@@ -16,7 +16,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
@@ -48,18 +50,18 @@ internal fun AddPersonSheet(people: List<Person>, onDismiss: () -> Unit, onAdd: 
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text("Add a person", style = KassaType.section, color = Kassa.colors.ink)
+            Text(stringResource(R.string.accounts_add_a_person), style = KassaType.section, color = Kassa.colors.ink)
             Gap(12)
-            NameField(name, { name = it; nameProblem = null }, "Name", Modifier.fillMaxWidth(), problem = nameProblem)
+            NameField(name, { name = it; nameProblem = null }, stringResource(R.string.accounts_name), Modifier.fillMaxWidth(), problem = nameProblem)
             Gap(4)
-            Text("Already owed (optional)", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.accounts_already_owed_optional), style = KassaType.tiny, color = Kassa.colors.ink2)
             FlowRow(Modifier.padding(top = 6.dp)) {
-                Chip("They owe me", selected = theyOwe) { theyOwe = true }
-                Chip("I owe them", selected = !theyOwe) { theyOwe = false }
+                Chip(stringResource(R.string.accounts_they_owe_me), selected = theyOwe) { theyOwe = true }
+                Chip(stringResource(R.string.accounts_i_owe_them), selected = !theyOwe) { theyOwe = false }
             }
-            AmountField(amount, { amount = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth(), problem = amountProblem)
+            AmountField(amount, { amount = it; amountProblem = null }, stringResource(R.string.accounts_amount), Modifier.fillMaxWidth(), problem = amountProblem)
             Gap(16)
-            PrimaryButton("Add person") {
+            PrimaryButton(stringResource(R.string.accounts_add_person)) {
                 val cents = if (amount.isBlank()) 0L else Money.parseCents(amount)
                 nameProblem = InputRules.nameProblem(name, "person", taken = { people.hasName(it) })
                 amountProblem = InputRules.amountProblem(cents, zeroAllowed = true)
@@ -94,38 +96,38 @@ internal fun EditPersonSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            Text("Edit person", style = KassaType.section, color = Kassa.colors.ink)
+            Text(stringResource(R.string.accounts_edit_person), style = KassaType.section, color = Kassa.colors.ink)
             Gap(12)
-            NameField(name, { name = it; nameProblem = null }, "Name", Modifier.fillMaxWidth(), problem = nameProblem)
+            NameField(name, { name = it; nameProblem = null }, stringResource(R.string.accounts_name), Modifier.fillMaxWidth(), problem = nameProblem)
             Gap(4)
-            Text("Already owed when you added them", style = KassaType.tiny, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.accounts_already_owed_when_added), style = KassaType.tiny, color = Kassa.colors.ink2)
             FlowRow(Modifier.padding(top = 6.dp)) {
-                Chip("They owe me", selected = theyOwe) { theyOwe = true }
-                Chip("I owe them", selected = !theyOwe) { theyOwe = false }
+                Chip(stringResource(R.string.accounts_they_owe_me), selected = theyOwe) { theyOwe = true }
+                Chip(stringResource(R.string.accounts_i_owe_them), selected = !theyOwe) { theyOwe = false }
             }
-            AmountField(amount, { amount = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth(), problem = amountProblem, placeholder = "0")
-            Text("Changes the starting balance line. Splits and payments stay.", style = KassaType.small, color = Kassa.colors.ink2)
+            AmountField(amount, { amount = it; amountProblem = null }, stringResource(R.string.accounts_amount), Modifier.fillMaxWidth(), problem = amountProblem, placeholder = "0")
+            Text(stringResource(R.string.accounts_edit_person_note), style = KassaType.small, color = Kassa.colors.ink2)
             Gap(16)
-            PrimaryButton("Save") {
+            PrimaryButton(stringResource(R.string.accounts_save)) {
                 val cents = if (amount.isBlank()) 0L else Money.parseCents(amount)
                 nameProblem = InputRules.nameProblem(name, "person", taken = { people.hasName(it, except = p.id) })
                 amountProblem = InputRules.amountProblem(cents, zeroAllowed = true)
                 if (nameProblem == null && amountProblem == null) onSave(p.copy(name = InputRules.clean(name)), if (theyOwe) cents!! else -cents!!)
             }
             Gap(8)
-            if (p.archived) SecondaryButton("Restore", { onSave(p.copy(archived = false), starting) })
+            if (p.archived) SecondaryButton(stringResource(R.string.accounts_restore), { onSave(p.copy(archived = false), starting) })
             // Archived people don't count in Receivable or Payable, so only a settled person can be archived.
             else if (balance != 0L) Text(
-                "To archive ${p.name}, settle the ${Money.format(Math.abs(balance))} first or set the starting balance so nothing is open.",
+                stringResource(R.string.accounts_person_archive_blocked, p.name, Money.format(Math.abs(balance))),
                 style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
             )
-            else SecondaryButton("Archive", { confirmArchive = true })
+            else SecondaryButton(stringResource(R.string.accounts_archive), { confirmArchive = true })
         }
     }
     if (confirmArchive) ConfirmDialog(
-        title = "Archive ${p.name}?",
-        body = "${p.name} leaves the people list and the pickers. The history stays.",
-        confirm = "Archive",
+        title = stringResource(R.string.accounts_archive_title, p.name),
+        body = stringResource(R.string.accounts_person_archive_body, p.name),
+        confirm = stringResource(R.string.accounts_archive),
         onConfirm = { onSave(p.copy(archived = true), starting) },
         onDismiss = { confirmArchive = false },
     )

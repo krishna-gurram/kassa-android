@@ -1,5 +1,7 @@
 package app.kassa.money.ui
 
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
@@ -209,7 +211,7 @@ class MainActivity : FragmentActivity() {
      * on), the setting is turned off and they are told once, instead of the app opening while Settings still says it is locked.
      */
     private fun lockUnavailable() {
-        (application as KassaApplication).settings.lockTurnedOff(AppLock.TURNED_OFF)
+        (application as KassaApplication).settings.lockTurnedOff(getString(R.string.shell_app_lock_turned_off))
         locked.value = false
     }
 
@@ -217,7 +219,7 @@ class MainActivity : FragmentActivity() {
         if (AppLock.check(this) == AppLock.Status.NO_SCREEN_LOCK) return lockUnavailable()
         val auth = Authenticators.BIOMETRIC_WEAK or Authenticators.DEVICE_CREDENTIAL
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock Kassa")
+            .setTitle(getString(R.string.shell_unlock_title))
             .apply {
                 if (android.os.Build.VERSION.SDK_INT >= 30) setAllowedAuthenticators(auth)
                 else @Suppress("DEPRECATION") setDeviceCredentialAllowed(true)
@@ -240,8 +242,8 @@ class MainActivity : FragmentActivity() {
 private fun LockScreen(onUnlock: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Kassa.colors.ground), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Kassa is locked", style = KassaType.section, color = Kassa.colors.ink)
-            TextButton(onClick = onUnlock) { Text("Unlock", color = Kassa.colors.ink) }
+            Text(stringResource(R.string.shell_locked), style = KassaType.section, color = Kassa.colors.ink)
+            TextButton(onClick = onUnlock) { Text(stringResource(R.string.shell_unlock), color = Kassa.colors.ink) }
         }
     }
 }

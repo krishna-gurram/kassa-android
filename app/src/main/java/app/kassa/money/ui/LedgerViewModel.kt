@@ -2,10 +2,13 @@ package app.kassa.money.ui
 
 import android.app.Application
 import android.net.Uri
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.kassa.money.KassaApplication
+import app.kassa.money.R
 import app.kassa.money.data.Failures
 import app.kassa.money.data.Failures.Doing
 import app.kassa.money.data.backup.BackupContents
@@ -77,6 +80,10 @@ private data class Investing(
 class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     private val kassa = app as KassaApplication
     private val settings = kassa.settings
+
+    private fun s(@StringRes id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
+
+    private fun pluralS(@PluralsRes id: Int, n: Int): String = getApplication<Application>().resources.getQuantityString(id, n, n)
 
     /** Today and the phone's time zone; they move on at midnight and when the zone changes, and everything below follows. */
     private val clock = kassa.clock.day
@@ -157,7 +164,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         _messages.tryEmit(savedMessage(draft, saved))
     }
 
-    fun delete(id: Long) = change("Entry deleted.") { kassa.entries.delete(id) }
+    fun delete(id: Long) = change(s(R.string.shell_entry_deleted)) { kassa.entries.delete(id) }
 
     suspend fun notes(kind: TxKind): List<String> = kassa.entries.frequentNotes(kind)
 
@@ -192,74 +199,74 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         val to = saved.toAccountId?.let { l?.accountById?.get(it) }
         if (draft.id == null && saved.kind == TxKind.TRANSFER && to?.type == AccountType.INVESTMENT) {
             kassa.investments.awaitExplanation(saved)
-            return "Moved ${Money.format(saved.amount)} to ${to.name}. Say what it bought on Overview."
+            return s(R.string.shell_moved_to_investment, Money.format(saved.amount), to.name)
         }
         val text = when (saved.kind) {
             // The ledger updates a moment later, so add this entry to the numbers now.
-            TxKind.EXPENSE -> l?.copy(recent = l.recent.filter { it.id != saved.id } + saved)?.spendingLine(saved.categoryId) ?: "Expense saved."
-            TxKind.INCOME -> "${Money.format(saved.amount)} added to ${l?.accountById?.get(saved.accountId)?.name ?: "the account"}."
-            TxKind.TRANSFER -> if (to?.type?.hasStatement == true) "Paid ${Money.format(saved.amount)} to ${to.name}." else "Moved ${Money.format(saved.amount)} to ${to?.name ?: "the account"}."
-            TxKind.PERSON_IN, TxKind.PERSON_OUT -> "Payment recorded."
-            TxKind.BUY, TxKind.SELL -> "Saved."
-            TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> "Balance corrected."
+            TxKind.EXPENSE -> l?.copy(recent = l.recent.filter { it.id != saved.id } + saved)?.spendingLine(getApplication<Application>().resources, saved.categoryId) ?: s(R.string.shell_expense_saved)
+            TxKind.INCOME -> s(R.string.shell_income_added, Money.format(saved.amount), l?.accountById?.get(saved.accountId)?.name ?: s(R.string.shell_the_account))
+            TxKind.TRANSFER -> if (to?.type?.hasStatement == true) s(R.string.shell_paid_to, Money.format(saved.amount), to.name) else s(R.string.shell_moved_to, Money.format(saved.amount), to?.name ?: s(R.string.shell_the_account))
+            TxKind.PERSON_IN, TxKind.PERSON_OUT -> s(R.string.shell_payment_recorded)
+            TxKind.BUY, TxKind.SELL -> s(R.string.shell_saved)
+            TxKind.ADJUST_IN, TxKind.ADJUST_OUT -> s(R.string.shell_balance_corrected)
         }
-        return if (draft.id != null) "Saved. $text" else text
+        return if (draft.id != null) s(R.string.shell_saved_then, text) else text
     }
 
     /* ---------- accounts and people ---------- */
 
     fun addAccount(account: Account, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} added.", { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.add(account, newGroupName) }
+        change(s(R.string.shell_added, account.name.trim()), { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.add(account, newGroupName) }
 
     fun updateAccount(account: Account, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} saved.", { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.update(account, newGroupName) }
+        change(s(R.string.shell_saved_named, account.name.trim()), { onDone(); if (hasDueDay(account)) offerNotifications() }) { kassa.accounts.update(account, newGroupName) }
 
     fun setArchived(account: Account, archived: Boolean) =
-        change(if (archived) "${account.name} archived. Its history stays." else "${account.name} restored.") { kassa.accounts.update(account.copy(archived = archived)) }
+        change(if (archived) s(R.string.shell_archived, account.name) else s(R.string.shell_restored, account.name)) { kassa.accounts.update(account.copy(archived = archived)) }
 
     /** Closes an account (its history stays) or reopens it. The balance check is the repository's; a problem shows as a message. */
     fun setClosed(account: Account, closedDay: Int?) =
-        change(if (closedDay != null) "${account.name} closed. Its history stays." else "${account.name} reopened.") { kassa.accounts.setClosed(account.id, closedDay) }
+        change(if (closedDay != null) s(R.string.shell_closed, account.name) else s(R.string.shell_reopened, account.name)) { kassa.accounts.setClosed(account.id, closedDay) }
 
-    fun addPerson(name: String, opening: Long, onDone: () -> Unit = {}) = change("${name.trim()} added.", onDone) { kassa.people.add(name, opening) }
+    fun addPerson(name: String, opening: Long, onDone: () -> Unit = {}) = change(s(R.string.shell_added, name.trim()), onDone) { kassa.people.add(name, opening) }
 
     fun updatePerson(p: Person, startingBalance: Long? = null, onDone: () -> Unit = {}) =
-        change("${p.name.trim()} saved.", onDone) { kassa.people.update(p, startingBalance) }
+        change(s(R.string.shell_saved_named, p.name.trim()), onDone) { kassa.people.update(p, startingBalance) }
 
     fun convertToPerson(account: Account, balance: Long, name: String) =
-        change("${account.name} is now ${name.trim()} under People. The account is archived with its history.") { kassa.people.fromAccount(account, balance, name) }
+        change(s(R.string.shell_account_now_person, account.name, name.trim())) { kassa.people.fromAccount(account, balance, name) }
 
     /* ---------- loans ---------- */
 
     /** Adds a new loan account with its terms; [onDone] runs once it is saved, so a sheet stays open on a problem. */
     fun addLoan(account: Account, terms: LoanTerms, newGroupName: String?, onDone: () -> Unit = {}) =
-        change("${account.name.trim()} added.", { onDone(); offerNotifications() }) { kassa.loans.addLoan(account, terms, newGroupName) }
+        change(s(R.string.shell_added, account.name.trim()), { onDone(); offerNotifications() }) { kassa.loans.addLoan(account, terms, newGroupName) }
 
     /** Adds terms to an existing loan account, keeping its entries. */
     fun addLoanTerms(account: Account, terms: LoanTerms, onDone: () -> Unit = {}) =
-        change("Terms added to ${account.name.trim()}.", { onDone(); offerNotifications() }) { kassa.loans.addTerms(account, terms) }
+        change(s(R.string.shell_terms_added, account.name.trim()), { onDone(); offerNotifications() }) { kassa.loans.addTerms(account, terms) }
 
     /** Records a loan payment (or saves an edit of one) as its linked entries. */
     fun recordLoanPayment(draft: LoanPaymentDraft, onDone: () -> Unit = {}) =
-        change(if (draft.id == null) "Payment recorded." else "Payment saved.", onDone) { kassa.loans.recordPayment(draft) }
+        change(if (draft.id == null) s(R.string.shell_payment_recorded) else s(R.string.shell_payment_saved), onDone) { kassa.loans.recordPayment(draft) }
 
-    fun deleteLoanPayment(id: Long, onDone: () -> Unit = {}) = change("Payment deleted.", onDone) { kassa.loans.deletePayment(id) }
+    fun deleteLoanPayment(id: Long, onDone: () -> Unit = {}) = change(s(R.string.shell_payment_deleted), onDone) { kassa.loans.deletePayment(id) }
 
     /** Saves a loan's undated details; the account carries its name. */
     fun updateLoanDetails(account: Account, terms: LoanTerms, onDone: () -> Unit = {}) =
-        change("Details saved.", onDone) { kassa.loans.updateDetails(account, terms) }
+        change(s(R.string.shell_details_saved), onDone) { kassa.loans.updateDetails(account, terms) }
 
     /** Saves a change of terms from a date on; earlier payments keep their split. */
-    fun addLoanChange(termChange: LoanTermChange, onDone: () -> Unit = {}) = change("Change saved.", onDone) { kassa.loans.addChange(termChange) }
+    fun addLoanChange(termChange: LoanTermChange, onDone: () -> Unit = {}) = change(s(R.string.shell_change_saved), onDone) { kassa.loans.addChange(termChange) }
 
-    fun deleteLoanChange(id: Long) = change("Change removed.") { kassa.loans.deleteChange(id) }
+    fun deleteLoanChange(id: Long) = change(s(R.string.shell_change_removed)) { kassa.loans.deleteChange(id) }
 
     /** Makes [accountId] show [target] by saving a dated correction, or replaces the earlier one [editingId]. */
     fun correctBalance(accountId: Long, target: Long, epochMillis: Long, editingId: Long?, onDone: () -> Unit = {}) =
-        change(if (editingId == null) "Balance corrected." else "Correction saved.", onDone) { kassa.entries.correctBalance(accountId, target, epochMillis, editingId) }
+        change(if (editingId == null) s(R.string.shell_balance_corrected) else s(R.string.shell_correction_saved), onDone) { kassa.entries.correctBalance(accountId, target, epochMillis, editingId) }
 
     /** Deletes a balance correction: the balance goes back to what it was without it. */
-    fun deleteCorrection(id: Long, onDone: () -> Unit = {}) = change("Correction deleted.", onDone) { kassa.entries.delete(id) }
+    fun deleteCorrection(id: Long, onDone: () -> Unit = {}) = change(s(R.string.shell_correction_deleted), onDone) { kassa.entries.delete(id) }
 
     /** The loan payment an entry belongs to, if any: such an entry opens the payment sheet, not the entry page. */
     suspend fun loanPaymentForEntry(entryId: Long): LoanPayment? = kassa.loans.paymentForEntry(entryId)
@@ -276,7 +283,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Saves a category, and its default budget when it's a top-level expense category. [quiet] skips the message (reordering). */
     fun saveCategory(category: Category, budget: Long?, quiet: Boolean = false, then: (Long) -> Unit = {}) =
-        change(if (quiet) null else "${category.name.trim()} saved.") {
+        change(if (quiet) null else s(R.string.shell_saved_named, category.name.trim())) {
             val id = kassa.categories.save(category)
             if (category.parentId == null && category.kind == CategoryKind.EXPENSE) kassa.categories.setBudget(id, 0, budget)
             then(id)
@@ -284,11 +291,11 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setMonthBudget(categoryId: Long, month: YearMonth, amount: Long?) = change { kassa.categories.setBudget(categoryId, Budgets.key(month), amount) }
 
-    fun mergeCategory(from: Category, into: Category) = change("Moved everything from ${from.name} into ${into.name}.") { kassa.categories.merge(from, into.id) }
+    fun mergeCategory(from: Category, into: Category) = change(s(R.string.shell_category_merged, from.name, into.name)) { kassa.categories.merge(from, into.id) }
 
     /* ---------- bills ---------- */
 
-    fun saveBill(bill: Recurring, onDone: () -> Unit = {}) = change("${bill.name.trim()} saved.", onDone) { kassa.bills.save(bill) }
+    fun saveBill(bill: Recurring, onDone: () -> Unit = {}) = change(s(R.string.shell_saved_named, bill.name.trim()), onDone) { kassa.bills.save(bill) }
 
     fun deleteBill(id: Long) = change { kassa.bills.delete(id) }
 
@@ -296,7 +303,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
      * Records the bill due on [due] for [amount] and marks that month handled. Paid ahead of its day, it's dated
      * today, when the money actually moved.
      */
-    fun approveBill(bill: Recurring, amount: Long, due: LocalDate) = change("${bill.name} added for ${Money.format(amount)}.") {
+    fun approveBill(bill: Recurring, amount: Long, due: LocalDate) = change(s(R.string.shell_bill_added, bill.name, Money.format(amount))) {
         val now = clock.value
         val day = minOf(due, now.today)
         val draft = EntryDraft(
@@ -314,7 +321,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
      * Clears notifications without adding or paying anything: a bill skips that month, a transfer stops asking,
      * and a card or loan payment or a suggested bill is hidden by its key.
      */
-    fun clear(notices: List<Notice>) = change(if (notices.size == 1) "Cleared." else "Cleared ${notices.size} notifications.") {
+    fun clear(notices: List<Notice>) = change(pluralS(R.plurals.shell_cleared, notices.size)) {
         notices.forEach { n ->
             when (n) {
                 is Notice.Bill -> kassa.bills.markHandled(n.bill, Budgets.key(YearMonth.from(n.due)))
@@ -327,23 +334,23 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ---------- investments ---------- */
 
-    fun keepTransferAsCash(transferId: Long) = change("Kept as cash in the account.") { kassa.investments.settle(transferId) }
+    fun keepTransferAsCash(transferId: Long) = change(s(R.string.shell_kept_as_cash)) { kassa.investments.settle(transferId) }
 
     /** Clears a transfer the user already accounted for (or no longer wants asked about). */
     fun clearTransfer(transferId: Long) = change { kassa.investments.settle(transferId) }
 
     fun buy(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, transferId: Long?, onDone: () -> Unit = {}) =
-        change("Added ${ticker.trim().uppercase()} to holdings.", onDone) { kassa.investments.buy(accountId, ticker, microShares, price, at, transferId) }
+        change(s(R.string.shell_added_to_holdings, ticker.trim().uppercase()), onDone) { kassa.investments.buy(accountId, ticker, microShares, price, at, transferId) }
 
     fun sell(accountId: Long, ticker: String, microShares: Long, price: Long, at: Long, onDone: () -> Unit = {}) =
-        change("Sold ${ticker.trim().uppercase()}.", onDone) { kassa.investments.sell(accountId, ticker, microShares, price, at) }
+        change(s(R.string.shell_sold, ticker.trim().uppercase()), onDone) { kassa.investments.sell(accountId, ticker, microShares, price, at) }
 
     fun editTrade(entry: Transaction, ticker: String, microShares: Long, price: Long, at: Long, onDone: () -> Unit) =
-        change("Trade saved.", onDone) { kassa.investments.editTrade(entry, ticker, microShares, price, at) }
+        change(s(R.string.shell_trade_saved), onDone) { kassa.investments.editTrade(entry, ticker, microShares, price, at) }
 
-    fun moveTrade(entry: Transaction, at: Long, onDone: () -> Unit) = change("Date changed.", onDone) { kassa.investments.moveTrade(entry, at) }
+    fun moveTrade(entry: Transaction, at: Long, onDone: () -> Unit) = change(s(R.string.shell_date_changed), onDone) { kassa.investments.moveTrade(entry, at) }
 
-    fun deleteTrade(entry: Transaction, onDone: () -> Unit) = change("Trade deleted.", onDone) { kassa.investments.deleteTrade(entry) }
+    fun deleteTrade(entry: Transaction, onDone: () -> Unit) = change(s(R.string.shell_trade_deleted), onDone) { kassa.investments.deleteTrade(entry) }
 
     fun saveHolding(h: Holding) = change { kassa.investments.save(h) }
 
@@ -366,7 +373,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         try {
             val out = getApplication<Application>().contentResolver.openOutputStream(uri) ?: throw FileNotFoundException("No output stream")
             out.use { kassa.backups.write(it, password) }
-            if (password == null || password.isEmpty()) "Backup saved." else "Copy saved. Keep the password somewhere safe; without it the file can't be opened."
+            if (password == null || password.isEmpty()) s(R.string.shell_backup_saved) else s(R.string.shell_copy_saved)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -402,11 +409,11 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         )
         try {
             kassa.backups.restore(contents)
-            settings.setMonthStartDay(1); DueNotifier.refresh(kassa); _messages.tryEmit("Demo data loaded.")
+            settings.setMonthStartDay(1); DueNotifier.refresh(kassa); _messages.tryEmit(s(R.string.shell_demo_loaded))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _messages.tryEmit("Demo data couldn't be loaded.")
+            _messages.tryEmit(s(R.string.shell_demo_failed))
         }
     }
 
@@ -418,7 +425,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         val message = try {
             kassa.backups.restore(contents)
             DueNotifier.refresh(kassa)
-            "Backup restored."
+            s(R.string.shell_backup_restored)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

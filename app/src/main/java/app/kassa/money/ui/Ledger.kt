@@ -1,5 +1,7 @@
 package app.kassa.money.ui
 
+import android.content.res.Resources
+import app.kassa.money.R
 import app.kassa.money.data.repo.AccountsState
 import app.kassa.money.data.repo.LoansState
 import app.kassa.money.data.repo.PeopleState
@@ -91,19 +93,19 @@ data class Ledger(
     fun openPersonBalances(): Map<Long, Long> = people.people.filter { !it.archived }.associate { it.id to personBalance(it.id, people.loans, people.payments) }
 
     /** "Groceries: $412 of $600. On pace." Shown after saving an expense. */
-    fun spendingLine(categoryId: Long?): String? {
+    fun spendingLine(res: Resources, categoryId: Long?): String? {
         val top = Spending.topOf(categoryId, categoryById) ?: return null
         val spent = Spending.byTopCategory(counted, categoryById, period.start, period.endInclusive, zone)[top.id] ?: 0
         val budget = Budgets.amountFor(top.id, period.yearMonth, budgets)
         // While hidden, only the masked figure: "over budget" or a percentage ahead of pace would give the size away.
-        if (budget == null || budget == 0L || Money.isHidden) return "${top.name}: ${Money.format(spent, wholeDollars = true)} this month."
+        if (budget == null || budget == 0L || Money.isHidden) return res.getString(R.string.shell_spending_this_month, top.name, Money.format(spent, wholeDollars = true))
         val pace = budget * period.progress(today)
         val tail = when {
-            spent > budget -> "${Money.format(spent - budget, wholeDollars = true)} over budget."
-            spent > pace * 1.05 -> "${Math.round((spent / pace - 1) * 100)}% ahead of an even pace."
-            else -> "On pace."
+            spent > budget -> res.getString(R.string.shell_over_budget, Money.format(spent - budget, wholeDollars = true))
+            spent > pace * 1.05 -> res.getString(R.string.shell_ahead_of_pace, Math.round((spent / pace - 1) * 100))
+            else -> res.getString(R.string.shell_on_pace)
         }
-        return "${top.name}: ${Money.format(spent, wholeDollars = true)} of ${Money.format(budget, wholeDollars = true)}. $tail"
+        return res.getString(R.string.shell_spending_of_budget, top.name, Money.format(spent, wholeDollars = true), Money.format(budget, wholeDollars = true), tail)
     }
 }
 

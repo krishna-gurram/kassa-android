@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountKindFilter
 import app.kassa.money.domain.CardSnapshot
@@ -80,13 +82,13 @@ import java.util.Locale
 /** The pad, with Payable and Total buttons when paying a card, then Next or Save. */
 @Composable
 internal fun ColumnScope.AmountPanel(s: EntryState, toCard: CardSnapshot?, saveLabel: String, onSave: () -> Unit) {
-    PanelTitle("Amount", onDone = null)
+    PanelTitle(stringResource(R.string.entry_amount), onDone = null)
     if (toCard != null && (toCard.payable > 0 || toCard.totalBalance > 0)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-            if (toCard.payable > 0) QuickButton("Payable ${Money.format(toCard.payable)}", on = s.cents == toCard.payable, modifier = Modifier.weight(1f)) {
+            if (toCard.payable > 0) QuickButton(stringResource(R.string.entry_payable_amount, Money.format(toCard.payable)), on = s.cents == toCard.payable, modifier = Modifier.weight(1f)) {
                 s.amount = centsToInput(toCard.payable); s.error = null
             }
-            if (toCard.totalBalance > 0) QuickButton("Total ${Money.format(toCard.totalBalance)}", on = s.cents == toCard.totalBalance, modifier = Modifier.weight(1f)) {
+            if (toCard.totalBalance > 0) QuickButton(stringResource(R.string.entry_total_amount, Money.format(toCard.totalBalance)), on = s.cents == toCard.totalBalance, modifier = Modifier.weight(1f)) {
                 s.amount = centsToInput(toCard.totalBalance); s.error = null
             }
         }
@@ -96,11 +98,11 @@ internal fun ColumnScope.AmountPanel(s: EntryState, toCard: CardSnapshot?, saveL
     if (next == null) PrimaryButton(saveLabel, onSave)
     else PrimaryButton(
         when {
-            next == Field.CATEGORY -> "Next: category"
-            next == Field.TO -> "Next: to"
-            s.kind == TxKind.TRANSFER -> "Next: from"
-            s.kind == TxKind.INCOME -> "Next: into"
-            else -> "Next: paid with"
+            next == Field.CATEGORY -> stringResource(R.string.entry_next_category)
+            next == Field.TO -> stringResource(R.string.entry_next_to)
+            s.kind == TxKind.TRANSFER -> stringResource(R.string.entry_next_from)
+            s.kind == TxKind.INCOME -> stringResource(R.string.entry_next_into)
+            else -> stringResource(R.string.entry_next_paid_with)
         },
     ) { s.error = null; s.field = next }
 }
@@ -163,11 +165,11 @@ internal fun ColumnScope.AccountPanel(
 /** Today, Yesterday, and a month calendar. */
 @Composable
 internal fun ColumnScope.DatePanel(s: EntryState, today: LocalDate) {
-    PanelTitle("Date") { s.field = null }
+    PanelTitle(stringResource(R.string.entry_date)) { s.field = null }
     val pick: (LocalDate) -> Unit = { d -> s.date = d; s.error = null; s.field = if (s.cents <= 0) Field.AMOUNT else null }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        QuickButton("Today", on = s.date == today, modifier = Modifier.weight(1f)) { pick(today) }
-        QuickButton("Yesterday", on = s.date == today.minusDays(1), modifier = Modifier.weight(1f)) { pick(today.minusDays(1)) }
+        QuickButton(stringResource(R.string.entry_today), on = s.date == today, modifier = Modifier.weight(1f)) { pick(today) }
+        QuickButton(stringResource(R.string.entry_yesterday), on = s.date == today.minusDays(1), modifier = Modifier.weight(1f)) { pick(today.minusDays(1)) }
     }
     MonthCalendar(s.calendarMonth, s.date, today, onMonth = { s.calendarMonth = it }, modifier = Modifier.weight(1f), onPick = pick)
 }
@@ -176,9 +178,9 @@ internal fun ColumnScope.DatePanel(s: EntryState, today: LocalDate) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ColumnScope.NotePanel(s: EntryState, ledger: Ledger, frequentNotes: List<String>) {
-    PanelTitle("Note") { s.field = null }
+    PanelTitle(stringResource(R.string.entry_note)) { s.field = null }
     val suggestions = noteSuggestions(frequentNotes, s.note, ledger, s.kind, s.categoryId)
-    if (suggestions.isEmpty()) Text("Type a merchant or a note.", style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(4.dp))
+    if (suggestions.isEmpty()) Text(stringResource(R.string.entry_type_merchant), style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(4.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         suggestions.forEach { text ->
             Box(

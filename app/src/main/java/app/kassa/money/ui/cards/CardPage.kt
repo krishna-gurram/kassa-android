@@ -4,27 +4,27 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
@@ -38,26 +38,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
-import app.kassa.money.data.repo.EntryDraft
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.kassa.money.R
+import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.domain.AccountType
-import app.kassa.money.domain.InputRules
-import app.kassa.money.ui.common.weekdayDate
-import app.kassa.money.ui.common.shortDate
-import app.kassa.money.ui.common.monthShort
-import app.kassa.money.ui.common.AmountField
-import app.kassa.money.ui.common.DateRow
-import app.kassa.money.ui.common.momentOn
 import app.kassa.money.domain.CardCycle
+import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.ui.CardSnapshotFor
 import app.kassa.money.ui.Ledger
+import app.kassa.money.ui.common.AmountField
+import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
 import app.kassa.money.ui.common.PageTop
@@ -66,16 +64,20 @@ import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.common.StatusChip
 import app.kassa.money.ui.common.Tone
 import app.kassa.money.ui.common.TransactionRow
-import app.kassa.money.ui.common.swipeShift
+import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.common.plural
+import app.kassa.money.ui.common.shortDate
+import app.kassa.money.ui.common.swipeShift
+import app.kassa.money.ui.common.weekdayDate
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
+import app.kassa.money.ui.theme.scaledSp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import app.kassa.money.ui.theme.scaledSp
 
 /*
  * Wording follows Money Manager and card issuers:
@@ -159,46 +161,46 @@ fun CardPage(
     val pageShift = remember { arrayOf<(Int) -> Unit>({}) }
     Column(Modifier.fillMaxSize().swipeShift { d -> pageShift[0](d) }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(a.name + (a.last4?.let { "  ··$it" } ?: ""), onBack) {
-            androidx.compose.material3.TextButton(onClick = onEditCard) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
+            androidx.compose.material3.TextButton(onClick = onEditCard) { Text(stringResource(R.string.cards_edit), style = KassaType.bodyStrong, color = Kassa.colors.ink) }
         }
         RaisedPanel(tone = if (s.payable > 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             val dueTone = dueTone(c, ledger.today)
             val days = s.daysUntilDue(ledger.today)
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.cards_balance_payable), style = KassaType.tiny, color = Kassa.colors.ink2)
                     app.kassa.money.ui.today.BigMoney(Math.abs(s.balancePayable), sizeSp = 36f, color = payableTint(s.balancePayable))
                     // While hidden the line says only when it is due: "Paid in full", "extra" or "days late" would give the size away.
                     Text(
                         when {
-                            Money.isHidden -> "Due ${shortDate(s.due)}"
-                            s.balancePayable < 0 -> "Paid ${Money.format(-s.balancePayable)} extra"
-                            dueTone == Tone.POSITIVE -> "Paid in full"
-                            s.payable == 0L -> "Nothing due"
-                            days < 0 -> "${-days} days late"
-                            days == 0L -> "Due today"
-                            days == 1L -> "Due tomorrow"
-                            else -> "Due in $days days"
+                            Money.isHidden -> stringResource(R.string.cards_due_on, shortDate(s.due))
+                            s.balancePayable < 0 -> stringResource(R.string.cards_paid_extra, Money.format(-s.balancePayable))
+                            dueTone == Tone.POSITIVE -> stringResource(R.string.cards_paid_in_full)
+                            s.payable == 0L -> stringResource(R.string.cards_nothing_due)
+                            days < 0 -> stringResource(R.string.cards_days_late, -days)
+                            days == 0L -> stringResource(R.string.cards_due_today)
+                            days == 1L -> stringResource(R.string.cards_due_tomorrow)
+                            else -> stringResource(R.string.cards_due_in_days, days)
                         },
                         style = KassaType.bodyStrong,
                         color = if (Money.isHidden) Kassa.colors.ink2 else when (dueTone) { Tone.ATTENTION -> Kassa.colors.attention; Tone.POSITIVE -> Kassa.colors.positive; Tone.NEUTRAL -> Kassa.colors.ink2 },
                     )
                 }
-                DueTile(s.due, if (Money.isHidden) Tone.NEUTRAL else dueTone, large = true, caption = "Due")
+                DueTile(s.due, if (Money.isHidden) Tone.NEUTRAL else dueTone, large = true, caption = stringResource(R.string.cards_due))
             }
             Gap(12)
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box2(Modifier.weight(1f).fillMaxHeight()) {
-                    Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.cards_total_balance), style = KassaType.tiny, color = Kassa.colors.ink2)
                     Text(cardMoney(s.totalBalance), style = KassaType.stat, color = cardTint(s.totalBalance), maxLines = 1)
                 }
                 Box2(Modifier.weight(1f).fillMaxHeight()) {
-                    Text("Outstanding", style = KassaType.tiny, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.cards_outstanding), style = KassaType.tiny, color = Kassa.colors.ink2)
                     Text(Money.format(s.outstanding), style = KassaType.stat, color = Kassa.colors.ink, maxLines = 1)
                 }
             }
             Gap(14)
-            PrimaryButton(if (s.payable > 0) "Pay ${Money.format(s.payable)}" else "Record a payment", onPay)
+            PrimaryButton(if (s.payable > 0) stringResource(R.string.cards_pay_amount, Money.format(s.payable)) else stringResource(R.string.cards_record_a_payment), onPay)
         }
         app.kassa.money.ui.accounts.AccountStatus(ledger, a, closing)
         // Statement by statement: 0 is what's charged since the last statement, 1 the last statement, and so on back.
@@ -220,21 +222,21 @@ fun CardPage(
         Gap(18)
         Column {
             app.kassa.money.ui.common.PeriodSwitcher(
-                if (back == 0) "Outstanding" else "${shortDate(to)} statement",
+                if (back == 0) stringResource(R.string.cards_outstanding) else stringResource(R.string.cards_statement_on, shortDate(to)),
                 when (back) {
-                    0 -> "Since ${shortDate(s.lastClose)} \u00b7 closes ${shortDate(s.nextClose)}"
-                    1 -> "Due ${shortDate(s.due)}"
-                    else -> "${shortDate(from)} to ${shortDate(to.minusDays(1))}"
+                    0 -> stringResource(R.string.cards_since_closes, shortDate(s.lastClose), shortDate(s.nextClose))
+                    1 -> stringResource(R.string.cards_due_on, shortDate(s.due))
+                    else -> stringResource(R.string.cards_date_range, shortDate(from), shortDate(to.minusDays(1)))
                 },
                 canBack, back > 0, onBack = { shift(-1) }, onForward = { shift(1) },
             )
             Row(Modifier.padding(top = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Charges ${Money.format(charges)}", style = KassaType.small, color = Kassa.colors.ink)
-                if (credits > 0) Text("Payments ${Money.format(credits)}", style = KassaType.small, color = Kassa.colors.ink2)
-                if (back == 1 && !Money.isHidden) Text(if (s.payable > 0) "${Money.format(s.payable)} left to pay" else if (s.balancePayable < 0) "Paid ${Money.format(-s.balancePayable)} extra" else "Paid in full", style = KassaType.small,
+                Text(stringResource(R.string.cards_charges_amount, Money.format(charges)), style = KassaType.small, color = Kassa.colors.ink)
+                if (credits > 0) Text(stringResource(R.string.cards_payments_amount, Money.format(credits)), style = KassaType.small, color = Kassa.colors.ink2)
+                if (back == 1 && !Money.isHidden) Text(if (s.payable > 0) stringResource(R.string.cards_left_to_pay, Money.format(s.payable)) else if (s.balancePayable < 0) stringResource(R.string.cards_paid_extra, Money.format(-s.balancePayable)) else stringResource(R.string.cards_paid_in_full), style = KassaType.small,
                     color = if (s.payable > 0) Kassa.colors.attention else Kassa.colors.positive)
             }
-            if (list.isEmpty()) Text(if (back == 0) "No charges since the statement date." else "Nothing on this statement.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
+            if (list.isEmpty()) Text(if (back == 0) stringResource(R.string.cards_no_charges_since) else stringResource(R.string.cards_nothing_on_statement), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 8.dp))
             list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, noteOverride = dateNote(t), onClick = onEdit) }
         }
         Gap(24)
@@ -267,33 +269,34 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
     var amountProblem by remember { mutableStateOf<String?>(null) }
+    val pickPaidFromText = stringResource(R.string.cards_pick_paid_from)
     val sources = ledger.accounts.accounts.filter { it.isActive && it.type in setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         app.kassa.money.ui.common.AccountPickerHost(sources, Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp)) {
-            Text("Pay ${c.account.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Amount", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            if (s.payable > 0) Option("Balance payable, ${Money.format(s.payable)}", "Due ${weekdayDate(s.due)}", option == "payable") { option = "payable" }
+            Text(stringResource(R.string.cards_pay_account, c.account.name), style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.cards_amount), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            if (s.payable > 0) Option(stringResource(R.string.cards_option_balance_payable, Money.format(s.payable)), stringResource(R.string.cards_due_on, weekdayDate(s.due)), option == "payable") { option = "payable" }
             if (total > 0) Option(
-                "Total balance, ${Money.format(total)}",
-                if (s.outstanding > 0 && s.payable > 0) "Balance payable plus ${Money.format(s.outstanding)} outstanding" else "Everything owed on this card",
+                stringResource(R.string.cards_option_total_balance, Money.format(total)),
+                if (s.outstanding > 0 && s.payable > 0) stringResource(R.string.cards_payable_plus_outstanding, Money.format(s.outstanding)) else stringResource(R.string.cards_everything_owed),
                 option == "total",
             ) { option = "total" }
-            Option("Other amount", "A partial or extra payment", option == "other") { option = "other" }
+            Option(stringResource(R.string.cards_other_amount), stringResource(R.string.cards_partial_or_extra), option == "other") { option = "other" }
             if (option == "other") AmountField(
-                other, { other = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth().padding(top = 8.dp), problem = amountProblem,
+                other, { other = it; amountProblem = null }, stringResource(R.string.cards_amount), Modifier.fillMaxWidth().padding(top = 8.dp), problem = amountProblem,
             )
             app.kassa.money.ui.common.AccountChoiceRow(
-                "Pay from", from, sources, { id -> from = id; error = null }, modifier = Modifier.padding(top = 16.dp),
+                stringResource(R.string.cards_pay_from), from, sources, { id -> from = id; error = null }, modifier = Modifier.padding(top = 16.dp),
                 recentIds = app.kassa.money.ui.common.recentAccountIds(ledger),
             )
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            Text(stringResource(R.string.cards_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { dateDay = it.toEpochDay() }
             error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
             Gap(12)
-            PrimaryButton(if (amount > 0) "Record ${Money.format(amount)} payment" else "Enter an amount") {
+            PrimaryButton(if (amount > 0) stringResource(R.string.cards_record_amount_payment, Money.format(amount)) else stringResource(R.string.cards_enter_an_amount)) {
                 amountProblem = InputRules.amountProblem(amount)
-                error = if (from == null) "Pick the account it's paid from." else null
+                error = if (from == null) pickPaidFromText else null
                 if (amountProblem == null && error == null) onPay(
                     EntryDraft(
                         id = null, kind = TxKind.TRANSFER, amount = amount, accountId = from, toAccountId = c.account.id,
@@ -303,7 +306,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
                     )
                 )
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cards_cancel), color = Kassa.colors.ink2) }
         }
     }
 }

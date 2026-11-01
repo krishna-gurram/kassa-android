@@ -1,11 +1,13 @@
 package app.kassa.money.ui.entry
 
+import android.content.res.Resources
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
+import app.kassa.money.R
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.InputRules
@@ -215,14 +217,14 @@ internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate)
     }
 
     /** The first problem in reading order, with the input to open for it; null when the entry can be saved. */
-    fun problem(): Pair<Field, String>? {
+    fun problem(resources: Resources): Pair<Field, String>? {
         InputRules.amountProblem(cents)?.let { return Field.AMOUNT to it }
         InputRules.noteProblem(note)?.let { return Field.NOTE to it }
         return when {
-            kind != TxKind.TRANSFER && categoryId == null -> Field.CATEGORY to "Pick a category."
-            accountId == null && !someoneElsePaid -> Field.ACCOUNT to "Pick an account."
-            shared && myShare < 0 -> Field.SPLIT to "The shares add up to more than ${Money.format(cents)}."
-            kind == TxKind.TRANSFER && (toAccountId == null || toAccountId == accountId) -> Field.TO to "Pick where the money went."
+            kind != TxKind.TRANSFER && categoryId == null -> Field.CATEGORY to resources.getString(R.string.entry_pick_category)
+            accountId == null && !someoneElsePaid -> Field.ACCOUNT to resources.getString(R.string.entry_pick_account)
+            shared && myShare < 0 -> Field.SPLIT to resources.getString(R.string.entry_shares_exceed, Money.format(cents))
+            kind == TxKind.TRANSFER && (toAccountId == null || toAccountId == accountId) -> Field.TO to resources.getString(R.string.entry_pick_where_money_went)
             else -> null
         }
     }

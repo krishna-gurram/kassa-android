@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.InputRules
@@ -108,7 +110,7 @@ fun ColumnScope.CategoryPickerPanel(
         if (c.parentId == null && subcategories(categories, c).isNotEmpty()) onOpenSubcategories(c) else onPick(c.id)
     }
 
-    PanelSearch(query, onQuery, "Search categories", onFocus = onSearching, onDone = onDone)
+    PanelSearch(query, onQuery, stringResource(R.string.common_search_categories), onFocus = onSearching, onDone = onDone)
     val q = query.trim()
     if (q.isEmpty()) {
         LazyVerticalGrid(GridCells.Fixed(if (wide) 4 else 3), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -125,7 +127,7 @@ fun ColumnScope.CategoryPickerPanel(
         return
     }
     val hits = searchCategories(categories, kind, q)
-    if (hits.isEmpty()) Text("No category matches \"$q\".", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
+    if (hits.isEmpty()) Text(stringResource(R.string.common_no_category_matches, q), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp))
     LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         items(hits, key = { it.id }) { c ->
             val parent = c.parentId?.let { byId[it] }
@@ -162,7 +164,7 @@ fun ColumnScope.SubcategoryPickerPanel(
     LazyVerticalGrid(GridCells.Fixed(if (wide) 3 else 2), Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         item(key = "none") {
             PickTile(on = selectedId == top.id, onClick = { onPick(top.id) }) {
-                Text("No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text(stringResource(R.string.common_no_subcategory), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
         items(subcategories(categories, top), key = { it.id }) { sub ->
@@ -173,7 +175,7 @@ fun ColumnScope.SubcategoryPickerPanel(
         item(key = "new", span = { GridItemSpan(if (newName == null) 1 else maxLineSpan) }) {
             val typed = newName
             if (typed == null) PickTile(on = false, onClick = { newName = "" }) {
-                Text("+ New", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text(stringResource(R.string.common_plus_new), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             } else NewSubcategory(
                 parent = top,
                 value = typed,
@@ -199,14 +201,14 @@ private fun NewSubcategory(parent: Category, value: String, siblings: List<Strin
     Row(verticalAlignment = Alignment.Top) {
         OutlinedTextField(
             value, { onChange(InputRules.typed(it, InputRules.CATEGORY_NAME_MAX)); problem = null }, singleLine = true,
-            placeholder = { Text("New under ${parent.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            placeholder = { Text(stringResource(R.string.common_new_under, parent.name), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             isError = problem != null,
             supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { add() }),
             modifier = Modifier.weight(1f).focusRequester(focus),
         )
-        TextButton(onClick = add, modifier = Modifier.padding(top = 4.dp)) { Text("Add", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
+        TextButton(onClick = add, modifier = Modifier.padding(top = 4.dp)) { Text(stringResource(R.string.common_add), color = Kassa.colors.ink, style = KassaType.bodyStrong) }
     }
 }
 
@@ -267,7 +269,7 @@ private fun CategoryPickerPage(categories: List<Category>, request: CategoryRequ
     val height = (config.screenHeightDp * 0.62f).dp
     Column(modifier.height(height), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (openTop != null) openTop = null else onClose() }) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
+            IconButton(onClick = { if (openTop != null) openTop = null else onClose() }) { Icon(Chevron(left = true), stringResource(R.string.common_back), tint = Kassa.colors.ink) }
             Text(request.title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
         val top = openTop
@@ -303,11 +305,12 @@ fun CategoryFieldRow(
 ) {
     val shape = RoundedCornerShape(12.dp)
     val value = valueText ?: category?.let { categoryPath(it, categories) } ?: placeholder
+    val description = stringResource(R.string.common_label_value, label, value)
     val badge = category?.let { c -> c.parentId?.let { id -> categories.firstOrNull { it.id == id } } ?: c }
     Row(
         modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape).border(1.dp, Kassa.colors.line, shape)
             .clickable(role = Role.Button, onClick = onClick)
-            .semantics(mergeDescendants = true) { contentDescription = "$label, $value" }
+            .semantics(mergeDescendants = true) { contentDescription = description }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -341,7 +344,7 @@ fun CategoryChoiceRow(
     val open = LocalCategoryPicker.current
     val chosen = selectedId?.let { id -> categories.firstOrNull { it.id == id } }
     CategoryFieldRow(
-        label, chosen ?: defaultCategory, categories, placeholder = defaultText ?: "Choose",
+        label, chosen ?: defaultCategory, categories, placeholder = defaultText ?: stringResource(R.string.common_choose),
         onClick = { open?.invoke(CategoryRequest(label, kind, selectedId, topOption, onPick)) },
         modifier = modifier, valueText = if (chosen == null) defaultText else null,
     )

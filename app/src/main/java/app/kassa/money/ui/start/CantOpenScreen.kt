@@ -23,7 +23,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.data.security.OpenProblem
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.Gap
@@ -47,32 +49,31 @@ fun CantOpenScreen(problem: OpenProblem, onRetry: () -> Unit, onErase: () -> Uni
             Modifier.widthIn(max = 560.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Kassa can't open its data", style = KassaType.title, color = Kassa.colors.ink)
+            Text(stringResource(R.string.start_cant_open_title), style = KassaType.title, color = Kassa.colors.ink)
             Text(
                 if (problem == OpenProblem.DATA_UNREADABLE)
-                    "The key that protects your data on this phone is missing or no longer works, so the data can't be read. " +
-                        "This can happen after a phone reset or a restore from another phone. If you have a Kassa backup, you can restore it."
+                    stringResource(R.string.start_cant_open_unreadable)
                 else
-                    "Something stopped Kassa from opening its data. The data may be fine, so try again first.",
+                    stringResource(R.string.start_cant_open_other),
                 style = KassaType.body, color = Kassa.colors.ink2,
             )
             Gap(8)
-            if (problem == OpenProblem.OTHER) PrimaryButton("Try again", onRetry) else SecondaryButton("Try again", onRetry)
-            SecondaryButton("Restore from a backup", { confirmRestore = true })
+            if (problem == OpenProblem.OTHER) PrimaryButton(stringResource(R.string.start_try_again), onRetry) else SecondaryButton(stringResource(R.string.start_try_again), onRetry)
+            SecondaryButton(stringResource(R.string.start_restore_from_backup), { confirmRestore = true })
             TextButton(onClick = { confirmStartOver = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text("Start over", style = KassaType.bodyStrong, color = Kassa.colors.attention)
+                Text(stringResource(R.string.start_start_over), style = KassaType.bodyStrong, color = Kassa.colors.attention)
             }
-            Text("Nothing is erased until you confirm.", style = KassaType.small, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.start_nothing_erased), style = KassaType.small, color = Kassa.colors.ink2)
         }
     }
     if (confirmRestore) ConfirmDialog(
-        "Erase unreadable data and restore?",
-        "Kassa will erase the data on this phone that it can't read, then ask you to choose your backup file. This can't be undone.",
-        "Erase and continue", onConfirm = onErase, onDismiss = { confirmRestore = false },
+        stringResource(R.string.start_erase_restore_title),
+        stringResource(R.string.start_erase_restore_body),
+        stringResource(R.string.start_erase_continue), onConfirm = onErase, onDismiss = { confirmRestore = false },
     )
     if (confirmStartOver) ConfirmDialog(
-        "Start over?",
-        "This erases all Kassa data on this phone and can't be undone. Kassa will open empty.",
-        "Erase and start over", onConfirm = onErase, onDismiss = { confirmStartOver = false },
+        stringResource(R.string.start_start_over_title),
+        stringResource(R.string.start_start_over_body),
+        stringResource(R.string.start_erase_start_over), onConfirm = onErase, onDismiss = { confirmStartOver = false },
     )
 }

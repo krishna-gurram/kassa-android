@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountKindFilter
 import app.kassa.money.domain.AccountPicking
@@ -96,12 +98,12 @@ fun ColumnScope.AccountPickerPanel(
     val recent = if (q.isEmpty() && filter == AccountKindFilter.ALL) AccountPicking.recent(recentIds, available, if (wide) 4 else 3) else emptyList()
     val choose: (Account) -> Unit = { a -> onSearching(false); focus.clearFocus(); onPick(a.id) }
 
-    PanelSearch(query, onQuery, "Search accounts", onFocus = onSearching, onDone = onDone)
+    PanelSearch(query, onQuery, stringResource(R.string.common_search_accounts), onFocus = onSearching, onDone = onDone)
     if (kinds.size > 2) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         kinds.forEach { k -> Chip(k.label, selected = filter == k, small = true) { onFilter(k) } }
     }
     if (groups.isEmpty()) Text(
-        if (available.isEmpty()) "Add an account in Accounts first." else "No account matches \"$q\".",
+        if (available.isEmpty()) stringResource(R.string.common_add_account_first) else stringResource(R.string.common_no_account_matches, q),
         style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(4.dp),
     )
     LazyVerticalGrid(
@@ -114,7 +116,7 @@ fun ColumnScope.AccountPickerPanel(
             }
         }
         if (recent.isNotEmpty()) {
-            item(key = "recent", span = { GridItemSpan(maxLineSpan) }) { GroupLabel("Recent") }
+            item(key = "recent", span = { GridItemSpan(maxLineSpan) }) { GroupLabel(stringResource(R.string.common_recent)) }
             items(recent, key = { "r${it.id}" }) { a -> AccountTile(a, selectedId == a.id) { choose(a) } }
         }
         groups.forEach { g ->
@@ -136,8 +138,9 @@ private fun GroupLabel(text: String) {
 @Composable
 private fun AccountTile(a: Account, on: Boolean, onClick: () -> Unit) {
     val last4 = a.last4?.takeIf { it.isNotBlank() }
+    val description = if (last4 != null) stringResource(R.string.common_account_ending, a.name, last4) else a.name
     PickTile(on = on, minHeight = 84.dp, onClick = onClick) {
-        Box(Modifier.fillMaxWidth().semantics { contentDescription = a.name + (last4?.let { ", ending $it" } ?: ""); this.selected = on }) {
+        Box(Modifier.fillMaxWidth().semantics { contentDescription = description; this.selected = on }) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(32.dp).clip(CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
                     Icon(accountIcon(a.type), null, tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
@@ -186,7 +189,7 @@ internal fun AccountPickerPage(accounts: List<Account>, request: AccountRequest,
     val height = (config.screenHeightDp * 0.62f).dp
     Column(modifier.height(height), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
+            IconButton(onClick = onClose) { Icon(Chevron(left = true), stringResource(R.string.common_back), tint = Kassa.colors.ink) }
             Text(request.title, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
         AccountPickerPanel(
@@ -212,16 +215,17 @@ fun AccountChoiceRow(
     excluded: Set<Long> = emptySet(),
     recentIds: List<Long> = emptyList(),
     noneOption: String? = null,
-    placeholder: String = "Choose",
+    placeholder: String = stringResource(R.string.common_choose),
 ) {
     val open = LocalAccountPicker.current
     val chosen = selectedId?.let { id -> accounts.firstOrNull { it.id == id } }
     val value = chosen?.name ?: placeholder
+    val description = stringResource(R.string.common_label_value, label, value)
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape).border(1.dp, Kassa.colors.line, shape)
             .clickable(role = Role.Button) { open?.invoke(AccountRequest(label, selectedId, excluded, recentIds, noneOption, onPick)) }
-            .semantics(mergeDescendants = true) { contentDescription = "$label, $value" }
+            .semantics(mergeDescendants = true) { contentDescription = description }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

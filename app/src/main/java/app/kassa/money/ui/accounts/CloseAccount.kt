@@ -12,8 +12,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.closeProblem
 import app.kassa.money.ui.Ledger
@@ -39,15 +41,15 @@ fun AccountStatus(ledger: Ledger, account: Account, closing: AccountClosing?) {
     var confirm by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         account.maturityDay?.let {
-            Text("Matures ${accountDate(it)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(stringResource(R.string.accounts_matures_on, accountDate(it)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 10.dp))
         }
         val closed = account.closedDay
         if (closed != null) {
-            Text("Closed ${accountDate(closed)}. Its history stays.", style = KassaType.small, color = Kassa.colors.ink2,
+            Text(stringResource(R.string.accounts_closed_on, accountDate(closed)), style = KassaType.small, color = Kassa.colors.ink2,
                 modifier = Modifier.padding(top = 10.dp))
             if (closing != null) TextButton(onClick = closing.onReopen, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Reopen account", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Text(stringResource(R.string.accounts_reopen_account), style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
         } else if (closing != null && !account.archived) {
             TextButton(
@@ -57,13 +59,13 @@ fun AccountStatus(ledger: Ledger, account: Account, closing: AccountClosing?) {
                     closeProblem(worth)?.let(closing.onMessage) ?: run { confirm = true }
                 },
                 modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text("Close account", style = KassaType.bodyStrong, color = Kassa.colors.ink2) }
+            ) { Text(stringResource(R.string.accounts_close_account), style = KassaType.bodyStrong, color = Kassa.colors.ink2) }
         }
     }
     if (confirm && closing != null) ConfirmDialog(
-        title = "Close ${account.name}?",
-        body = "It leaves your lists, pickers and totals. Its entries stay in Activity, Insights and reports, and you can reopen it from Closed in Accounts.",
-        confirm = "Close account", destructive = false,
+        title = stringResource(R.string.accounts_close_title, account.name),
+        body = stringResource(R.string.accounts_close_body),
+        confirm = stringResource(R.string.accounts_close_account), destructive = false,
         onConfirm = closing.onClose, onDismiss = { confirm = false },
     )
 }

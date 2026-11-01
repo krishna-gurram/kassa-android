@@ -32,10 +32,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
@@ -86,13 +88,14 @@ fun SubcategoryList(
     fun problem(name: String, except: Long?) = InputRules.nameProblem(name, "subcategory", InputRules.CATEGORY_NAME_MAX,
         taken = { n -> all.any { it.id != except && it.name.equals(n, ignoreCase = true) } })
 
-    SectionHeader("Subcategories", "${active.size}")
+    SectionHeader(stringResource(R.string.categories_sub_header), "${active.size}")
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).padding(horizontal = 12.dp)) {
         active.forEach { s ->
             if (renaming == s.id) {
-                NameField(s.name, "Name", button = "Save", keepOpen = false, error = { n -> problem(n, s.id) },
+                NameField(s.name, stringResource(R.string.categories_name), button = stringResource(R.string.categories_save), keepOpen = false, error = { n -> problem(n, s.id) },
                     onDone = { n -> if (n != null && n != s.name) onSave(s.copy(name = n), false); renaming = null })
             } else {
+                val moreFor = stringResource(R.string.categories_sub_more_for, s.name)
                 var menu by remember(s.id) { mutableStateOf(false) }
                 var moveMenu by remember(s.id) { mutableStateOf(false) }
                 var mergeMenu by remember(s.id) { mutableStateOf(false) }
@@ -104,17 +107,17 @@ fun SubcategoryList(
                     val (amt, n) = figures[s.id] ?: (0L to 0)
                     Column(horizontalAlignment = Alignment.End) {
                         Text(Money.format(amt), style = KassaType.bodyStrong, color = if (n == 0) Kassa.colors.ink3 else Kassa.colors.ink)
-                        Text("$n this month", style = KassaType.tiny, color = Kassa.colors.ink3)
+                        Text(stringResource(R.string.categories_sub_count_this_month, n), style = KassaType.tiny, color = Kassa.colors.ink3)
                     }
                     Box {
                         Box(Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { menu = true }, contentAlignment = Alignment.Center) {
-                            Text("⋯", style = KassaType.section, color = Kassa.colors.ink2, modifier = Modifier.clearAndSetSemantics { contentDescription = "More for ${s.name}" })
+                            Text("⋯", style = KassaType.section, color = Kassa.colors.ink2, modifier = Modifier.clearAndSetSemantics { contentDescription = moreFor })
                         }
                         DropdownMenu(menu, { menu = false }) {
-                            DropdownMenuItem({ Text("Rename") }, { menu = false; renaming = s.id })
-                            DropdownMenuItem({ Text("Move to another category") }, { menu = false; moveMenu = true })
-                            DropdownMenuItem({ Text("Merge into…") }, { menu = false; mergeMenu = true })
-                            DropdownMenuItem({ Text("Archive", color = Kassa.colors.attention) }, { menu = false; confirmArchive = s })
+                            DropdownMenuItem({ Text(stringResource(R.string.categories_sub_rename)) }, { menu = false; renaming = s.id })
+                            DropdownMenuItem({ Text(stringResource(R.string.categories_sub_move)) }, { menu = false; moveMenu = true })
+                            DropdownMenuItem({ Text(stringResource(R.string.categories_sub_merge_into)) }, { menu = false; mergeMenu = true })
+                            DropdownMenuItem({ Text(stringResource(R.string.categories_archive), color = Kassa.colors.attention) }, { menu = false; confirmArchive = s })
                         }
                         DropdownMenu(moveMenu, { moveMenu = false }) {
                             ledger.categories.filter { it.parentId == null && it.kind == parent.kind && !it.hidden && it.id != parent.id }
@@ -122,7 +125,7 @@ fun SubcategoryList(
                                 .forEach { top -> DropdownMenuItem({ Text(top.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { moveMenu = false; onSave(s.copy(parentId = top.id, color = top.color), false) }) }
                         }
                         DropdownMenu(mergeMenu, { mergeMenu = false }) {
-                            DropdownMenuItem({ Text("${parent.name}, no subcategory") }, { mergeMenu = false; merging = s to parent })
+                            DropdownMenuItem({ Text(stringResource(R.string.categories_sub_no_subcategory, parent.name)) }, { mergeMenu = false; merging = s to parent })
                             active.filter { it.id != s.id }.forEach { o -> DropdownMenuItem({ Text(o.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { mergeMenu = false; merging = s to o }) }
                         }
                     }
@@ -130,36 +133,36 @@ fun SubcategoryList(
             }
             HorizontalDivider(color = Kassa.colors.line)
         }
-        if (adding) NameField("", "New subcategory", button = "Add", keepOpen = true, error = { n -> problem(n, null) },
+        if (adding) NameField("", stringResource(R.string.categories_sub_new_label), button = stringResource(R.string.categories_sub_add_button), keepOpen = true, error = { n -> problem(n, null) },
             onDone = { n -> if (n == null) adding = false else onAdd(n) })
         else Text(
-            "+ Add subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink2,
+            stringResource(R.string.categories_sub_add), style = KassaType.bodyStrong, color = Kassa.colors.ink2,
             modifier = Modifier.fillMaxWidth().clickable { adding = true; renaming = null }.padding(vertical = 14.dp),
         )
     }
     if (archived.isNotEmpty()) {
         TextButton(onClick = { showArchived = !showArchived }) {
-            Text((if (showArchived) "Hide archived" else "Archived") + " (${archived.size})", color = Kassa.colors.ink2)
+            Text(if (showArchived) stringResource(R.string.categories_sub_hide_archived, archived.size) else stringResource(R.string.categories_sub_archived, archived.size), color = Kassa.colors.ink2)
         }
         if (showArchived) archived.forEach { s ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(s.name, style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onSave(s.copy(hidden = false), false) }) { Text("Restore", color = Kassa.colors.ink) }
+                TextButton(onClick = { onSave(s.copy(hidden = false), false) }) { Text(stringResource(R.string.categories_restore), color = Kassa.colors.ink) }
             }
         }
     }
 
     confirmArchive?.let { s ->
         ConfirmDialog(
-            title = "Archive ${s.name}?", body = "It leaves the pickers. Its entries stay and still count under ${parent.name}, and you can restore it here. To move them instead, use Merge.",
-            confirm = "Archive", onConfirm = { onSave(s.copy(hidden = true), false); confirmArchive = null }, onDismiss = { confirmArchive = null },
+            title = stringResource(R.string.categories_archive_title, s.name), body = stringResource(R.string.categories_sub_archive_body, parent.name),
+            confirm = stringResource(R.string.categories_archive), onConfirm = { onSave(s.copy(hidden = true), false); confirmArchive = null }, onDismiss = { confirmArchive = null },
         )
     }
     merging?.let { (from, into) ->
         ConfirmDialog(
-            title = "Merge ${from.name} into ${if (into.id == parent.id) parent.name else into.name}?",
-            body = "Every ${from.name} entry moves there, then ${from.name} is archived. This can't be undone.",
-            confirm = "Merge", onConfirm = { onMerge(from, into); merging = null }, onDismiss = { merging = null },
+            title = stringResource(R.string.categories_sub_merge_title, from.name, if (into.id == parent.id) parent.name else into.name),
+            body = stringResource(R.string.categories_sub_merge_body, from.name),
+            confirm = stringResource(R.string.categories_sub_merge_confirm), onConfirm = { onMerge(from, into); merging = null }, onDismiss = { merging = null },
         )
     }
 }
@@ -186,7 +189,7 @@ private fun NameField(initial: String, label: String, button: String, keepOpen: 
                 modifier = Modifier.weight(1f).focusRequester(focus),
             )
             TextButton(onClick = submit) { Text(button, color = Kassa.colors.ink) }
-            TextButton(onClick = { onDone(null) }) { Text(if (keepOpen) "Done" else "Cancel", color = Kassa.colors.ink2) }
+            TextButton(onClick = { onDone(null) }) { Text(if (keepOpen) stringResource(R.string.categories_done) else stringResource(R.string.categories_cancel), color = Kassa.colors.ink2) }
         }
         problem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
     }

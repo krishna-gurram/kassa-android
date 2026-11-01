@@ -10,9 +10,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -23,12 +25,13 @@ import app.kassa.money.ui.theme.KassaType
  */
 @Composable
 fun StartingScreen() {
+    val openingText = stringResource(R.string.start_opening_kassa)
     Box(
-        Modifier.fillMaxSize().background(Kassa.colors.ground).semantics(mergeDescendants = true) { contentDescription = "Opening Kassa" },
+        Modifier.fillMaxSize().background(Kassa.colors.ground).semantics(mergeDescendants = true) { contentDescription = openingText },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Kassa", style = KassaType.title, color = Kassa.colors.ink)
+            Text(stringResource(R.string.start_app_name), style = KassaType.title, color = Kassa.colors.ink)
             Gap(16)
             CircularProgressIndicator(Modifier.size(24.dp), color = Kassa.colors.ink2, strokeWidth = 2.dp)
         }

@@ -1,5 +1,6 @@
 package app.kassa.money.ui.accounts
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,15 +28,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
 /** How the Accounts tab orders every group; stored in Settings as these names. */
-internal enum class AccountSort(val label: String) {
-    NAME("A to Z"), BALANCE("Largest first"), DUE("Due soonest"), CUSTOM("Your order");
+internal enum class AccountSort(@StringRes val labelRes: Int) {
+    NAME(R.string.accounts_sort_az), BALANCE(R.string.accounts_sort_largest), DUE(R.string.accounts_sort_due), CUSTOM(R.string.accounts_sort_custom);
 
     companion object {
         fun of(stored: String) = entries.firstOrNull { it.name == stored } ?: NAME
@@ -58,23 +61,23 @@ internal fun OrderSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 12.dp).widthIn(max = 640.dp)) {
-            Text("Order accounts", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Overview tiles follow this order.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-            OrderOption("Name", "A to Z", sort == AccountSort.NAME) { onPick(AccountSort.NAME) }
-            OrderOption("Balance", "Largest first", sort == AccountSort.BALANCE) { onPick(AccountSort.BALANCE) }
-            OrderOption("Due date", "Soonest first, the rest A to Z", sort == AccountSort.DUE) { onPick(AccountSort.DUE) }
+            Text(stringResource(R.string.accounts_order_accounts), style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.accounts_order_overview_note), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+            OrderOption(stringResource(R.string.accounts_order_name), stringResource(R.string.accounts_sort_az), sort == AccountSort.NAME) { onPick(AccountSort.NAME) }
+            OrderOption(stringResource(R.string.accounts_order_balance), stringResource(R.string.accounts_sort_largest), sort == AccountSort.BALANCE) { onPick(AccountSort.BALANCE) }
+            OrderOption(stringResource(R.string.accounts_order_due_date), stringResource(R.string.accounts_order_due_sub), sort == AccountSort.DUE) { onPick(AccountSort.DUE) }
             OrderOption(
-                "Your order", "Credit cards first, savings last, any way you like", sort == AccountSort.CUSTOM,
+                stringResource(R.string.accounts_sort_custom), stringResource(R.string.accounts_order_custom_sub), sort == AccountSort.CUSTOM,
                 onClick = onArrange,
-                action = if (sort == AccountSort.CUSTOM) "Edit" else "Arrange", onAction = onArrange,
+                action = if (sort == AccountSort.CUSTOM) stringResource(R.string.accounts_edit) else stringResource(R.string.accounts_arrange), onAction = onArrange,
             )
             HorizontalDivider(color = Kassa.colors.line)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onReset, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Reset to A to Z", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.accounts_reset_to_az), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Close", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                    Text(stringResource(R.string.accounts_close), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                 }
             }
         }

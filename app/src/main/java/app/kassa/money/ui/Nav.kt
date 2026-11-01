@@ -1,5 +1,9 @@
 package app.kassa.money.ui
 
+import androidx.compose.runtime.Composable
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -8,7 +12,13 @@ import androidx.lifecycle.ViewModel
 import app.kassa.money.ui.entry.EntryStart
 
 /** Cards live in Accounts now; Add sits in the middle of the bar, after Activity. */
-enum class Tab(val label: String) { TODAY("Overview"), ACTIVITY("Activity"), INSIGHTS("Insights"), ACCOUNTS("Accounts"), SETTINGS("Settings") }
+enum class Tab(@StringRes val labelRes: Int) {
+    TODAY(R.string.shell_tab_overview), ACTIVITY(R.string.shell_tab_activity), INSIGHTS(R.string.shell_tab_insights),
+    ACCOUNTS(R.string.shell_tab_accounts), SETTINGS(R.string.shell_tab_settings);
+
+    /** The tab's name in the phone's language; read where the name is shown. */
+    val label: String @Composable get() = stringResource(labelRes)
+}
 
 /**
  * A page opened on top of a tab, with a back button. Quick actions (pay a card, record a payment, update a price)

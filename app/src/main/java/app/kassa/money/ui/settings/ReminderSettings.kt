@@ -15,7 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -38,16 +40,16 @@ internal fun DailyReminder(actions: SettingsActions) {
     }
     val mayNotify = Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    SwitchRow("Daily reminder", "A nudge to record the day's transactions", on) { want ->
+    SwitchRow(stringResource(R.string.settings_reminder_title), stringResource(R.string.settings_reminder_detail), on) { want ->
         when {
             !want -> { settings.setReminder(false); actions.refreshDailyJobs() }
             mayNotify -> turnOn()
             else -> askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
-    if (on) NavRow("Time", timeLabel(minute)) { pickTime = true }
+    if (on) NavRow(stringResource(R.string.settings_time), timeLabel(minute)) { pickTime = true }
     if (denied) Text(
-        "Notifications are off for Kassa. Allow them in the phone's Settings > Apps > Kassa > Notifications, then turn this on again.",
+        stringResource(R.string.settings_reminder_denied),
         style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp),
     )
     if (pickTime) TimeDialog(minute, onDismiss = { pickTime = false }) { m -> settings.setReminderMinute(m); actions.refreshDailyJobs(); pickTime = false }

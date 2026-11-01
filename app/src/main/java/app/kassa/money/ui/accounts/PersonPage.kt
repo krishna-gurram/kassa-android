@@ -30,8 +30,10 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.InputRules
@@ -39,21 +41,21 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
-import app.kassa.money.ui.common.shortDateYear
-import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.common.favourColor
-import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.common.Gap
-import app.kassa.money.ui.common.momentOn
-import app.kassa.money.ui.common.rememberSavedDate
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.common.TransactionRow
+import app.kassa.money.ui.common.balanceColor
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.momentOn
+import app.kassa.money.ui.common.rememberSavedDate
+import app.kassa.money.ui.common.shortDate
+import app.kassa.money.ui.common.shortDateYear
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
@@ -67,11 +69,11 @@ import java.time.Instant
 private data class PersonHistoryLine(val millis: Long, val note: String, val amount: Long, val transactionId: Long?, val payment: Boolean = false)
 
 /** Splits and payments with [p], newest first. */
-private fun historyOf(p: Person, ledger: Ledger): List<PersonHistoryLine> {
+private fun historyOf(p: Person, ledger: Ledger, splitText: String, paidYouText: String, youPaidText: String): List<PersonHistoryLine> {
     val splits = ledger.people.loans.filter { it.personId == p.id }
-        .map { PersonHistoryLine(it.epochMillis, it.note.ifBlank { "Split" }, it.amount, it.transactionId) }
+        .map { PersonHistoryLine(it.epochMillis, it.note.ifBlank { splitText }, it.amount, it.transactionId) }
     val payments = ledger.people.payments.filter { it.personId == p.id }.map { t ->
-        val fallback = if (t.kind == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}"
+        val fallback = if (t.kind == TxKind.PERSON_IN) paidYouText else youPaidText
         PersonHistoryLine(t.epochMillis, t.note.ifBlank { fallback }, if (t.kind == TxKind.PERSON_OUT) t.amount else -t.amount, t.id, payment = true)
     }
     return (splits + payments).sortedByDescending { it.millis }
@@ -110,31 +112,34 @@ fun PersonPage(
     var editing by rememberSaveable(p.id) { mutableStateOf(false) }
     var recording by rememberSaveable(p.id) { mutableStateOf(false) }
     var splitting by rememberSaveable(p.id) { mutableStateOf(false) }
-    val history = remember(p, ledger.people) { historyOf(p, ledger) }
+    val splitText = stringResource(R.string.accounts_split)
+    val paidYouText = stringResource(R.string.accounts_person_paid_you, p.name)
+    val youPaidText = stringResource(R.string.accounts_you_paid_person, p.name)
+    val history = remember(p, ledger.people, splitText, paidYouText, youPaidText) { historyOf(p, ledger, splitText, paidYouText, youPaidText) }
     val since = remember(history) { openSince(history) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop(p.name + if (p.archived) " (archived)" else "", onBack) {
-            TextButton(onClick = { editing = true }) { Text("Edit", color = Kassa.colors.ink, style = KassaType.bodyStrong) }
+        PageTop(if (p.archived) stringResource(R.string.accounts_person_archived, p.name) else p.name, onBack) {
+            TextButton(onClick = { editing = true }) { Text(stringResource(R.string.accounts_edit), color = Kassa.colors.ink, style = KassaType.bodyStrong) }
         }
         RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
             Text(
                 // While Hide balances is on the wording must not give the direction or a zero away.
-                when { Money.isHidden -> "Balance with ${p.name}"; balance > 0 -> "${p.name} owes you"; balance < 0 -> "You owe ${p.name}"; else -> "Settled" },
+                when { Money.isHidden -> stringResource(R.string.accounts_balance_with_person, p.name); balance > 0 -> stringResource(R.string.accounts_person_owes_you, p.name); balance < 0 -> stringResource(R.string.accounts_you_owe_person, p.name); else -> stringResource(R.string.accounts_settled_title) },
                 style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             BigMoney(Math.abs(balance), sizeSp = 36f, color = favourColor(balance))
             if (balance != 0L && !Money.isHidden) since?.let {
-                Text("Since ${shortDate(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate())}", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text(stringResource(R.string.accounts_since, shortDate(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate())), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
             Gap(14)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.weight(1f)) { PrimaryButton("Record a payment") { recording = true } }
-                SecondaryButton("Split a transaction", { splitting = true }, Modifier.weight(1f))
+                Box(Modifier.weight(1f)) { PrimaryButton(stringResource(R.string.accounts_record_a_payment)) { recording = true } }
+                SecondaryButton(stringResource(R.string.accounts_split_a_transaction), { splitting = true }, Modifier.weight(1f))
             }
         }
-        SectionHeader("History")
-        if (history.isEmpty()) Text("Nothing yet.", style = KassaType.body, color = Kassa.colors.ink2)
+        SectionHeader(stringResource(R.string.accounts_history))
+        if (history.isEmpty()) Text(stringResource(R.string.accounts_nothing_yet), style = KassaType.body, color = Kassa.colors.ink2)
         history.forEach { line ->
             Row(
                 Modifier.fillMaxWidth()
@@ -198,27 +203,28 @@ internal fun PaymentSheet(
     var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
     var accountProblem by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    val pickAccountText = stringResource(R.string.accounts_pick_account)
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         app.kassa.money.ui.common.AccountPickerHost(banks, Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text(if (editing != null) "Edit payment" else "Record a payment", style = KassaType.section, color = Kassa.colors.ink)
+            Text(if (editing != null) stringResource(R.string.accounts_edit_payment) else stringResource(R.string.accounts_record_a_payment), style = KassaType.section, color = Kassa.colors.ink)
             FlowRow(Modifier.padding(top = 10.dp)) {
-                Chip("${p.name} paid me", selected = direction == TxKind.PERSON_IN) { direction = TxKind.PERSON_IN }
-                Chip("I paid or lent ${p.name}", selected = direction == TxKind.PERSON_OUT) { direction = TxKind.PERSON_OUT }
+                Chip(stringResource(R.string.accounts_person_paid_me, p.name), selected = direction == TxKind.PERSON_IN) { direction = TxKind.PERSON_IN }
+                Chip(stringResource(R.string.accounts_i_paid_or_lent, p.name), selected = direction == TxKind.PERSON_OUT) { direction = TxKind.PERSON_OUT }
             }
-            AmountField(amount, { amount = it; amountProblem = null }, "Amount", Modifier.fillMaxWidth(), problem = amountProblem)
+            AmountField(amount, { amount = it; amountProblem = null }, stringResource(R.string.accounts_amount), Modifier.fillMaxWidth(), problem = amountProblem)
             app.kassa.money.ui.common.AccountChoiceRow(
-                if (direction == TxKind.PERSON_IN) "Into" else "From", account, banks, { id -> account = id; accountProblem = null },
+                if (direction == TxKind.PERSON_IN) stringResource(R.string.accounts_into) else stringResource(R.string.accounts_from), account, banks, { id -> account = id; accountProblem = null },
                 modifier = Modifier.padding(top = 8.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger),
             )
             accountProblem?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            Text(stringResource(R.string.accounts_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { date = it }
             Gap(12)
-            PrimaryButton(if (editing != null) "Save changes" else "Save payment") {
+            PrimaryButton(if (editing != null) stringResource(R.string.accounts_save_changes) else stringResource(R.string.accounts_save_payment)) {
                 val cents = Money.parseCents(amount)
                 amountProblem = InputRules.amountProblem(cents)
-                accountProblem = if (account == null) "Pick an account." else null
+                accountProblem = if (account == null) pickAccountText else null
                 if (amountProblem != null || accountProblem != null) return@PrimaryButton
                 val defaultNote = if (direction == TxKind.PERSON_IN) "${p.name} paid you" else "You paid ${p.name}"
                 onSave(EntryDraft(
@@ -231,14 +237,14 @@ internal fun PaymentSheet(
                 ))
             }
             if (onDelete != null) TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Delete payment", color = Kassa.colors.attention, style = KassaType.bodyStrong)
+                Text(stringResource(R.string.accounts_delete_payment), color = Kassa.colors.attention, style = KassaType.bodyStrong)
             }
         }
     }
     if (confirmDelete && onDelete != null) ConfirmDialog(
-        title = "Delete this payment?",
-        body = "${Money.format(editing?.amount ?: 0)} comes off what's between you and ${p.name}, and off the account. This can't be undone.",
-        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+        title = stringResource(R.string.accounts_delete_payment_title),
+        body = stringResource(R.string.accounts_delete_payment_body, Money.format(editing?.amount ?: 0), p.name),
+        confirm = stringResource(R.string.accounts_delete), onConfirm = onDelete, onDismiss = { confirmDelete = false },
     )
 }
 
@@ -257,9 +263,9 @@ private fun SplitSheet(p: Person, ledger: Ledger, onDismiss: () -> Unit, onPick:
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text("Split with ${p.name}", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Pick an expense", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-            if (choices.isEmpty()) Text("No expenses in the last 60 days.", style = KassaType.body, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.accounts_split_with, p.name), style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.accounts_pick_expense), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            if (choices.isEmpty()) Text(stringResource(R.string.accounts_no_expenses_60), style = KassaType.body, color = Kassa.colors.ink2)
             LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
                 items(choices, key = { it.id }) { t -> TransactionRow(t, ledger, showDate = true, onClick = { onPick(it.id) }) }
             }

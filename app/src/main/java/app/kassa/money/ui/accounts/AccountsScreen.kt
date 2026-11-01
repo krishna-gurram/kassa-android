@@ -19,35 +19,33 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.semantics.Role
-import app.kassa.money.domain.AccountGroupView
-import app.kassa.money.ui.common.shortDate
-import app.kassa.money.ui.common.AutoScroll
-import app.kassa.money.ui.common.LocalMessages
-import app.kassa.money.ui.common.ReorderMath
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountArrangement
+import app.kassa.money.domain.AccountGroupView
 import app.kassa.money.domain.AccountLine
 import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
@@ -62,11 +60,15 @@ import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.cards.cardMoney
 import app.kassa.money.ui.cards.cardTint
+import app.kassa.money.ui.common.AutoScroll
 import app.kassa.money.ui.common.Gap
+import app.kassa.money.ui.common.LocalMessages
+import app.kassa.money.ui.common.ReorderMath
 import app.kassa.money.ui.common.TabTop
 import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.favourColor
 import app.kassa.money.ui.common.figureColor
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.importer.RaisedButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -105,6 +107,8 @@ fun AccountsScreen(
     val settings = LocalSettings.current
     val sort = AccountSort.of(settings.accountSort.collectAsState().value)
     val messages = LocalMessages.current
+    val backToAzText = stringResource(R.string.accounts_back_to_az)
+    val undoText = stringResource(R.string.accounts_undo)
     val state = ledger.accounts
     var addingAccount by remember { mutableStateOf(false) }
     var addingPerson by remember { mutableStateOf(false) }
@@ -176,7 +180,7 @@ fun AccountsScreen(
         val previousArrangement = settings.accountArrangement.value
         settings.resetAccountArrangement()
         arranging = false
-        messages?.withAction("Back to A to Z", "Undo") {
+        messages?.withAction(backToAzText, undoText) {
             if (previousSort == AccountSort.CUSTOM.name && previousArrangement != null) settings.setAccountArrangement(previousArrangement)
             else settings.setAccountSort(previousSort)
         }
@@ -199,17 +203,17 @@ fun AccountsScreen(
     }
     val peopleCard: @Composable () -> Unit = {
         GroupCard(
-            "People", Money.format(receivable - payable), favourColor(receivable - payable),
+            stringResource(R.string.accounts_people), Money.format(receivable - payable), favourColor(receivable - payable),
             open = Fold.PEOPLE !in folded, onToggle = { toggle(Fold.PEOPLE) },
         ) {
             if (people.isNotEmpty()) {
                 HorizontalDivider(color = Kassa.colors.line)
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Receivable ${Money.format(receivable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
-                    Text("Payable ${Money.format(payable)}", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+                    Text(stringResource(R.string.accounts_receivable_amount, Money.format(receivable)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
+                    Text(stringResource(R.string.accounts_payable_amount, Money.format(payable)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
                 }
             } else {
-                Text("Add people you split costs with or lend to.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
+                Text(stringResource(R.string.accounts_add_people_hint), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
             }
             people.forEach { p ->
                 HorizontalDivider(color = Kassa.colors.line)
@@ -219,14 +223,14 @@ fun AccountsScreen(
     }
     val closedCard: @Composable () -> Unit = {
         if (overview.closed.isNotEmpty()) GroupCard(
-            "Closed · ${overview.closed.size}", null, Kassa.colors.ink,
+            stringResource(R.string.accounts_closed_group, overview.closed.size), null, Kassa.colors.ink,
             open = Fold.CLOSED !in folded, onToggle = { toggle(Fold.CLOSED) },
         ) {
             overview.closed.forEach { a ->
                 HorizontalDivider(color = Kassa.colors.line)
                 OneLineRow(
                     a.name, a.last4, "", selected = a.id == selectedAccount, grouped = true,
-                    note = "Kept in your history", dueNote = a.closedDay?.let { "Closed ${accountDate(it)}" },
+                    note = stringResource(R.string.accounts_kept_in_history), dueNote = a.closedDay?.let { stringResource(R.string.accounts_closed_date, accountDate(it)) },
                 ) { onOpenAccount(a.id) }
             }
         }
@@ -235,10 +239,10 @@ fun AccountsScreen(
         val net = overview.netWorth
         // Net worth below zero is against you, so its hero is orange; hidden, every hero is plain grey.
         app.kassa.money.ui.common.TonalHero(if (net < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
-            app.kassa.money.ui.common.HeroLabel("Net worth")
+            app.kassa.money.ui.common.HeroLabel(stringResource(R.string.accounts_net_worth))
             app.kassa.money.ui.today.BigMoney(net, sizeSp = if (large) 46f else 40f, color = figureColor(if (net < 0) Kassa.colors.attention else Kassa.colors.ink))
             app.kassa.money.ui.common.HeroRule()
-            app.kassa.money.ui.common.HeroFoot("Assets", Money.format(overview.assets), "Liabilities", Money.format(overview.liabilities))
+            app.kassa.money.ui.common.HeroFoot(stringResource(R.string.accounts_assets), Money.format(overview.assets), stringResource(R.string.accounts_liabilities), Money.format(overview.liabilities))
         }
     }
     // One quiet line says how the list is ordered and opens the sheet that changes it.
@@ -248,15 +252,15 @@ fun AccountsScreen(
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier.weight(1f).heightIn(min = 48.dp)
-                    .clickable(role = Role.Button, onClickLabel = "Change how accounts are ordered") { ordering = true },
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.accounts_change_order_label)) { ordering = true },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Order", style = KassaType.small, color = Kassa.colors.ink2)
-                Text(sort.label, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp, end = 2.dp))
+                Text(stringResource(R.string.accounts_order), style = KassaType.small, color = Kassa.colors.ink2)
+                Text(stringResource(sort.labelRes), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp, end = 2.dp))
                 Icon(Icons.Outlined.ExpandMore, null, tint = Kassa.colors.ink2, modifier = Modifier.size(18.dp))
             }
             TextButton(onClick = { onFolded(if (allFolded) emptySet() else keys.toSet()) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (allFolded) "Expand all" else "Collapse all", style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text(if (allFolded) stringResource(R.string.accounts_expand_all) else stringResource(R.string.accounts_collapse_all), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
         }
     }
@@ -269,13 +273,13 @@ fun AccountsScreen(
     val footer: @Composable () -> Unit = {
         Gap(20)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            RaisedButton("Add an account", { addingAccount = true }, Modifier.weight(1f))
-            RaisedButton("Add a person", { addingPerson = true }, Modifier.weight(1f))
+            RaisedButton(stringResource(R.string.accounts_add_an_account), { addingAccount = true }, Modifier.weight(1f))
+            RaisedButton(stringResource(R.string.accounts_add_a_person), { addingPerson = true }, Modifier.weight(1f))
         }
         val archivedCount = archived.size + archivedPeople.size
         if (archivedCount > 0) {
             TextButton(onClick = { showArchived = !showArchived }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (showArchived) "Hide archived ($archivedCount)" else "Show archived ($archivedCount)", color = Kassa.colors.ink2)
+                Text(if (showArchived) stringResource(R.string.accounts_hide_archived, archivedCount) else stringResource(R.string.accounts_show_archived, archivedCount), color = Kassa.colors.ink2)
             }
             if (showArchived) Column(Modifier.clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised)) {
                 archived.forEachIndexed { i, a ->
@@ -301,13 +305,13 @@ fun AccountsScreen(
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(contentPadding).widthIn(max = if (two) 1100.dp else 720.dp)) {
             if (arranging) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Arrange", style = KassaType.title, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.accounts_arrange), style = KassaType.title, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     TextButton(onClick = { arranging = false }, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                        Text(stringResource(R.string.accounts_done), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                     }
                 }
                 Text(
-                    "Drag the handles. Open a group to move its accounts. Saved as you go.",
+                    stringResource(R.string.accounts_arrange_hint),
                     style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
                 )
                 if (two) {
@@ -320,7 +324,7 @@ fun AccountsScreen(
                 }
                 Gap(24)
             } else {
-                TabTop("Accounts")
+                TabTop(stringResource(R.string.accounts_title))
                 strip(two)
                 orderBar()
                 Gap(4)
@@ -333,7 +337,7 @@ fun AccountsScreen(
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             overview.liabilityGroups.forEach { groupCard(it.section, it.lines, it.total) }
                             if (overview.liabilityGroups.isEmpty()) Text(
-                                "Cards and loans show here when you add one.", style = KassaType.small, color = Kassa.colors.ink2,
+                                stringResource(R.string.accounts_liabilities_empty), style = KassaType.small, color = Kassa.colors.ink2,
                                 modifier = Modifier.padding(12.dp),
                             )
                         }
@@ -398,13 +402,13 @@ private fun AccountRow(
             // A card without statement days has nothing to split yet, so it shows only its total.
             val s = cards[a.id]?.snapshot
             if (s != null && s.payable > 0) {
-                note = "Total balance $amount"
+                note = stringResource(R.string.accounts_total_balance_amount, amount)
                 amount = Money.format(s.payable)
                 amountColor = figureColor(Kassa.colors.attention)
-                dueNote = "Due ${shortDate(s.due)}"
+                dueNote = stringResource(R.string.accounts_due_on, shortDate(s.due))
                 if (AccountsOverview.dueNeedsAttention(s.due.accountDay(), todayDay)) dueColor = figureColor(Kassa.colors.attention)
             } else if (s != null) {
-                note = "Nothing to pay"
+                note = stringResource(R.string.accounts_nothing_to_pay)
             }
         }
         AccountType.LOAN -> {
@@ -415,16 +419,16 @@ private fun AccountRow(
                 val changes = ledger.loans.changesFor(a.id)
                 val last = LoanEngine.lastDay(t, ledger.loans.paymentsFor(a.id))
                 val payable = LoanEngine.amountDue(t, changes, line.shown, last, t.nextPaymentDay)
-                note = "Outstanding $amount"
+                note = stringResource(R.string.accounts_outstanding_amount, amount)
                 amount = Money.format(payable)
                 amountColor = figureColor(Kassa.colors.attention)
-                dueNote = "Due ${shortDate(dateOfAccountDay(t.nextPaymentDay))}"
+                dueNote = stringResource(R.string.accounts_due_on, shortDate(dateOfAccountDay(t.nextPaymentDay)))
                 if (AccountsOverview.dueNeedsAttention(t.nextPaymentDay, todayDay)) dueColor = figureColor(Kassa.colors.attention)
             }
         }
         AccountType.FIXED_DEPOSIT -> {
             val matures = a.maturityDay
-            if (matures != null) dueNote = "Matures ${shortDate(dateOfAccountDay(matures))}"
+            if (matures != null) dueNote = stringResource(R.string.accounts_matures_on, shortDate(dateOfAccountDay(matures)))
         }
         else -> Unit
     }
@@ -441,7 +445,7 @@ private fun AccountRow(
 private fun PersonRow(p: Person, balance: Long, onClick: () -> Unit) {
     OneLineRow(
         p.name, null, Money.format(Math.abs(balance)), grouped = true,
-        suffix = when { Money.isHidden -> null; balance > 0 -> "owes you"; balance < 0 -> "you owe"; else -> "settled" },
+        suffix = when { Money.isHidden -> null; balance > 0 -> stringResource(R.string.accounts_owes_you); balance < 0 -> stringResource(R.string.accounts_you_owe); else -> stringResource(R.string.accounts_settled) },
         amountColor = favourColor(balance), onClick = onClick,
     )
 }
@@ -462,7 +466,7 @@ internal fun GroupCard(
     Column(modifier.fillMaxWidth().then(if (trailing != null) Modifier.clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised) else Modifier)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClickLabel = if (open) "Fold $title" else "Open $title", onClick = onToggle)
+                Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClickLabel = if (open) stringResource(R.string.accounts_fold_group, title) else stringResource(R.string.accounts_open_group, title), onClick = onToggle)
                     .padding(start = if (trailing == null) 0.dp else 12.dp, end = if (trailing == null) 0.dp else 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

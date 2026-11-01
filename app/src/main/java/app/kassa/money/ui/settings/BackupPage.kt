@@ -17,7 +17,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.data.Failures
 import app.kassa.money.data.Failures.Doing
 import app.kassa.money.data.backup.BackupContents
@@ -50,20 +52,17 @@ internal fun BackupPage(actions: SettingsActions) {
     val settings = LocalSettings.current
     val noteSeen by settings.backupNoteSeen.collectAsState()
     if (!noteSeen) {
-        Text(BACKUP_NOTE, style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 4.dp))
-        TextButton(onClick = { settings.dismissBackupNote() }) { Text("Got it", color = Kassa.colors.ink) }
+        Text(stringResource(R.string.settings_backup_note), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 4.dp))
+        TextButton(onClick = { settings.dismissBackupNote() }) { Text(stringResource(R.string.settings_backup_got_it), color = Kassa.colors.ink) }
     }
     DailyBackup(actions, onStatus = { status = it })
-    SectionHeader("Restore")
+    SectionHeader(stringResource(R.string.settings_backup_restore_header))
     Restore(actions, onStatus = { status = it })
-    SectionHeader("Copy with a password")
+    SectionHeader(stringResource(R.string.settings_backup_copy_header))
     ProtectedCopy(actions, onStatus = { status = it })
     status?.let { Text(it, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.padding(top = 12.dp)) }
     Gap(24)
 }
-
-/** Shown once, here and before the folder picker first opens: a folder's backups have no password. */
-internal const val BACKUP_NOTE = "Backups in this folder aren't encrypted. Add a password when you save one anywhere you don't control."
 
 @Composable
 private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
@@ -80,11 +79,12 @@ private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
     var afterFolder by remember { mutableStateOf<(() -> Unit)?>(null) }
     var explainFolder by remember { mutableStateOf(false) }
     val noteSeen by settings.backupNoteSeen.collectAsState()
+    val chosenFolder = stringResource(R.string.settings_backup_chosen_folder)
 
     val backUpNow: () -> Unit = {
         busy = true; onStatus(null)
         scope.launch {
-            onStatus(runCatching { actions.backupNow() }.fold({ "Saved $it." }, { e ->
+            onStatus(runCatching { actions.backupNow() }.fold({ context.getString(R.string.settings_backup_saved, it) }, { e ->
                 // The job's own failures already carry plain wording; anything else is mapped here, never shown raw.
                 if (e is Failures.UserFacing) e.message.orEmpty() else Failures.message(e, Doing.WRITE_BACKUP)
             }))
@@ -105,32 +105,35 @@ private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
     val openPicker: () -> Unit = { if (noteSeen) folderPicker.launch(null) else explainFolder = true }
     val pickFolderThen: (() -> Unit) -> Unit = { next -> afterFolder = next; openPicker() }
     if (explainFolder) ConfirmDialog(
-        title = "Before you choose a folder",
-        body = BACKUP_NOTE,
-        confirm = "Choose folder",
+        title = stringResource(R.string.settings_backup_before_folder),
+        body = stringResource(R.string.settings_backup_note),
+        confirm = stringResource(R.string.settings_backup_choose_folder),
         destructive = false,
         onConfirm = { explainFolder = false; settings.dismissBackupNote(); folderPicker.launch(null) },
         onDismiss = { explainFolder = false; afterFolder = null },
     )
 
-    SwitchRow("Back up every day", "No password. Kassa keeps the latest 30.", auto) { on ->
+    SwitchRow(stringResource(R.string.settings_backup_every_day), stringResource(R.string.settings_backup_every_day_hint), auto) { on ->
         if (on && folder == null) pickFolderThen { settings.setAutoBackup(true); actions.refreshDailyJobs() }
         else { settings.setAutoBackup(on); actions.refreshDailyJobs() }
     }
-    NavRow("Folder", folder?.let(::folderName) ?: "Choose") { openPicker() }
-    NavRow("Time", timeLabel(minute)) { pickTime = true }
+    NavRow(stringResource(R.string.settings_backup_folder), folder?.let { folderName(it, chosenFolder) } ?: stringResource(R.string.settings_backup_folder_choose)) { openPicker() }
+    NavRow(stringResource(R.string.settings_time), timeLabel(minute)) { pickTime = true }
     val (lastAt, problem) = last
     Text(
         when {
             problem != null -> problem
-            lastAt > 0 -> "Last backup " + Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
-            else -> "No backup yet"
+            lastAt > 0 -> stringResource(
+                R.string.settings_backup_last,
+                Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)),
+            )
+            else -> stringResource(R.string.settings_backup_none_yet)
         },
         style = KassaType.small, color = if (problem != null) Kassa.colors.attention else Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp),
     )
     Gap(12)
-    PrimaryButton(if (busy) "Backing up..." else "Back up now") {
+    PrimaryButton(if (busy) stringResource(R.string.settings_backup_backing_up) else stringResource(R.string.settings_backup_now)) {
         when {
             busy -> Unit
             folder == null -> pickFolderThen(backUpNow)
@@ -141,8 +144,8 @@ private fun DailyBackup(actions: SettingsActions, onStatus: (String?) -> Unit) {
 }
 
 /** The folder's own name from its document tree address, like "Kassa" for Documents/Kassa. */
-private fun folderName(uri: String): String =
-    Uri.parse(uri).lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')?.ifBlank { null } ?: "Chosen folder"
+private fun folderName(uri: String, fallback: String): String =
+    Uri.parse(uri).lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')?.ifBlank { null } ?: fallback
 
 @Composable
 private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
@@ -153,6 +156,7 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
     var contents by remember { mutableStateOf<BackupContents?>(null) }
     var confirm by remember { mutableStateOf(false) }
     var restoring by remember { mutableStateOf(false) }
+    val restoringText = stringResource(R.string.settings_backup_restoring)
 
     fun read(uri: Uri, pw: CharArray?) = scope.launch {
         actions.readBackup(uri, pw)
@@ -166,22 +170,22 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
         if (uri != null) { file = uri; contents = null; needsPassword = false; read(uri, null) }
     }
 
-    SecondaryButton(if (restoring) "Restoring..." else "Restore from a backup", { if (!restoring) opener.launch(arrayOf("*/*")) })
+    SecondaryButton(if (restoring) restoringText else stringResource(R.string.settings_backup_restore_button), { if (!restoring) opener.launch(arrayOf("*/*")) })
     if (needsPassword) {
-        PasswordField(password, { password = it }, "This backup's password", Modifier.fillMaxWidth().padding(top = 10.dp))
+        PasswordField(password, { password = it }, stringResource(R.string.settings_backup_password_label), Modifier.fillMaxWidth().padding(top = 10.dp))
         Gap(8)
-        PrimaryButton("Open backup") { file?.let { read(it, password.toCharArray()) } }
+        PrimaryButton(stringResource(R.string.settings_backup_open)) { file?.let { read(it, password.toCharArray()) } }
     }
     contents?.let { c ->
         Gap(14)
         BackupSummary(c)
-        Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
+        Text(stringResource(R.string.settings_backup_restore_warning), style = KassaType.small, color = Kassa.colors.attention)
         Gap(8)
-        PrimaryButton(if (restoring) "Restoring..." else "Replace with this backup") { if (!restoring) confirm = true }
-        TextButton(onClick = { if (!restoring) contents = null }) { Text("Cancel", color = Kassa.colors.ink2) }
+        PrimaryButton(if (restoring) restoringText else stringResource(R.string.settings_backup_replace_with)) { if (!restoring) confirm = true }
+        TextButton(onClick = { if (!restoring) contents = null }) { Text(stringResource(R.string.settings_cancel), color = Kassa.colors.ink2) }
         if (confirm) RestoreConfirm(
             onConfirm = {
-                confirm = false; restoring = true; onStatus("Restoring...")
+                confirm = false; restoring = true; onStatus(restoringText)
                 scope.launch {
                     // The result is plain wording either way, so the "Restoring..." line is always replaced.
                     val result = try { actions.restore(c) } catch (e: CancellationException) { throw e } catch (e: Exception) { Failures.message(e, Doing.RESTORE) }
@@ -197,15 +201,15 @@ private fun Restore(actions: SettingsActions, onStatus: (String?) -> Unit) {
 @Composable
 internal fun BackupSummary(c: BackupContents) {
     val created = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).format(Instant.ofEpochMilli(c.createdAt).atZone(ZoneId.systemDefault()))
-    Text("From $created: ${c.summary}.", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+    Text(stringResource(R.string.settings_backup_from, created, c.summary), style = KassaType.bodyStrong, color = Kassa.colors.ink)
 }
 
 /** Asked before a backup replaces what's in Kassa, here and on the Import page. */
 @Composable
 internal fun RestoreConfirm(onConfirm: () -> Unit, onDismiss: () -> Unit) = ConfirmDialog(
-    title = "Replace everything in Kassa?",
-    body = "All accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.",
-    confirm = "Replace",
+    title = stringResource(R.string.settings_backup_replace_title),
+    body = stringResource(R.string.settings_backup_replace_body),
+    confirm = stringResource(R.string.settings_backup_replace),
     onConfirm = onConfirm,
     onDismiss = onDismiss,
 )
@@ -223,14 +227,14 @@ private fun ProtectedCopy(actions: SettingsActions, onStatus: (String?) -> Unit)
         }
     }
     if (!open) {
-        TextButton(onClick = { open = true }) { Text("Save a copy with a password", color = Kassa.colors.ink) }
+        TextButton(onClick = { open = true }) { Text(stringResource(R.string.settings_backup_save_copy_link), color = Kassa.colors.ink) }
         return
     }
-    Text("Anyone opening this copy needs the password. Kassa can't recover a lost one.", style = KassaType.small, color = Kassa.colors.ink2)
-    PasswordField(password, { password = it }, "Password", Modifier.fillMaxWidth().padding(top = 8.dp))
-    PasswordField(repeat, { repeat = it }, "Repeat it", Modifier.fillMaxWidth().padding(top = 8.dp))
+    Text(stringResource(R.string.settings_backup_copy_note), style = KassaType.small, color = Kassa.colors.ink2)
+    PasswordField(password, { password = it }, stringResource(R.string.settings_backup_password), Modifier.fillMaxWidth().padding(top = 8.dp))
+    PasswordField(repeat, { repeat = it }, stringResource(R.string.settings_backup_repeat), Modifier.fillMaxWidth().padding(top = 8.dp))
     Gap(10)
-    PrimaryButton("Save copy") {
+    PrimaryButton(stringResource(R.string.settings_backup_save_copy)) {
         val problem = InputRules.passwordProblem(password, repeat)
         onStatus(problem)
         if (problem == null) saver.launch("Kassa_${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))}_protected.kassa")

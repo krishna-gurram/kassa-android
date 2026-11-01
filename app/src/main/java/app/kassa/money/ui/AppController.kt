@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import app.kassa.money.R
 import app.kassa.money.data.Settings
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.data.jobs.DailyJobs
@@ -41,7 +42,6 @@ val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings is
 data class Correcting(val accountId: Long, val editing: Transaction? = null)
 
 /** What a tapped payment-due notification says when the card, loan or bill it was about no longer exists. */
-const val PAYMENT_GONE = "That payment is no longer there."
 
 /** The value of [NavViewModel.settingsRequest] that opens Settings > Backup and restore. */
 const val SETTINGS_BACKUP = "backup"
@@ -104,7 +104,7 @@ class AppController(
     /** What a tapped notification named is no longer there: show the tab it would have been on, and say so. */
     private fun dueIsGone(tab: Tab) {
         nav.select(tab)
-        vm.say(PAYMENT_GONE)
+        vm.say(context.getString(R.string.shell_payment_gone))
     }
 
     /** The Settings > Backup page, from the "Backup needs attention" notification. */

@@ -7,6 +7,7 @@ import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Spacer
+import app.kassa.money.R
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.domain.NumberText
 import androidx.compose.ui.Alignment
@@ -69,7 +71,7 @@ internal fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Un
 @Composable
 internal fun PanelTitle(title: String, back: (() -> Unit)? = null, onDone: (() -> Unit)?) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (back != null) IconButton(onClick = back, modifier = Modifier.size(48.dp)) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
+        if (back != null) IconButton(onClick = back, modifier = Modifier.size(48.dp)) { Icon(Chevron(left = true), stringResource(R.string.entry_back), tint = Kassa.colors.ink) }
         Text(title, style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 4.dp))
         if (onDone != null) DoneButton(onDone)
@@ -81,7 +83,7 @@ private fun DoneButton(onClick: () -> Unit) {
     Box(
         Modifier.padding(start = 6.dp).heightIn(min = 48.dp).widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
-    ) { Text("Done", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
+    ) { Text(stringResource(R.string.entry_done), style = KassaType.bodyStrong, color = Kassa.colors.ink) }
 }
 
 /** The panel's title row as a search box, with Done on the right, so searching adds no row of its own. */
@@ -105,7 +107,7 @@ internal fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String,
                         inner()
                     }
                     if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Close, stringResource(R.string.entry_clear_search), tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
                     }
                     else Spacer(Modifier.size(10.dp))
                 }
@@ -146,6 +148,8 @@ internal fun QuickButton(label: String, on: Boolean, modifier: Modifier, onClick
 internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
     val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del")
     val keySize = scaledSp(24f)
+    val deleteText = stringResource(R.string.entry_delete_key)
+    val decimalText = stringResource(R.string.entry_decimal_mark)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.chunked(3).forEach { row ->
             Row(Modifier.weight(1f).heightIn(max = 64.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -159,8 +163,8 @@ internal fun NumberPad(modifier: Modifier, onKey: (String) -> Unit) {
                             style = KassaType.body.copy(fontSize = keySize, fontWeight = FontWeight.Medium),
                             color = Kassa.colors.ink, textAlign = TextAlign.Center,
                             modifier = when (k) {
-                                "del" -> Modifier.clearAndSetSemantics { contentDescription = "Delete" }
-                                "." -> Modifier.clearAndSetSemantics { contentDescription = "Decimal mark" }
+                                "del" -> Modifier.clearAndSetSemantics { contentDescription = deleteText }
+                                "." -> Modifier.clearAndSetSemantics { contentDescription = decimalText }
                                 else -> Modifier
                             },
                         )

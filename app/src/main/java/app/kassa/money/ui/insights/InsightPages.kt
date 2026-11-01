@@ -27,11 +27,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.ui.common.weekdayDateLong
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.common.figureColor
@@ -61,27 +63,27 @@ fun InsightDetailPage(
 ) {
     val p = ledger.period
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PageTop(page.title, onBack)
+        PageTop(stringResource(page.titleRes), onBack)
         when (page) {
             InsightPage.BIG_WEEK, InsightPage.BIG_MONTH -> {
                 val list = bigPurchases(ledger, week = page == InsightPage.BIG_WEEK)
-                if (list.isEmpty()) Empty("No purchases yet.")
+                if (list.isEmpty()) Empty(stringResource(R.string.insights_no_purchases))
                 Column { list.forEachIndexed { i, t -> app.kassa.money.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) } }
             }
             InsightPage.DUES -> {
                 val dues = duesThisWeek(ledger)
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Figure("Total", Money.format(dues.sumOf { it.snapshot.payable }), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Cards", dues.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_total), Money.format(dues.sumOf { it.snapshot.payable }), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_cards), dues.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
                 }
-                if (dues.isEmpty()) Empty("No card payments due before Sunday.")
+                if (dues.isEmpty()) Empty(stringResource(R.string.insights_no_card_payments))
                 Column {
                     dues.forEachIndexed { i, d ->
                         Row(Modifier.fillMaxWidth().clickable { onOpenCard(d.account.id) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(d.snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(), style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.widthIn(min = 44.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(d.account.name + (d.account.last4?.takeIf { it.isNotBlank() }?.let { "  \u00b7\u00b7$it" } ?: ""), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("Balance payable", style = KassaType.tiny, color = Kassa.colors.ink3)
+                                Text(stringResource(R.string.insights_balance_payable), style = KassaType.tiny, color = Kassa.colors.ink3)
                             }
                             Text(Money.format(d.snapshot.payable), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                         }
@@ -93,46 +95,46 @@ fun InsightDetailPage(
                 val months = Patterns.saved(ledger.counted, ledger.today, ledger.monthStartDay, ledger.zone)
                 val now = months.last()
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Figure("Income", Money.format(now.income, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Spent", Money.format(now.spent, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Saved so far", Money.format(now.saved, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = figureColor(if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention))
+                    Figure(stringResource(R.string.insights_income), Money.format(now.income, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_spent), Money.format(now.spent, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_saved_so_far), Money.format(now.saved, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = figureColor(if (now.saved >= 0) Kassa.colors.positive else Kassa.colors.attention))
                 }
-                BarChart(months.map { short(it.month) to maxOf(0L, it.saved) }, months.lastIndex, Kassa.colors.positive, labels = months.map { m -> m.rate?.takeIf { !Money.isHidden }?.let { "$it%" } ?: "" })
+                BarChart(months.map { short(it.month) to maxOf(0L, it.saved) }, months.lastIndex, Kassa.colors.positive, labels = months.map { m -> m.rate?.takeIf { !Money.isHidden }?.let { stringResource(R.string.insights_percent, it) } ?: "" })
                 Column {
                     months.reversed().forEachIndexed { i, m ->
-                        ListRow(short(m.month), m.rate?.takeIf { !Money.isHidden }?.let { "$it%" } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex,
+                        ListRow(short(m.month), m.rate?.takeIf { !Money.isHidden }?.let { stringResource(R.string.insights_percent, it) } ?: "", Money.format(m.saved, wholeDollars = true), showDivider = i < months.lastIndex,
                             valueColor = figureColor(if (m.saved < 0) Kassa.colors.attention else Kassa.colors.ink))
                     }
                 }
             }
             InsightPage.STORES -> {
                 val stores = Patterns.stores(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone).take(15)
-                if (stores.isEmpty()) Empty("No entries with a store name this month.")
+                if (stores.isEmpty()) Empty(stringResource(R.string.insights_no_store_entries))
                 val max = stores.firstOrNull()?.total ?: 1L
-                Column { stores.forEach { st -> RankRow(st.category, st.name, st.total, max, "${st.visits}×") { onOpenStore(st.name) } } }
+                Column { stores.forEach { st -> RankRow(st.category, st.name, st.total, max, stringResource(R.string.insights_times, st.visits)) { onOpenStore(st.name) } } }
             }
             InsightPage.SMALL -> {
                 val s = Patterns.smallBuys(ledger.purchases, ledger.categoryById, p.start, ledger.today, ledger.zone)
                 val months = Patterns.smallBuysByMonth(ledger.purchases, ledger.categoryById, ledger.today, ledger.monthStartDay, ledger.zone)
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Figure("This month", Money.format(s.total, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Buys", s.count.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("Each under", Money.format(Patterns.SMALL_LIMIT, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_this_month), Money.format(s.total, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_buys), s.count.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_each_under), Money.format(Patterns.SMALL_LIMIT, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                 }
                 BarChart(months.map { short(it.first) to it.second }, months.lastIndex, Kassa.colors.ink)
                 val max = s.byCategory.firstOrNull()?.second ?: 1L
-                Column { s.byCategory.forEach { (c, v, n) -> RankRow(c, c.name, v, max, "$n×") { onOpenCategory(c) } } }
+                Column { s.byCategory.forEach { (c, v, n) -> RankRow(c, c.name, v, max, stringResource(R.string.insights_times, n)) { onOpenCategory(c) } } }
             }
             InsightPage.CREEP -> {
                 val creep = Patterns.creeping(ledger.counted, ledger.categories, ledger.today, ledger.monthStartDay, ledger.zone)
-                if (creep.isEmpty()) Empty("No category has gone up three months in a row.")
+                if (creep.isEmpty()) Empty(stringResource(R.string.insights_no_creep))
                 creep.forEach { cr ->
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Kassa.colors.raised).clickable { onOpenCategory(cr.category) }.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CategoryBadge(cr.category, size = 26)
                             Text(cr.category.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
                             Text((if (Money.isHidden) "" else "+") + Money.format(cr.rise, wholeDollars = true), style = KassaType.bodyStrong, color = figureColor(Kassa.colors.attention))
-                            Text(" since ${short(cr.months.first().first)}", style = KassaType.tiny, color = Kassa.colors.ink2)
+                            Text(stringResource(R.string.insights_since, short(cr.months.first().first)), style = KassaType.tiny, color = Kassa.colors.ink2)
                         }
                         BarChart(cr.months.map { short(it.first) to it.second }, cr.months.lastIndex, Kassa.colors.attention, height = 110)
                     }
@@ -142,10 +144,10 @@ fun InsightDetailPage(
                 val all = ledger.repeats
                 val spent = all.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Figure("A month", Money.format(spent.sumOf { it.perMonth }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-                    Figure("A year", Money.format(spent.sumOf { it.perYear }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_a_month), Money.format(spent.sumOf { it.perMonth }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+                    Figure(stringResource(R.string.insights_a_year), Money.format(spent.sumOf { it.perYear }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
                 }
-                if (all.isEmpty()) Empty("Nothing has repeated on a schedule yet.")
+                if (all.isEmpty()) Empty(stringResource(R.string.insights_nothing_repeated))
                 all.groupBy { it.cadence }.toSortedMap().forEach { (cadence, list) ->
                     Text(cadence.label, style = KassaType.tiny.copy(fontWeight = FontWeight.Bold), color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp))
                     Column { list.forEachIndexed { i, x -> RepeatRow(x, ledger, onOpenStore, last = i == list.lastIndex) } }
@@ -155,7 +157,7 @@ fun InsightDetailPage(
                 val avg = Insights.weekdayAverages(ledger.counted, ledger.categories, ledger.today, ledger.zone)
                 val top = avg.maxByOrNull { it.second }
                 BarChart(avg.map { it.first.getDisplayName(TextStyle.SHORT, Locale.getDefault()) to it.second }, top?.let { avg.indexOf(it) } ?: -1, Kassa.colors.ink, height = 200)
-                Text("Avg day \u00b7 last 13 weeks", style = KassaType.tiny, color = Kassa.colors.ink3)
+                Text(stringResource(R.string.insights_avg_day), style = KassaType.tiny, color = Kassa.colors.ink3)
                 // Per weekday: what it mostly goes to and how many purchases over the 13 weeks.
                 val from = ledger.today.minusWeeks(13)
                 val byDay = ledger.counted.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
@@ -171,7 +173,7 @@ fun InsightDetailPage(
                             CategoryBadge(topCat, size = 28)
                             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                 Text(day.getDisplayName(TextStyle.FULL, Locale.getDefault()), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                                Text(listOfNotNull(topCat?.name?.let { "Mostly $it" }, "${list.size} buys").joinToString(" \u00b7 "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.tiny, color = Kassa.colors.ink3)
+                                Text(listOfNotNull(topCat?.name?.let { stringResource(R.string.insights_mostly, it) }, stringResource(R.string.insights_n_buys, list.size)).joinToString(" \u00b7 "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.tiny, color = Kassa.colors.ink3)
                             }
                             Text(Money.format(v, wholeDollars = true), style = KassaType.bodyStrong, color = Kassa.colors.ink)
                         }
@@ -189,9 +191,9 @@ private fun RepeatRow(x: app.kassa.money.domain.Repeat, ledger: Ledger, onOpen: 
     val income = x.kind == app.kassa.money.domain.TxKind.INCOME
     val next = shortDate(x.next(ledger.today))
     val detail = listOfNotNull(
-        "Next $next",
-        if (!x.fixed) "${Money.format(x.low, wholeDollars = true)} to ${Money.format(x.high, wholeDollars = true)}" else null,
-        if (income) "Income" else null,
+        stringResource(R.string.insights_next_date, next),
+        if (!x.fixed) stringResource(R.string.insights_range, Money.format(x.low, wholeDollars = true), Money.format(x.high, wholeDollars = true)) else null,
+        if (income) stringResource(R.string.insights_income) else null,
     ).joinToString(" · ")
     Row(Modifier.fillMaxWidth().clickable { onOpen(x.name) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         CategoryBadge(app.kassa.money.domain.Spending.topOf(x.categoryId, ledger.categoryById), size = 30)
@@ -202,14 +204,14 @@ private fun RepeatRow(x: app.kassa.money.domain.Repeat, ledger: Ledger, onOpen: 
                     // An arrow, not a sign: a cheaper charge is good news, and a minus always means against you.
                     x.change != 0L -> Tag((if (Money.isHidden) "" else if (x.change > 0) "↑ " else "↓ ") + Money.format(Math.abs(x.change)),
                         app.kassa.money.ui.common.favourColor(if (income) x.change else -x.change))
-                    !x.fixed -> Tag("varies", Kassa.colors.ink2)
+                    !x.fixed -> Tag(stringResource(R.string.insights_varies), Kassa.colors.ink2)
                 }
             }
             Text(detail, style = KassaType.tiny, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text((if (x.fixed) "" else "≈ ") + Money.format(x.typical), style = KassaType.bodyStrong, color = if (income) Kassa.colors.positive else Kassa.colors.ink, maxLines = 1)
-            Text("${Money.format(x.perYear, wholeDollars = true)}/yr", style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1)
+            Text(stringResource(R.string.insights_per_year, Money.format(x.perYear, wholeDollars = true)), style = KassaType.tiny, color = Kassa.colors.ink3, maxLines = 1)
         }
     }
     if (!last) HorizontalDivider(color = Kassa.colors.line)
@@ -282,9 +284,9 @@ fun DayPage(
     val spent = list.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }.sumOf { it.categoryAmount }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(weekdayDateLong(date), onBack)
-        Text("Spent", style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
+        Text(stringResource(R.string.insights_spent), style = KassaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2)
         app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f)
-        if (list.isEmpty()) Empty("Nothing recorded this day.")
+        if (list.isEmpty()) Empty(stringResource(R.string.insights_nothing_this_day))
         Column(Modifier.padding(top = 8.dp)) {
             list.forEachIndexed { i, t -> app.kassa.money.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit) }
         }
@@ -301,10 +303,10 @@ fun InsightStorePage(ledger: Ledger, name: String, contentPadding: PaddingValues
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTop(name, onBack)
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("This month", Money.format(month.sumOf { it.categoryAmount }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
-            Figure("Purchases", month.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
+            Figure(stringResource(R.string.insights_this_month), Money.format(month.sumOf { it.categoryAmount }, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
+            Figure(stringResource(R.string.insights_purchases), month.size.toString(), null, Kassa.colors.ink2, Modifier.weight(1f))
         }
-        if (list.isEmpty()) Empty("No entries for $name.")
+        if (list.isEmpty()) Empty(stringResource(R.string.insights_no_entries_for, name))
         Column { list.forEachIndexed { i, t -> app.kassa.money.ui.common.TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) } }
     }
 }

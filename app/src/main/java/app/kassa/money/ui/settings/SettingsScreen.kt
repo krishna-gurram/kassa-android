@@ -27,10 +27,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import app.kassa.money.BuildConfigInfo
 import app.kassa.money.KassaApplication
+import app.kassa.money.R
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
@@ -84,29 +86,43 @@ interface SettingsActions {
 
 /** The pages inside the Settings tab. They stack on the tab itself; Back returns to the list. */
 private sealed interface SettingsPage {
-    val title: String
-
     /** Whether the page shows amounts, and so gets the Hide balances switch. */
     val amounts: Boolean get() = false
-    data object Main : SettingsPage { override val title = "Settings" }
+    data object Main : SettingsPage
     data class Categories(val kind: CategoryKind) : SettingsPage {
-        override val title get() = if (kind == CategoryKind.EXPENSE) "Expense categories" else "Income categories"
         override val amounts: Boolean get() = true
     }
-    data class EditCategory(val category: Category, val back: SettingsPage) : SettingsPage {
-        override val title get() = if (category.id == 0L) "New category" else "Edit category"
-    }
-    data object PersonAccounts : SettingsPage { override val title = "Account to person"; override val amounts = true }
-    data object Bills : SettingsPage { override val title = "Recurring bills"; override val amounts = true }
-    data object Notifications : SettingsPage { override val title = "Notifications" }
-    data object Backup : SettingsPage { override val title = "Backup and restore" }
-    data object BudgetMonth : SettingsPage { override val title = "Budget month" }
-    data object Currency : SettingsPage { override val title = "Currency" }
-    data object Feedback : SettingsPage { override val title = "Send feedback" }
-    data object OpenOn : SettingsPage { override val title = "Open Kassa on" }
-    data object Privacy : SettingsPage { override val title = "Privacy" }
-    data object Licences : SettingsPage { override val title = "Open source licences" }
-    data class LicenceDetail(val licence: Licence) : SettingsPage { override val title get() = licence.name }
+    data class EditCategory(val category: Category, val back: SettingsPage) : SettingsPage
+    data object PersonAccounts : SettingsPage { override val amounts = true }
+    data object Bills : SettingsPage { override val amounts = true }
+    data object Notifications : SettingsPage
+    data object Backup : SettingsPage
+    data object BudgetMonth : SettingsPage
+    data object Currency : SettingsPage
+    data object Feedback : SettingsPage
+    data object OpenOn : SettingsPage
+    data object Privacy : SettingsPage
+    data object Licences : SettingsPage
+    data class LicenceDetail(val licence: Licence) : SettingsPage
+}
+
+/** The title shown at the top of a page. */
+@Composable
+private fun SettingsPage.titleText(): String = when (this) {
+    SettingsPage.Main -> stringResource(R.string.settings_title)
+    is SettingsPage.Categories -> stringResource(if (kind == CategoryKind.EXPENSE) R.string.settings_page_expense_categories else R.string.settings_page_income_categories)
+    is SettingsPage.EditCategory -> stringResource(if (category.id == 0L) R.string.settings_page_new_category else R.string.settings_page_edit_category)
+    SettingsPage.PersonAccounts -> stringResource(R.string.settings_page_account_to_person)
+    SettingsPage.Bills -> stringResource(R.string.settings_page_bills)
+    SettingsPage.Notifications -> stringResource(R.string.settings_page_notifications)
+    SettingsPage.Backup -> stringResource(R.string.settings_page_backup)
+    SettingsPage.BudgetMonth -> stringResource(R.string.settings_page_budget_month)
+    SettingsPage.Currency -> stringResource(R.string.settings_page_currency)
+    SettingsPage.Feedback -> stringResource(R.string.settings_page_feedback)
+    SettingsPage.OpenOn -> stringResource(R.string.settings_page_open_on)
+    SettingsPage.Privacy -> stringResource(R.string.settings_page_privacy)
+    SettingsPage.Licences -> stringResource(R.string.settings_page_licences)
+    is SettingsPage.LicenceDetail -> licence.name
 }
 
 /** Settings as a tab: one list of groups, each row opening its own page. */
@@ -128,10 +144,10 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         if (page == SettingsPage.Main) {
-            Text("Kassa ${BuildConfigInfo.versionName}", style = KassaType.small, color = Kassa.colors.ink2)
-            Text("Settings", style = KassaType.title, color = Kassa.colors.ink)
+            Text(stringResource(R.string.settings_version, BuildConfigInfo.versionName), style = KassaType.small, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.settings_title), style = KassaType.title, color = Kassa.colors.ink)
         } else {
-            PageTop(page.title, onBack = back, amounts = page.amounts)
+            PageTop(page.titleText(), onBack = back, amounts = page.amounts)
         }
         when (val p = page) {
             SettingsPage.Main -> MainList(ledger, actions, open = { page = it })
@@ -171,79 +187,84 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     val lastBackup by settings.lastBackup.collectAsState()
     val topLevel = { kind: CategoryKind -> ledger.categories.count { it.kind == kind && it.parentId == null && !it.hidden } }
 
-    SectionHeader("Appearance")
+    SectionHeader(stringResource(R.string.settings_section_appearance))
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Theme", style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
-        Choice(listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark"), theme, settings::setTheme)
+        Text(stringResource(R.string.settings_theme), style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+        Choice(listOf("SYSTEM" to stringResource(R.string.settings_theme_system), "LIGHT" to stringResource(R.string.settings_theme_light), "DARK" to stringResource(R.string.settings_theme_dark)), theme, settings::setTheme)
     }
     HorizontalDivider(color = Kassa.colors.line)
     val cur = Currencies.byCode(currency)
-    NavRow("Currency", "${cur.name}, ${Money.sample(123_450, style = cur)}") { open(SettingsPage.Currency) }
+    NavRow(stringResource(R.string.settings_page_currency), stringResource(R.string.settings_currency_row, cur.name, Money.sample(123_450, style = cur))) { open(SettingsPage.Currency) }
 
-    SectionHeader("Home screen")
+    SectionHeader(stringResource(R.string.settings_section_home))
     val openTab by settings.openTab.collectAsState()
-    NavRow("Open Kassa on", app.kassa.money.ui.Tab.entries.firstOrNull { it.name == openTab }?.label ?: "Overview") { open(SettingsPage.OpenOn) }
+    NavRow(stringResource(R.string.settings_page_open_on), app.kassa.money.ui.Tab.entries.firstOrNull { it.name == openTab }?.label ?: stringResource(R.string.settings_open_on_default)) { open(SettingsPage.OpenOn) }
     val pins by settings.pins.collectAsState()
-    NavRow("Accounts on Overview", "${app.kassa.money.ui.today.pinned(ledger, pins).size} pinned") { actions.openPins() }
+    NavRow(stringResource(R.string.settings_pins_title), stringResource(R.string.settings_pins_value, app.kassa.money.ui.today.pinned(ledger, pins).size)) { actions.openPins() }
 
-    SectionHeader("Budgeting")
-    NavRow("Expense categories", "${topLevel(CategoryKind.EXPENSE)}") { open(SettingsPage.Categories(CategoryKind.EXPENSE)) }
-    NavRow("Income categories", "${topLevel(CategoryKind.INCOME)}") { open(SettingsPage.Categories(CategoryKind.INCOME)) }
-    NavRow("Budget month", "Starts on day ${ledger.monthStartDay}") { open(SettingsPage.BudgetMonth) }
+    SectionHeader(stringResource(R.string.settings_section_budgeting))
+    NavRow(stringResource(R.string.settings_page_expense_categories), "${topLevel(CategoryKind.EXPENSE)}") { open(SettingsPage.Categories(CategoryKind.EXPENSE)) }
+    NavRow(stringResource(R.string.settings_page_income_categories), "${topLevel(CategoryKind.INCOME)}") { open(SettingsPage.Categories(CategoryKind.INCOME)) }
+    NavRow(stringResource(R.string.settings_page_budget_month), stringResource(R.string.settings_budget_month_value, ledger.monthStartDay)) { open(SettingsPage.BudgetMonth) }
 
-    SectionHeader("Bills")
-    NavRow("Recurring bills", "${ledger.bills.size}") { open(SettingsPage.Bills) }
+    SectionHeader(stringResource(R.string.settings_section_bills))
+    NavRow(stringResource(R.string.settings_page_bills), "${ledger.bills.size}") { open(SettingsPage.Bills) }
 
-    SectionHeader("Reminders")
-    NavRow("Notifications", notificationsSummary()) { open(SettingsPage.Notifications) }
+    SectionHeader(stringResource(R.string.settings_section_reminders))
+    NavRow(stringResource(R.string.settings_page_notifications), notificationsSummary()) { open(SettingsPage.Notifications) }
 
-    SectionHeader("Security")
+    SectionHeader(stringResource(R.string.settings_section_security))
     val context = LocalContext.current
     val messages = LocalMessages.current
-    SwitchRow("App lock", "Fingerprint, face or screen lock", lock) { on ->
+    val lockUnavailable = stringResource(R.string.settings_lock_unavailable)
+    val coffeeFailed = stringResource(R.string.settings_coffee_failed)
+    SwitchRow(stringResource(R.string.settings_lock_title), stringResource(R.string.settings_lock_detail), lock) { on ->
         when {
             !on -> settings.setLock(false)
             // The lock asks for a fingerprint, face or the screen lock, so the phone needs one before this can be on.
             AppLock.check(context) == AppLock.Status.READY -> settings.setLock(true)
-            AppLock.check(context) == AppLock.Status.NO_SCREEN_LOCK -> messages?.say(AppLock.SET_A_SCREEN_LOCK)
-            else -> messages?.say("App lock isn't available on this phone right now. Try again in a moment.")
+            AppLock.check(context) == AppLock.Status.NO_SCREEN_LOCK -> messages?.say(context.getString(R.string.shell_set_a_screen_lock))
+            else -> messages?.say(lockUnavailable)
         }
     }
 
-    SectionHeader("Data")
+    SectionHeader(stringResource(R.string.settings_section_data))
     val (lastAt, problem) = lastBackup
-    NavRow("Backup and restore", when {
-        problem != null -> "Needs attention"
-        lastAt > 0 -> "Last " + Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-        else -> "Not set up"
+    NavRow(stringResource(R.string.settings_page_backup), when {
+        problem != null -> stringResource(R.string.settings_backup_needs_attention)
+        lastAt > 0 -> stringResource(
+            R.string.settings_backup_last_day,
+            Instant.ofEpochMilli(lastAt).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+        )
+        else -> stringResource(R.string.settings_backup_not_set_up)
     }) { open(SettingsPage.Backup) }
-    NavRow("Import from another app", "Kassa, Money Manager (.mmbak) and Cashew (.sql) backups") { actions.importAgain() }
-    if (convertibleAccounts(ledger).isNotEmpty()) NavRow("Account to person", "Turn an account that stands in for someone into a person") { open(SettingsPage.PersonAccounts) }
+    NavRow(stringResource(R.string.settings_import_title), stringResource(R.string.settings_import_detail)) { actions.importAgain() }
+    if (convertibleAccounts(ledger).isNotEmpty()) NavRow(stringResource(R.string.settings_person_title), stringResource(R.string.settings_person_detail)) { open(SettingsPage.PersonAccounts) }
 
-    SectionHeader("About")
-    NavRow("Send feedback", "") { open(SettingsPage.Feedback) }
+    SectionHeader(stringResource(R.string.settings_section_about))
+    NavRow(stringResource(R.string.settings_page_feedback), "") { open(SettingsPage.Feedback) }
     // A plain link to the website, which then goes to the tip page. Kassa itself never goes online.
-    NavRow("Buy me a coffee", "kassamoney.com") {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://kassamoney.com/support.html"))) }
-            .onFailure { messages?.say("Open kassamoney.com in a browser to say thanks.") }
+    NavRow(stringResource(R.string.settings_coffee_title), "kassamoney.com") {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.kassamoney.com/support.html"))) }
+            .onFailure { messages?.say(coffeeFailed) }
     }
     val tip by settings.tip.collectAsState()
-    NavRow("Show tips again", if (tip == 0) "On Overview" else "") { settings.setTip(0) }
-    NavRow("Privacy", "") { open(SettingsPage.Privacy) }
-    NavRow("Open source licences", "") { open(SettingsPage.Licences) }
+    NavRow(stringResource(R.string.settings_tips_title), if (tip == 0) stringResource(R.string.settings_tips_value) else "") { settings.setTip(0) }
+    NavRow(stringResource(R.string.settings_page_privacy), "") { open(SettingsPage.Privacy) }
+    NavRow(stringResource(R.string.settings_page_licences), "") { open(SettingsPage.Licences) }
     // Screenshots and walkthroughs use made-up data; the debug build installs beside the real app.
     if (app.kassa.money.BuildConfig.DEBUG) {
         var confirmDemo by remember { mutableStateOf(false) }
-        NavRow("Load demo data", "Debug build") { confirmDemo = true }
+        NavRow(stringResource(R.string.settings_demo_title), stringResource(R.string.settings_demo_value)) { confirmDemo = true }
         if (confirmDemo) app.kassa.money.ui.common.ConfirmDialog(
-            "Replace everything with demo data?",
-            "This debug build's data is replaced with a made-up household for screenshots. The real Kassa app isn't touched.",
-            "Load demo data", onConfirm = { actions.loadDemo() }, onDismiss = { confirmDemo = false },
+            stringResource(R.string.settings_demo_confirm_title),
+            stringResource(R.string.settings_demo_confirm_body),
+            stringResource(R.string.settings_demo_title), onConfirm = { actions.loadDemo() }, onDismiss = { confirmDemo = false },
         )
     }
 
     Gap(20)
-    Text("No internet permission. Data is encrypted on this phone.", style = KassaType.small, color = Kassa.colors.ink3)
+    Text(stringResource(R.string.settings_footer), style = KassaType.small, color = Kassa.colors.ink3)
     Gap(24)
 }
 
@@ -252,7 +273,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
 private fun OpenOnPage() {
     val settings = LocalSettings.current
     val selected by settings.openTab.collectAsState()
-    Text("The tab Kassa shows when it starts.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
+    Text(stringResource(R.string.settings_open_on_hint), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
     app.kassa.money.ui.Tab.entries.filter { it != app.kassa.money.ui.Tab.SETTINGS }.forEach { t ->
         Column(Modifier.clickable { settings.setOpenTab(t.name) }) {
             Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {

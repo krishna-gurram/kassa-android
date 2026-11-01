@@ -1,5 +1,7 @@
 package app.kassa.money.ui
 
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -96,7 +98,7 @@ fun Shell(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit, showAdd: Boolean, c
 @Composable
 fun AddButton(onClick: () -> Unit) {
     FloatingActionButton(onClick = onClick, containerColor = Kassa.colors.ink, contentColor = Kassa.colors.onInk, shape = RoundedCornerShape(18.dp)) {
-        Icon(Icons.Outlined.Add, "Add an entry")
+        Icon(Icons.Outlined.Add, stringResource(R.string.shell_add_entry))
     }
 }
 

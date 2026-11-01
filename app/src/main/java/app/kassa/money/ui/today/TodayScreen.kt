@@ -1,5 +1,8 @@
 package app.kassa.money.ui.today
 
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.kassa.money.R
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.NumberText
@@ -61,7 +65,6 @@ import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.common.TransactionRow
-import app.kassa.money.ui.common.plural
 import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -80,16 +83,16 @@ fun weekPace(ledger: Ledger): WeekPace.Result =
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
 /** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
-data class Upcoming(val date: java.time.LocalDate, val name: String, val kind: String, val amount: Long?, val accountId: Long?)
+data class Upcoming(val date: java.time.LocalDate, val name: String, @StringRes val kind: Int, val amount: Long?, val accountId: Long?)
 
 fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
     val until = ledger.today.plusDays(days)
     val cards = ledger.cards().filter { it.snapshot.payable > 0 && !it.snapshot.due.isAfter(until) }
-        .map { Upcoming(it.snapshot.due, it.account.name, "Card payment", it.snapshot.payable, it.account.id) }
+        .map { Upcoming(it.snapshot.due, it.account.name, R.string.today_kind_card, it.snapshot.payable, it.account.id) }
     val bills = ledger.bills.mapNotNull { r ->
         app.kassa.money.domain.RecurringRules.upcoming(r, ledger.today, days)?.let { d ->
             val est = app.kassa.money.domain.RecurringRules.estimate(r, ledger.recent, d, ledger.zone)
-            Upcoming(d, r.name, if (r.fixedAmount == null) "Bill, estimated" else "Bill", est, null)
+            Upcoming(d, r.name, if (r.fixedAmount == null) R.string.today_kind_bill_estimated else R.string.today_kind_bill, est, null)
         }
     }
     return (cards + bills).sortedBy { it.date }
@@ -147,7 +150,7 @@ fun TodayScreen(
                 Fit.PROBE -> Modifier
             }
             Column(outer.padding(contentPadding)) {
-                app.kassa.money.ui.common.TabTop("Overview")
+                app.kassa.money.ui.common.TabTop(stringResource(R.string.today_overview))
                 if (wide) {
                     banner()
                     // Both columns start level at the top; spare room stays empty at the bottom (a fixed gap, nothing stretches).
@@ -240,7 +243,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
         // Titles on the left, the period menu on the right; on a narrow screen or a large font the menu moves under the titles.
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.align(Alignment.CenterVertically)) {
-                listOf(false to "Spending", true to "Income").forEach { (v, label) ->
+                listOf(false to stringResource(R.string.today_spending), true to stringResource(R.string.today_income)).forEach { (v, label) ->
                     Text(
                         label, style = KassaType.section, maxLines = 1, softWrap = false,
                         color = if (v == income) Kassa.colors.ink else Kassa.colors.ink2,
@@ -251,19 +254,19 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
             }
             Box(Modifier.align(Alignment.CenterVertically)) {
                 Row(
-                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Choose period", role = androidx.compose.ui.semantics.Role.Button) { menu = true },
+                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = stringResource(R.string.today_choose_period), role = androidx.compose.ui.semantics.Role.Button) { menu = true },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(if (month) monthName else "This week", style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = app.kassa.money.ui.common.heroInk(), maxLines = 1)
+                    Text(if (month) monthName else stringResource(R.string.today_this_week), style = KassaType.small.copy(fontWeight = FontWeight.SemiBold), color = app.kassa.money.ui.common.heroInk(), maxLines = 1)
                     androidx.compose.material3.Icon(app.kassa.money.ui.activity.ChevronDown(), null, tint = app.kassa.money.ui.common.heroInk(), modifier = Modifier.size(18.dp))
                 }
                 androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     androidx.compose.material3.DropdownMenuItem(text = { Text(monthName, style = KassaType.body) }, onClick = { setMonth(true); menu = false })
-                    androidx.compose.material3.DropdownMenuItem(text = { Text("This week", style = KassaType.body) }, onClick = { setMonth(false); menu = false })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.today_this_week), style = KassaType.body) }, onClick = { setMonth(false); menu = false })
                 }
             }
         }
-        val openLabel = if (income) "Where it came from" else "Where it went"
+        val openLabel = stringResource(if (income) R.string.today_where_came_from else R.string.today_where_went)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
                 BigMoney(total, sizeSp = if (roomy) 46f else 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
@@ -272,7 +275,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
                 androidx.compose.material3.Icon(app.kassa.money.ui.activity.Chevron(left = false), openLabel, tint = app.kassa.money.ui.common.heroInk())
             }
         }
-        if (top.isEmpty()) Text(if (income) "No income yet." else "No spending yet.", style = KassaType.body, color = app.kassa.money.ui.common.heroInk(), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+        if (top.isEmpty()) Text(stringResource(if (income) R.string.today_no_income else R.string.today_no_spending), style = KassaType.body, color = app.kassa.money.ui.common.heroInk(), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     }
     if (top.isNotEmpty()) TopTiles(top, onOpenCategory, onOpen)
 }
@@ -292,7 +295,7 @@ private fun TopTiles(top: List<Pair<app.kassa.money.domain.Category?, Long>>, on
     ) {
         top.forEach { (c, amt) ->
             val color = c?.let { Color(it.color) } ?: none
-            val name = c?.name ?: "Uncategorized"
+            val name = c?.name ?: stringResource(R.string.today_uncategorized)
             Row(
                 Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.3f)).fillMaxHeight().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
                     .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
@@ -314,8 +317,8 @@ private fun TopTiles(top: List<Pair<app.kassa.money.domain.Category?, Long>>, on
 private fun UpcomingSection(ledger: Ledger, show: Int, fill: Boolean, onOpenCard: (Long) -> Unit, onAll: () -> Unit, modifier: Modifier = Modifier) {
     val items = upcoming(ledger, 30).take(show)
     Column(modifier) {
-        SectionHeader("Upcoming", "Next 30 days", onClick = onAll)
-        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
+        SectionHeader(stringResource(R.string.today_upcoming), stringResource(R.string.today_next_30), onClick = onAll)
+        if (items.isEmpty()) Text(stringResource(R.string.today_nothing_due), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 12.dp))
         // Filling the screen, the rows that don't fit whole are left out; Next 30 days lists them all.
         else if (fill) app.kassa.money.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) } }
         else items.forEach { u -> UpcomingRow(u, ledger, onOpenCard) }
@@ -330,7 +333,7 @@ fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(u.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(shortDate(u.date) + " \u00b7 " + u.kind, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.today_upcoming_line, shortDate(u.date), stringResource(u.kind)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(
                 u.amount?.let { Money.format(it) } ?: "", style = KassaType.bodyStrong, maxLines = 1,
@@ -347,14 +350,14 @@ fun UpcomingRow(u: Upcoming, ledger: Ledger, onOpenCard: (Long) -> Unit) {
 fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> Unit)?, onOpenCard: (Long) -> Unit) {
     val items = upcoming(ledger, 30)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop("Next 30 days", onBack)
+        PageTop(stringResource(R.string.today_next_30), onBack)
         app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.ORANGE) {
-            app.kassa.money.ui.common.HeroLabel("Total due")
+            app.kassa.money.ui.common.HeroLabel(stringResource(R.string.today_total_due))
             BigMoney(items.sumOf { it.amount ?: 0 }, sizeSp = 40f)
-            app.kassa.money.ui.common.HeroLabel(plural(items.size, "payment"))
+            app.kassa.money.ui.common.HeroLabel(pluralStringResource(R.plurals.today_payments, items.size, items.size))
         }
         Gap(12)
-        if (items.isEmpty()) Text("Nothing due in the next 30 days.", style = KassaType.body, color = Kassa.colors.ink2)
+        if (items.isEmpty()) Text(stringResource(R.string.today_nothing_due), style = KassaType.body, color = Kassa.colors.ink2)
         items.forEach { UpcomingRow(it, ledger, onOpenCard) }
         Gap(24)
     }
@@ -399,15 +402,14 @@ fun SpendingPage(
         else -> app.kassa.money.ui.common.weekLines(ledger, from, txs)
     }
     val total = entries.sumOf { it.categoryAmount }
-    val what = if (income) "income" else "spending"
     val monthName = period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
     val title = when {
-        month -> "$monthName $what"
-        back == 0 -> "This week's $what"
-        else -> "Week of ${shortDate(from)}"
+        month -> stringResource(if (income) R.string.today_title_month_income else R.string.today_title_month_spending, monthName)
+        back == 0 -> stringResource(if (income) R.string.today_title_this_week_income else R.string.today_title_this_week_spending)
+        else -> stringResource(R.string.today_title_week_of, shortDate(from))
     }
-    val label = if (month) monthYear(period.yearMonth) else "${shortDate(from)} to ${shortDate(from.plusDays(6))}"
-    val span = "${shortDate(from)} to " + if (to == ledger.today) "today" else shortDate(to)
+    val label = if (month) monthYear(period.yearMonth) else stringResource(R.string.today_range, shortDate(from), shortDate(from.plusDays(6)))
+    val span = stringResource(R.string.today_range, shortDate(from), if (to == ledger.today) stringResource(R.string.today_today) else shortDate(to))
 
     Column(
         Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }
@@ -415,24 +417,24 @@ fun SpendingPage(
     ) {
         PageTop(title, onBack) {
             if (back > 0) androidx.compose.material3.TextButton(onClick = { back = 0 }) {
-                Text(if (month) "This month" else "This week", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+                Text(stringResource(if (month) R.string.today_this_month else R.string.today_this_week), style = KassaType.bodyStrong, color = Kassa.colors.ink)
             }
         }
         app.kassa.money.ui.common.PeriodSwitcher(label, sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         app.kassa.money.ui.common.TonalHero(if (income) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY) {
             Row(verticalAlignment = Alignment.Bottom) {
-                app.kassa.money.ui.common.HeroLabel(if (income) "Received" else "Spent", Modifier.weight(1f))
+                app.kassa.money.ui.common.HeroLabel(stringResource(if (income) R.string.today_received else R.string.today_spent), Modifier.weight(1f))
                 app.kassa.money.ui.common.HeroLabel(span)
             }
             BigMoney(total, sizeSp = 40f, color = app.kassa.money.ui.common.figureColor(if (income && total > 0) Kassa.colors.positive else Kassa.colors.ink))
-            app.kassa.money.ui.common.HeroLabel(plural(entries.size, if (income) "entry" else "expense", if (income) "entries" else "expenses"))
+            app.kassa.money.ui.common.HeroLabel(pluralStringResource(if (income) R.plurals.today_entries else R.plurals.today_expenses, entries.size, entries.size))
         }
-        SectionHeader("By category")
+        SectionHeader(stringResource(R.string.today_by_category))
         // A category opens on the month shown here; from a week, on the month that week starts in.
         val categoryBack = if (month) back else java.time.temporal.ChronoUnit.MONTHS.between(
             app.kassa.money.domain.Period.containing(from, ledger.monthStartDay).yearMonth, ledger.period.yearMonth,
         ).toInt()
-        app.kassa.money.ui.common.CategoryLinesAll(lines, if (income) "Nothing received" else "No spending") { onOpenCategory(it.id, categoryBack) }
+        app.kassa.money.ui.common.CategoryLinesAll(lines, stringResource(if (income) R.string.today_nothing_received else R.string.today_no_spending_short)) { onOpenCategory(it.id, categoryBack) }
         Gap(24)
     }
 }

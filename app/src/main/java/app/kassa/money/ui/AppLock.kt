@@ -19,12 +19,6 @@ object AppLock {
         UNAVAILABLE,
     }
 
-    /** What the person is told when App lock can't be turned on. */
-    const val SET_A_SCREEN_LOCK = "Set a screen lock on this phone first."
-
-    /** What the person is told when Kassa turned App lock off because the screen lock is gone. */
-    const val TURNED_OFF = "App lock was turned off because this phone has no screen lock. Set one, then turn App lock on again in Settings."
-
     fun check(context: Context): Status {
         if (android.os.Build.VERSION.SDK_INT < 30) {
             // Before Android 11 the prompt can't be asked about "biometric or screen lock" together; a secure screen lock is the test.

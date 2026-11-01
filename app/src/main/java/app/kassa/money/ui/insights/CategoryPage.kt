@@ -1,6 +1,8 @@
 package app.kassa.money.ui.insights
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import app.kassa.money.R
 import app.kassa.money.ui.common.swipeShift
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -89,7 +91,8 @@ fun CategoryPage(
     val kind = if (c.kind == app.kassa.money.domain.CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE
     val mine = txs.filter { it.kind == kind && it.categoryId in ids }
     val entries = mine.filter { inPeriod(it, p) }.sortedByDescending { it.epochMillis }
-    val bySub = entries.groupBy { t -> ledger.categoryById[t.categoryId]?.takeIf { it.parentId == c.id }?.name ?: "Other" }
+    val otherText = stringResource(R.string.insights_other)
+    val bySub = entries.groupBy { t -> ledger.categoryById[t.categoryId]?.takeIf { it.parentId == c.id }?.name ?: otherText }
         .mapValues { (_, v) -> v.sumOf { it.categoryAmount } }.entries.sortedByDescending { it.value }
     val spent = entries.sumOf { it.categoryAmount }
     val budget = Budgets.amountFor(c.id, p.yearMonth, ledger.budgets)?.takeIf { it > 0 && kind == TxKind.EXPENSE }
@@ -103,10 +106,10 @@ fun CategoryPage(
         PeriodSwitcher("${monthName(p)} ${p.yearMonth.year}", sub = null, canBack = true, canForward = back > 0, onBack = { back++ }, onForward = { if (back > 0) back-- })
         val over = budget != null && spent > budget
         app.kassa.money.ui.common.TonalHero(if (over) app.kassa.money.ui.common.HeroTone.ORANGE else if (kind == TxKind.INCOME) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY, Modifier.padding(top = 4.dp)) {
-        app.kassa.money.ui.common.HeroLabel("Spent in " + monthName(p))
+        app.kassa.money.ui.common.HeroLabel(stringResource(R.string.insights_spent_in, monthName(p)))
         Row(verticalAlignment = Alignment.Bottom) {
             app.kassa.money.ui.today.BigMoney(spent, sizeSp = 34f, color = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
-            if (budget != null) Text("  of ${Money.format(budget, wholeDollars = true)} budget", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
+            if (budget != null) Text(stringResource(R.string.insights_of_budget, Money.format(budget, wholeDollars = true)), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
         }
         if (budget != null) {
             Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.track)) {
@@ -115,7 +118,7 @@ fun CategoryPage(
         }
         }
         Row(Modifier.padding(top = 12.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (budget != null) Figure(if (over) "Over budget" else "Left", Money.format(kotlin.math.abs(budget - spent), wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
+            if (budget != null) Figure(if (over) stringResource(R.string.insights_over_budget) else stringResource(R.string.insights_left), Money.format(kotlin.math.abs(budget - spent), wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f), valueColor = app.kassa.money.ui.common.figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
             Figure(monthName(months[4]), Money.format(prevTotal, wholeDollars = true), null, Kassa.colors.ink2, Modifier.weight(1f))
         }
         // Six months of this category; tap a bar to jump to that month.
@@ -136,7 +139,7 @@ fun CategoryPage(
             }
         }
         if (bySub.size > 1) {
-            SectionHeader("By subcategory")
+            SectionHeader(stringResource(R.string.insights_by_subcategory))
             bySub.forEach { (name, v) ->
                 Row(Modifier.padding(vertical = 6.dp)) {
                     Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
@@ -144,13 +147,13 @@ fun CategoryPage(
                 }
             }
         }
-        SectionHeader("Entries", "${entries.size}")
-        if (entries.isEmpty()) Text("Nothing in ${c.name} in ${monthName(p)}.", style = KassaType.body, color = Kassa.colors.ink2)
+        SectionHeader(stringResource(R.string.insights_entries), "${entries.size}")
+        if (entries.isEmpty()) Text(stringResource(R.string.insights_nothing_in, c.name, monthName(p)), style = KassaType.body, color = Kassa.colors.ink2)
         // By date unless switched; it opens by date every time.
         var grouped by remember(c.id) { mutableStateOf(false) }
         if (bySub.size > 1) Row(Modifier.padding(bottom = 4.dp)) {
-            Chip("By date", selected = !grouped, small = true) { grouped = false }
-            Chip("By subcategory", selected = grouped, small = true) { grouped = true }
+            Chip(stringResource(R.string.insights_by_date), selected = !grouped, small = true) { grouped = false }
+            Chip(stringResource(R.string.insights_by_subcategory), selected = grouped, small = true) { grouped = true }
         }
         if (grouped && bySub.size > 1) SubcategoryGroups(entries, ledger, c, onEdit)
         else entries.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < entries.lastIndex, onClick = onEdit, showDate = true) }
@@ -172,10 +175,10 @@ private fun SubcategoryGroups(entries: List<Transaction>, ledger: Ledger, c: Cat
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CategoryBadge(sub ?: c, size = 30)
-            Text(sub?.name ?: "No subcategory", style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+            Text(sub?.name ?: stringResource(R.string.insights_no_subcategory), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
             Text("${list.size}", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 10.dp))
             Text(Money.format(list.sumOf { it.categoryAmount }), style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            Icon(Chevron(left = false), if (expanded) "Hide entries" else "Show entries", tint = Kassa.colors.ink3,
+            Icon(Chevron(left = false), if (expanded) stringResource(R.string.insights_hide_entries) else stringResource(R.string.insights_show_entries), tint = Kassa.colors.ink3,
                 modifier = Modifier.padding(start = 4.dp).size(18.dp).rotate(if (expanded) 90f else 0f))
         }
         if (expanded) list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = onEdit, showDate = true) }

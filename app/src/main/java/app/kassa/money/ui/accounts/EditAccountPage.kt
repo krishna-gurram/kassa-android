@@ -34,10 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountField
 import app.kassa.money.domain.AccountForm
@@ -93,61 +95,61 @@ fun EditAccountPage(
     }
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
-        PageTop(if (isCard) "Edit card" else "Edit account", onBack = leave, amounts = false)
+        PageTop(if (isCard) stringResource(R.string.accounts_edit_card) else stringResource(R.string.accounts_edit_account), onBack = leave, amounts = false)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).widthIn(max = 640.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Group(if (isCard) "Card" else "Account") {
-                Field("Name", form.name, { v -> edit(AccountField.NAME) { it.copy(name = InputRules.typed(v, InputRules.NAME_MAX)) } },
+            Group(if (isCard) stringResource(R.string.accounts_card) else stringResource(R.string.accounts_account)) {
+                Field(stringResource(R.string.accounts_name), form.name, { v -> edit(AccountField.NAME) { it.copy(name = InputRules.typed(v, InputRules.NAME_MAX)) } },
                     problem = problems[AccountField.NAME])
-                Field("Last 4 digits", form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = InputRules.typedDigits(v, 4)) } },
-                    KeyboardType.NumberPassword, "Optional", problems[AccountField.LAST4])
+                Field(stringResource(R.string.accounts_last4), form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = InputRules.typedDigits(v, 4)) } },
+                    KeyboardType.NumberPassword, stringResource(R.string.accounts_optional), problems[AccountField.LAST4])
             }
-            if (isCard) Group("Statement") {
+            if (isCard) Group(stringResource(R.string.accounts_statement)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.weight(1f)) {
-                        Field("Statement day", form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = InputRules.typedDigits(v, 2)) } },
-                            KeyboardType.NumberPassword, "1 to 31", problems[AccountField.STATEMENT_DAY])
+                        Field(stringResource(R.string.accounts_statement_day), form.statementDay, { v -> edit(AccountField.STATEMENT_DAY) { it.copy(statementDay = InputRules.typedDigits(v, 2)) } },
+                            KeyboardType.NumberPassword, stringResource(R.string.accounts_one_to_31), problems[AccountField.STATEMENT_DAY])
                     }
                     Box(Modifier.weight(1f)) {
-                        Field("Due day", form.dueDay, { v -> edit(AccountField.DUE_DAY) { it.copy(dueDay = InputRules.typedDigits(v, 2)) } },
-                            KeyboardType.NumberPassword, "1 to 31", problems[AccountField.DUE_DAY])
+                        Field(stringResource(R.string.accounts_due_day), form.dueDay, { v -> edit(AccountField.DUE_DAY) { it.copy(dueDay = InputRules.typedDigits(v, 2)) } },
+                            KeyboardType.NumberPassword, stringResource(R.string.accounts_one_to_31), problems[AccountField.DUE_DAY])
                     }
                 }
-                Field("Credit limit", form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = InputRules.typedAmount(v)) } },
-                    KeyboardType.Decimal, "Optional", problems[AccountField.LIMIT])
+                Field(stringResource(R.string.accounts_credit_limit), form.limit, { v -> edit(AccountField.LIMIT) { it.copy(limit = InputRules.typedAmount(v)) } },
+                    KeyboardType.Decimal, stringResource(R.string.accounts_optional), problems[AccountField.LIMIT])
             }
             // An investment account's balance is its cash; holdings are valued separately.
             val investing = form.type == AccountType.INVESTMENT
-            Group(if (investing) "Cash" else "Balance") {
+            Group(if (investing) stringResource(R.string.accounts_cash) else stringResource(R.string.accounts_balance)) {
                 Field(
-                    when { investing -> "Cash today"; form.type.hasStatement -> "Total balance today"; form.type.isDebt -> "Outstanding balance today"; else -> "Balance today" }, form.balance,
+                    when { investing -> stringResource(R.string.accounts_cash_today); form.type.hasStatement -> stringResource(R.string.accounts_total_balance_today); form.type.isDebt -> stringResource(R.string.accounts_outstanding_balance_today); else -> stringResource(R.string.accounts_balance_today) }, form.balance,
                     { v -> edit(AccountField.BALANCE) { it.copy(balance = InputRules.typedBalance(v)) } }, KeyboardType.Decimal, problem = problems[AccountField.BALANCE],
                 )
                 Text(
-                    if (investing) "Changing it counts as money you put in. Holdings aren't affected."
-                    else "Adjusts the starting balance. Entries stay as they are.",
+                    if (investing) stringResource(R.string.accounts_edit_investing_note)
+                    else stringResource(R.string.accounts_edit_balance_note),
                     style = KassaType.tiny, color = Kassa.colors.ink2,
                 )
             }
-            Group("Details") {
-                if (isCard) PickRow("Default payment account", payFromOptions.firstOrNull { it.id == form.payFromId }?.name ?: "None") { picking = Picker.PAY_FROM }
+            Group(stringResource(R.string.accounts_details)) {
+                if (isCard) PickRow(stringResource(R.string.accounts_default_payment_account), payFromOptions.firstOrNull { it.id == form.payFromId }?.name ?: stringResource(R.string.accounts_none)) { picking = Picker.PAY_FROM }
                 PickRow(
-                    "Group",
+                    stringResource(R.string.accounts_group),
                     when {
-                        creatingGroup -> form.newGroup.ifBlank { "New group" }
-                        else -> groups.firstOrNull { it.id == form.groupId }?.name ?: "None"
+                        creatingGroup -> form.newGroup.ifBlank { stringResource(R.string.accounts_new_group) }
+                        else -> groups.firstOrNull { it.id == form.groupId }?.name ?: stringResource(R.string.accounts_none)
                     },
                 ) { picking = Picker.GROUP }
-                if (creatingGroup) Field("New group name", form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = InputRules.typed(v, InputRules.NAME_MAX)) } },
+                if (creatingGroup) Field(stringResource(R.string.accounts_new_group_name), form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = InputRules.typed(v, InputRules.NAME_MAX)) } },
                     problem = problems[AccountField.NEW_GROUP])
-                PickRow("Type", form.type.label, last = form.type != AccountType.FIXED_DEPOSIT) { picking = Picker.TYPE }
+                PickRow(stringResource(R.string.accounts_type), form.type.label, last = form.type != AccountType.FIXED_DEPOSIT) { picking = Picker.TYPE }
                 if (form.type.hasMaturity) MaturityField(form.maturityDay, ledger.today) { d -> edit(null) { it.copy(maturityDay = d) } }
             }
-            PrimaryButton("Save changes", save)
+            PrimaryButton(stringResource(R.string.accounts_save_changes), save)
             TextButton(onClick = { if (account.archived) onArchive(false) else confirmArchive = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (account.archived) "Restore" else if (isCard) "Archive card" else "Archive account", color = Kassa.colors.ink2)
+                Text(if (account.archived) stringResource(R.string.accounts_restore) else if (isCard) stringResource(R.string.accounts_archive_card) else stringResource(R.string.accounts_archive_account), color = Kassa.colors.ink2)
             }
             Gap(16)
         }
@@ -155,27 +157,27 @@ fun EditAccountPage(
 
     val close = { picking = null }
     when (picking) {
-        Picker.PAY_FROM -> Choices("Default payment account", payFromOptions.map { it.id to it.name }, form.payFromId,
+        Picker.PAY_FROM -> Choices(stringResource(R.string.accounts_default_payment_account), payFromOptions.map { it.id to it.name }, form.payFromId,
             onPick = { id -> edit(null) { it.copy(payFromId = id) }; close() }, onDismiss = close)
-        Picker.GROUP -> Choices("Group", groups.map { it.id to it.name } + (NEW_GROUP to "New group"), if (creatingGroup) NEW_GROUP else form.groupId,
+        Picker.GROUP -> Choices(stringResource(R.string.accounts_group), groups.map { it.id to it.name } + (NEW_GROUP to stringResource(R.string.accounts_new_group)), if (creatingGroup) NEW_GROUP else form.groupId,
             onPick = { id ->
                 creatingGroup = id == NEW_GROUP
                 edit(AccountField.NEW_GROUP) { if (id == NEW_GROUP) it.copy(groupId = null) else it.copy(groupId = id, newGroup = "") }
                 close()
             },
             onDismiss = close)
-        Picker.TYPE -> Choices("Type", AccountType.entries.map { it.ordinal.toLong() to it.label }, form.type.ordinal.toLong(),
+        Picker.TYPE -> Choices(stringResource(R.string.accounts_type), AccountType.entries.map { it.ordinal.toLong() to it.label }, form.type.ordinal.toLong(),
             onPick = { i -> edit(null) { it.copy(type = AccountType.entries[i.toInt()]) }; close() }, onDismiss = close)
         null -> Unit
     }
     if (confirmArchive) ConfirmDialog(
-        title = "Archive ${account.name}?",
-        body = "It leaves your lists and totals. Its entries stay in your history, and you can restore it from Accounts.",
-        confirm = "Archive", onConfirm = { onArchive(true) }, onDismiss = { confirmArchive = false },
+        title = stringResource(R.string.accounts_archive_title, account.name),
+        body = stringResource(R.string.accounts_archive_body),
+        confirm = stringResource(R.string.accounts_archive), onConfirm = { onArchive(true) }, onDismiss = { confirmArchive = false },
     )
     if (confirmDiscard) ConfirmDialog(
-        title = "Discard your changes?", body = "The account stays as it was.",
-        confirm = "Discard", dismiss = "Keep editing", onConfirm = onBack, onDismiss = { confirmDiscard = false },
+        title = stringResource(R.string.accounts_discard_title), body = stringResource(R.string.accounts_discard_body),
+        confirm = stringResource(R.string.accounts_discard), dismiss = stringResource(R.string.accounts_keep_editing), onConfirm = onBack, onDismiss = { confirmDiscard = false },
     )
 }
 
@@ -244,6 +246,6 @@ internal fun Choices(title: String, options: List<Pair<Long, String>>, selected:
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Kassa.colors.ink) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.accounts_cancel), color = Kassa.colors.ink) } },
     )
 }

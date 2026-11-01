@@ -1,5 +1,7 @@
 package app.kassa.money.ui.common
 
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import java.time.Instant
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
@@ -56,46 +58,46 @@ fun TransactionRow(
             val to = ledger.accountById[t.toAccountId]
             EntryRow(
                 badge = { IconBadge(androidx.compose.material.icons.Icons.Outlined.SwapHoriz) },
-                title = "To ${to?.name ?: "an account"}",
-                subtitle = date + "From ${acct ?: "an account"}",
+                title = stringResource(R.string.common_to_account, to?.name ?: stringResource(R.string.common_an_account)),
+                subtitle = date + stringResource(R.string.common_from_account, acct ?: stringResource(R.string.common_an_account)),
                 // A payment to a card is a credit on it: green, like a refund.
                 amount = Money.format(t.amount, showPlus = to?.type?.hasStatement == true),
                 amountColor = if (to?.type?.hasStatement == true) Kassa.colors.positive else Kassa.colors.ink2,
                 note = noteOverride ?: when {
-                    to?.type?.hasStatement == true -> "Card payment"
-                    counted -> "Counts as spending"
+                    to?.type?.hasStatement == true -> stringResource(R.string.common_card_payment)
+                    counted -> stringResource(R.string.common_counts_as_spending_title)
                     t.note.isNotBlank() -> t.note
-                    else -> "Transfer"
+                    else -> stringResource(R.string.common_transfer)
                 },
                 showDivider = showDivider, modifier = m, tag = loanTag,
             )
         }
         TxKind.BUY, TxKind.SELL -> EntryRow(
             badge = { IconBadge(if (t.kind == TxKind.BUY) androidx.compose.material.icons.Icons.Outlined.TrendingUp else androidx.compose.material.icons.Icons.Outlined.TrendingDown) },
-            title = (if (t.kind == TxKind.BUY) "Bought " else "Sold ") + t.note,
-            subtitle = date + (ledger.trades[t.id]?.let { "${Shares.format(it.microShares)} shares at ${Money.format(it.price)}" } ?: acct ?: ""),
+            title = stringResource(if (t.kind == TxKind.BUY) R.string.common_bought else R.string.common_sold, t.note),
+            subtitle = date + (ledger.trades[t.id]?.let { stringResource(R.string.common_shares_at, Shares.format(it.microShares), Money.format(it.price)) } ?: acct ?: ""),
             amount = Money.format(t.amount), amountColor = Kassa.colors.ink2,
-            note = noteOverride ?: "Investing", showDivider = showDivider, modifier = m,
+            note = noteOverride ?: stringResource(R.string.common_investing), showDivider = showDivider, modifier = m,
         )
         TxKind.PERSON_IN, TxKind.PERSON_OUT -> EntryRow(
             badge = { GlyphBadge(person?.take(1) ?: "?") },
-            title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) "${person ?: "Someone"} paid you" else "You paid ${person ?: "someone"}" },
+            title = t.note.ifBlank { if (t.kind == TxKind.PERSON_IN) stringResource(R.string.common_someone_paid_you, person ?: stringResource(R.string.common_someone_cap)) else stringResource(R.string.common_you_paid, person ?: stringResource(R.string.common_someone)) },
             subtitle = date + (acct ?: ""),
             amount = Money.format(t.amount, showPlus = t.kind == TxKind.PERSON_IN && intoCard),
             amountColor = if (t.kind == TxKind.PERSON_IN && intoCard) Kassa.colors.positive else Kassa.colors.ink2,
-            note = noteOverride ?: "Settle up", showDivider = showDivider, modifier = m,
+            note = noteOverride ?: stringResource(R.string.common_settle_up), showDivider = showDivider, modifier = m,
         )
         else -> {
             val cat = t.categoryId?.let { ledger.categoryById[it] }
             val parent = cat?.parentId?.let { ledger.categoryById[it] }
-            val share = t.myShare?.takeIf { it != t.amount }?.let { "your share ${Money.format(it)}" }
+            val share = t.myShare?.takeIf { it != t.amount }?.let { stringResource(R.string.common_your_share, Money.format(it)) }
             EntryRow(
                 badge = { CategoryBadge(parent ?: cat) },
-                title = t.note.ifBlank { cat?.name ?: "Uncategorized" },
-                subtitle = date + listOfNotNull(cat?.name ?: "Uncategorized", share, "counts as spending".takeIf { counted }).joinToString(", "),
+                title = t.note.ifBlank { cat?.name ?: stringResource(R.string.common_uncategorized) },
+                subtitle = date + listOfNotNull(cat?.name ?: stringResource(R.string.common_uncategorized), share, if (counted) stringResource(R.string.common_counts_as_spending) else null).joinToString(", "),
                 amount = if (t.kind == TxKind.INCOME) Money.format(t.amount, showPlus = true) else Money.format(t.amount),
                 amountColor = if (t.kind == TxKind.INCOME) Kassa.colors.positive else Kassa.colors.ink,
-                note = noteOverride ?: acct ?: person?.let { "Paid by $it" },
+                note = noteOverride ?: acct ?: person?.let { stringResource(R.string.common_paid_by, it) },
                 showDivider = showDivider, modifier = m, tag = loanTag,
             )
         }

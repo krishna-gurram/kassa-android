@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,11 +43,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import app.kassa.money.BuildConfigInfo
 import app.kassa.money.KassaApplication
+import app.kassa.money.R
 import app.kassa.money.domain.InputRules
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.RaisedPanel
@@ -59,10 +62,10 @@ import java.io.File
 
 /* Settings › About: feedback, privacy and licences. */
 
-private enum class FeedbackKind(val label: String, val prompt: String, val subject: String) {
-    PROBLEM("Something's wrong", "What happened?", "Something's wrong"),
-    PRAISE("I like something", "What do you like?", "I like something"),
-    IDEA("An idea", "What's your idea?", "An idea"),
+private enum class FeedbackKind(@StringRes val label: Int, @StringRes val prompt: Int, val subject: String) {
+    PROBLEM(R.string.settings_feedback_kind_problem, R.string.settings_feedback_kind_problem_prompt, "Something's wrong"),
+    PRAISE(R.string.settings_feedback_kind_praise, R.string.settings_feedback_kind_praise_prompt, "I like something"),
+    IDEA(R.string.settings_feedback_kind_idea, R.string.settings_feedback_kind_idea_prompt, "An idea"),
 }
 
 private const val MAX_SCREENSHOTS = 5
@@ -82,40 +85,42 @@ internal fun FeedbackPage() {
     var shots by remember { mutableStateOf(listOf<File>()) }
     var withCrash by remember { mutableStateOf(crash != null) }
     var problem by remember { mutableStateOf<String?>(null) }
+    val writeFirst = stringResource(R.string.settings_feedback_write_first)
+    val noPlay = stringResource(R.string.settings_feedback_no_play)
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_SCREENSHOTS)) { uris ->
         shots = (shots + uris.mapNotNull { copyScreenshot(context, it) }).take(MAX_SCREENSHOTS)
     }
 
-    Label("What's it about?")
-    FlowRow { FeedbackKind.entries.forEach { k -> Chip(k.label, kind == k) { kind = k } } }
+    Label(stringResource(R.string.settings_feedback_about))
+    FlowRow { FeedbackKind.entries.forEach { k -> Chip(stringResource(k.label), kind == k) { kind = k } } }
     Gap(8)
     OutlinedTextField(
         text, { text = InputRules.typedLines(it, InputRules.FEEDBACK_MAX); problem = null },
-        label = { Text(kind.prompt) }, minLines = 4, maxLines = 10, modifier = Modifier.fillMaxWidth(),
+        label = { Text(stringResource(kind.prompt)) }, minLines = 4, maxLines = 10, modifier = Modifier.fillMaxWidth(),
         supportingText = if (text.length > InputRules.FEEDBACK_MAX - 200) { { Text("${text.length}/${InputRules.FEEDBACK_MAX}") } } else null,
     )
 
-    Label("Screenshots")
+    Label(stringResource(R.string.settings_feedback_screenshots))
     if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)) {
         shots.forEach { f -> Thumbnail(f) { f.delete(); shots = shots - f } }
     }
-    if (shots.size < MAX_SCREENSHOTS) SecondaryButton(if (shots.isEmpty()) "Add screenshots" else "Add more", {
+    if (shots.size < MAX_SCREENSHOTS) SecondaryButton(if (shots.isEmpty()) stringResource(R.string.settings_feedback_add_screenshots) else stringResource(R.string.settings_feedback_add_more), {
         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     })
 
-    Label("Included")
+    Label(stringResource(R.string.settings_feedback_included))
     RaisedPanel {
-        Text(deviceLine(), style = KassaType.small, color = Kassa.colors.ink)
+        Text(deviceLine(context), style = KassaType.small, color = Kassa.colors.ink)
         if (crash != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { withCrash = !withCrash }) {
-            Text("Last crash report", style = KassaType.small, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.settings_feedback_last_crash), style = KassaType.small, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
             Checkbox(withCrash, { withCrash = it }, colors = CheckboxDefaults.colors(checkedColor = Kassa.colors.ink, checkmarkColor = Kassa.colors.onInk))
         }
         Gap(6)
-        Text("No amounts, names or notes from your data. You'll see the whole email before it's sent.", style = KassaType.tiny, color = Kassa.colors.ink2)
+        Text(stringResource(R.string.settings_feedback_included_note), style = KassaType.tiny, color = Kassa.colors.ink2)
     }
     Gap(16)
-    PrimaryButton("Write email") {
-        if (text.isBlank()) { problem = "Write a few words first."; return@PrimaryButton }
+    PrimaryButton(stringResource(R.string.settings_feedback_write_email)) {
+        if (text.isBlank()) { problem = writeFirst; return@PrimaryButton }
         val report = crash?.takeIf { withCrash }
         problem = sendFeedback(context, kind, text.trim(), shots, report)
         if (problem == null) report?.delete()
@@ -125,13 +130,13 @@ internal fun FeedbackPage() {
     if (kind == FeedbackKind.PRAISE) {
         Gap(16)
         RaisedPanel {
-            Text("Enjoying Kassa?", style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            Text("A rating on Google Play helps others find it.", style = KassaType.small, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.settings_feedback_enjoying), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text(stringResource(R.string.settings_feedback_rating_hint), style = KassaType.small, color = Kassa.colors.ink2)
             Gap(10)
-            SecondaryButton("Rate on Google Play", {
+            SecondaryButton(stringResource(R.string.settings_feedback_rate), {
                 problem = runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}")))
-                }.fold({ null }, { "Google Play isn't on this phone." })
+                }.fold({ null }, { noPlay })
             })
         }
     }
@@ -139,7 +144,8 @@ internal fun FeedbackPage() {
 }
 
 /** What's in Kassa and on the phone, for a bug report. Nothing personal. */
-private fun deviceLine() = "Kassa ${BuildConfigInfo.versionName} · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}"
+private fun deviceLine(context: Context) =
+    context.getString(R.string.settings_feedback_device, BuildConfigInfo.versionName, Build.VERSION.RELEASE, Build.MANUFACTURER, Build.MODEL)
 
 /** Opens the email app with everything filled in. Returns a problem to show, or null when it opened. */
 private fun sendFeedback(context: Context, kind: FeedbackKind, text: String, shots: List<File>, crash: File?): String? {
@@ -147,7 +153,7 @@ private fun sendFeedback(context: Context, kind: FeedbackKind, text: String, sho
         appendLine(text)
         appendLine()
         appendLine("--")
-        appendLine(deviceLine())
+        appendLine(deviceLine(context))
         crash?.let { appendLine(); appendLine("Crash report:"); append(runCatching { it.readText() }.getOrDefault("").take(20_000)) }
     }
     val uris = ArrayList(shots.map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) })
@@ -179,14 +185,14 @@ private fun sendFeedback(context: Context, kind: FeedbackKind, text: String, sho
                     if (uris.isNotEmpty()) putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 },
-                "Send feedback",
+                context.getString(R.string.settings_feedback_chooser),
             ),
         )
     }
     for (intent in attempts) {
         try { context.startActivity(intent); return null } catch (e: ActivityNotFoundException) { /* try the next way */ }
     }
-    return "No email app found. You can write to ${BuildConfigInfo.supportEmail.ifBlank { "us" }} yourself instead."
+    return context.getString(R.string.settings_feedback_no_email, BuildConfigInfo.supportEmail.ifBlank { context.getString(R.string.settings_feedback_us) })
 }
 
 /** Copies a picked screenshot into the feedback folder, the only place Kassa shares files from. */
@@ -204,14 +210,14 @@ private fun Thumbnail(file: File, onRemove: () -> Unit) {
         BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = 8 })?.asImageBitmap()
     }
     Box(Modifier.size(64.dp)) {
-        if (image != null) Image(image, "Screenshot", contentScale = ContentScale.Crop, modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)))
+        if (image != null) Image(image, stringResource(R.string.settings_feedback_screenshot), contentScale = ContentScale.Crop, modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)))
         // A 24dp badge with a 48dp touch target, overlapping the corner.
         Box(
             Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-12).dp).size(48.dp).clip(CircleShape).clickable(onClick = onRemove),
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(24.dp).clip(CircleShape).background(Kassa.colors.ink), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Close, "Remove screenshot", tint = Kassa.colors.onInk, modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Close, stringResource(R.string.settings_feedback_remove_screenshot), tint = Kassa.colors.onInk, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -222,15 +228,15 @@ private fun Thumbnail(file: File, onRemove: () -> Unit) {
 internal fun PrivacyPage() {
     RaisedPanel {
         listOf(
-            "Everything stays on this phone" to "Kassa has no internet permission. It can't send your data anywhere, and there's no account, no ads and no analytics.",
-            "Encrypted" to "The database is encrypted on the phone. App lock adds your fingerprint or screen lock.",
-            "Backups are yours" to "Daily backups go only to the folder you pick, without a password. For anywhere you don't control, make a copy with a password.",
-            "Crash reports" to "Kept on the phone. You choose whether to include one when you send feedback.",
-            "Feedback" to "Sent from your own email app, only when you choose to. It includes the app version, Android version and phone model, never your entries.",
+            R.string.settings_privacy_local_title to R.string.settings_privacy_local_body,
+            R.string.settings_privacy_encrypted_title to R.string.settings_privacy_encrypted_body,
+            R.string.settings_privacy_backups_title to R.string.settings_privacy_backups_body,
+            R.string.settings_privacy_crash_title to R.string.settings_privacy_crash_body,
+            R.string.settings_privacy_feedback_title to R.string.settings_privacy_feedback_body,
         ).forEachIndexed { i, (title, body) ->
             if (i > 0) Gap(12)
-            Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-            Text(body, style = KassaType.small, color = Kassa.colors.ink2)
+            Text(stringResource(title), style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text(stringResource(body), style = KassaType.small, color = Kassa.colors.ink2)
         }
     }
     Gap(24)
@@ -249,7 +255,7 @@ internal val licences = listOf(
 
 @Composable
 internal fun LicencesPage(open: (Licence) -> Unit) {
-    Text("Kassa is built with these. Tap one for its full licence.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp))
+    Text(stringResource(R.string.settings_licences_intro), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp))
     licences.forEach { l -> NavRow(l.name, l.licence) { open(l) } }
     Gap(24)
 }

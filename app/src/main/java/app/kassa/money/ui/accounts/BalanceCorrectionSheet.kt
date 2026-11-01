@@ -24,8 +24,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.BalanceCorrection
@@ -79,7 +81,8 @@ fun BalanceCorrectionSheet(
 
     val typed = Money.parseCents(text)
     val difference = typed?.let { it - shownWithout }
-    val label = if (account.type == AccountType.LOAN) "Balance your lender shows" else "Balance it should show"
+    val label = if (account.type == AccountType.LOAN) stringResource(R.string.accounts_balance_lender_shows) else stringResource(R.string.accounts_balance_should_show)
+    val enterBalance = stringResource(R.string.accounts_enter_balance)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(
@@ -87,7 +90,7 @@ fun BalanceCorrectionSheet(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                if (editing == null) "Correct balance" else BalanceCorrection.TITLE, style = KassaType.section, color = Kassa.colors.ink,
+                if (editing == null) stringResource(R.string.accounts_correct_balance) else BalanceCorrection.TITLE, style = KassaType.section, color = Kassa.colors.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Gap(8)
@@ -98,34 +101,34 @@ fun BalanceCorrectionSheet(
                 Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Line("Balance in Kassa", if (debt) cardMoney(shownWithout) else Money.format(shownWithout))
-                Line("Difference", difference?.takeIf { it != 0L }?.let { BalanceCorrection.describe(it) } ?: "—")
+                Line(stringResource(R.string.accounts_balance_in_kassa), if (debt) cardMoney(shownWithout) else Money.format(shownWithout))
+                Line(stringResource(R.string.accounts_difference), difference?.takeIf { it != 0L }?.let { BalanceCorrection.describe(it) } ?: "—")
             }
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+            Text(stringResource(R.string.accounts_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
             DateRow(date, ledger.today) { d -> date = d }
             Text(
-                "Saved as a dated correction, so earlier entries stay as they were. It isn't counted as spending or income.",
+                stringResource(R.string.accounts_correction_note),
                 style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 8.dp),
             )
             Gap(12)
-            PrimaryButton("Save correction") {
+            PrimaryButton(stringResource(R.string.accounts_save_correction)) {
                 val t = typed
                 val change = t?.let { BalanceCorrection.change(BalanceCorrection.targetFrom(it, debt), without) }
                 problem = when {
-                    t == null -> "Enter the balance."
+                    t == null -> enterBalance
                     else -> InputRules.balanceProblem(t) ?: change?.let { BalanceCorrection.problem(it) }
                 }
                 if (problem == null && t != null) onSave(BalanceCorrection.targetFrom(t, debt), momentOn(date, ledger.today, ledger.zone), onDismiss)
             }
-            if (onDelete != null) SecondaryButton("Delete correction", { confirmDelete = true }, Modifier.padding(top = 8.dp))
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+            if (onDelete != null) SecondaryButton(stringResource(R.string.accounts_delete_correction), { confirmDelete = true }, Modifier.padding(top = 8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.accounts_cancel), color = Kassa.colors.ink2) }
             Gap(12)
         }
     }
     if (confirmDelete && onDelete != null) ConfirmDialog(
-        title = "Delete this correction?",
-        body = "The balance goes back to what it was without it. Nothing else changes.",
-        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+        title = stringResource(R.string.accounts_delete_correction_title),
+        body = stringResource(R.string.accounts_delete_correction_body),
+        confirm = stringResource(R.string.accounts_delete), onConfirm = onDelete, onDismiss = { confirmDelete = false },
     )
 }
 

@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.BoxWithConstraints
+import app.kassa.money.R
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -131,10 +133,13 @@ fun BillPage(
 
     fun advance() { error = null; field = missing() }
 
+    val pickCategoryText = stringResource(R.string.entry_pick_category)
+    val pickAccountText = stringResource(R.string.entry_pick_account)
+
     fun save() {
         val problem = InputRules.nameProblem(name, "bill")?.let { BillField.NAME to it } ?: when {
-            categoryId == null -> BillField.CATEGORY to "Pick a category."
-            accountId == null -> BillField.ACCOUNT to "Pick an account."
+            categoryId == null -> BillField.CATEGORY to pickCategoryText
+            accountId == null -> BillField.ACCOUNT to pickAccountText
             else -> null
         }
         if (problem != null) { field = problem.first; error = problem.second; return }
@@ -142,11 +147,11 @@ fun BillPage(
         onSave(base.copy(name = InputRules.clean(name), categoryId = categoryId!!, accountId = accountId!!, dayOfMonth = day, fixedAmount = cents.takeIf { it > 0 }, active = active))
     }
 
-    val saveLabel = if (existing != null) "Save changes" else "Add bill"
+    val saveLabel = if (existing != null) stringResource(R.string.entry_save_changes) else stringResource(R.string.entry_add_bill)
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
-        PageTop(if (existing != null) "Edit bill" else "New bill", onBack = leave, amounts = false) {
-            if (existing != null) TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Kassa.colors.attention, style = KassaType.bodyStrong) }
+        PageTop(if (existing != null) stringResource(R.string.entry_edit_bill) else stringResource(R.string.entry_new_bill), onBack = leave, amounts = false) {
+            if (existing != null) TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.entry_delete), color = Kassa.colors.attention, style = KassaType.bodyStrong) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 600.dp
@@ -155,30 +160,30 @@ fun BillPage(
                 AmountHero(amount, income = false, large = wide) { field = BillField.AMOUNT }
                 Text(
                     when {
-                        cents > 0 -> "Same every month"
-                        estimate != null -> "Estimated ${Money.format(estimate)}"
-                        else -> "Estimated from your last 3 bills"
+                        cents > 0 -> stringResource(R.string.entry_same_every_month)
+                        estimate != null -> stringResource(R.string.entry_estimated_amount, Money.format(estimate))
+                        else -> stringResource(R.string.entry_estimated_from_last)
                     },
                     style = KassaType.tiny, color = Kassa.colors.ink2, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 )
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CategoryTile(topCat, cat?.takeIf { it.parentId != null }, on = field == BillField.CATEGORY || field == BillField.SUB, modifier = Modifier.weight(1.15f)) { field = BillField.CATEGORY }
-                    AccountTile("Paid with", ledger.accountById[accountId], cards, showDue = false, twoLines = false, on = field == BillField.ACCOUNT, modifier = Modifier.weight(1.15f)) { field = BillField.ACCOUNT }
-                    Tile("Every month", on = field == BillField.DAY, empty = false, modifier = Modifier.weight(0.7f), onClick = { field = BillField.DAY }) {
-                        Text("DAY", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp), color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
+                    AccountTile(stringResource(R.string.entry_paid_with), ledger.accountById[accountId], cards, showDue = false, twoLines = false, on = field == BillField.ACCOUNT, modifier = Modifier.weight(1.15f)) { field = BillField.ACCOUNT }
+                    Tile(stringResource(R.string.entry_every_month), on = field == BillField.DAY, empty = false, modifier = Modifier.weight(0.7f), onClick = { field = BillField.DAY }) {
+                        Text(stringResource(R.string.entry_day_caps), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp), color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
                         Text(day.toString(), style = KassaType.hero.copy(fontSize = 26.sp, letterSpacing = 0.sp, lineHeight = 28.sp), color = Kassa.colors.ink)
                     }
                 }
                 NoteRow(
                     name, { name = InputRules.typed(it, InputRules.NAME_MAX); error = null }, focused = field == BillField.NAME,
-                    hint = "Bill name, as in your entries",
+                    hint = stringResource(R.string.entry_bill_name_hint),
                     requester = nameFocus,
                     onFocused = { field = BillField.NAME },
                     onDone = { advance() },
                 )
                 if (existing != null) Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (active) "Active" else "Paused", style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
+                    Text(if (active) stringResource(R.string.entry_active) else stringResource(R.string.entry_paused), style = KassaType.body, color = Kassa.colors.ink, modifier = Modifier.weight(1f))
                     Switch(active, { active = it }, colors = SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
                 }
                 error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp)) }
@@ -188,12 +193,12 @@ fun BillPage(
                 Panel(m) {
                     when (field) {
                         BillField.AMOUNT, null -> {
-                            PanelTitle("Amount", onDone = null)
-                            QuickButton("Estimate each month", on = amount.isEmpty(), modifier = Modifier.fillMaxWidth()) { amount = ""; error = null }
+                            PanelTitle(stringResource(R.string.entry_amount), onDone = null)
+                            QuickButton(stringResource(R.string.entry_estimate_each_month), on = amount.isEmpty(), modifier = Modifier.fillMaxWidth()) { amount = ""; error = null }
                             NumberPad(Modifier.weight(1f)) { k -> amount = applyKey(amount, k); error = null }
                             val next = missing()
                             if (next != null) PrimaryButton(
-                                when (next) { BillField.NAME -> "Next: name"; BillField.CATEGORY -> "Next: category"; else -> "Next: paid with" },
+                                when (next) { BillField.NAME -> stringResource(R.string.entry_next_name); BillField.CATEGORY -> stringResource(R.string.entry_next_category); else -> stringResource(R.string.entry_next_paid_with) },
                             ) { error = null; field = next }
                             else PrimaryButton(saveLabel, ::save)
                         }
@@ -218,7 +223,7 @@ fun BillPage(
                             ) { id -> accountId = id; advance() }
                         }
                         BillField.DAY -> {
-                            PanelTitle("Day of the month") { field = null }
+                            PanelTitle(stringResource(R.string.entry_day_of_month)) { field = null }
                             // No gaps: each day's cell is the 48dp target, and the picked circle sits inside it.
                             LazyVerticalGrid(GridCells.Fixed(7), Modifier.weight(1f)) {
                                 items((1..31).toList(), key = { it }) { d ->
@@ -234,16 +239,16 @@ fun BillPage(
                                     }
                                 }
                             }
-                            if (day > 28) Text("Shorter months use their last day.", style = KassaType.tiny, color = Kassa.colors.ink3)
+                            if (day > 28) Text(stringResource(R.string.entry_shorter_months), style = KassaType.tiny, color = Kassa.colors.ink3)
                         }
                         BillField.NAME -> {
-                            PanelTitle("Name") { advance() }
+                            PanelTitle(stringResource(R.string.entry_name)) { advance() }
                             val sugg = ledger.recent.asSequence()
                                 .filter { it.kind == TxKind.EXPENSE && it.note.isNotBlank() && (categoryId == null || it.categoryId == categoryId) }
                                 .filter { name.isBlank() || it.note.contains(name.trim(), ignoreCase = true) }
                                 .groupingBy { it.note.trim() }.eachCount().entries.sortedByDescending { it.value }.take(8).map { it.key }
                                 .filter { it != name.trim() }
-                            if (sugg.isEmpty()) Text("Use the name you give these entries, so past bills count toward the estimate.", style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(4.dp))
+                            if (sugg.isEmpty()) Text(stringResource(R.string.entry_bill_name_help), style = KassaType.small, color = Kassa.colors.ink3, modifier = Modifier.padding(4.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 sugg.forEach { s ->
                                     Box(
@@ -281,15 +286,15 @@ fun BillPage(
     }
 
     if (confirmDelete && existing != null) ConfirmDialog(
-        title = "Delete ${existing.name}?",
-        body = "Kassa stops asking about this bill. Entries already added for it stay.",
-        confirm = "Delete", dismiss = "Keep it",
+        title = stringResource(R.string.entry_delete_named_title, existing.name),
+        body = stringResource(R.string.entry_delete_bill_body),
+        confirm = stringResource(R.string.entry_delete), dismiss = stringResource(R.string.entry_keep_it),
         onConfirm = { onDelete(existing.id) }, onDismiss = { confirmDelete = false },
     )
     if (confirmDiscard) ConfirmDialog(
-        title = if (existing != null) "Discard your changes?" else "Discard this bill?",
-        body = if (existing != null) "The bill stays as it was before you opened it." else "Nothing you typed here will be saved.",
-        confirm = "Discard", dismiss = "Keep editing",
+        title = if (existing != null) stringResource(R.string.entry_discard_changes_title) else stringResource(R.string.entry_discard_bill_title),
+        body = if (existing != null) stringResource(R.string.entry_bill_stays_body) else stringResource(R.string.entry_nothing_saved_body),
+        confirm = stringResource(R.string.entry_discard), dismiss = stringResource(R.string.entry_keep_editing),
         onConfirm = onBack, onDismiss = { confirmDiscard = false },
     )
 }

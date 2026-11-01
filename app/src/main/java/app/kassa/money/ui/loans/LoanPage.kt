@@ -26,9 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.LoanRate
 import app.kassa.money.domain.LoanRow
@@ -78,7 +80,7 @@ internal fun LoanHero(summary: LoanSummary, terms: LoanTerms, balance: Long) {
     val word = terms.interestWord
     // What is owed is against you, so the hero is orange while something is owed (grey while hidden).
     RaisedPanel(tone = if (balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
-        Text("Outstanding balance", style = KassaType.tiny, color = Kassa.colors.ink2)
+        Text(stringResource(R.string.loans_outstanding_balance), style = KassaType.tiny, color = Kassa.colors.ink2)
         // What is owed, never with a minus; a credit shows green, like a card.
         BigMoney(Math.abs(balance), sizeSp = 36f, color = cardTint(-balance))
         val fraction = summary.fractionRepaid
@@ -92,24 +94,24 @@ internal fun LoanHero(summary: LoanSummary, terms: LoanTerms, balance: Long) {
             }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    NumberFormat.getPercentInstance(Locale.getDefault()).format(percent / 100.0) + " paid off",
+                    stringResource(R.string.loans_percent_paid_off, NumberFormat.getPercentInstance(Locale.getDefault()).format(percent / 100.0)),
                     style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
-                Text("of " + Money.format(original), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+                Text(stringResource(R.string.loans_of_amount, Money.format(original)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
             }
         }
         val paying = summary.owed > 0
         TwoBoxes(
-            "Payment" to (if (paying) Money.format(summary.payment) else "None due"),
-            "Paid off" to (summary.payoffDay?.let { monthYear(it) } ?: "—"),
-            aNote = if (paying) "Due " + mediumDate(summary.nextPaymentDay) else null,
+            stringResource(R.string.loans_payment) to (if (paying) Money.format(summary.payment) else stringResource(R.string.loans_none_due)),
+            stringResource(R.string.loans_paid_off) to (summary.payoffDay?.let { monthYear(it) } ?: "—"),
+            aNote = if (paying) stringResource(R.string.loans_due_date, mediumDate(summary.nextPaymentDay)) else null,
         )
         TwoBoxes(
-            "$word paid so far" to Money.format(summary.interestPaid),
-            "$word remaining" to (summary.interestLeft?.let { Money.format(it) } ?: "—"),
+            stringResource(R.string.loans_interest_paid_so_far, word) to Money.format(summary.interestPaid),
+            stringResource(R.string.loans_interest_remaining, word) to (summary.interestLeft?.let { Money.format(it) } ?: "—"),
         )
         if (paying && !summary.outlook.coversInterest) Text(
-            "The payment doesn't cover the ${word.lowercase()}, so the balance isn't going down.",
+            stringResource(R.string.loans_payment_doesnt_cover, word.lowercase()),
             style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 10.dp),
         )
     }
@@ -142,12 +144,12 @@ internal fun LazyListScope.loanSections(
     if (summary.rows.isNotEmpty()) {
         item(key = "loan-schedule-head") {
             Column(Modifier.widthIn(max = 720.dp)) {
-                SectionHeader("Payment schedule")
+                SectionHeader(stringResource(R.string.loans_payment_schedule))
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp)) {
-                    ScheduleCell("Date", Modifier.weight(1.1f), header = true, end = false)
-                    ScheduleCell("Principal", Modifier.weight(1f), header = true)
+                    ScheduleCell(stringResource(R.string.loans_col_date), Modifier.weight(1.1f), header = true, end = false)
+                    ScheduleCell(stringResource(R.string.loans_col_principal), Modifier.weight(1f), header = true)
                     ScheduleCell(word, Modifier.weight(1f), header = true)
-                    ScheduleCell("Balance", Modifier.weight(1f), header = true)
+                    ScheduleCell(stringResource(R.string.loans_col_balance), Modifier.weight(1f), header = true)
                 }
                 HorizontalDivider(color = Kassa.colors.line)
             }
@@ -156,7 +158,7 @@ internal fun LazyListScope.loanSections(
         if (summary.rows.size > NEXT_ROWS) item(key = "loan-schedule-more") {
             Column(Modifier.widthIn(max = 720.dp)) {
                 TextButton(onClick = { onShowAll(!showAll) }) {
-                    Text(if (showAll) "Show fewer" else "Show full schedule", color = Kassa.colors.ink)
+                    Text(if (showAll) stringResource(R.string.loans_show_fewer) else stringResource(R.string.loans_show_full_schedule), color = Kassa.colors.ink)
                 }
             }
         }
@@ -164,10 +166,10 @@ internal fun LazyListScope.loanSections(
     item(key = "loan-terms") { Column(Modifier.widthIn(max = 720.dp)) { LoanTermsSection(ledger, terms, word, actions.onRemoveChange) } }
     item(key = "loan-buttons") {
         Column(Modifier.widthIn(max = 720.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (summary.owed > 0) PrimaryButton("Record a payment", actions.onPay)
-            SecondaryButton("Change terms", actions.onChangeTerms)
-            SecondaryButton("Edit details", actions.onEditDetails)
-            SecondaryButton("Correct balance", actions.onCorrectBalance)
+            if (summary.owed > 0) PrimaryButton(stringResource(R.string.loans_record_a_payment), actions.onPay)
+            SecondaryButton(stringResource(R.string.loans_change_terms_title), actions.onChangeTerms)
+            SecondaryButton(stringResource(R.string.loans_edit_details), actions.onEditDetails)
+            SecondaryButton(stringResource(R.string.loans_correct_balance), actions.onCorrectBalance)
         }
     }
 }
@@ -200,15 +202,15 @@ private fun LoanTermsSection(ledger: Ledger, terms: LoanTerms, word: String, onR
     val changes = ledger.loans.changesFor(terms.accountId).sortedWith(compareBy({ it.effectiveDay }, { it.id }))
     val eff = terms.effective(changes, ledger.today.toEpochDay().toInt())
     var removing by remember { mutableStateOf<LoanTermChange?>(null) }
-    SectionHeader("Terms")
-    TermLine("Interest type", eff.type.label)
-    TermLine("$word rate", LoanRate.display(eff.rate))
-    TermLine(if (terms.escrow > 0) "Principal and interest" else "Payment", Money.format(eff.payment))
-    if (terms.escrow > 0) TermLine("Escrow", Money.format(terms.escrow))
-    terms.termMonths?.let { TermLine("Term", "$it months") }
-    TermLine("Due day", terms.dueDay.toString())
+    SectionHeader(stringResource(R.string.loans_terms))
+    TermLine(stringResource(R.string.loans_interest_type), eff.type.label)
+    TermLine(stringResource(R.string.loans_interest_rate, word), LoanRate.display(eff.rate))
+    TermLine(if (terms.escrow > 0) stringResource(R.string.loans_principal_and_interest) else stringResource(R.string.loans_payment), Money.format(eff.payment))
+    if (terms.escrow > 0) TermLine(stringResource(R.string.loans_escrow), Money.format(terms.escrow))
+    terms.termMonths?.let { TermLine(stringResource(R.string.loans_term), stringResource(R.string.loans_term_months, it)) }
+    TermLine(stringResource(R.string.loans_due_day), terms.dueDay.toString())
     if (changes.isNotEmpty()) {
-        Text("Changes", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+        Text(stringResource(R.string.loans_changes), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
         changes.forEach { c ->
             Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { removing = c }.padding(vertical = 8.dp)) {
                 Text(mediumDate(c.effectiveDay), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1)
@@ -219,9 +221,9 @@ private fun LoanTermsSection(ledger: Ledger, terms: LoanTerms, word: String, onR
     }
     removing?.let { c ->
         ConfirmDialog(
-            title = "Remove this change?",
-            body = "The schedule goes back to what it was before ${mediumDate(c.effectiveDay)}. Payments you recorded stay as they are.",
-            confirm = "Remove", onConfirm = { onRemoveChange(c.id); removing = null }, onDismiss = { removing = null },
+            title = stringResource(R.string.loans_remove_change_title),
+            body = stringResource(R.string.loans_remove_change_body, mediumDate(c.effectiveDay)),
+            confirm = stringResource(R.string.loans_remove), onConfirm = { onRemoveChange(c.id); removing = null }, onDismiss = { removing = null },
         )
     }
 }

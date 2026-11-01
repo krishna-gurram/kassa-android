@@ -18,8 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.kassa.money.R
 import app.kassa.money.ui.entry.QuickButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -41,21 +43,21 @@ fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onP
     val yesterday = today.minusDays(1)
     val other = date != today && date != yesterday
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        QuickButton("Today", on = date == today, modifier = Modifier.weight(1f)) { onPick(today) }
-        QuickButton("Yesterday", on = date == yesterday, modifier = Modifier.weight(1f)) { onPick(yesterday) }
-        QuickButton(if (other) date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) else "Other day", on = other, modifier = Modifier.weight(1f)) {
+        QuickButton(stringResource(R.string.common_today), on = date == today, modifier = Modifier.weight(1f)) { onPick(today) }
+        QuickButton(stringResource(R.string.common_yesterday), on = date == yesterday, modifier = Modifier.weight(1f)) { onPick(yesterday) }
+        QuickButton(if (other) date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) else stringResource(R.string.common_other_day), on = other, modifier = Modifier.weight(1f)) {
             picking = true
         }
     }
     if (picking) Dialog(onDismissRequest = { picking = false }) {
         var month by remember { mutableStateOf(YearMonth.from(date)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Kassa.colors.raised).padding(16.dp)) {
-            Text("Date", style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.common_date), style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
             MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.heightIn(min = 300.dp), allowFuture = allowFuture) { picked ->
                 onPick(picked)
                 picking = false
             }
-            TextButton(onClick = { picking = false }, modifier = Modifier.align(Alignment.End)) { Text("Cancel", color = Kassa.colors.ink) }
+            TextButton(onClick = { picking = false }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.common_cancel), color = Kassa.colors.ink) }
         }
     }
 }

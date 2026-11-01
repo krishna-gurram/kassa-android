@@ -11,8 +11,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.NumberText
@@ -43,32 +46,32 @@ internal fun CashewSteps(s: ImportState.Cashew, vm: ImportViewModel) {
 private fun Found(scan: CashewScan, onNext: () -> Unit, onPickAgain: () -> Unit) {
     val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
     fun day(ms: Long?) = ms?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().format(date) } ?: ""
-    Text("Cashew backup found", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_cashew_found_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("Read on this phone. Nothing changes until you tap Import.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_found_body), style = KassaType.body, color = Kassa.colors.ink2)
     Gap(16)
     Panel {
         Column {
-            Line("Accounts", count(scan.accounts.size))
-            Line("Categories", if (scan.subcategories > 0) "${count(scan.categories)} · ${count(scan.subcategories)} sub" else count(scan.categories))
-            Line("Entries", count(scan.entries))
-            Line("Transfers", count(scan.transfers))
-            if (scan.firstMillis != null) Line("From", "${day(scan.firstMillis)} to ${day(scan.lastMillis)}")
+            Line(stringResource(R.string.importer_accounts), count(scan.accounts.size))
+            Line(stringResource(R.string.importer_categories), if (scan.subcategories > 0) stringResource(R.string.importer_cashew_categories_sub, count(scan.categories), count(scan.subcategories)) else count(scan.categories))
+            Line(stringResource(R.string.importer_cashew_entries), count(scan.entries))
+            Line(stringResource(R.string.importer_transfers), count(scan.transfers))
+            if (scan.firstMillis != null) Line(stringResource(R.string.importer_cashew_from), stringResource(R.string.importer_cashew_range, day(scan.firstMillis), day(scan.lastMillis)))
         }
     }
     Gap(12)
-    Text("Next: tell Kassa what kind each account is, then review.", style = KassaType.small, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_next_hint), style = KassaType.small, color = Kassa.colors.ink2)
     Gap(20)
-    PrimaryButton("Next", onNext)
-    TextButton(onClick = onPickAgain, modifier = Modifier.fillMaxWidth()) { Text("Choose a different file", color = Kassa.colors.ink2) }
+    PrimaryButton(stringResource(R.string.importer_next), onNext)
+    TextButton(onClick = onPickAgain, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_choose_different), color = Kassa.colors.ink2) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Accounts(s: ImportState.Cashew, vm: ImportViewModel) {
-    Text("Your accounts", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_cashew_accounts_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("Cashew doesn't say what kind of account each one is. Pick one for each; you can change it later in Accounts.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_accounts_body), style = KassaType.body, color = Kassa.colors.ink2)
     Gap(8)
     val other = s.otherCurrency.map { it.pk }.toSet()
     s.scan.accounts.forEach { a ->
@@ -80,31 +83,31 @@ private fun Accounts(s: ImportState.Cashew, vm: ImportViewModel) {
             FlowRow {
                 AccountType.entries.forEach { t -> Chip(t.label, selected = s.choices.accountTypes[a.pk] == t, small = true) { vm.setAccountType(a.pk, t) } }
             }
-            if (a.pk in other) Text("Uses ${a.currency}; Kassa uses ${s.phoneCurrency}. You'll choose what happens to it next.", style = KassaType.small, color = Kassa.colors.attention)
+            if (a.pk in other) Text(stringResource(R.string.importer_cashew_other_currency_note, a.currency.orEmpty(), s.phoneCurrency), style = KassaType.small, color = Kassa.colors.attention)
         }
         HorizontalDivider(color = Kassa.colors.line)
     }
     Gap(20)
     val ready = s.scan.accounts.all { s.choices.accountTypes[it.pk] != null }
-    if (ready) PrimaryButton("Next", vm::next)
-    else Text("Pick a kind for every account to go on.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 14.dp))
-    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Kassa.colors.ink2) }
+    if (ready) PrimaryButton(stringResource(R.string.importer_next), vm::next)
+    else Text(stringResource(R.string.importer_cashew_accounts_pick_all), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 14.dp))
+    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_back), color = Kassa.colors.ink2) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Loans(s: ImportState.Cashew, vm: ImportViewModel) {
-    Text("Your loans", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_cashew_loans_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("Cashew keeps loans you gave and loans you took in one list. Tell Kassa what each one is.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_loans_body), style = KassaType.body, color = Kassa.colors.ink2)
     Gap(8)
     s.scan.loans.forEach { l ->
         Column(Modifier.padding(vertical = 8.dp)) {
             Text(l.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val payments = when (l.payments) { 0 -> "no payments yet"; 1 -> "1 payment so far"; else -> "${count(l.payments)} payments so far" }
-            Text("${if (l.lent) "Lent" else "Borrowed"} · ${Money.format(l.amount)} · $payments", style = KassaType.small, color = Kassa.colors.ink2)
+            val payments = if (l.payments == 0) stringResource(R.string.importer_cashew_loan_no_payments) else pluralStringResource(R.plurals.importer_cashew_loan_payments, l.payments, count(l.payments))
+            Text(stringResource(R.string.importer_cashew_loan_line, if (l.lent) stringResource(R.string.importer_cashew_loan_lent) else stringResource(R.string.importer_cashew_loan_borrowed), Money.format(l.amount), payments), style = KassaType.small, color = Kassa.colors.ink2)
             FlowRow {
-                listOf(LoanChoice.PERSON to "A person", LoanChoice.ACCOUNT to "A loan account", LoanChoice.ENTRIES to "Plain entries").forEach { (c, label) ->
+                listOf(LoanChoice.PERSON to stringResource(R.string.importer_cashew_choice_person), LoanChoice.ACCOUNT to stringResource(R.string.importer_cashew_choice_account), LoanChoice.ENTRIES to stringResource(R.string.importer_cashew_choice_entries)).forEach { (c, label) ->
                     Chip(label, selected = s.choices.loans[l.pk] == c, small = true) { vm.setLoan(l.pk, c) }
                 }
             }
@@ -114,45 +117,46 @@ private fun Loans(s: ImportState.Cashew, vm: ImportViewModel) {
     Gap(12)
     Panel {
         Column {
-            Bullet("A person: goes to People, with what they owe you or you owe them.")
-            Bullet("A loan account: becomes an account in Accounts. What was lent or borrowed is its starting balance, and each payment is a transfer, so you see what's left.")
-            Bullet("Plain entries: its payments come in as ordinary spending and income.")
+            Bullet(stringResource(R.string.importer_cashew_bullet_person))
+            Bullet(stringResource(R.string.importer_cashew_bullet_account))
+            Bullet(stringResource(R.string.importer_cashew_bullet_entries))
         }
     }
     Gap(8)
-    Text("One-off lent and borrowed entries without a loan come in as plain entries.", style = KassaType.small, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_loans_oneoff), style = KassaType.small, color = Kassa.colors.ink2)
     Gap(20)
     val ready = s.scan.loans.all { s.choices.loans[it.pk] != null }
-    if (ready) PrimaryButton("Next", vm::next)
-    else Text("Pick one for every loan to go on.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 14.dp))
-    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Kassa.colors.ink2) }
+    if (ready) PrimaryButton(stringResource(R.string.importer_next), vm::next)
+    else Text(stringResource(R.string.importer_cashew_loans_pick_all), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 14.dp))
+    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_back), color = Kassa.colors.ink2) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Currency(s: ImportState.Cashew, a: CashewScan.Wallet, vm: ImportViewModel) {
     val out = a.pk in s.choices.leaveOut
-    Text("${a.name} uses ${a.currency}", style = KassaType.title, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Text(stringResource(R.string.importer_cashew_currency_title, a.name, a.currency.orEmpty()), style = KassaType.title, color = Kassa.colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
     Gap(8)
-    Text("Kassa keeps one currency on this phone (${s.phoneCurrency}) and never converts amounts. Choose what happens to this account.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_currency_body, s.phoneCurrency), style = KassaType.body, color = Kassa.colors.ink2)
     Gap(12)
     FlowRow {
-        Chip("Bring it as it is", selected = !out) { vm.setLeaveOut(a.pk, false) }
-        Chip("Leave it out", selected = out) { vm.setLeaveOut(a.pk, true) }
+        Chip(stringResource(R.string.importer_cashew_bring_as_is), selected = !out) { vm.setLeaveOut(a.pk, false) }
+        Chip(stringResource(R.string.importer_cashew_leave_out), selected = out) { vm.setLeaveOut(a.pk, true) }
     }
     Gap(8)
     Panel {
         Text(
-            if (!out) "Its ${count(a.entries)} entries come in with their numbers unchanged, so ${amountIn(a.balance, a.currency)} shows as ${Money.format(a.balance)}. Totals mix both currencies."
-            else "The account and its ${count(a.entries)} entries stay in Cashew." + if (a.transfers > 0) " ${count(a.transfers)} transfers with other accounts lose their other side and come in as plain entries, so those balances still match." else "",
+            if (!out) stringResource(R.string.importer_cashew_bring_detail, count(a.entries), amountIn(a.balance, a.currency), Money.format(a.balance))
+            else if (a.transfers > 0) stringResource(R.string.importer_cashew_leave_detail_transfers, count(a.entries), count(a.transfers))
+            else stringResource(R.string.importer_cashew_leave_detail, count(a.entries)),
             style = KassaType.body, color = Kassa.colors.ink,
         )
     }
     Gap(8)
-    Text("Converting isn't offered: it would need exchange rates, and Kassa never goes online.", style = KassaType.small, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_cashew_no_convert), style = KassaType.small, color = Kassa.colors.ink2)
     Gap(20)
-    PrimaryButton("Next", vm::next)
-    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Kassa.colors.ink2) }
+    PrimaryButton(stringResource(R.string.importer_next), vm::next)
+    TextButton(onClick = vm::back, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_back), color = Kassa.colors.ink2) }
 }
 
 @Composable
