@@ -21,7 +21,7 @@ android {
         versionName = "0.9.$buildNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Where feedback emails go. Set in CI; empty means the user types the address.
-        buildConfigField("String", "SUPPORT_EMAIL", "\"${System.getenv("KASSA_SUPPORT_EMAIL") ?: ""}\"")
+        buildConfigField("String", "SUPPORT_EMAIL", "\"${System.getenv("KASSA_SUPPORT_EMAIL") ?: "support@kassamoney.com"}\"")
     }
 
     // Migration tests build old databases from these exported schemas.
