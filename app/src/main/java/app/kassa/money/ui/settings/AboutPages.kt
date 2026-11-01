@@ -161,11 +161,32 @@ private fun sendFeedback(context: Context, kind: FeedbackKind, text: String, sho
         // Only email apps, not every app that can share.
         selector = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
     }
-    return try {
-        context.startActivity(email); null
-    } catch (e: ActivityNotFoundException) {
-        "No email app on this phone."
+    // Some phones refuse the selector form, so fall back to a plain mailto, then to anything that can send email.
+    val subject = "Kassa feedback: ${kind.subject}"
+    val attempts = buildList<Intent> {
+        add(email)
+        val to = BuildConfigInfo.supportEmail
+        if (uris.isEmpty()) add(
+            Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(to) + "?subject=" + Uri.encode(subject) + "&body=" + Uri.encode(body.take(4_000)))),
+        )
+        add(
+            Intent.createChooser(
+                Intent(if (uris.isEmpty()) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "message/rfc822"
+                    if (to.isNotBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(to))
+                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                    putExtra(Intent.EXTRA_TEXT, body)
+                    if (uris.isNotEmpty()) putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                },
+                "Send feedback",
+            ),
+        )
     }
+    for (intent in attempts) {
+        try { context.startActivity(intent); return null } catch (e: ActivityNotFoundException) { /* try the next way */ }
+    }
+    return "No email app found. You can write to ${BuildConfigInfo.supportEmail.ifBlank { "us" }} yourself instead."
 }
 
 /** Copies a picked screenshot into the feedback folder, the only place Kassa shares files from. */

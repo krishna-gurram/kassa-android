@@ -1,5 +1,6 @@
 package app.kassa.money.ui.settings
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -221,6 +222,11 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
 
     SectionHeader("About")
     NavRow("Send feedback", "") { open(SettingsPage.Feedback) }
+    // A plain link to the website, which then goes to the tip page. Kassa itself never goes online.
+    NavRow("Buy me a coffee", "kassamoney.com") {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://kassamoney.com/support.html"))) }
+            .onFailure { messages?.say("Open kassamoney.com in a browser to say thanks.") }
+    }
     val tip by settings.tip.collectAsState()
     NavRow("Show tips again", if (tip == 0) "On Overview" else "") { settings.setTip(0) }
     NavRow("Privacy", "") { open(SettingsPage.Privacy) }
