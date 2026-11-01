@@ -1,5 +1,7 @@
 package app.kassa.money.ui
 
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -111,11 +113,10 @@ fun AppRoot(
     val askNotifications by vm.askNotifications.collectAsState()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { DueNotifier.refresh(context) }
     if (askNotifications) ConfirmDialog(
-        "Remind you of payments due?",
-        "Kassa can notify you when a card or loan payment is due. Android asks for permission next. " +
-            "Reminders are made on this phone and nothing leaves it. Change this any time in Settings > Notifications.",
-        "Continue", onConfirm = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }, onDismiss = vm::askedNotifications,
-        dismiss = "Not now", destructive = false,
+        stringResource(R.string.shell_notify_title),
+        stringResource(R.string.shell_notify_body),
+        stringResource(R.string.shell_continue), onConfirm = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }, onDismiss = vm::askedNotifications,
+        dismiss = stringResource(R.string.shell_not_now), destructive = false,
     )
     LaunchedEffect(openAdd, entryCount) {
         if (openAdd && (entryCount > 0 || startedFresh)) {
@@ -290,7 +291,7 @@ private fun Tabs(app: AppController, l: Ledger, padding: PaddingValues, wide: Bo
                 when {
                     shown != null -> PageContent(app, shown, l, pad, onBack = if (paneTop != null) nav::pop else null)
                     nav.tab == Tab.ACTIVITY -> MonthBreakdown(l, pad, onOpenCategory = { app.openFromList(Page.CategoryDetail(it.id)) })
-                    else -> PanePlaceholder("Pick something on the left.")
+                    else -> PanePlaceholder(stringResource(R.string.shell_pick_left))
                 }
             }
         }

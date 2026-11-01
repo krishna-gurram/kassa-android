@@ -28,8 +28,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.kassa.money.R
 import app.kassa.money.data.backup.BackupContents
 import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.Money
@@ -76,8 +78,8 @@ fun ImportScreen(
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth()) {
             when (val s = state) {
                 ImportState.Idle -> Intro(firstRun, pick, onStartFresh, onCancel)
-                ImportState.Reading -> Busy("Reading your backup")
-                ImportState.Saving -> Busy("Saving to the encrypted database")
+                ImportState.Reading -> Busy(stringResource(R.string.importer_busy_reading))
+                ImportState.Saving -> Busy(stringResource(R.string.importer_busy_saving))
                 is ImportState.Failed -> {
                     Intro(firstRun, pick, onStartFresh, onCancel)
                     Gap(12)
@@ -90,30 +92,30 @@ fun ImportScreen(
                 is ImportState.KassaPassword -> KassaPassword(s.problem, onOpen = vm::openKassa, onCancel = vm::reset)
                 is ImportState.KassaReady -> KassaReady(s.contents, firstRun, onRestore = vm::restoreKassa, onCancel = vm::reset)
                 ImportState.Restored -> {
-                    Text("Backup restored", style = KassaType.title, color = Kassa.colors.ink)
+                    Text(stringResource(R.string.importer_restored_title), style = KassaType.title, color = Kassa.colors.ink)
                     Gap(8)
-                    Text("Everything from the backup is now in Kassa, on this phone only.", style = KassaType.body, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.importer_restored_body), style = KassaType.body, color = Kassa.colors.ink2)
                     Gap(24)
-                    PrimaryButton("Open Kassa") { vm.reset(); onFinished() }
+                    PrimaryButton(stringResource(R.string.importer_open_kassa)) { vm.reset(); onFinished() }
                 }
                 is ImportState.Review -> Review(s.plan, firstRun, onImport = vm::confirm, onPickAgain = { vm.reset(); pick() })
                 is ImportState.Done -> {
-                    Text(if (s.plan.appName.isNotBlank()) "Imported from ${s.plan.appName}" else "Imported", style = KassaType.title, color = Kassa.colors.ink)
+                    Text(if (s.plan.appName.isNotBlank()) stringResource(R.string.importer_done_title_from, s.plan.appName) else stringResource(R.string.importer_done_title), style = KassaType.title, color = Kassa.colors.ink)
                     Gap(8)
-                    Text("${count(s.entries)} entries are now in Kassa, on this phone only.", style = KassaType.body, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.importer_done_body, count(s.entries)), style = KassaType.body, color = Kassa.colors.ink2)
                     val next = buildList {
                         s.plan.accounts.filter { it.type == app.kassa.money.domain.AccountType.CREDIT_CARD && it.statementDay == null }
-                            .forEach { add("Add statement and due days to ${it.name} so Kassa can show what's payable.") }
+                            .forEach { add(stringResource(R.string.importer_next_statement, it.name)) }
                         s.plan.accounts.filter { it.type == app.kassa.money.domain.AccountType.CREDIT_CARD && it.payFromId == null }
-                            .forEach { add("Pick the account ${it.name} is paid from.") }
-                        if (s.plan.people.isNotEmpty()) add("Check ${s.plan.people.joinToString { it.name }} in People.")
-                        if (s.plan.bills.isNotEmpty()) add("Check the ${count(s.plan.bills.size)} bills in Upcoming.")
-                        add("Pick the accounts to show on Overview in Settings › Home screen.")
+                            .forEach { add(stringResource(R.string.importer_next_pay_from, it.name)) }
+                        if (s.plan.people.isNotEmpty()) add(stringResource(R.string.importer_next_people, s.plan.people.joinToString { it.name }))
+                        if (s.plan.bills.isNotEmpty()) add(stringResource(R.string.importer_next_bills, count(s.plan.bills.size)))
+                        add(stringResource(R.string.importer_next_overview))
                     }
                     Gap(16)
                     Panel { Column { next.forEach { Bullet(it) } } }
                     Gap(24)
-                    PrimaryButton("Open Kassa") { vm.reset(); onFinished() }
+                    PrimaryButton(stringResource(R.string.importer_open_kassa)) { vm.reset(); onFinished() }
                 }
             }
         }
@@ -123,11 +125,11 @@ fun ImportScreen(
 @Composable
 private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit, onCancel: (() -> Unit)?) {
     Gap(if (firstRun) 48 else 8)
-    Text(if (firstRun) "Kassa" else "Import from another app", style = KassaType.title, color = Kassa.colors.ink)
+    Text(if (firstRun) stringResource(R.string.app_name) else stringResource(R.string.importer_intro_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
     Text(
-        if (firstRun) "Your money, on this phone only. Kassa has no internet access, so nothing you enter can leave the device."
-        else "This replaces everything in Kassa with the backup you pick. You'll see a review before anything changes.",
+        if (firstRun) stringResource(R.string.importer_intro_first_run_body)
+        else stringResource(R.string.importer_intro_replace_body),
         style = KassaType.body, color = Kassa.colors.ink2,
     )
     val settings = app.kassa.money.ui.LocalSettings.current
@@ -139,27 +141,27 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
         // starts with none, and Start fresh and Choose backup file open the list instead until one is picked.
         val current = Currencies.byCode(code)
         Gap(12)
-        NavRow("Currency", if (chosen) "${current.name}, ${Money.sample(123_450, style = current)}" else "Choose yours") { choosing = true }
+        NavRow(stringResource(R.string.importer_currency_label), if (chosen) stringResource(R.string.importer_currency_value, current.name, Money.sample(123_450, style = current)) else stringResource(R.string.importer_currency_choose)) { choosing = true }
         if (choosing) CurrencySheet(if (chosen) code else null, onPick = { settings.setCurrency(it.code) }, onDismiss = { choosing = false })
         Gap(16)
         // Most people have no backup to bring, so starting fresh comes first.
-        PrimaryButton("Start fresh") { if (chosen) onStartFresh() else choosing = true }
+        PrimaryButton(stringResource(R.string.importer_start_fresh)) { if (chosen) onStartFresh() else choosing = true }
         Gap(16)
     } else Gap(28)
     Panel {
         Column {
-            Text(if (firstRun) "Have a backup?" else "Bring your history from another app", style = KassaType.bodyStrong, color = Kassa.colors.ink)
+            Text(if (firstRun) stringResource(R.string.importer_have_backup) else stringResource(R.string.importer_bring_history), style = KassaType.bodyStrong, color = Kassa.colors.ink)
             Gap(4)
             Text(
-                "A Kassa backup (.kassa), or one from Money Manager (.mmbak) or Cashew (.sql). Kassa works out which you picked, reads it on the phone and never uploads it.",
+                stringResource(R.string.importer_backup_formats),
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
             Gap(14)
-            if (firstRun) SecondaryButton("Choose backup file", { if (chosen || !firstRun) pick() else choosing = true }) else PrimaryButton("Choose backup file", pick)
+            if (firstRun) SecondaryButton(stringResource(R.string.importer_choose_file), { if (chosen || !firstRun) pick() else choosing = true }) else PrimaryButton(stringResource(R.string.importer_choose_file), pick)
         }
     }
     Gap(12)
-    if (onCancel != null) TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+    if (onCancel != null) TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_cancel), color = Kassa.colors.ink2) }
 }
 
 /** A Kassa backup with a password: the same field as Settings › Backup and restore. */
@@ -167,31 +169,31 @@ private fun Intro(firstRun: Boolean, pick: () -> Unit, onStartFresh: () -> Unit,
 private fun KassaPassword(problem: String?, onOpen: (CharArray) -> Unit, onCancel: () -> Unit) {
     // Not saveable on purpose: a password shouldn't sit in saved instance state.
     var password by remember { mutableStateOf("") }
-    Text("This backup has a password", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_password_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("Enter the password it was saved with. Kassa can't recover a lost one.", style = KassaType.body, color = Kassa.colors.ink2)
-    PasswordField(password, { password = it }, "This backup's password", Modifier.fillMaxWidth().padding(top = 16.dp), problem = problem)
+    Text(stringResource(R.string.importer_password_body), style = KassaType.body, color = Kassa.colors.ink2)
+    PasswordField(password, { password = it }, stringResource(R.string.importer_password_label), Modifier.fillMaxWidth().padding(top = 16.dp), problem = problem)
     Gap(12)
-    PrimaryButton("Open backup") { if (password.isNotEmpty()) onOpen(password.toCharArray()) }
+    PrimaryButton(stringResource(R.string.importer_open_backup)) { if (password.isNotEmpty()) onOpen(password.toCharArray()) }
     Gap(4)
-    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_cancel), color = Kassa.colors.ink2) }
 }
 
 /** A Kassa backup, read: what's in it, then restore. Over existing data it asks first, like the Backup page. */
 @Composable
 private fun KassaReady(contents: BackupContents, firstRun: Boolean, onRestore: () -> Unit, onCancel: () -> Unit) {
     var confirm by rememberSaveable { mutableStateOf(false) }
-    Text("Restore this backup?", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_restore_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
     BackupSummary(contents)
     if (!firstRun) {
         Gap(6)
-        Text("Restoring replaces everything in Kassa now with this backup.", style = KassaType.small, color = Kassa.colors.attention)
+        Text(stringResource(R.string.importer_restore_replaces), style = KassaType.small, color = Kassa.colors.attention)
     }
     Gap(24)
-    PrimaryButton(if (firstRun) "Restore backup" else "Replace with this backup") { if (firstRun) onRestore() else confirm = true }
+    PrimaryButton(if (firstRun) stringResource(R.string.importer_restore_button) else stringResource(R.string.importer_replace_button)) { if (firstRun) onRestore() else confirm = true }
     Gap(4)
-    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Choose a different file", color = Kassa.colors.ink2) }
+    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_choose_different), color = Kassa.colors.ink2) }
     if (confirm) RestoreConfirm(onConfirm = onRestore, onDismiss = { confirm = false })
 }
 
@@ -209,74 +211,74 @@ private fun Busy(label: String) {
 private fun Review(plan: ImportPlan, firstRun: Boolean, onImport: () -> Unit, onPickAgain: () -> Unit) {
     val r = plan.reconcile
     val byKind = plan.transactions.groupingBy { it.kind }.eachCount()
-    Text("Review before importing", style = KassaType.title, color = Kassa.colors.ink)
+    Text(stringResource(R.string.importer_review_title), style = KassaType.title, color = Kassa.colors.ink)
     Gap(8)
-    Text("From a ${plan.sourceName}. Nothing is saved until you tap Import.", style = KassaType.body, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.importer_review_from, plan.sourceName), style = KassaType.body, color = Kassa.colors.ink2)
 
-    SectionHeader("What comes over")
-    Fact("Expenses", count(byKind[TxKind.EXPENSE] ?: 0))
-    Fact("Income", count(byKind[TxKind.INCOME] ?: 0))
-    Fact("Transfers", count(byKind[TxKind.TRANSFER] ?: 0))
-    Fact("Accounts", count(plan.accounts.size))
-    Fact("Categories", "${count(plan.categories.count { !it.hidden })} active, ${count(plan.categories.count { it.hidden })} retired")
-    Fact("Budgets", count(plan.budgets.size))
-    if (plan.people.isNotEmpty()) Fact("People", count(plan.people.size))
-    if (plan.bills.isNotEmpty()) Fact("Bills", count(plan.bills.size))
+    SectionHeader(stringResource(R.string.importer_what_comes_over))
+    Fact(stringResource(R.string.importer_expenses), count(byKind[TxKind.EXPENSE] ?: 0))
+    Fact(stringResource(R.string.importer_income), count(byKind[TxKind.INCOME] ?: 0))
+    Fact(stringResource(R.string.importer_transfers), count(byKind[TxKind.TRANSFER] ?: 0))
+    Fact(stringResource(R.string.importer_accounts), count(plan.accounts.size))
+    Fact(stringResource(R.string.importer_categories), stringResource(R.string.importer_categories_value, count(plan.categories.count { !it.hidden }), count(plan.categories.count { it.hidden })))
+    Fact(stringResource(R.string.importer_budgets), count(plan.budgets.size))
+    if (plan.people.isNotEmpty()) Fact(stringResource(R.string.importer_people), count(plan.people.size))
+    if (plan.bills.isNotEmpty()) Fact(stringResource(R.string.importer_bills), count(plan.bills.size))
 
-    SectionHeader("Checks", if (r.allMatch) "All match" else "Needs a look")
+    SectionHeader(stringResource(R.string.importer_checks), if (r.allMatch) stringResource(R.string.importer_all_match) else stringResource(R.string.importer_needs_look))
     val badAccounts = r.accounts.filter { !it.matches }
     val badMonths = r.months.filter { !it.matches }
     Check(
         ok = badAccounts.isEmpty(),
-        text = if (badAccounts.isEmpty()) "All ${r.accounts.size} account balances match the backup."
-        else "${badAccounts.size} account balances differ: " + badAccounts.joinToString { "${it.name} (${Money.format(it.imported - it.source)})" },
+        text = if (badAccounts.isEmpty()) stringResource(R.string.importer_check_accounts_ok, r.accounts.size)
+        else stringResource(R.string.importer_check_accounts_bad, badAccounts.size, badAccounts.joinToString { "${it.name} (${Money.format(it.imported - it.source)})" }),
     )
     if (r.months.isNotEmpty()) Check(
         ok = badMonths.isEmpty(),
-        text = if (badMonths.isEmpty()) "Spending and income match for all ${r.months.size} months."
-        else "${badMonths.size} months differ, starting ${badMonths.first().month}.",
+        text = if (badMonths.isEmpty()) stringResource(R.string.importer_check_months_ok, r.months.size)
+        else stringResource(R.string.importer_check_months_bad, badMonths.size, badMonths.first().month),
     )
 
     val (left, other) = plan.issues.partition { it is ImportIssue.LeftBehind }
     if (left.isNotEmpty()) {
-        SectionHeader(if (plan.appName.isNotBlank()) "Stays in ${plan.appName}" else "Stays behind")
+        SectionHeader(if (plan.appName.isNotBlank()) stringResource(R.string.importer_stays_in, plan.appName) else stringResource(R.string.importer_stays_behind))
         left.forEach { Issue(it) }
     }
     if (other.isNotEmpty()) {
-        SectionHeader("Worth knowing", "You can fix these later")
+        SectionHeader(stringResource(R.string.importer_worth_knowing), stringResource(R.string.importer_fix_later))
         other.forEach { Issue(it) }
     }
 
     Gap(28)
-    PrimaryButton("Import ${count(plan.transactions.size)} entries", onImport)
+    PrimaryButton(stringResource(R.string.importer_import_button, count(plan.transactions.size)), onImport)
     if (!firstRun) {
         Gap(6)
         Text(
-            if (plan.people.isEmpty() && plan.bills.isEmpty()) "This replaces what's in Kassa now."
-            else "This replaces your accounts, categories, entries, budgets and bills. People you already have are kept; the ones from this file are added.",
+            if (plan.people.isEmpty() && plan.bills.isEmpty()) stringResource(R.string.importer_replaces_simple)
+            else stringResource(R.string.importer_replaces_detail),
             style = KassaType.small, color = Kassa.colors.attention,
         )
     }
     Gap(4)
-    TextButton(onClick = onPickAgain, modifier = Modifier.fillMaxWidth()) { Text("Choose a different file", color = Kassa.colors.ink2) }
+    TextButton(onClick = onPickAgain, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.importer_choose_different), color = Kassa.colors.ink2) }
 }
 
 @Composable
 private fun Issue(issue: ImportIssue) {
     val text = when (issue) {
-        is ImportIssue.PossibleDuplicateAccounts -> "These look like the same account: ${issue.names.joinToString(" and ")}. You can archive one after importing."
-        is ImportIssue.MismatchedTransfers -> "Transfers whose two sides didn't agree (Kassa kept the sending side; balances still match): ${count(issue.count)}"
-        is ImportIssue.UnpairedTransfers -> "${issue.count} transfers had only one half. They were kept so balances match."
-        is ImportIssue.ZeroAmountEntries -> "${issue.count} entries have an amount of ${Money.format(0)}. They were kept."
-        is ImportIssue.SkippedRows -> "${issue.count} skipped: ${issue.reason}."
-        is ImportIssue.MergedCategories -> "Categories with the same name in different capitals were combined: ${issue.names.joinToString()}."
-        is ImportIssue.LeftBehind -> "${issue.what}: ${count(issue.count)}"
-        is ImportIssue.RefundsAsIncome -> "Refunds (money back in a spending category) come in as income in that category: ${count(issue.count)}"
-        is ImportIssue.BalanceCorrections -> "Balance corrections that became a starting balance, so balances match: ${count(issue.count)}"
-        is ImportIssue.TransfersAsEntries -> "Transfers with an account that didn't come over, kept as plain entries so balances match: ${count(issue.count)}"
-        is ImportIssue.OtherCurrency -> "${issue.accounts.joinToString()} come in with their amounts unchanged, in this phone's currency."
-        is ImportIssue.DeletedAccounts -> "Accounts deleted in the backup, left out with their entries: ${count(issue.count)}"
-        is ImportIssue.CardsWithoutPayFrom -> "Cards with no pay-from account; set one on the card: ${count(issue.count)}"
+        is ImportIssue.PossibleDuplicateAccounts -> stringResource(R.string.importer_issue_duplicate_accounts, issue.names.joinToString(" and "))
+        is ImportIssue.MismatchedTransfers -> stringResource(R.string.importer_issue_mismatched_transfers, count(issue.count))
+        is ImportIssue.UnpairedTransfers -> stringResource(R.string.importer_issue_unpaired_transfers, issue.count)
+        is ImportIssue.ZeroAmountEntries -> stringResource(R.string.importer_issue_zero_amount, issue.count, Money.format(0))
+        is ImportIssue.SkippedRows -> stringResource(R.string.importer_issue_skipped_rows, issue.count, issue.reason)
+        is ImportIssue.MergedCategories -> stringResource(R.string.importer_issue_merged_categories, issue.names.joinToString())
+        is ImportIssue.LeftBehind -> stringResource(R.string.importer_issue_left_behind, issue.what, count(issue.count))
+        is ImportIssue.RefundsAsIncome -> stringResource(R.string.importer_issue_refunds, count(issue.count))
+        is ImportIssue.BalanceCorrections -> stringResource(R.string.importer_issue_balance_corrections, count(issue.count))
+        is ImportIssue.TransfersAsEntries -> stringResource(R.string.importer_issue_transfers_as_entries, count(issue.count))
+        is ImportIssue.OtherCurrency -> stringResource(R.string.importer_issue_other_currency, issue.accounts.joinToString())
+        is ImportIssue.DeletedAccounts -> stringResource(R.string.importer_issue_deleted_accounts, count(issue.count))
+        is ImportIssue.CardsWithoutPayFrom -> stringResource(R.string.importer_issue_cards_no_pay_from, count(issue.count))
     }
     Row(Modifier.padding(vertical = 8.dp)) {
         Text("•", style = KassaType.body, color = Kassa.colors.ink3, modifier = Modifier.padding(end = 10.dp))

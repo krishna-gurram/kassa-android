@@ -27,11 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
@@ -85,26 +88,27 @@ fun EntryPage(
     val cards = remember(ledger) { ledger.cards().associate { it.account.id to it.snapshot } }
     val toCard = if (s.kind == TxKind.TRANSFER) s.toAccountId?.let { cards[it] } else null
 
+    val resources = LocalContext.current.resources
     val save: () -> Unit = {
-        val problem = s.problem()
+        val problem = s.problem(resources)
         if (problem != null) { s.field = problem.first; s.error = problem.second } else onSave(s.toDraft())
     }
     val saveLabel = when {
-        s.editing != null -> "Save changes"
-        s.kind == TxKind.INCOME -> "Add income"
-        s.kind == TxKind.TRANSFER -> if (toCard != null) "Record card payment" else "Record transfer"
-        else -> "Add expense"
+        s.editing != null -> stringResource(R.string.entry_save_changes)
+        s.kind == TxKind.INCOME -> stringResource(R.string.entry_add_income)
+        s.kind == TxKind.TRANSFER -> if (toCard != null) stringResource(R.string.entry_record_card_payment) else stringResource(R.string.entry_record_transfer)
+        else -> stringResource(R.string.entry_add_expense)
     }
     val title = when {
-        s.editing != null -> "Edit " + when (s.kind) { TxKind.INCOME -> "income"; TxKind.TRANSFER -> "transfer"; else -> "expense" }
-        start.prefill != null -> "Review entry"
-        else -> "New entry"
+        s.editing != null -> when (s.kind) { TxKind.INCOME -> stringResource(R.string.entry_edit_income); TxKind.TRANSFER -> stringResource(R.string.entry_edit_transfer); else -> stringResource(R.string.entry_edit_expense) }
+        start.prefill != null -> stringResource(R.string.entry_review_entry)
+        else -> stringResource(R.string.entry_new_entry)
     }
 
     Column(Modifier.fillMaxSize().padding(contentPadding).imePadding()) {
         // No balances here (typed amounts are never masked), and the one ink button is the one under the pad.
         PageTop(title, onBack = leave, amounts = false) {
-            if (s.editing != null) TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Kassa.colors.attention, style = KassaType.bodyStrong) }
+            if (s.editing != null) TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.entry_delete), color = Kassa.colors.attention, style = KassaType.bodyStrong) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 600.dp
@@ -144,15 +148,15 @@ fun EntryPage(
 
     val editing = s.editing
     if (confirmDelete && editing != null) ConfirmDialog(
-        title = "Delete this entry?",
-        body = "${editing.note.ifBlank { "This entry" }}, ${Money.format(editing.amount)}. Balances update right away. This can't be undone.",
-        confirm = "Delete", dismiss = "Keep it",
+        title = stringResource(R.string.entry_delete_entry_title),
+        body = stringResource(R.string.entry_delete_entry_body, editing.note.ifBlank { stringResource(R.string.entry_this_entry) }, Money.format(editing.amount)),
+        confirm = stringResource(R.string.entry_delete), dismiss = stringResource(R.string.entry_keep_it),
         onConfirm = { onDelete(editing.id) }, onDismiss = { confirmDelete = false },
     )
     if (confirmDiscard) ConfirmDialog(
-        title = if (editing != null) "Discard your changes?" else "Discard this entry?",
-        body = if (editing != null) "The entry stays as it was before you opened it." else "Nothing you typed here will be saved.",
-        confirm = "Discard", dismiss = "Keep editing",
+        title = if (editing != null) stringResource(R.string.entry_discard_changes_title) else stringResource(R.string.entry_discard_entry_title),
+        body = if (editing != null) stringResource(R.string.entry_entry_stays_body) else stringResource(R.string.entry_nothing_saved_body),
+        confirm = stringResource(R.string.entry_discard), dismiss = stringResource(R.string.entry_keep_editing),
         onConfirm = onBack, onDismiss = { confirmDiscard = false },
     )
 }
@@ -167,7 +171,7 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
     KindSwitch(s.kind, onSelect = { s.switchKind(it, ledger.accountById) }, modifier = Modifier.fillMaxWidth())
     AmountHero(s.amount, income = s.kind == TxKind.INCOME, large = wide) { s.field = Field.AMOUNT }
     if (s.kind == TxKind.TRANSFER && s.toAccountId != null) {
-        Text(if (toCard != null) "Card payment" else "Transfer", style = KassaType.tiny, color = Kassa.colors.ink2,
+        Text(if (toCard != null) stringResource(R.string.entry_card_payment) else stringResource(R.string.entry_transfer), style = KassaType.tiny, color = Kassa.colors.ink2,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
     }
     Row(
@@ -175,17 +179,17 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
         if (s.kind == TxKind.TRANSFER) {
-            AccountTile("From", ledger.accountById[s.accountId], cards, showDue = true, twoLines = true, on = s.field == Field.ACCOUNT, modifier = Modifier.weight(1f)) { s.field = Field.ACCOUNT }
+            AccountTile(stringResource(R.string.entry_from), ledger.accountById[s.accountId], cards, showDue = true, twoLines = true, on = s.field == Field.ACCOUNT, modifier = Modifier.weight(1f)) { s.field = Field.ACCOUNT }
             Text("→", style = KassaType.body, color = Kassa.colors.ink3)
-            AccountTile("To", ledger.accountById[s.toAccountId], cards, showDue = true, twoLines = true, on = s.field == Field.TO, modifier = Modifier.weight(1f)) { s.field = Field.TO }
+            AccountTile(stringResource(R.string.entry_to), ledger.accountById[s.toAccountId], cards, showDue = true, twoLines = true, on = s.field == Field.TO, modifier = Modifier.weight(1f)) { s.field = Field.TO }
         } else {
             CategoryTile(topCategory, category?.takeIf { it.parentId != null }, on = s.field == Field.CATEGORY || s.field == Field.SUB, modifier = Modifier.weight(1.15f)) { s.field = Field.CATEGORY }
-            if (s.someoneElsePaid) Tile("Paid by", on = s.field == Field.SPLIT, empty = false, modifier = Modifier.weight(1.15f), onClick = { s.field = Field.SPLIT }) {
-                Text(people[s.paidBy]?.name ?: "Someone", style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Not your account", style = KassaType.tiny.copy(fontSize = 11.sp), color = Kassa.colors.ink3, maxLines = 1)
+            if (s.someoneElsePaid) Tile(stringResource(R.string.entry_paid_by), on = s.field == Field.SPLIT, empty = false, modifier = Modifier.weight(1.15f), onClick = { s.field = Field.SPLIT }) {
+                Text(people[s.paidBy]?.name ?: stringResource(R.string.entry_someone), style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.entry_not_your_account), style = KassaType.tiny.copy(fontSize = 11.sp), color = Kassa.colors.ink3, maxLines = 1)
             }
             else AccountTile(
-                if (s.kind == TxKind.INCOME) "Into" else "Paid with", ledger.accountById[s.accountId], cards,
+                if (s.kind == TxKind.INCOME) stringResource(R.string.entry_into) else stringResource(R.string.entry_paid_with), ledger.accountById[s.accountId], cards,
                 showDue = s.kind == TxKind.EXPENSE, twoLines = false, on = s.field == Field.ACCOUNT, modifier = Modifier.weight(1.15f),
             ) { s.field = Field.ACCOUNT }
         }
@@ -193,13 +197,13 @@ private fun EntryForm(s: EntryState, ledger: Ledger, cards: Map<Long, CardSnapsh
     }
     NoteRow(
         s.note, s::typeNote, focused = s.field == Field.NOTE,
-        hint = if (s.kind == TxKind.TRANSFER) "Add a note" else "Merchant or note",
+        hint = if (s.kind == TxKind.TRANSFER) stringResource(R.string.entry_add_a_note) else stringResource(R.string.entry_merchant_or_note),
         requester = noteFocus,
         onFocused = { s.field = Field.NOTE },
         onDone = { s.field = null },
     )
     if (s.kind == TxKind.EXPENSE && ledger.people.people.any { !it.archived } || s.shared) SplitRow(
-        who = if (s.shared) (listOf("You") + s.splitPeople.map { people[it]?.name ?: "?" }).joinToString(", ") else "Just you",
+        who = if (s.shared) (listOf(stringResource(R.string.entry_you)) + s.splitPeople.map { people[it]?.name ?: "?" }).joinToString(", ") else stringResource(R.string.entry_just_you),
         mine = if (s.shared) s.myShare else null, on = s.field == Field.SPLIT,
     ) { s.field = Field.SPLIT; s.editingShare = null }
     s.error?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention, modifier = Modifier.padding(top = 6.dp)) }

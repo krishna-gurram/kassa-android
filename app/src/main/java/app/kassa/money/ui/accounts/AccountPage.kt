@@ -7,19 +7,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextOverflow
-import app.kassa.money.domain.Shares
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,23 +26,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Period
+import app.kassa.money.domain.Shares
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.effectOn
-import app.kassa.money.ui.common.monthYear
-import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
-import app.kassa.money.ui.common.favourColor
-import app.kassa.money.ui.common.figureColor
-import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
 import app.kassa.money.ui.common.PageTop
@@ -53,18 +50,23 @@ import app.kassa.money.ui.common.PeriodSwitcher
 import app.kassa.money.ui.common.RaisedPanel
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.common.TransactionRow
+import app.kassa.money.ui.common.balanceColor
+import app.kassa.money.ui.common.favourColor
+import app.kassa.money.ui.common.figureColor
+import app.kassa.money.ui.common.monthYear
+import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.invest.HoldingSheet
+import app.kassa.money.ui.invest.PricesSheet
+import app.kassa.money.ui.invest.TradeOrder
+import app.kassa.money.ui.invest.TradeSheet
+import app.kassa.money.ui.invest.percentOf
 import app.kassa.money.ui.loans.LoanHero
 import app.kassa.money.ui.loans.LoanPageActions
 import app.kassa.money.ui.loans.loanSections
 import app.kassa.money.ui.loans.rememberLoanSummary
-import app.kassa.money.ui.invest.PricesSheet
-import app.kassa.money.ui.invest.TradeOrder
-import app.kassa.money.ui.invest.percentOf
-import app.kassa.money.ui.invest.TradeSheet
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
@@ -110,7 +112,7 @@ fun AccountPage(
     }
     val title = account.name + (account.last4?.takeIf { it.isNotBlank() }?.let { "  ··$it" } ?: "")
     val top: @Composable () -> Unit = {
-        PageTop(title, onBack) { TextButton(onClick = onEditAccount) { Text("Edit", style = KassaType.bodyStrong, color = Kassa.colors.ink) } }
+        PageTop(title, onBack) { TextButton(onClick = onEditAccount) { Text(stringResource(R.string.accounts_edit), style = KassaType.bodyStrong, color = Kassa.colors.ink) } }
     }
     if (account.type == AccountType.INVESTMENT) {
         InvestmentBody(ledger, account, balance, history, after, contentPadding, top, onEditEntry, onSaveHolding, onDeleteHolding, onBuy, onSell, status = { AccountStatus(ledger, account, closing) })
@@ -134,7 +136,7 @@ fun AccountPage(
     val periodSwitcher: @Composable () -> Unit = {
         PeriodSwitcher(
             monthYear(period.yearMonth),
-            if (monthsBack == 0) "So far" else null, canGoBack, monthsBack > 0, onBack = { shift(-1) }, onForward = { shift(1) },
+            if (monthsBack == 0) stringResource(R.string.accounts_so_far) else null, canGoBack, monthsBack > 0, onBack = { shift(-1) }, onForward = { shift(1) },
         )
     }
 
@@ -148,29 +150,29 @@ fun AccountPage(
                 if (loanSummary == null) RaisedPanel(tone = if (debt && balance < 0) app.kassa.money.ui.common.HeroTone.ORANGE else app.kassa.money.ui.common.HeroTone.GREEN) {
                     if (account.type == AccountType.CREDIT_CARD && account.isActive) {
                         // A card without statement days can't be split into payable and outstanding yet.
-                        Text("Total balance", style = KassaType.tiny, color = Kassa.colors.ink2)
+                        Text(stringResource(R.string.accounts_total_balance), style = KassaType.tiny, color = Kassa.colors.ink2)
                         // What's owed, never with a minus; a credit shows green.
                         BigMoney(Math.abs(balance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-balance))
-                        Text("Add the statement day and due day to split this into balance payable and outstanding.", style = KassaType.small, color = Kassa.colors.ink2)
-                        TextButton(onClick = onEditAccount) { Text("Add statement days", color = Kassa.colors.ink) }
+                        Text(stringResource(R.string.accounts_card_add_days_hint), style = KassaType.small, color = Kassa.colors.ink2)
+                        TextButton(onClick = onEditAccount) { Text(stringResource(R.string.accounts_add_statement_days), color = Kassa.colors.ink) }
                     } else {
                         Text(
                             when {
-                                monthsBack == 0 && debt -> "Outstanding balance"
-                                monthsBack == 0 -> "Balance today"
-                                else -> "Balance on ${shortDate(period.endInclusive)}"
+                                monthsBack == 0 && debt -> stringResource(R.string.accounts_outstanding_balance)
+                                monthsBack == 0 -> stringResource(R.string.accounts_balance_today)
+                                else -> stringResource(R.string.accounts_balance_on, shortDate(period.endInclusive))
                             },
                             style = KassaType.tiny, color = Kassa.colors.ink2,
                         )
                         if (debt) BigMoney(Math.abs(endBalance), sizeSp = 36f, color = app.kassa.money.ui.cards.cardTint(-endBalance))
                         else BigMoney(endBalance, sizeSp = 36f, color = balanceColor(account.type, endBalance))
-                        TwoBoxes("In" to Money.format(moneyIn), "Out" to Money.format(moneyOut), aColor = Kassa.colors.positive)
+                        TwoBoxes(stringResource(R.string.accounts_in) to Money.format(moneyIn), stringResource(R.string.accounts_out) to Money.format(moneyOut), aColor = Kassa.colors.positive)
                         if (account.type == AccountType.LOAN && monthsBack == 0) LoanActions(account, loanTerms, onAddTerms)
                     }
                 }
                 AccountStatus(ledger, account, closing)
                 if (loanSummary == null) {
-                    if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
+                    if (rows.isEmpty()) Text(stringResource(R.string.accounts_nothing_this_month), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
                     Gap(8)
                 }
             }
@@ -182,16 +184,16 @@ fun AccountPage(
             )
             item(key = "loan-activity") {
                 Column(Modifier.widthIn(max = 720.dp)) {
-                    SectionHeader("Activity")
+                    SectionHeader(stringResource(R.string.accounts_activity))
                     periodSwitcher()
-                    if (rows.isEmpty()) Text("Nothing in this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
+                    if (rows.isEmpty()) Text(stringResource(R.string.accounts_nothing_this_month), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
                     Gap(8)
                 }
             }
         }
         items(rows, key = { it.first.id }) { (t, balanceAfter) ->
             Column(Modifier.widthIn(max = 720.dp)) {
-                TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = "Balance ${if (debt) app.kassa.money.ui.cards.cardMoney(-balanceAfter) else Money.format(balanceAfter)}", onClick = onEditEntry, showDate = true)
+                TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = stringResource(R.string.accounts_balance_after, if (debt) app.kassa.money.ui.cards.cardMoney(-balanceAfter) else Money.format(balanceAfter)), onClick = onEditEntry, showDate = true)
             }
         }
     }
@@ -202,9 +204,9 @@ fun AccountPage(
 private fun LoanActions(account: Account, terms: LoanTerms?, onAddTerms: () -> Unit) {
     if (terms != null) return
     Gap(12)
-    Text("Add the rate and payment and Kassa splits each payment into principal and interest.", style = KassaType.small, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.accounts_loan_add_terms_hint), style = KassaType.small, color = Kassa.colors.ink2)
     Gap(8)
-    PrimaryButton("Add terms", onAddTerms)
+    PrimaryButton(stringResource(R.string.accounts_add_terms), onAddTerms)
 }
 
 /**
@@ -219,7 +221,8 @@ private fun HoldingRow(h: Holding, showDivider: Boolean, onClick: () -> Unit) {
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(h.ticker, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${Shares.format(h.microShares)} shares" + (h.avgCost?.let { " · avg ${Money.format(it)}" } ?: ""),
+                    h.avgCost?.let { stringResource(R.string.accounts_shares_avg, Shares.format(h.microShares), Money.format(it)) }
+                        ?: stringResource(R.string.accounts_shares, Shares.format(h.microShares)),
                     style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -227,9 +230,9 @@ private fun HoldingRow(h: Holding, showDivider: Boolean, onClick: () -> Unit) {
                 Text(Money.format(h.value), style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1)
                 val profit = h.profit
                 val cost = h.cost
-                if (profit == null || cost == null) Text("Add average cost", style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1)
+                if (profit == null || cost == null) Text(stringResource(R.string.accounts_add_average_cost), style = KassaType.small, color = Kassa.colors.ink3, maxLines = 1)
                 else Text(
-                    Money.format(profit, showPlus = true) + if (cost > 0 && !Money.isHidden) " · ${percentOf(Math.abs(profit), cost)}" else "",
+                    Money.format(profit, showPlus = true).let { if (cost > 0 && !Money.isHidden) stringResource(R.string.accounts_figure_percent, it, percentOf(Math.abs(profit), cost)) else it },
                     style = KassaType.small, maxLines = 1,
                     color = figureColor(if (profit < 0) Kassa.colors.attention else Kassa.colors.positive),
                 )
@@ -278,44 +281,45 @@ private fun InvestmentBody(
             Column(Modifier.widthIn(max = 720.dp)) {
                 top()
                 RaisedPanel {
-                    Text("Total value", style = KassaType.tiny, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.accounts_total_value), style = KassaType.tiny, color = Kassa.colors.ink2)
                     BigMoney(value, sizeSp = 36f, color = figureColor(if (value < 0) Kassa.colors.attention else Kassa.colors.ink))
                     if (putIn > 0) {
                         Text(
-                            if (Money.isHidden) "${Money.MASK} on what you put in"
-                            else "${if (gain >= 0) "+" else "−"}${Money.format(Math.abs(gain))} (${percentOf(Math.abs(gain), putIn)}) on what you put in",
+                            if (Money.isHidden) stringResource(R.string.accounts_gain_masked, Money.MASK)
+                            else if (gain >= 0) stringResource(R.string.accounts_gain_up, Money.format(Math.abs(gain)), percentOf(Math.abs(gain), putIn))
+                            else stringResource(R.string.accounts_gain_down, Money.format(Math.abs(gain)), percentOf(Math.abs(gain), putIn)),
                             style = KassaType.bodyStrong, color = figureColor(if (gain >= 0) Kassa.colors.positive else Kassa.colors.attention),
                         )
                     }
-                    TwoBoxes((if (putIn > 0) "You put in" else "Holdings") to Money.format(if (putIn > 0) putIn else holdingsValue), "Cash" to Money.format(cash))
+                    TwoBoxes((if (putIn > 0) stringResource(R.string.accounts_you_put_in) else stringResource(R.string.accounts_holdings)) to Money.format(if (putIn > 0) putIn else holdingsValue), stringResource(R.string.accounts_cash) to Money.format(cash))
                     Gap(12)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(Modifier.weight(1f)) {
-                            PrimaryButton(if (holdings.isEmpty()) "Add shares you own" else "Update prices") {
+                            PrimaryButton(if (holdings.isEmpty()) stringResource(R.string.accounts_add_shares_you_own) else stringResource(R.string.accounts_update_prices)) {
                                 if (holdings.isEmpty()) holdingOpen = newHolding() else pricing = true
                             }
                         }
-                        SecondaryButton("Buy or sell", { trading = true }, Modifier.weight(1f))
+                        SecondaryButton(stringResource(R.string.accounts_buy_or_sell), { trading = true }, Modifier.weight(1f))
                     }
                 }
                 status()
                 if (holdings.isNotEmpty()) {
                     val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
                     val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
-                    SectionHeader("Holdings", if (days > 14) "Prices $days days old" else "Prices from ${shortDate(oldest.toLocalDate())}")
+                    SectionHeader(stringResource(R.string.accounts_holdings_header), if (days > 14) stringResource(R.string.accounts_prices_days_old, days) else stringResource(R.string.accounts_prices_from, shortDate(oldest.toLocalDate())))
                     holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
-                    TextButton(onClick = { holdingOpen = newHolding() }) { Text("Add shares you own", color = Kassa.colors.ink) }
+                    TextButton(onClick = { holdingOpen = newHolding() }) { Text(stringResource(R.string.accounts_add_shares_you_own), color = Kassa.colors.ink) }
                 }
-                if (history.isEmpty()) Text("No money in or out yet.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
+                if (history.isEmpty()) Text(stringResource(R.string.accounts_no_money_yet), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 24.dp))
             }
         }
         months.forEach { (month, rows) ->
             item(key = "m$month") {
-                Column(Modifier.widthIn(max = 720.dp)) { SectionHeader("Money in and out · " + monthYear(month)) }
+                Column(Modifier.widthIn(max = 720.dp)) { SectionHeader(stringResource(R.string.accounts_money_in_out_month, monthYear(month))) }
             }
             items(rows, key = { it.first.id }) { (t, cashAfter) ->
                 Column(Modifier.widthIn(max = 720.dp)) {
-                    TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = "Cash ${Money.format(cashAfter)}", onClick = onEditEntry, showDate = true)
+                    TransactionRow(t, ledger, showDivider = t !== rows.last().first, noteOverride = stringResource(R.string.accounts_cash_after, Money.format(cashAfter)), onClick = onEditEntry, showDate = true)
                 }
             }
         }

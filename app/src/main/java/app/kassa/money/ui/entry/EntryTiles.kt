@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.CardSnapshot
@@ -89,14 +91,14 @@ internal fun Tile(label: String, on: Boolean, empty: Boolean, modifier: Modifier
         Text(label, style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, maxLines = 1)
         if (empty) {
             Text("+", style = KassaType.body.copy(fontSize = 18.sp), color = Kassa.colors.ink2)
-            Text("Choose", style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1)
+            Text(stringResource(R.string.entry_choose), style = KassaType.body, color = Kassa.colors.ink3, maxLines = 1)
         } else content()
     }
 }
 
 @Composable
 internal fun CategoryTile(top: Category?, sub: Category?, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Tile("Category", on, empty = top == null, modifier = modifier, onClick = onClick) {
+    Tile(stringResource(R.string.entry_category), on, empty = top == null, modifier = modifier, onClick = onClick) {
         if (top != null) {
             CategoryIconView(top.icon, Color(top.color), 28, fallback = top.name.take(1))
             Text(top.name, style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -118,7 +120,7 @@ internal fun AccountTile(
                 maxLines = if (twoLines) 2 else 1, overflow = TextOverflow.Ellipsis)
             account.last4?.takeIf { it.isNotBlank() }?.let { Text("··$it", style = KassaType.tiny.copy(fontSize = 11.sp), color = Kassa.colors.ink3, maxLines = 1) }
             val due = cards[account.id]?.payable ?: 0L
-            if (showDue && due > 0) Text("${Money.format(due)} due", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+            if (showDue && due > 0) Text(stringResource(R.string.entry_amount_due, Money.format(due)), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
                 color = Kassa.colors.attention, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -126,7 +128,7 @@ internal fun AccountTile(
 
 @Composable
 internal fun DateTile(date: LocalDate, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Tile("Date", on, empty = false, modifier = modifier, onClick = onClick) {
+    Tile(stringResource(R.string.entry_date), on, empty = false, modifier = modifier, onClick = onClick) {
         Text(
             monthShort(date).uppercase(),
             style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp), color = Kassa.colors.ink2,
@@ -168,10 +170,10 @@ internal fun SplitRow(who: String, mine: Long?, on: Boolean, onClick: () -> Unit
             .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Split", style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.widthIn(min = 44.dp))
+        Text(stringResource(R.string.entry_split), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Kassa.colors.ink2, modifier = Modifier.widthIn(min = 44.dp))
         Column(Modifier.weight(1f)) {
             Text(who, style = KassaType.bodyStrong.copy(fontSize = 14.sp), color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (mine != null) Text("Your share ${Money.format(mine)}", style = KassaType.tiny, color = if (mine < 0) figureColor(Kassa.colors.attention) else Kassa.colors.ink2)
+            if (mine != null) Text(stringResource(R.string.entry_your_share, Money.format(mine)), style = KassaType.tiny, color = if (mine < 0) figureColor(Kassa.colors.attention) else Kassa.colors.ink2)
         }
     }
 }
@@ -179,7 +181,7 @@ internal fun SplitRow(who: String, mine: Long?, on: Boolean, onClick: () -> Unit
 /** Expense, income or transfer. */
 @Composable
 internal fun KindSwitch(selected: TxKind, onSelect: (TxKind) -> Unit, modifier: Modifier) {
-    val options = listOf(TxKind.EXPENSE to "Expense", TxKind.INCOME to "Income", TxKind.TRANSFER to "Transfer")
+    val options = listOf(TxKind.EXPENSE to stringResource(R.string.entry_expense), TxKind.INCOME to stringResource(R.string.entry_income), TxKind.TRANSFER to stringResource(R.string.entry_transfer))
     Row(modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(3.dp)) {
         options.forEach { (kind, label) ->
             val on = kind == selected

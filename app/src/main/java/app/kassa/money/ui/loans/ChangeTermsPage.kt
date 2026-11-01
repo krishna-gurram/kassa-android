@@ -23,7 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.ChangeField
@@ -80,12 +82,12 @@ fun ChangeTermsPage(
     }
 
     Column(Modifier.fillMaxSize().padding(contentPadding)) {
-        PageTop("Change terms", onBack)
+        PageTop(stringResource(R.string.loans_change_terms_title), onBack)
         Column(
             Modifier.widthIn(max = 640.dp).verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Label("What changed")
+            Label(stringResource(R.string.loans_what_changed))
             FlowRow {
                 ChangeKind.entries.forEach { k -> Chip(k.label, form.kind == k, small = true) { edit(null) { it.copy(kind = k) } } }
             }
@@ -93,71 +95,71 @@ fun ChangeTermsPage(
             when (form.kind) {
                 ChangeKind.RATE -> {
                     PercentField(
-                        form.rate, { v -> edit(ChangeField.RATE) { it.copy(rate = v) } }, "New ${word.lowercase()} rate a year",
+                        form.rate, { v -> edit(ChangeField.RATE) { it.copy(rate = v) } }, stringResource(R.string.loans_new_rate_a_year, word.lowercase()),
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.RATE],
                     )
-                    Label("Your lender")
+                    Label(stringResource(R.string.loans_your_lender))
                     FlowRow {
-                        Chip("Kept the payment, term changes", form.kept == LenderKept.PAYMENT, small = true) { edit(null) { it.copy(kept = LenderKept.PAYMENT) } }
-                        Chip("Kept the term, payment changes", form.kept == LenderKept.TERM, small = true) { edit(null) { it.copy(kept = LenderKept.TERM) } }
+                        Chip(stringResource(R.string.loans_kept_payment), form.kept == LenderKept.PAYMENT, small = true) { edit(null) { it.copy(kept = LenderKept.PAYMENT) } }
+                        Chip(stringResource(R.string.loans_kept_term), form.kept == LenderKept.TERM, small = true) { edit(null) { it.copy(kept = LenderKept.TERM) } }
                     }
                 }
                 ChangeKind.PAYMENT -> {
                     PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
-                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
+                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, stringResource(R.string.loans_new_payment),
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
-                        placeholder = if (ctx.terms.effective(ctx.changes, form.day).type == InterestType.INTEREST_ONLY) "Just the ${word.lowercase()}" else null,
+                        placeholder = if (ctx.terms.effective(ctx.changes, form.day).type == InterestType.INTEREST_ONLY) stringResource(R.string.loans_just_the_interest, word.lowercase()) else null,
                     )
                     form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
                 }
                 ChangeKind.TYPE -> {
-                    Label("New interest type")
+                    Label(stringResource(R.string.loans_new_interest_type))
                     FlowRow {
                         InterestType.entries.forEach { t -> Chip(t.label, form.type == t, small = true) { edit(ChangeField.TYPE) { it.copy(type = t) } } }
                     }
                     problems[ChangeField.TYPE]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
                     PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
-                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
+                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, stringResource(R.string.loans_new_payment),
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
-                        placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: "Worked out from the term",
+                        placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: stringResource(R.string.loans_worked_out_term),
                     )
                     form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
                     DigitsField(
-                        form.termMonths, { v -> edit(ChangeField.TERM) { it.copy(termMonths = v) } }, "Term in months", 3,
+                        form.termMonths, { v -> edit(ChangeField.TERM) { it.copy(termMonths = v) } }, stringResource(R.string.loans_term_in_months), 3,
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.TERM],
                     )
                 }
                 ChangeKind.REFINANCE -> {
                     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         PercentField(
-                            form.rate, { v -> edit(ChangeField.RATE) { it.copy(rate = v) } }, "New ${word.lowercase()} rate",
+                            form.rate, { v -> edit(ChangeField.RATE) { it.copy(rate = v) } }, stringResource(R.string.loans_new_rate, word.lowercase()),
                             Modifier.weight(1f), problem = problems[ChangeField.RATE],
                         )
                         DigitsField(
-                            form.termMonths, { v -> edit(ChangeField.TERM) { it.copy(termMonths = v) } }, "Term in months", 3,
+                            form.termMonths, { v -> edit(ChangeField.TERM) { it.copy(termMonths = v) } }, stringResource(R.string.loans_term_in_months), 3,
                             Modifier.weight(1f), problem = problems[ChangeField.TERM],
                         )
                     }
                     PaymentBasisChips(form, ctx, ::edit)
                     AmountField(
-                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, "New payment",
+                        form.payment, { v -> edit(ChangeField.PAYMENT) { it.copy(payment = v) } }, stringResource(R.string.loans_new_payment),
                         Modifier.fillMaxWidth().padding(top = 8.dp), problem = problems[ChangeField.PAYMENT],
-                        placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: "Worked out for you",
+                        placeholder = form.suggestedPayment(ctx)?.let { Money.toInput(it) } ?: stringResource(R.string.loans_worked_out_for_you),
                     )
                     form.paymentSplit(ctx)?.let { PaymentSplitLines(it) }
                 }
             }
 
-            Label("From")
+            Label(stringResource(R.string.loans_from))
             DateRow(dateOfLoanDay(form.day), ledger.today, allowFuture = true) { d -> edit(ChangeField.DATE) { it.copy(day = d.loanDay()) } }
             problems[ChangeField.DATE]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
 
             if (preview != null) ChangePreviewPanel(preview, form, word)
 
             Gap(12)
-            PrimaryButton("Save change") {
+            PrimaryButton(stringResource(R.string.loans_save_change)) {
                 problems = form.problems(ctx)
                 if (problems.isEmpty()) onSave(form.change(ctx))
             }
@@ -174,7 +176,7 @@ fun ChangeTermsPage(
 @Composable
 private fun PaymentBasisChips(form: LoanChangeForm, ctx: LoanChangeContext, edit: (ChangeField?, (LoanChangeForm) -> LoanChangeForm) -> Unit) {
     if (ctx.terms.escrow <= 0) return
-    Label("Payment is")
+    Label(stringResource(R.string.loans_payment_is))
     FlowRow {
         PaymentBasis.entries.forEach { b -> Chip(b.label, form.paymentBasis == b, small = true) { edit(null) { it.copy(paymentBasis = b) } } }
     }
@@ -187,11 +189,11 @@ private fun ChangePreviewPanel(p: ChangePreview, form: LoanChangeForm, word: Str
         Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Line(if (p.payment == p.paymentBefore) "Payment stays" else "New payment", Money.format(p.payment))
-        if (p.payment != p.paymentBefore) Line("Change", BalanceCorrection.describe(p.payment - p.paymentBefore))
-        if (form.kind == ChangeKind.RATE && form.kept == LenderKept.TERM) p.paymentsLeft?.let { Line("Payments left", it.toString()) }
-        Line("Paid off", p.payoffDay?.let { monthYear(it) } ?: "—")
-        Line("$word remaining", p.interestLeft?.let { Money.format(it) } ?: "—")
+        Line(if (p.payment == p.paymentBefore) stringResource(R.string.loans_payment_stays) else stringResource(R.string.loans_new_payment), Money.format(p.payment))
+        if (p.payment != p.paymentBefore) Line(stringResource(R.string.loans_change), BalanceCorrection.describe(p.payment - p.paymentBefore))
+        if (form.kind == ChangeKind.RATE && form.kept == LenderKept.TERM) p.paymentsLeft?.let { Line(stringResource(R.string.loans_payments_left), it.toString()) }
+        Line(stringResource(R.string.loans_paid_off), p.payoffDay?.let { monthYear(it) } ?: "—")
+        Line(stringResource(R.string.loans_interest_remaining, word), p.interestLeft?.let { Money.format(it) } ?: "—")
         p.warning?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
     }
 }

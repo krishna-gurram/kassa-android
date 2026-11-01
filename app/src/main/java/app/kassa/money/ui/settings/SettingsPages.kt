@@ -23,8 +23,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.CurrencyStyle
@@ -47,15 +49,15 @@ import app.kassa.money.ui.theme.KassaType
 internal fun BudgetMonthPage(ledger: Ledger) {
     val settings = LocalSettings.current
     var custom by remember { mutableStateOf("") }
-    Text("The day your budget month starts. Pick payday to budget from one paycheck to the next.", style = KassaType.small, color = Kassa.colors.ink2)
+    Text(stringResource(R.string.settings_budget_month_intro), style = KassaType.small, color = Kassa.colors.ink2)
     FlowRow(Modifier.padding(top = 12.dp)) {
-        listOf(1, 5, 10, 15, 20, 25).forEach { d -> Chip("Day $d", selected = ledger.monthStartDay == d) { settings.setMonthStartDay(d) } }
+        listOf(1, 5, 10, 15, 20, 25).forEach { d -> Chip(stringResource(R.string.settings_budget_month_day, d), selected = ledger.monthStartDay == d) { settings.setMonthStartDay(d) } }
     }
     val day = custom.toIntOrNull()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(custom, { custom = it.filter(Char::isDigit).take(2) }, singleLine = true, label = { Text("Another day, 1 to 28") },
+        OutlinedTextField(custom, { custom = it.filter(Char::isDigit).take(2) }, singleLine = true, label = { Text(stringResource(R.string.settings_budget_month_other)) },
             isError = custom.isNotEmpty() && (day == null || day !in 1..28), modifier = Modifier.weight(1f))
-        TextButton(onClick = { if (day != null && day in 1..28) { settings.setMonthStartDay(day); custom = "" } }) { Text("Set", color = Kassa.colors.ink) }
+        TextButton(onClick = { if (day != null && day in 1..28) { settings.setMonthStartDay(day); custom = "" } }) { Text(stringResource(R.string.settings_set), color = Kassa.colors.ink) }
     }
 }
 
@@ -72,9 +74,9 @@ internal fun CurrencyPage(ledger: Ledger) {
     CurrencyList(selected) { c -> if (c.code != selected) { if (hasData) confirm = c else settings.setCurrency(c.code) } }
     confirm?.let { c ->
         ConfirmDialog(
-            title = "Show amounts in ${c.name}?",
-            body = "Every amount already in Kassa keeps its number and shows as ${c.code}. Nothing is converted.",
-            confirm = "Switch to ${c.code}", destructive = false,
+            title = stringResource(R.string.settings_currency_confirm_title, c.name),
+            body = stringResource(R.string.settings_currency_confirm_body, c.code),
+            confirm = stringResource(R.string.settings_currency_confirm_switch, c.code), destructive = false,
             onConfirm = { settings.setCurrency(c.code); confirm = null }, onDismiss = { confirm = null },
         )
     }
@@ -98,14 +100,14 @@ internal fun convertibleAccounts(ledger: Ledger): List<Account> =
 @Composable
 internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
     Text(
-        "Pick an account that stands in for a person. It becomes a person with the same balance. A positive balance means they owe you. The account is archived and keeps its history, so past months don't change.",
+        stringResource(R.string.settings_people_intro),
         style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp),
     )
     val accounts = convertibleAccounts(ledger)
     var pickedId by rememberSaveable { mutableStateOf<Long?>(null) }
     var typed by rememberSaveable { mutableStateOf("") }
     var converting by remember { mutableStateOf<Pair<Account, String>?>(null) }
-    if (accounts.isEmpty()) Text("There are no accounts to convert.", style = KassaType.body, color = Kassa.colors.ink2)
+    if (accounts.isEmpty()) Text(stringResource(R.string.settings_people_none), style = KassaType.body, color = Kassa.colors.ink2)
     accounts.forEach { a ->
         val balance = ledger.accounts.balances[a.id] ?: 0
         val open = pickedId == a.id
@@ -114,7 +116,7 @@ internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
                 EntryRow(
                     badge = { GlyphBadge(a.name.take(1)) },
                     title = a.name,
-                    subtitle = when { balance > 0 -> "Receivable, they would owe you"; balance < 0 -> "Payable, you would owe them"; else -> "Settled" },
+                    subtitle = when { balance > 0 -> stringResource(R.string.settings_people_receivable); balance < 0 -> stringResource(R.string.settings_people_payable); else -> stringResource(R.string.settings_people_settled) },
                     amount = Money.format(Math.abs(balance)), showDivider = false,
                 )
             }
@@ -122,12 +124,12 @@ internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
                 val problem = InputRules.nameProblem(typed, "person", taken = { n -> ledger.people.people.any { it.name.equals(n, ignoreCase = true) } })
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        typed, { typed = InputRules.typed(it, InputRules.NAME_MAX) }, singleLine = true, label = { Text("Person name") },
+                        typed, { typed = InputRules.typed(it, InputRules.NAME_MAX) }, singleLine = true, label = { Text(stringResource(R.string.settings_people_name)) },
                         isError = problem != null, supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { if (problem == null) converting = a to InputRules.clean(typed) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text("Convert", color = Kassa.colors.ink)
+                        Text(stringResource(R.string.settings_people_convert), color = Kassa.colors.ink)
                     }
                 }
             }
@@ -137,9 +139,12 @@ internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
     converting?.let { (a, name) ->
         val balance = ledger.accounts.balances[a.id] ?: 0
         ConfirmDialog(
-            title = "Turn ${a.name} into $name?",
-            body = "$name starts with a balance of ${Money.format(Math.abs(balance))} ${if (balance >= 0) "receivable" else "payable"}. ${a.name} is archived with its history.",
-            confirm = "Convert", destructive = false,
+            title = stringResource(R.string.settings_people_confirm_title, a.name, name),
+            body = stringResource(
+                if (balance >= 0) R.string.settings_people_confirm_body_receivable else R.string.settings_people_confirm_body_payable,
+                name, Money.format(Math.abs(balance)), a.name,
+            ),
+            confirm = stringResource(R.string.settings_people_convert), destructive = false,
             onConfirm = { actions.convertToPerson(a, balance, name); converting = null; pickedId = null }, onDismiss = { converting = null },
         )
     }

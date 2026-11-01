@@ -18,10 +18,12 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.CurrencyStyle
 import app.kassa.money.domain.Money
@@ -56,7 +58,7 @@ internal fun CurrencyList(selected: String?, onPick: (CurrencyStyle) -> Unit) {
 internal fun CurrencySheet(selected: String?, onPick: (CurrencyStyle) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 12.dp).widthIn(max = 640.dp)) {
-            Text("Currency", style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.settings_currency_title), style = KassaType.title, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
             CurrencyList(selected) { onPick(it); onDismiss() }
         }
     }

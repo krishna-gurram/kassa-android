@@ -3,9 +3,11 @@ package app.kassa.money.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import app.kassa.money.R
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -30,13 +32,13 @@ internal fun CategoryList(ledger: Ledger, kind: CategoryKind, open: (Category) -
     val (active, archived) = tops.partition { !it.hidden }
     if (kind == CategoryKind.EXPENSE) {
         val total = active.sumOf { Budgets.amountFor(it.id, month, ledger.budgets) ?: 0 }
-        Text("Budgets this month add up to ${Money.format(total, wholeDollars = true)}.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp))
+        Text(stringResource(R.string.settings_categories_budget_total, Money.format(total, wholeDollars = true)), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(bottom = 8.dp))
     }
-    SecondaryButton("New category", { open(Category(name = "", kind = kind, color = app.kassa.money.domain.CategoryColors.next(ledger.categories, kind))) })
+    SecondaryButton(stringResource(R.string.settings_categories_new), { open(Category(name = "", kind = kind, color = app.kassa.money.domain.CategoryColors.next(ledger.categories, kind))) })
     Gap(8)
     active.forEachIndexed { i, c -> CategoryRow(ledger, c, last = i == active.lastIndex) { open(c) } }
     if (archived.isNotEmpty()) {
-        SectionHeader("Archived", "${archived.size}")
+        SectionHeader(stringResource(R.string.settings_categories_archived), "${archived.size}")
         archived.forEachIndexed { i, c -> CategoryRow(ledger, c, last = i == archived.lastIndex) { open(c) } }
     }
 }
@@ -47,15 +49,15 @@ private fun CategoryRow(ledger: Ledger, c: Category, last: Boolean, onClick: () 
     val subs = ledger.categories.count { it.parentId == c.id && !it.hidden }
     val budget = if (c.hidden) null else Budgets.amountFor(c.id, ledger.period.yearMonth, ledger.budgets)
     val detail = listOfNotNull(
-        if (subs > 0) "$subs sub" else null,
-        if (expense && !c.countsTowardDaily) "bill" else null,
-    ).joinToString(", ").ifEmpty { if (expense) "everyday" else "" }
+        if (subs > 0) stringResource(R.string.settings_categories_subs, subs) else null,
+        if (expense && !c.countsTowardDaily) stringResource(R.string.settings_categories_bill) else null,
+    ).joinToString(", ").ifEmpty { if (expense) stringResource(R.string.settings_categories_everyday) else "" }
     EntryRow(
         badge = { CategoryBadge(c) },
         title = c.name, subtitle = detail,
-        amount = if (expense && !c.hidden) budget?.let { Money.format(it, wholeDollars = true) } ?: "No budget" else "",
+        amount = if (expense && !c.hidden) budget?.let { Money.format(it, wholeDollars = true) } ?: stringResource(R.string.settings_categories_no_budget) else "",
         amountColor = if (budget == null) Kassa.colors.ink3 else Kassa.colors.ink,
-        note = if (expense && budget != null) "a month" else null,
+        note = if (expense && budget != null) stringResource(R.string.settings_categories_a_month) else null,
         showDivider = !last,
         modifier = Modifier.clickable(onClick = onClick),
     )

@@ -35,8 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.data.repo.LoanPaymentDetail
 import app.kassa.money.data.repo.LoanPaymentDraft
 import app.kassa.money.domain.Account
@@ -142,40 +144,40 @@ fun LoanPaymentSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         CategoryPickerHost(ledger.categories, Modifier.padding(horizontal = 20.dp).imePadding().navigationBarsPadding().padding(bottom = 20.dp).widthIn(max = 640.dp), accounts = sources) {
             Text(
-                if (editing == null) "Pay ${loan.name}" else "${loan.name} payment", style = KassaType.section, color = Kassa.colors.ink,
+                if (editing == null) stringResource(R.string.loans_pay_account, loan.name) else stringResource(R.string.loans_account_payment, loan.name), style = KassaType.section, color = Kassa.colors.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Gap(8)
             AmountField(
-                form.amount, { v -> form = form.withAmount(v, ctx); problems = problems - LoanPaymentField.AMOUNT }, "Amount", Modifier.fillMaxWidth(),
+                form.amount, { v -> form = form.withAmount(v, ctx); problems = problems - LoanPaymentField.AMOUNT }, stringResource(R.string.loans_amount), Modifier.fillMaxWidth(),
                 problem = problems[LoanPaymentField.AMOUNT],
             )
-            Label("Date")
+            Label(stringResource(R.string.loans_date))
             DateRow(dateOfLoanDay(form.day), ledger.today) { d -> form = form.withDay(d.loanDay(), ctx) }
             // The shared account picker; "No account" clears it: nothing is chosen for you.
             app.kassa.money.ui.common.AccountChoiceRow(
-                "From", form.fromId, sources,
+                stringResource(R.string.loans_from_account), form.fromId, sources,
                 { id -> form = form.copy(fromId = id); problems = problems - LoanPaymentField.FROM },
-                modifier = Modifier.padding(top = 10.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger), noneOption = "No account",
+                modifier = Modifier.padding(top = 10.dp), recentIds = app.kassa.money.ui.common.recentAccountIds(ledger), noneOption = stringResource(R.string.loans_no_account),
             )
             problems[LoanPaymentField.FROM]?.let { Text(it, style = KassaType.small, color = Kassa.colors.attention) }
 
             Gap(8)
             SplitBar(parts.principal, parts.interest, parts.escrow + parts.charge, principalColor, interestColor, escrowColor)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Legend("Principal", principalColor)
+                Legend(stringResource(R.string.loans_principal), principalColor)
                 Legend(word, interestColor)
-                if (parts.escrow + parts.charge > 0) Legend(if (parts.escrow > 0) "Escrow" else "Charge", escrowColor)
+                if (parts.escrow + parts.charge > 0) Legend(if (parts.escrow > 0) stringResource(R.string.loans_escrow) else stringResource(R.string.loans_charge), escrowColor)
             }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AmountField(
-                    form.principal, { v -> form = form.withPrincipal(v, ctx); problems = problems - LoanPaymentField.PRINCIPAL }, "Principal", Modifier.weight(1f),
+                    form.principal, { v -> form = form.withPrincipal(v, ctx); problems = problems - LoanPaymentField.PRINCIPAL }, stringResource(R.string.loans_principal), Modifier.weight(1f),
                     problem = problems[LoanPaymentField.PRINCIPAL],
                 )
                 AmountField(form.interest, { v -> form = form.withInterest(v, ctx) }, word, Modifier.weight(1f))
             }
             Text(form.hint(ctx), style = KassaType.small, color = Kassa.colors.ink2)
-            Label("Categories")
+            Label(stringResource(R.string.loans_categories))
             InterestCategoryRow(word, ledger.categories, form.categoryId, { id -> form = form.copy(categoryId = id) }, loanDefaultId = terms.interestCategoryId)
             val counts = form.counts(ctx)
             if (counts) {
@@ -183,24 +185,24 @@ fun LoanPaymentSheet(
                 val loanPrincipal = terms.principalCategoryId?.let { ledger.categoryById[it] }
                 val interestId = form.categoryId ?: terms.interestCategoryId
                 if (loanPrincipal != null) {
-                    val same = "Same as the loan (${categoryPath(loanPrincipal, ledger.categories)})"
+                    val same = stringResource(R.string.loans_same_as_loan, categoryPath(loanPrincipal, ledger.categories))
                     CategoryChoiceRow(
-                        "Principal category", form.principalCategoryId, ledger.categories, { id -> form = form.copy(principalCategoryId = id) },
+                        stringResource(R.string.loans_principal_category), form.principalCategoryId, ledger.categories, { id -> form = form.copy(principalCategoryId = id) },
                         defaultCategory = loanPrincipal, defaultText = same, topOption = same,
                     )
                 } else PrincipalCategoryRow(ledger.categories, form.principalCategoryId, interestId) { id -> form = form.copy(principalCategoryId = id) }
             }
             if (parts.escrow + parts.charge > 0) {
-                val costWord = if (parts.escrow > 0) "Escrow" else "Charge"
+                val costWord = if (parts.escrow > 0) stringResource(R.string.loans_escrow) else stringResource(R.string.loans_charge)
                 CategoryChoiceRow(
-                    "$costWord category", escrowCategoryId, ledger.categories, { id -> escrowCategoryId = id },
+                    stringResource(R.string.loans_cost_category, costWord), escrowCategoryId, ledger.categories, { id -> escrowCategoryId = id },
                     defaultCategory = LoanCategories.escrowCategory(ledger.categories), defaultText = LoanCategories.ESCROW_NAME,
                 )
             }
             // One payment only: choosing what the loan already does clears it (see LoanPaymentForm.withCounts).
             SwitchRow(
-                "Count the whole payment as spending",
-                if (terms.countAllAsSpending) "On for this loan. Turn off for this payment only." else "Just this payment. Set it for the loan in Edit details.",
+                stringResource(R.string.loans_count_whole_payment),
+                if (terms.countAllAsSpending) stringResource(R.string.loans_count_on_for_loan) else stringResource(R.string.loans_count_just_this),
                 counts,
             ) { on -> form = form.withCounts(on, ctx) }
 
@@ -209,15 +211,15 @@ fun LoanPaymentSheet(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Line("Scheduled payment", Money.format(form.scheduled(ctx)))
-                Line("Extra, to principal", Money.format(suggestion.extra))
-                if (terms.earlyCharge > 0 || parts.charge > 0) Line("Early repayment charge", Money.format(parts.charge))
-                if (terms.escrow > 0) Line("Escrow", Money.format(parts.escrow))
-                Line("Balance after", Money.format(form.balanceAfter(ctx).coerceAtLeast(0)))
-                Line("Counts as spending", Money.format(form.countedSpending(ctx)), strong = true)
+                Line(stringResource(R.string.loans_scheduled_payment), Money.format(form.scheduled(ctx)))
+                Line(stringResource(R.string.loans_extra_to_principal), Money.format(suggestion.extra))
+                if (terms.earlyCharge > 0 || parts.charge > 0) Line(stringResource(R.string.loans_early_repayment_charge), Money.format(parts.charge))
+                if (terms.escrow > 0) Line(stringResource(R.string.loans_escrow), Money.format(parts.escrow))
+                Line(stringResource(R.string.loans_balance_after), Money.format(form.balanceAfter(ctx).coerceAtLeast(0)))
+                Line(stringResource(R.string.loans_counts_as_spending), Money.format(form.countedSpending(ctx)), strong = true)
             }
             Gap(12)
-            PrimaryButton(if (editing == null) "Record payment" else "Save payment") {
+            PrimaryButton(if (editing == null) stringResource(R.string.loans_record_payment) else stringResource(R.string.loans_save_payment)) {
                 problems = form.problems(ctx)
                 if (problems.isEmpty()) onSave(
                     LoanPaymentDraft(
@@ -229,15 +231,15 @@ fun LoanPaymentSheet(
                     )
                 )
             }
-            if (onDelete != null) SecondaryButton("Delete payment", { confirmDelete = true }, Modifier.padding(top = 8.dp))
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Kassa.colors.ink2) }
+            if (onDelete != null) SecondaryButton(stringResource(R.string.loans_delete_payment), { confirmDelete = true }, Modifier.padding(top = 8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.loans_cancel), color = Kassa.colors.ink2) }
         }
     }
 
     if (confirmDelete && onDelete != null) ConfirmDialog(
-        title = "Delete this payment?",
-        body = "Its principal, ${word.lowercase()} and any escrow entries are all removed, and the balance goes back up.",
-        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+        title = stringResource(R.string.loans_delete_payment_title),
+        body = stringResource(R.string.loans_delete_payment_body, word.lowercase()),
+        confirm = stringResource(R.string.loans_delete), onConfirm = onDelete, onDismiss = { confirmDelete = false },
     )
 }
 

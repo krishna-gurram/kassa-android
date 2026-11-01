@@ -1,5 +1,7 @@
 package app.kassa.money.ui
 
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -194,6 +196,6 @@ private fun AccountOrCard(app: AppController, accountId: Long, l: Ledger, paddin
 private fun Gone(padding: PaddingValues, onBack: (() -> Unit)?) {
     Column(Modifier.padding(padding)) {
         PageTop("", onBack, amounts = false)
-        Text("This is no longer here.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
+        Text(stringResource(R.string.shell_gone), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(16.dp))
     }
 }

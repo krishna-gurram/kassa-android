@@ -145,7 +145,7 @@ object DueNotifier {
     private fun publicVersion(context: Context, tap: PendingIntent): Notification =
         Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_kassa)
-            .setContentTitle("Payment due")
+            .setContentTitle(context.getString(R.string.jobs_public_title))
             .setContentIntent(tap)
             .setAutoCancel(true)
             .build()
@@ -153,7 +153,7 @@ object DueNotifier {
     /** One notification per item, under one summary when two or more are showing. */
     private fun post(context: Context, items: List<DueItem>, today: Int) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Payments due", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.jobs_channel_due), NotificationManager.IMPORTANCE_DEFAULT))
         val showing = runCatching {
             nm.activeNotifications.filter { it.notification.group == GROUP && it.id != SUMMARY_ID }.map { it.id }.toSet()
         }.getOrDefault(emptySet()) + items.map(::notificationId)
@@ -186,8 +186,8 @@ object DueNotifier {
                 SUMMARY_ID,
                 Notification.Builder(context, CHANNEL)
                     .setSmallIcon(R.drawable.ic_stat_kassa)
-                    .setContentTitle("Payments due")
-                    .setContentText("${showing.size} payments due")
+                    .setContentTitle(context.getString(R.string.jobs_summary_title))
+                    .setContentText(context.resources.getQuantityString(R.plurals.jobs_summary_text, showing.size, showing.size))
                     .setContentIntent(tap)
                     .setAutoCancel(true)
                     .setVisibility(Notification.VISIBILITY_PRIVATE)

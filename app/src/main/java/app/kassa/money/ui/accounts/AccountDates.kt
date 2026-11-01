@@ -6,7 +6,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -27,13 +29,13 @@ internal fun accountDate(day: Int): String = dateOfAccountDay(day).format(DateTi
  */
 @Composable
 internal fun MaturityField(day: Int?, today: LocalDate, onChange: (Int?) -> Unit) {
-    Text("Matures (optional)", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+    Text(stringResource(R.string.accounts_matures_optional), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
     if (day == null) {
         TextButton(onClick = { onChange(today.plusYears(1).accountDay()) }, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Add the maturity date", color = Kassa.colors.ink)
+            Text(stringResource(R.string.accounts_add_maturity_date), color = Kassa.colors.ink)
         }
     } else {
         DateRow(dateOfAccountDay(day), today, allowFuture = true) { onChange(it.accountDay()) }
-        TextButton(onClick = { onChange(null) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Clear the maturity date", color = Kassa.colors.ink2) }
+        TextButton(onClick = { onChange(null) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.accounts_clear_maturity_date), color = Kassa.colors.ink2) }
     }
 }

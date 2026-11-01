@@ -26,10 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -95,8 +97,8 @@ internal fun TimeDialog(minuteOfDay: Int, onDismiss: () -> Unit, onPick: (Int) -
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Kassa.colors.raised,
-        confirmButton = { TextButton(onClick = { onPick(state.hour * 60 + state.minute) }) { Text("Set", color = Kassa.colors.ink) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Kassa.colors.ink2) } },
+        confirmButton = { TextButton(onClick = { onPick(state.hour * 60 + state.minute) }) { Text(stringResource(R.string.settings_set), color = Kassa.colors.ink) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel), color = Kassa.colors.ink2) } },
         text = { TimePicker(state) },
     )
 }

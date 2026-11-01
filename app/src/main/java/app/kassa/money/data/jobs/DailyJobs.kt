@@ -169,7 +169,7 @@ object DailyJobs {
         val resolver = context.contentResolver
         var doc: Uri? = null
         try {
-            val folder = s.backupFolder.value ?: throw Failures.UserFacing("Pick a backup folder first.")
+            val folder = s.backupFolder.value ?: throw Failures.UserFacing(context.getString(R.string.jobs_pick_backup_folder))
             val tree = Uri.parse(folder)
             val parentId = DocumentsContract.getTreeDocumentId(tree)
             val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
@@ -250,19 +250,19 @@ object DailyJobs {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
         val nm = context.getSystemService(NotificationManager::class.java) ?: return false
         if (!nm.areNotificationsEnabled()) return false
-        nm.createNotificationChannel(NotificationChannel(BACKUP_CHANNEL, "Backup problems", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(BACKUP_CHANNEL, context.getString(R.string.jobs_channel_backup), NotificationManager.IMPORTANCE_DEFAULT))
         val open = Intent(context, MainActivity::class.java).setAction(ACTION_OPEN_BACKUP).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val tap = PendingIntent.getActivity(context, BACKUP_ALERT, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val public = android.app.Notification.Builder(context, BACKUP_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_kassa)
-            .setContentTitle("Backup needs attention")
+            .setContentTitle(context.getString(R.string.jobs_backup_title))
             .setContentIntent(tap)
             .setAutoCancel(true)
             .build()
         val n = android.app.Notification.Builder(context, BACKUP_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_kassa)
-            .setContentTitle("Backup needs attention")
-            .setContentText("Kassa couldn't save your last few daily backups. Tap to see why.")
+            .setContentTitle(context.getString(R.string.jobs_backup_title))
+            .setContentText(context.getString(R.string.jobs_backup_text))
             .setContentIntent(tap)
             .setAutoCancel(true)
             .setVisibility(android.app.Notification.VISIBILITY_PRIVATE)
@@ -276,14 +276,14 @@ object DailyJobs {
     fun remind(context: Context) {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Daily reminder", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.jobs_channel_reminder), NotificationManager.IMPORTANCE_DEFAULT))
         val open = Intent(context, MainActivity::class.java).setAction(ACTION_ADD).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_kassa)
             // Hide balances: this text has no amount. Any notification text that does (the due notifications) must build it with Money.format, which masks while hidden, so no amount reaches the lock screen.
-            .setContentTitle("Have you recorded today's transactions?")
-            .setContentText("Tap to add anything you spent or received today.")
+            .setContentTitle(context.getString(R.string.jobs_reminder_title))
+            .setContentText(context.getString(R.string.jobs_reminder_text))
             .setContentIntent(tap)
             .setAutoCancel(true)
             .build()

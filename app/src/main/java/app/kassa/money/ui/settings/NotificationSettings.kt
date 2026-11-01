@@ -17,10 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.kassa.money.R
 import app.kassa.money.domain.DueKind
 import app.kassa.money.domain.DueNotices
 import app.kassa.money.ui.LocalSettings
@@ -39,7 +41,7 @@ internal fun notificationsSummary(): String {
     val loan by settings.dueRule(DueKind.LOAN).collectAsState()
     val bill by settings.dueRule(DueKind.BILL).collectAsState()
     val on = listOf(daily, card.enabled, loan.enabled, bill.enabled).count { it }
-    return if (on == 0) "Off" else "$on on"
+    return if (on == 0) stringResource(R.string.settings_notifications_off) else stringResource(R.string.settings_notifications_count_on, on)
 }
 
 /**
@@ -70,7 +72,7 @@ internal fun NotificationSettingsPage(actions: SettingsActions) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    if (!notifyAllowed) NavRow("Notifications are off for Kassa", "Open settings") {
+    if (!notifyAllowed) NavRow(stringResource(R.string.settings_notifications_blocked_title), stringResource(R.string.settings_notifications_blocked_action)) {
         runCatching {
             context.startActivity(
                 Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -83,17 +85,15 @@ internal fun NotificationSettingsPage(actions: SettingsActions) {
     DailyReminder(actions)
 
     Gap(16)
-    DueSection(DueKind.CARD, "Credit card payment due", "A notification for each card with a balance payable", actions)
+    DueSection(DueKind.CARD, stringResource(R.string.settings_notifications_card_title), stringResource(R.string.settings_notifications_card_detail), actions)
     Gap(16)
-    DueSection(DueKind.LOAN, "Loan payment due", "A notification for each loan", actions)
+    DueSection(DueKind.LOAN, stringResource(R.string.settings_notifications_loan_title), stringResource(R.string.settings_notifications_loan_detail), actions)
     Gap(16)
-    DueSection(DueKind.BILL, "Bills and repeating payments", "A notification for each bill", actions)
+    DueSection(DueKind.BILL, stringResource(R.string.settings_notifications_bill_title), stringResource(R.string.settings_notifications_bill_detail), actions)
 
     Gap(12)
     Text(
-        "A notification shows the amount due and opens the card, the loan payment or the bill. It never pays or adds anything. " +
-            "Notifications may arrive a few minutes after their time. " +
-            "A card needs a payment due day, and a loan needs its terms, to notify.",
+        stringResource(R.string.settings_notifications_footer),
         style = KassaType.small, color = Kassa.colors.ink2,
     )
     Gap(24)
@@ -111,15 +111,15 @@ private fun DueSection(kind: DueKind, title: String, detail: String, actions: Se
 
     SwitchRow(title, detail, rule.enabled) { on -> change(rule.copy(enabled = on)) }
     if (!rule.enabled) return
-    Text("Remind me", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp))
+    Text(stringResource(R.string.settings_notifications_remind_me), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp))
     FlowRow {
-        Chip("On the due day", selected = rule.daysBefore == 0) { change(rule.copy(daysBefore = 0)) }
-        Chip("1 day before", selected = rule.daysBefore == 1) { change(rule.copy(daysBefore = 1)) }
-        Chip("3 days before", selected = rule.daysBefore == 3) { change(rule.copy(daysBefore = 3)) }
+        Chip(stringResource(R.string.settings_notifications_on_due_day), selected = rule.daysBefore == 0) { change(rule.copy(daysBefore = 0)) }
+        Chip(stringResource(R.string.settings_notifications_1_day), selected = rule.daysBefore == 1) { change(rule.copy(daysBefore = 1)) }
+        Chip(stringResource(R.string.settings_notifications_3_days), selected = rule.daysBefore == 3) { change(rule.copy(daysBefore = 3)) }
         val custom = rule.daysBefore !in listOf(0, 1, 3)
-        Chip(if (custom) "${rule.daysBefore} days before" else "Other", selected = custom) { other = true }
+        Chip(if (custom) stringResource(R.string.settings_notifications_n_days, rule.daysBefore) else stringResource(R.string.settings_notifications_other), selected = custom) { other = true }
     }
-    NavRow("Time", timeLabel(rule.minute)) { pickTime = true }
+    NavRow(stringResource(R.string.settings_time), timeLabel(rule.minute)) { pickTime = true }
     if (pickTime) TimeDialog(rule.minute, onDismiss = { pickTime = false }) { m -> change(rule.copy(minute = m)); pickTime = false }
     if (other) DaysDialog(rule.daysBefore, onDismiss = { other = false }) { d -> change(rule.copy(daysBefore = d)); other = false }
 }
@@ -133,11 +133,11 @@ private fun DaysDialog(current: Int, onDismiss: () -> Unit, onPick: (Int) -> Uni
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Kassa.colors.raised,
-        title = { Text("Days before the due day", style = KassaType.section, color = Kassa.colors.ink) },
-        text = { DigitsField(text, { text = it }, label = "Days, 0 to ${DueNotices.MAX_DAYS_BEFORE}", digits = 2, problem = if (text.isEmpty()) null else problem) },
+        title = { Text(stringResource(R.string.settings_notifications_days_title), style = KassaType.section, color = Kassa.colors.ink) },
+        text = { DigitsField(text, { text = it }, label = stringResource(R.string.settings_notifications_days_label, DueNotices.MAX_DAYS_BEFORE), digits = 2, problem = if (text.isEmpty()) null else problem) },
         confirmButton = {
-            TextButton(onClick = { if (days != null && problem == null) onPick(days) }, enabled = problem == null) { Text("Set", color = Kassa.colors.ink) }
+            TextButton(onClick = { if (days != null && problem == null) onPick(days) }, enabled = problem == null) { Text(stringResource(R.string.settings_set), color = Kassa.colors.ink) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Kassa.colors.ink2) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel), color = Kassa.colors.ink2) } },
     )
 }
