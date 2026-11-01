@@ -29,8 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.LocalSettings
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
@@ -45,7 +47,7 @@ import app.kassa.money.ui.theme.KassaType
 fun PageTop(title: String, onBack: (() -> Unit)?, amounts: Boolean = true, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
-            IconButton(onClick = onBack, modifier = Modifier.padding(end = 4.dp)) { Icon(Chevron(left = true), "Back", tint = Kassa.colors.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.padding(end = 4.dp)) { Icon(Chevron(left = true), stringResource(R.string.common_back), tint = Kassa.colors.ink) }
         } else {
             Spacer(Modifier.width(4.dp))
         }
@@ -79,7 +81,7 @@ fun HideBalancesButton() {
     IconButton(onClick = { settings.chooseHideAmounts(!hidden) }, modifier = Modifier.size(48.dp)) {
         Icon(
             if (hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-            if (hidden) "Show balances" else "Hide balances",
+            if (hidden) stringResource(R.string.common_show_balances) else stringResource(R.string.common_hide_balances),
             tint = Kassa.colors.ink,
         )
     }
@@ -114,7 +116,7 @@ fun ConfirmDialog(
     confirm: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismiss: String = "Cancel",
+    dismiss: String = stringResource(R.string.common_cancel),
     destructive: Boolean = true,
 ) {
     AlertDialog(
@@ -164,7 +166,7 @@ fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Bo
         SwitchArrow(left = true, enabled = canBack, onClick = onBack)
         Column(
             Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
-                .then(if (onLabel != null) Modifier.clickable(onClickLabel = "Choose month", role = androidx.compose.ui.semantics.Role.Button, onClick = onLabel) else Modifier),
+                .then(if (onLabel != null) Modifier.clickable(onClickLabel = stringResource(R.string.common_choose_month), role = androidx.compose.ui.semantics.Role.Button, onClick = onLabel) else Modifier),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -181,7 +183,7 @@ fun PeriodSwitcher(label: String, sub: String?, canBack: Boolean, canForward: Bo
 @Composable
 private fun SwitchArrow(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
-        Icon(Chevron(left = left), if (left) "Previous" else "Next", tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
+        Icon(Chevron(left = left), if (left) stringResource(R.string.common_previous) else stringResource(R.string.common_next), tint = if (enabled) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
     }
 }
 

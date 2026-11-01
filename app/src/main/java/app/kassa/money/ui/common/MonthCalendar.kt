@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -63,12 +65,12 @@ fun MonthCalendar(
     Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) onMonth(month.minusMonths(1)) else if (canNext) onMonth(month.plusMonths(1)) }) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onMonth(month.minusMonths(1)) }, modifier = Modifier.size(48.dp)) {
-                Icon(Chevron(left = true), "Previous month", tint = Kassa.colors.ink)
+                Icon(Chevron(left = true), stringResource(R.string.common_previous_month), tint = Kassa.colors.ink)
             }
             Text(monthYear(month), style = KassaType.bodyStrong, color = Kassa.colors.ink,
                 textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
             IconButton(onClick = { onMonth(month.plusMonths(1)) }, enabled = canNext, modifier = Modifier.size(48.dp)) {
-                Icon(Chevron(left = false), "Next month", tint = if (canNext) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
+                Icon(Chevron(left = false), stringResource(R.string.common_next_month), tint = if (canNext) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
             }
         }
         Row(Modifier.fillMaxWidth()) {

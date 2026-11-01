@@ -30,12 +30,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
@@ -55,16 +57,16 @@ fun MonthPickerSheet(current: YearMonth, latest: YearMonth, onPick: (YearMonth) 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.ground) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 16.dp).widthIn(max = 640.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Choose month", style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close", style = KassaType.bodyStrong, color = Kassa.colors.ink) }
+                Text(stringResource(R.string.common_choose_month_title), style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_close), style = KassaType.bodyStrong, color = Kassa.colors.ink) }
             }
             Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { year-- }, enabled = year > EARLIEST_YEAR, modifier = Modifier.size(48.dp)) {
-                    Icon(Chevron(left = true), "Previous year", tint = Kassa.colors.ink)
+                    Icon(Chevron(left = true), stringResource(R.string.common_previous_year), tint = Kassa.colors.ink)
                 }
                 Text(yearOnly(year), style = KassaType.section, color = Kassa.colors.ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
                 IconButton(onClick = { year++ }, enabled = year < latest.year, modifier = Modifier.size(48.dp)) {
-                    Icon(Chevron(left = false), "Next year", tint = if (year < latest.year) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
+                    Icon(Chevron(left = false), stringResource(R.string.common_next_year), tint = if (year < latest.year) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
                 }
             }
             (1..12).map { YearMonth.of(year, it) }.chunked(4).forEach { row ->

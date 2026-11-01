@@ -25,8 +25,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountArrangement
 import app.kassa.money.domain.AccountSection
@@ -60,6 +62,7 @@ sealed interface Pin {
 
     data object People : Pin {
         override val key = "people"
+        // An identifier only; screens show stringResource(R.string.today_people) for it.
         override val name = "People"
     }
 }
@@ -97,11 +100,11 @@ fun AccountTiles(
     val cards = ledger.cards().associateBy { it.account.id }
     Column {
         // Unfolded, the header sits flush with the top of the hero beside it, and the cells are a little taller.
-        app.kassa.money.ui.common.SectionHeader("Accounts", "All accounts", onClick = onAll, top = if (unfolded) 0.dp else 20.dp)
+        app.kassa.money.ui.common.SectionHeader(stringResource(R.string.today_accounts_header), stringResource(R.string.today_accounts_all), onClick = onAll, top = if (unfolded) 0.dp else 20.dp)
         val tileMin = if (unfolded) 80.dp else 56.dp
         if (pins.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("No accounts pinned.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
-            LinkText("Pin accounts", onPin)
+            Text(stringResource(R.string.today_accounts_none), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(end = 8.dp))
+            LinkText(stringResource(R.string.today_accounts_pin), onPin)
         }
         Column {
             pins.chunked(2).forEach { pair ->
@@ -115,7 +118,7 @@ fun AccountTiles(
                                     if (a.type == AccountType.INVESTMENT) ledger.holdingsValue(a.id) else 0
                                 val due = cards[a.id]?.snapshot?.takeIf { it.payable > 0 }?.let {
                                     val amount = Money.format(it.payable, wholeDollars = true)
-                                    if (it.due.isBefore(ledger.today)) "$amount overdue" else "$amount due ${shortDate(it.due)}"
+                                    if (it.due.isBefore(ledger.today)) stringResource(R.string.today_tile_overdue, amount) else stringResource(R.string.today_tile_due, amount, shortDate(it.due))
                                 }
                                 // Cards and loans show what you owe, with no minus; a credit shows as a green plus.
                                 val (text, color) = if (a.type.isDebt) cardMoney(-balance) to cardTint(-balance)
@@ -128,8 +131,8 @@ fun AccountTiles(
                                 val youOwe = -owed.filter { it < 0 }.sum()
                                 val net = if (theyOwe > 0 || youOwe == 0L) theyOwe else -youOwe
                                 Tile(
-                                    "People", (if (Money.isHidden) "" else if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
-                                    if (theyOwe > 0 && youOwe > 0) "You owe ${Money.format(youOwe, wholeDollars = true)}" else null, m, favourColor(net), tileMin, onPeople,
+                                    stringResource(R.string.today_people), (if (Money.isHidden) "" else if (net > 0) "+" else if (net < 0) "−" else "") + Money.format(Math.abs(net)),
+                                    if (theyOwe > 0 && youOwe > 0) stringResource(R.string.today_tile_you_owe, Money.format(youOwe, wholeDollars = true)) else null, m, favourColor(net), tileMin, onPeople,
                                 )
                             }
                         }
@@ -169,27 +172,27 @@ fun PinAccountsPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -
     val choices = pinChoices(ledger, arrangement)
     val picked = pinned(ledger, saved, arrangement).map { it.key }.toSet()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
-        PageTop("Accounts on Overview", onBack, amounts = false)
+        PageTop(stringResource(R.string.today_pins_title), onBack, amounts = false)
         Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-            Text("Pick up to $MAX_PINS. They show in your Accounts order.", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
-            Text("${picked.size} of $MAX_PINS", style = KassaType.small, color = Kassa.colors.ink)
+            Text(stringResource(R.string.today_pins_hint, MAX_PINS), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.today_pins_count, picked.size, MAX_PINS), style = KassaType.small, color = Kassa.colors.ink)
         }
-        if (choices.isEmpty()) Text("Add an account in Accounts first.", style = KassaType.body, color = Kassa.colors.ink2)
+        if (choices.isEmpty()) Text(stringResource(R.string.today_pins_empty), style = KassaType.body, color = Kassa.colors.ink2)
         choices.forEach { pin ->
             val on = pin.key in picked
             val enabled = on || picked.size < MAX_PINS
             Column(Modifier.clickable(enabled = enabled) { settings.setPins(if (on) picked - pin.key else picked + pin.key) }) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(on, null, enabled = enabled, colors = CheckboxDefaults.colors(checkedColor = Kassa.colors.ink, checkmarkColor = Kassa.colors.onInk))
-                    Text(pin.name, style = KassaType.body, color = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Text(if (pin == Pin.People) stringResource(R.string.today_people) else pin.name, style = KassaType.body, color = if (enabled) Kassa.colors.ink else Kassa.colors.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(start = 4.dp))
-                    if (pin == Pin.People) Text("one tile", style = KassaType.tiny, color = Kassa.colors.ink3)
+                    if (pin == Pin.People) Text(stringResource(R.string.today_pins_one_tile), style = KassaType.tiny, color = Kassa.colors.ink3)
                 }
                 HorizontalDivider(color = Kassa.colors.line)
             }
         }
         Gap(8)
-        Text("With $MAX_PINS picked, untick one to pick another. Once you pick, new accounts stay off Overview until you pin them.",
+        Text(stringResource(R.string.today_pins_footer, MAX_PINS),
             style = KassaType.tiny, color = Kassa.colors.ink3)
         Gap(24)
     }

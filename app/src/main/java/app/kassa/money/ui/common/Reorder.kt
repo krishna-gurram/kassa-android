@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -39,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import app.kassa.money.R
 import app.kassa.money.ui.theme.Kassa
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -217,6 +219,9 @@ fun <K : Any> ReorderHandle(
 ) {
     val moved by rememberUpdatedState(onMoved)
     val dot = Kassa.colors.ink3
+    val reorderText = stringResource(R.string.common_reorder_name, name)
+    val moveUpText = stringResource(R.string.common_move_up)
+    val moveDownText = stringResource(R.string.common_move_down)
     Box(
         modifier
             .size(48.dp)
@@ -229,11 +234,11 @@ fun <K : Any> ReorderHandle(
                 )
             }
             .semantics {
-                contentDescription = "Reorder $name"
+                contentDescription = reorderText
                 role = Role.Button
                 customActions = listOfNotNull(
-                    if (canUp) CustomAccessibilityAction("Move up") { onUp(); true } else null,
-                    if (canDown) CustomAccessibilityAction("Move down") { onDown(); true } else null,
+                    if (canUp) CustomAccessibilityAction(moveUpText) { onUp(); true } else null,
+                    if (canDown) CustomAccessibilityAction(moveDownText) { onDown(); true } else null,
                 )
             },
         contentAlignment = Alignment.Center,

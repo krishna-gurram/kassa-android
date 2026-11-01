@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +42,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -69,10 +73,10 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /** The pages one tap away from Insights. */
-enum class InsightPage(val title: String) {
-    SAVED("Saved"), STORES("Top stores"),
-    SMALL("Small purchases"), CREEP("Creeping up"), REPEATING("Repeating"), WEEKDAYS("By weekday"), DUES("Due this week"),
-    BIG_WEEK("Big purchases this week"), BIG_MONTH("Big purchases this month"),
+enum class InsightPage(@StringRes val titleRes: Int) {
+    SAVED(R.string.insights_page_saved), STORES(R.string.insights_page_top_stores),
+    SMALL(R.string.insights_page_small), CREEP(R.string.insights_page_creep), REPEATING(R.string.insights_page_repeating), WEEKDAYS(R.string.insights_page_weekdays), DUES(R.string.insights_page_dues),
+    BIG_WEEK(R.string.insights_page_big_week), BIG_MONTH(R.string.insights_page_big_month),
 }
 
 interface InsightActions {
@@ -102,8 +106,8 @@ fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: Insig
         val grow: ColumnScope.() -> Modifier = { if (fit) Modifier.weight(1f) else Modifier }
         val head: @Composable () -> Unit = {
             // The toggle shares the title row when there's room; on a narrow screen it sits under it, so the title stays whole.
-            val toggle: @Composable (Modifier) -> Unit = { m -> Toggle(listOf(false to monthName, true to "This week"), week, m) { week = it } }
-            app.kassa.money.ui.common.TabTop("Insights", Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle(Modifier.widthIn(min = 240.dp)) }
+            val toggle: @Composable (Modifier) -> Unit = { m -> Toggle(listOf(false to monthName, true to stringResource(R.string.insights_this_week)), week, m) { week = it } }
+            app.kassa.money.ui.common.TabTop(stringResource(R.string.insights_title), Modifier.padding(bottom = if (wide) 12.dp else 0.dp)) { if (wide) toggle(Modifier.widthIn(min = 240.dp)) }
             if (!wide) Box(Modifier.padding(bottom = 12.dp)) { toggle(Modifier.fillMaxWidth()) }
         }
         if (wide && !week) {
@@ -156,7 +160,7 @@ private fun MonthHero(ledger: Ledger, strip: Boolean = false) {
     val (from, to) = Patterns.samePointBefore(p.start, ledger.today, prev.start)
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
-    val label = "Spent in ${p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}"
+    val label = stringResource(R.string.insights_spent_in, p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
     if (strip) {
         // Unfolded: the total on the left and the comparison on the right, at the strip's natural height.
         app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREY) {
@@ -165,13 +169,13 @@ private fun MonthHero(ledger: Ledger, strip: Boolean = false) {
                     app.kassa.money.ui.common.HeroLabel(label)
                     BigMoney(spent, sizeSp = 40f)
                 }
-                if (hasBefore) Compare("Up to ${shortDate(to)}", before)
+                if (hasBefore) Compare(stringResource(R.string.insights_up_to, shortDate(to)), before)
             }
         }
         return
     }
     Hero(label, spent) {
-        if (hasBefore) Compare("Up to ${shortDate(to)}", before)
+        if (hasBefore) Compare(stringResource(R.string.insights_up_to, shortDate(to)), before)
     }
 }
 
@@ -182,8 +186,8 @@ private fun BudgetColumns(ledger: Ledger, actions: InsightActions) {
     val spent = lines.filter { it.spent > 0 }.take(8)
     val half = (spent.size + 1) / 2
     Column {
-        Head("By category", "All ${lines.size}") { actions.openSpending(true) }
-        if (spent.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
+        Head(stringResource(R.string.insights_by_category), stringResource(R.string.insights_all_count, lines.size)) { actions.openSpending(true) }
+        if (spent.isEmpty()) Text(stringResource(R.string.insights_no_spending_month), style = KassaType.body, color = Kassa.colors.ink2)
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             Column(Modifier.weight(1f)) { CategoryLines(spent.take(half), actions::openCategory) }
             Column(Modifier.weight(1f)) { CategoryLines(spent.drop(half), actions::openCategory) }
@@ -196,8 +200,8 @@ private fun BudgetList(ledger: Ledger, actions: InsightActions, limit: Int?, mod
     val lines = monthLines(ledger)
     val spent = lines.filter { it.spent > 0 }
     Column(modifier) {
-        Head("By category", "All ${lines.size}") { actions.openSpending(true) }
-        if (spent.isEmpty()) Text("No spending yet this month.", style = KassaType.body, color = Kassa.colors.ink2)
+        Head(stringResource(R.string.insights_by_category), stringResource(R.string.insights_all_count, lines.size)) { actions.openSpending(true) }
+        if (spent.isEmpty()) Text(stringResource(R.string.insights_no_spending_month), style = KassaType.body, color = Kassa.colors.ink2)
         FittedLines(spent, limit, actions::openCategory, Modifier.weight(1f, fill = false))
     }
 }
@@ -218,39 +222,39 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions, oneRow: Boolea
     val visual = if (oneRow) 44.dp else 22.dp
     val tiles = listOf<@Composable (Modifier) -> Unit>(
         { m ->
-            PatternTile("Big purchases", monthBiggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
-                if (monthBiggest.isEmpty()) "" else "Top ${monthBiggest.size}",
+            PatternTile(stringResource(R.string.insights_big_purchases), monthBiggest.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: stringResource(R.string.insights_none_yet),
+                if (monthBiggest.isEmpty()) "" else stringResource(R.string.insights_top_count, monthBiggest.size),
                 modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.BIG_MONTH) }) {
                 MiniBars(monthBiggest.map { it.categoryAmount }, 0, Kassa.colors.ink)
             }
         },
         { m ->
-            PatternTile("Top store", stores.firstOrNull()?.name ?: "None yet", stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
+            PatternTile(stringResource(R.string.insights_top_store), stores.firstOrNull()?.name ?: stringResource(R.string.insights_none_yet), stores.firstOrNull()?.let { Money.format(it.total, wholeDollars = true) } ?: "",
                 modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.STORES) }) {
                 MiniBars(stores.take(5).map { it.total }, 0, stores.firstOrNull()?.category?.let { Color(it.color) } ?: Kassa.colors.ink)
             }
         },
         { m ->
-            PatternTile("Small purchases", Money.format(small.total, wholeDollars = true), "${small.count} buys",
+            PatternTile(stringResource(R.string.insights_small_purchases), Money.format(small.total, wholeDollars = true), stringResource(R.string.insights_n_buys, small.count),
                 modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.SMALL) }) {
                 MiniBars(smallMonths.map { it.second }, smallMonths.lastIndex, Kassa.colors.ink)
             }
         },
         { m ->
             val top = creep.firstOrNull()
-            PatternTile("Creeping up", top?.category?.name ?: "None", top?.let { "${it.months.size} months" } ?: "Steady",
+            PatternTile(stringResource(R.string.insights_creeping_up), top?.category?.name ?: stringResource(R.string.insights_none), top?.let { stringResource(R.string.insights_months_count, it.months.size) } ?: stringResource(R.string.insights_steady),
                 modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.CREEP) }) {
                 MiniBars(top?.months?.map { it.second } ?: listOf(1L, 1L, 1L), (top?.months?.size ?: 3) - 1, if (top != null) Kassa.colors.attention else Kassa.colors.track)
             }
         },
         { m ->
-            PatternTile("Repeating", Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) "$changed changed" else "${repeating.size} charges",
+            PatternTile(stringResource(R.string.insights_repeating), Money.format(repeating.sumOf { it.perMonth }, wholeDollars = true), if (changed > 0) stringResource(R.string.insights_changed_count, changed) else stringResource(R.string.insights_charges_count, repeating.size),
                 subColor = if (changed > 0) Kassa.colors.attention else null, modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.REPEATING) }) {
                 RepeatLines(repeating.take(4).map { r -> Spending.topOf(r.categoryId, ledger.categoryById)?.let { c -> Color(c.color) } ?: Kassa.colors.ink3 })
             }
         },
         { m ->
-            PatternTile("Busiest day", busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "None", busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
+            PatternTile(stringResource(R.string.insights_busiest_day), busiest?.first?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: stringResource(R.string.insights_none), busiest?.let { Money.format(it.second, wholeDollars = true) } ?: "",
                 modifier = m, visualHeight = visual, onClick = { actions.open(InsightPage.WEEKDAYS) }) {
                 MiniBars(weekdays.map { it.second }, busiest?.let { weekdays.indexOf(it) } ?: -1, Kassa.colors.ink)
             }
@@ -258,7 +262,7 @@ private fun PatternTiles(ledger: Ledger, actions: InsightActions, oneRow: Boolea
     )
 
     Column {
-        Head("Patterns")
+        Head(stringResource(R.string.insights_patterns))
         if (oneRow) {
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tiles.forEach { t -> t(Modifier.weight(1f)) }
@@ -283,8 +287,8 @@ private fun WeekHero(ledger: Ledger, actions: InsightActions) {
     val (from, to) = Patterns.samePointBefore(monday, ledger.today, monday.minusWeeks(1))
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val max = (days.maxOfOrNull { it.second ?: 0L } ?: 0L).coerceAtLeast(1L)
-    Hero("Spent this week", spent) {
-        Compare("Last week by ${ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}", before)
+    Hero(stringResource(R.string.insights_spent_this_week), spent) {
+        Compare(stringResource(R.string.insights_last_week_by, ledger.today.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())), before)
         Row(Modifier.fillMaxWidth().height(scaledDp(84.dp)).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             days.forEach { (date, v) ->
                 val today = date == ledger.today
@@ -308,8 +312,8 @@ private fun WeekCategories(ledger: Ledger, actions: InsightActions, limit: Int?,
     val lines = weekLines(ledger)
     val spent = lines.filter { it.spent > 0 }
     Column(modifier) {
-        Head("By category", "All ${lines.size}") { actions.openSpending(false) }
-        if (spent.isEmpty()) Text("Nothing spent yet this week.", style = KassaType.body, color = Kassa.colors.ink2)
+        Head(stringResource(R.string.insights_by_category), stringResource(R.string.insights_all_count, lines.size)) { actions.openSpending(false) }
+        if (spent.isEmpty()) Text(stringResource(R.string.insights_nothing_spent_week), style = KassaType.body, color = Kassa.colors.ink2)
         FittedLines(spent, limit, actions::openCategory, Modifier.weight(1f, fill = false))
     }
 }
@@ -340,21 +344,21 @@ private fun WeekTiles(ledger: Ledger, actions: InsightActions) {
     val dues = duesThisWeek(ledger)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Figure("Up most vs last wk", up?.category?.name ?: "None", up?.let { (if (Money.isHidden) "" else "↑ ") + Money.format(it.change, wholeDollars = true) }, figureColor(Kassa.colors.attention),
+            Figure(stringResource(R.string.insights_up_most), up?.category?.name ?: stringResource(R.string.insights_none), up?.let { (if (Money.isHidden) "" else "↑ ") + Money.format(it.change, wholeDollars = true) }, figureColor(Kassa.colors.attention),
                 Modifier.weight(1f).then(if (up != null) Modifier.clickable { actions.openCategory(up.category) } else Modifier))
-            Figure("Down most vs last wk", down?.category?.name ?: "None", down?.let { (if (Money.isHidden) "" else "↓ ") + Money.format(-it.change, wholeDollars = true) }, figureColor(Kassa.colors.positive),
+            Figure(stringResource(R.string.insights_down_most), down?.category?.name ?: stringResource(R.string.insights_none), down?.let { (if (Money.isHidden) "" else "↓ ") + Money.format(-it.change, wholeDollars = true) }, figureColor(Kassa.colors.positive),
                 Modifier.weight(1f).then(if (down != null) Modifier.clickable { actions.openCategory(down.category) } else Modifier))
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Figure(
-                "Due this week", Money.format(dues.sumOf { it.snapshot.payable }, wholeDollars = true),
-                if (dues.isEmpty()) "No cards due" else "${dues.size} ${if (dues.size == 1) "card" else "cards"} \u00b7 next ${dues.first().snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}",
+                stringResource(R.string.insights_due_this_week), Money.format(dues.sumOf { it.snapshot.payable }, wholeDollars = true),
+                if (dues.isEmpty()) stringResource(R.string.insights_no_cards_due) else pluralStringResource(R.plurals.insights_cards_next, dues.size, dues.size, dues.first().snapshot.due.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())),
                 Kassa.colors.ink3, Modifier.weight(1f).clickable { actions.open(InsightPage.DUES) },
             )
             val big = bigPurchases(ledger, week = true)
             Figure(
-                "Big purchases", big.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: "None yet",
-                if (big.isEmpty()) null else "Top ${big.size}",
+                stringResource(R.string.insights_big_purchases), big.firstOrNull()?.let { Money.format(it.categoryAmount, wholeDollars = true) } ?: stringResource(R.string.insights_none_yet),
+                if (big.isEmpty()) null else stringResource(R.string.insights_top_count, big.size),
                 Kassa.colors.ink3, Modifier.weight(1f).clickable { actions.open(InsightPage.BIG_WEEK) },
             )
         }
@@ -366,7 +370,7 @@ private fun LargestBuys(ledger: Ledger, actions: InsightActions, limit: Int?, mo
     val list = weekExpenses(ledger).sortedByDescending { it.categoryAmount }.take(limit ?: 10)
     if (list.isEmpty()) return
     Column(modifier) {
-        Head("Largest buys")
+        Head(stringResource(R.string.insights_largest_buys))
         if (limit != null) list.forEachIndexed { i, t -> TransactionRow(t, ledger, showDivider = i < list.lastIndex, onClick = actions::edit, showDate = true) }
         else app.kassa.money.ui.common.FitColumn(Modifier.weight(1f, fill = false)) { list.forEach { t -> TransactionRow(t, ledger, onClick = actions::edit, showDate = true) } }
     }

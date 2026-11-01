@@ -63,7 +63,7 @@ fun InsightDetailPage(
 ) {
     val p = ledger.period
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PageTop(page.title, onBack)
+        PageTop(stringResource(page.titleRes), onBack)
         when (page) {
             InsightPage.BIG_WEEK, InsightPage.BIG_MONTH -> {
                 val list = bigPurchases(ledger, week = page == InsightPage.BIG_WEEK)

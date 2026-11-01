@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
@@ -38,7 +40,10 @@ import java.time.LocalDate
  */
 
 /** One line: what was spent (or received), and what it's measured against (a budget, or last week) when there is one. */
-data class CatLine(val category: Category, val spent: Long, val ref: Long?, val refLabel: String?)
+/** What the small text after a line's amount says: "of <budget>" or "last wk <amount>". */
+enum class RefKind { BUDGET, LAST_WEEK }
+
+data class CatLine(val category: Category, val spent: Long, val ref: Long?, val refKind: RefKind?, val refAmount: Long = 0L)
 
 /** Top categories in use. Archived ones are left out unless they have entries in the period being shown. */
 private fun top(ledger: Ledger) = ledger.categories.filter { it.parentId == null }
@@ -52,7 +57,7 @@ fun monthLines(ledger: Ledger, period: Period = ledger.period, txs: List<Transac
     return top(ledger).filter { it.kind == CategoryKind.EXPENSE }
         .map { c ->
             val b = Budgets.amountFor(c.id, period.yearMonth, ledger.budgets)?.takeIf { it > 0 }
-            CatLine(c, spent[c.id] ?: 0L, b, b?.let { "of ${Money.format(it, wholeDollars = true)}" })
+            CatLine(c, spent[c.id] ?: 0L, b, b?.let { RefKind.BUDGET }, b ?: 0L)
         }
         .dropIdleArchived()
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
@@ -68,7 +73,7 @@ fun weekLines(ledger: Ledger, start: LocalDate = ledger.weekStart, txs: List<Tra
     val now = Spending.byTopCategory(txs, ledger.categoryById, start, end, ledger.zone)
     val before = Spending.byTopCategory(txs, ledger.categoryById, from, to, ledger.zone)
     return top(ledger).filter { it.kind == CategoryKind.EXPENSE }
-        .map { c -> val b = before[c.id] ?: 0L; CatLine(c, now[c.id] ?: 0L, b.takeIf { it > 0 }, "last wk ${Money.format(b, wholeDollars = true)}") }
+        .map { c -> val b = before[c.id] ?: 0L; CatLine(c, now[c.id] ?: 0L, b.takeIf { it > 0 }, RefKind.LAST_WEEK, b) }
         .dropIdleArchived()
         .sortedWith(compareByDescending<CatLine> { it.spent }.thenBy { it.category.sortOrder })
 }
@@ -93,7 +98,7 @@ fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transa
 @Composable
 fun CategoryLines(lines: List<CatLine>, onOpen: (Category) -> Unit) {
     val max = (lines.maxOfOrNull { it.spent } ?: 0L).coerceAtLeast(1L)
-    lines.forEach { l -> CategoryBar(l.category, l.spent, l.ref ?: max, l.refLabel, over = l.ref != null && l.spent > l.ref) { onOpen(l.category) } }
+    lines.forEach { l -> CategoryBar(l.category, l.spent, l.ref ?: max, l.refKind, l.refAmount, over = l.ref != null && l.spent > l.ref) { onOpen(l.category) } }
 }
 
 /** Lines with spending first, then a "No spending yet" group, for the full lists. */
@@ -109,14 +114,14 @@ fun CategoryLinesAll(lines: List<CatLine>, emptyTitle: String, onOpen: (Category
 
 /** One category: name and amount, then a bar of how much of [ref] is used. Past it, the bar and amount turn orange. */
 @Composable
-fun CategoryBar(c: Category, spent: Long, ref: Long, refLabel: String?, over: Boolean, onClick: () -> Unit) {
+fun CategoryBar(c: Category, spent: Long, ref: Long, refKind: RefKind?, refAmount: Long, over: Boolean, onClick: () -> Unit) {
     val color = if (over) figureColor(Kassa.colors.attention) else Color(c.color)
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryBadge(c, size = 26)
             Text(c.name, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
             Text(Money.format(spent, wholeDollars = true), style = KassaType.bodyStrong, color = figureColor(if (over) Kassa.colors.attention else Kassa.colors.ink))
-            if (refLabel != null) Text(" $refLabel", style = KassaType.tiny, color = Kassa.colors.ink2)
+            if (refKind != null) Text(" " + stringResource(if (refKind == RefKind.BUDGET) R.string.common_of_amount else R.string.common_last_week_amount, Money.format(refAmount, wholeDollars = true)), style = KassaType.tiny, color = Kassa.colors.ink2)
         }
         Box(Modifier.padding(start = 34.dp, top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.track)) {
             Box(Modifier.fillMaxWidth((spent.toFloat() / ref.coerceAtLeast(1)).coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))

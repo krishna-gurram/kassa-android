@@ -223,7 +223,7 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
             !on -> settings.setLock(false)
             // The lock asks for a fingerprint, face or the screen lock, so the phone needs one before this can be on.
             AppLock.check(context) == AppLock.Status.READY -> settings.setLock(true)
-            AppLock.check(context) == AppLock.Status.NO_SCREEN_LOCK -> messages?.say(AppLock.SET_A_SCREEN_LOCK)
+            AppLock.check(context) == AppLock.Status.NO_SCREEN_LOCK -> messages?.say(context.getString(R.string.shell_set_a_screen_lock))
             else -> messages?.say(lockUnavailable)
         }
     }

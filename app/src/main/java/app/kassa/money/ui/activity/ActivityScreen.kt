@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import app.kassa.money.R
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -213,7 +216,7 @@ fun ActivityScreen(
         ),
     ) {
         Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            app.kassa.money.ui.common.TabTop("Activity")
+            app.kassa.money.ui.common.TabTop(stringResource(R.string.activity_title))
             if (!searching) {
                 app.kassa.money.ui.common.PeriodSwitcher(
                     monthYear(s.month), null,
@@ -221,16 +224,19 @@ fun ActivityScreen(
                     onLabel = { choosingMonth = true },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterTile("Spending", Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
-                    FilterTile("Income", Money.format(s.income), figureColor(Kassa.colors.positive), s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
+                    FilterTile(stringResource(R.string.activity_spending), Money.format(s.spent), Kassa.colors.ink, s.filter == ActivityFilter.EXPENSE, Modifier.weight(1f)) { vm.toggle(ActivityFilter.EXPENSE) }
+                    FilterTile(stringResource(R.string.activity_income), Money.format(s.income), figureColor(Kassa.colors.positive), s.filter == ActivityFilter.INCOME, Modifier.weight(1f)) { vm.toggle(ActivityFilter.INCOME) }
                 }
             }
             SearchField(s.query, vm::search)
+            val resultsText = pluralStringResource(R.plurals.activity_results, s.resultCount, s.resultCount)
+            val inAllMonths = stringResource(R.string.activity_in_all_months)
+            val resultsSpent = stringResource(R.string.activity_results_spent, Money.format(s.resultSpent))
             if (searching) Text(
                 androidx.compose.ui.text.buildAnnotatedString {
-                    withStyleBold { append(if (s.resultCount == 1) "1 result" else "${s.resultCount} results") }
-                    append(" in all months")
-                    if (s.resultSpent > 0) append(" · ${Money.format(s.resultSpent)} spent")
+                    withStyleBold { append(resultsText) }
+                    append(inAllMonths)
+                    if (s.resultSpent > 0) append(resultsSpent)
                 },
                 style = KassaType.small, color = Kassa.colors.ink2,
             )
@@ -239,7 +245,7 @@ fun ActivityScreen(
         LazyColumn(Modifier.fillMaxSize().then(if (searching) Modifier else Modifier.swipeShift { d -> if (d < 0 || !s.isCurrentMonth) vm.shift(d.toLong()) }), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
             if (searching) {
                 if (s.resultCount == 0) item {
-                    Text("No transactions match “${s.query.trim()}”.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
+                    Text(stringResource(R.string.activity_no_match, s.query.trim()), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
                 }
                 s.results.forEach { (m, entries) ->
                     item(key = "m$m") {
@@ -256,14 +262,14 @@ fun ActivityScreen(
             } else {
                 if (s.filter != ActivityFilter.ALL) item {
                     Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (s.filter == ActivityFilter.EXPENSE) "Spending only" else "Income only", style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
+                        Text(stringResource(if (s.filter == ActivityFilter.EXPENSE) R.string.activity_spending_only else R.string.activity_income_only), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.weight(1f))
                         TextButton(onClick = { vm.toggle(s.filter) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text("Show all", style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
+                            Text(stringResource(R.string.activity_show_all), style = KassaType.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = Kassa.colors.ink)
                         }
                     }
                 }
                 if (s.days.isEmpty()) item {
-                    Text("No transactions this month.", style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
+                    Text(stringResource(R.string.activity_none_this_month), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(vertical = 32.dp))
                 }
                 s.days.forEach { (day, entries) ->
                     item(key = "h$day") {
@@ -337,7 +343,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
             modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
             decorationBox = { inner ->
                 Box {
-                    if (value.isEmpty()) Text("Search all transactions", style = KassaType.body, color = Kassa.colors.ink3)
+                    if (value.isEmpty()) Text(stringResource(R.string.activity_search_hint), style = KassaType.body, color = Kassa.colors.ink3)
                     inner()
                 }
             },
@@ -348,15 +354,16 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Kassa.colors.chip), contentAlignment = Alignment.Center) {
-                Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Clear search", tint = Kassa.colors.ink2, modifier = Modifier.size(14.dp))
+                Icon(androidx.compose.material.icons.Icons.Outlined.Close, stringResource(R.string.activity_clear_search), tint = Kassa.colors.ink2, modifier = Modifier.size(14.dp))
             }
         }
     }
 }
 
+@Composable
 private fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
-    today -> "Today"
-    today.minusDays(1) -> "Yesterday"
+    today -> stringResource(R.string.activity_today)
+    today.minusDays(1) -> stringResource(R.string.activity_yesterday)
     else -> weekdayDate(day)
 }
 
@@ -384,8 +391,8 @@ fun MonthBreakdown(ledger: app.kassa.money.ui.Ledger, contentPadding: PaddingVal
     val period = app.kassa.money.domain.Period.startingIn(s.month, ledger.monthStartDay)
     val lines = app.kassa.money.ui.common.monthLines(ledger, period, s.monthEntries)
     Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
-        app.kassa.money.ui.common.SectionHeader("Where it went", s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
-        app.kassa.money.ui.common.CategoryLinesAll(lines, "No spending", onOpenCategory)
+        app.kassa.money.ui.common.SectionHeader(stringResource(R.string.activity_where_it_went), s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
+        app.kassa.money.ui.common.CategoryLinesAll(lines, stringResource(R.string.activity_no_spending), onOpenCategory)
     }
 }
 
