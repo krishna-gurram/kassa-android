@@ -21,7 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountField
 import app.kassa.money.domain.AccountForm
@@ -87,10 +89,10 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).imePadding().widthIn(max = 560.dp)) {
         if (step == 0) {
-            PageTop("Categories", onBack, amounts = false)
-            Text("Pick what to start with. You can rename, add or remove any of them later.", style = KassaType.body, color = Kassa.colors.ink2)
+            PageTop(stringResource(R.string.start_categories), onBack, amounts = false)
+            Text(stringResource(R.string.start_pick_categories_hint), style = KassaType.body, color = Kassa.colors.ink2)
             CategoryKind.entries.forEach { kind ->
-                Text(if (kind == CategoryKind.EXPENSE) "Expenses" else "Income", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
+                Text(if (kind == CategoryKind.EXPENSE) stringResource(R.string.start_expenses) else stringResource(R.string.start_income), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
                 FlowRow {
                     starters.filter { it.kind == kind }.forEach { s ->
                         val on = s.name in picked
@@ -99,20 +101,20 @@ fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
                 }
             }
             Gap(24)
-            PrimaryButton("Next") { step = 1 }
+            PrimaryButton(stringResource(R.string.start_next)) { step = 1 }
         } else {
-            PageTop("Your first account", onBack = { step = 0 }, amounts = false)
-            Text("Where your money is. Add the rest any time from Accounts.", style = KassaType.body, color = Kassa.colors.ink2)
+            PageTop(stringResource(R.string.start_first_account), onBack = { step = 0 }, amounts = false)
+            Text(stringResource(R.string.start_first_account_hint), style = KassaType.body, color = Kassa.colors.ink2)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 AccountFields(form, problems, { field, change -> form = change(form); if (field != null) problems = problems - field },
                     groups = emptyList(), payFromOptions = emptyList(), types = firstTypes, showGroup = false)
             }
             Gap(20)
-            PrimaryButton("Start using Kassa") {
+            PrimaryButton(stringResource(R.string.start_start_using)) {
                 problems = form.problems(emptyList())
                 if (problems.isEmpty()) onDone(categories(), form.toAccount(Account(name = "", type = form.type), currentBalance = 0))
             }
-            TextButton(onClick = { onDone(categories(), null) }, modifier = Modifier.fillMaxWidth()) { Text("Skip for now", color = Kassa.colors.ink2) }
+            TextButton(onClick = { onDone(categories(), null) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.start_skip_for_now), color = Kassa.colors.ink2) }
             Gap(24)
         }
     }

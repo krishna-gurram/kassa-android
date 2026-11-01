@@ -37,10 +37,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
@@ -79,6 +82,7 @@ fun CategoryEditor(
     onMergeSub: (Category, Category) -> Unit,
     onMerge: (Category, Category) -> Unit,
 ) {
+    val context = LocalContext.current
     val isNew = original.id == 0L
     val isTop = original.parentId == null
     var name by remember { mutableStateOf(original.name) }
@@ -98,7 +102,7 @@ fun CategoryEditor(
     var mergeOpen by remember { mutableStateOf(false) }
     var mergeInto by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val preview = original.copy(name = name.ifBlank { "Category" }, icon = icon, color = color)
+    val preview = original.copy(name = name.ifBlank { stringResource(R.string.categories_default_name) }, icon = icon, color = color)
     // Names are unique among siblings: other top-level categories of the kind, or other subcategories of the parent.
     val siblings = ledger.categories.filter { it.id != original.id && it.parentId == original.parentId && it.kind == original.kind }
     val nameProblem = InputRules.nameProblem(name, if (isTop) "category" else "subcategory", InputRules.CATEGORY_NAME_MAX,
@@ -108,19 +112,19 @@ fun CategoryEditor(
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryBadge(preview, size = 56)
             Column(Modifier.padding(start = 14.dp)) {
-                Text(name.ifBlank { "New category" }, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (original.kind == CategoryKind.INCOME) "Income" else if (isTop) "Expense category" else "Subcategory", style = KassaType.small, color = Kassa.colors.ink2)
+                Text(name.ifBlank { stringResource(R.string.categories_new_category) }, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (original.kind == CategoryKind.INCOME) stringResource(R.string.categories_income) else if (isTop) stringResource(R.string.categories_expense_category) else stringResource(R.string.categories_subcategory), style = KassaType.small, color = Kassa.colors.ink2)
             }
         }
         OutlinedTextField(
-            name, { name = InputRules.typed(it, InputRules.CATEGORY_NAME_MAX); error = null }, singleLine = true, label = { Text("Name") },
-            supportingText = { Text("${name.length}/${InputRules.CATEGORY_NAME_MAX}") },
+            name, { name = InputRules.typed(it, InputRules.CATEGORY_NAME_MAX); error = null }, singleLine = true, label = { Text(stringResource(R.string.categories_name)) },
+            supportingText = { Text(stringResource(R.string.categories_name_counter, name.length, InputRules.CATEGORY_NAME_MAX)) },
             modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
         )
 
-        SectionHeader("Icon")
+        SectionHeader(stringResource(R.string.categories_icon))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Kassa.colors.chip).padding(3.dp)) {
-            listOf("Emoji", "Icons").forEachIndexed { i, label ->
+            listOf(stringResource(R.string.categories_tab_emoji), stringResource(R.string.categories_tab_icons)).forEachIndexed { i, label ->
                 val on = iconTab == i
                 Box(
                     Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(9.dp)).background(if (on) Kassa.colors.raised else Color.Transparent)
@@ -133,7 +137,7 @@ fun CategoryEditor(
             0 -> {
                 OutlinedTextField(
                     typedEmoji, { v -> typedEmoji = InputRules.typedEmoji(v); if (typedEmoji.isNotEmpty()) icon = CategoryIcon.Emoji(typedEmoji) },
-                    singleLine = true, label = { Text("Type or paste any emoji") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    singleLine = true, label = { Text(stringResource(R.string.categories_emoji_label)) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 FlowRow(Modifier.padding(top = 8.dp)) {
                     IconCatalog.emoji.forEach { e ->
@@ -147,7 +151,7 @@ fun CategoryEditor(
                 }
             }
             else -> {
-                SearchBox(iconQuery, { iconQuery = it }, "Search icons, like fuel, baby or temple")
+                SearchBox(iconQuery, { iconQuery = it }, stringResource(R.string.categories_icon_search))
                 FlowRow {
                     IconCatalog.search(iconQuery).forEach { ci ->
                         val on = icon == CategoryIcon.Symbol(ci.name)
@@ -163,7 +167,7 @@ fun CategoryEditor(
         }
 
         if (isTop) {
-            SectionHeader("Color")
+            SectionHeader(stringResource(R.string.categories_color))
             // Any color can be picked. A dot marks colors other categories of this kind use, and the line under
             // the colors names who shares the picked one.
             val usedBy = app.kassa.money.domain.CategoryColors.usedBy(ledger.categories, original.kind, original.id)
@@ -171,10 +175,16 @@ fun CategoryEditor(
                 IconCatalog.colors.forEach { c ->
                     val on = c == color
                     val used = c in usedBy
+                    val colorDescription = when {
+                        on && used -> stringResource(R.string.categories_color_picked_shared, usedBy[c].orEmpty().joinToString())
+                        on -> stringResource(R.string.categories_color_picked)
+                        used -> stringResource(R.string.categories_color_shared, usedBy[c].orEmpty().joinToString())
+                        else -> stringResource(R.string.categories_color)
+                    }
                     // The whole 48dp cell is the target; the swatch is drawn 40dp inside it.
                     Box(
                         Modifier.size(48.dp).clickable(role = Role.RadioButton) { color = c }
-                            .semantics { contentDescription = (if (on) "Picked color" else "Color") + if (used) ", also used by ${usedBy[c].orEmpty().joinToString()}" else "" },
+                            .semantics { contentDescription = colorDescription },
                         contentAlignment = Alignment.Center,
                     ) {
                         Box(Modifier.size(40.dp)) {
@@ -191,23 +201,23 @@ fun CategoryEditor(
                 }
             }
             usedBy[color]?.let { names ->
-                Text("Also used by ${names.sortedWith(app.kassa.money.domain.Names.order<String> { it }).joinToString()}", style = KassaType.small, color = Kassa.colors.ink2,
+                Text(stringResource(R.string.categories_also_used_by, names.sortedWith(app.kassa.money.domain.Names.order<String> { it }).joinToString()), style = KassaType.small, color = Kassa.colors.ink2,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             }
         }
 
         if (isTop && original.kind == CategoryKind.EXPENSE) {
-            SectionHeader("Budget")
-            OutlinedTextField(budget, { budget = InputRules.typedAmount(it); error = null }, singleLine = true, label = { Text("Every month") }, placeholder = { Text("No budget") },
+            SectionHeader(stringResource(R.string.categories_budget))
+            OutlinedTextField(budget, { budget = InputRules.typedAmount(it); error = null }, singleLine = true, label = { Text(stringResource(R.string.categories_budget_every_month)) }, placeholder = { Text(stringResource(R.string.categories_budget_none)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
             if (!isNew) OutlinedTextField(thisMonth, { thisMonth = InputRules.typedAmount(it); error = null }, singleLine = true,
-                label = { Text("Just for ${month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())}") },
-                placeholder = { Text("Same as every month") },
+                label = { Text(stringResource(R.string.categories_budget_just_for, month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()))) },
+                placeholder = { Text(stringResource(R.string.categories_budget_same)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Counts toward today's number", style = KassaType.body, color = Kassa.colors.ink)
-                    Text("Turn off for bills like mortgage or phone.", style = KassaType.small, color = Kassa.colors.ink2)
+                    Text(stringResource(R.string.categories_counts_daily), style = KassaType.body, color = Kassa.colors.ink)
+                    Text(stringResource(R.string.categories_counts_daily_hint), style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 Switch(counts, { counts = it }, colors = SwitchDefaults.colors(checkedTrackColor = Kassa.colors.ink, checkedThumbColor = Kassa.colors.onInk))
             }
@@ -216,17 +226,17 @@ fun CategoryEditor(
         if (isTop && !isNew) SubcategoryList(ledger, original, onSave = onSaveSub, onAdd = { n -> onAddSub(original, n) }, onMerge = onMergeSub)
 
         if (!isNew) {
-            TextButton(onClick = { mergeOpen = !mergeOpen }) { Text("Move all entries into another category", color = Kassa.colors.ink2) }
+            TextButton(onClick = { mergeOpen = !mergeOpen }) { Text(stringResource(R.string.categories_move_all), color = Kassa.colors.ink2) }
             if (mergeOpen) {
                 val targets = ledger.categories.filter { it.kind == original.kind && it.id != original.id && !it.hidden && (it.parentId == null) == isTop }
-                Text("Every entry moves, then ${original.name} is archived. This can't be undone.", style = KassaType.small, color = Kassa.colors.attention)
+                Text(stringResource(R.string.categories_move_all_warning, original.name), style = KassaType.small, color = Kassa.colors.attention)
                 FlowRow(Modifier.padding(top = 6.dp)) { targets.forEach { t -> Chip(t.name, selected = false) { mergeInto = t } } }
             }
             mergeInto?.let { t ->
                 ConfirmDialog(
-                    title = "Move everything into ${t.name}?",
-                    body = "Every ${original.name} entry moves to ${t.name}, then ${original.name} is archived. This can't be undone.",
-                    confirm = "Move entries", onConfirm = { onMerge(original, t) }, onDismiss = { mergeInto = null },
+                    title = stringResource(R.string.categories_move_title, t.name),
+                    body = stringResource(R.string.categories_move_body, original.name, t.name),
+                    confirm = stringResource(R.string.categories_move_confirm), onConfirm = { onMerge(original, t) }, onDismiss = { mergeInto = null },
                 )
             }
         }
@@ -238,8 +248,8 @@ fun CategoryEditor(
             val b = budget.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
             val m = thisMonth.trim().takeIf { it.isNotEmpty() }?.let { Money.parseCents(it) }
             error = nameProblem
-                ?: b?.let { InputRules.amountProblem(it) }?.let { "Budget: $it" }
-                ?: m?.let { InputRules.amountProblem(it) }?.let { "This month's budget: $it" }
+                ?: b?.let { InputRules.amountProblem(it) }?.let { context.getString(R.string.categories_budget_error, it) }
+                ?: m?.let { InputRules.amountProblem(it) }?.let { context.getString(R.string.categories_month_budget_error, it) }
             if (error == null) onSave(
                 CategoryEdit(
                     original.copy(name = InputRules.clean(name), icon = icon, color = color, countsTowardDaily = counts, hidden = archive),
@@ -247,15 +257,15 @@ fun CategoryEditor(
                 )
             )
         }
-        PrimaryButton(if (isNew) "Add category" else if (hidden) "Restore" else "Save") { submit(archive = false) }
+        PrimaryButton(if (isNew) stringResource(R.string.categories_add_category) else if (hidden) stringResource(R.string.categories_restore) else stringResource(R.string.categories_save)) { submit(archive = false) }
         if (!isNew && !hidden) {
             Gap(8)
-            SecondaryButton("Archive", { confirmArchive = true })
+            SecondaryButton(stringResource(R.string.categories_archive), { confirmArchive = true })
         }
         if (confirmArchive) ConfirmDialog(
-            title = "Archive ${original.name}?",
-            body = "It leaves the pickers and budgets. Its entries stay and still show in reports, marked archived, and you can restore it from Archived. To move its entries into another category instead, use Merge.",
-            confirm = "Archive", onConfirm = { confirmArchive = false; submit(archive = true) }, onDismiss = { confirmArchive = false },
+            title = stringResource(R.string.categories_archive_title, original.name),
+            body = stringResource(R.string.categories_archive_body),
+            confirm = stringResource(R.string.categories_archive), onConfirm = { confirmArchive = false; submit(archive = true) }, onDismiss = { confirmArchive = false },
         )
         Gap(24)
     }

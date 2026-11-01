@@ -34,10 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.kassa.money.R
 import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InputRules
@@ -125,7 +128,7 @@ private val TradeInputSaver: Saver<TradeInput, Any> = listSaver(
 private fun TickerField(input: TradeInput, modifier: Modifier = Modifier.fillMaxWidth()) {
     OutlinedTextField(
         input.ticker, { input.ticker = InputRules.typed(it, InputRules.TICKER_MAX).uppercase().trim(); input.tickerProblem = null },
-        singleLine = true, label = { Text("Ticker") }, isError = input.tickerProblem != null,
+        singleLine = true, label = { Text(stringResource(R.string.invest_ticker)) }, isError = input.tickerProblem != null,
         supportingText = input.tickerProblem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = modifier,
     )
@@ -134,7 +137,7 @@ private fun TickerField(input: TradeInput, modifier: Modifier = Modifier.fillMax
 @Composable
 private fun SharesField(value: String, onChange: (String) -> Unit, problem: String?, modifier: Modifier) {
     OutlinedTextField(
-        value, { onChange(Shares.typed(it)) }, singleLine = true, label = { Text("Shares") }, isError = problem != null,
+        value, { onChange(Shares.typed(it)) }, singleLine = true, label = { Text(stringResource(R.string.invest_shares)) }, isError = problem != null,
         supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = modifier,
     )
@@ -177,36 +180,36 @@ fun AllocateSheet(
     val existing = ledger.holdings.filter { it.accountId == p.accountId }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
-            Text("Where did ${Money.format(p.amount)} go?", style = KassaType.section, color = Kassa.colors.ink)
-            Text("Your answer keeps net worth accurate.", style = KassaType.body, color = Kassa.colors.ink2)
+            Text(stringResource(R.string.invest_allocate_title, Money.format(p.amount)), style = KassaType.section, color = Kassa.colors.ink)
+            Text(stringResource(R.string.invest_allocate_subtitle), style = KassaType.body, color = Kassa.colors.ink2)
             if (!buying) {
-                Option("It's uninvested cash", "Stays as cash in the brokerage account", onCash)
-                Option("I bought something", "Add the ticker, shares and price") { buying = true }
-                Option("Already recorded", "You added the holding yourself. Nothing changes.", onRecorded)
-                Option("Decide later", "Stays on Overview until you answer", onDismiss)
+                Option(stringResource(R.string.invest_option_cash), stringResource(R.string.invest_option_cash_sub), onCash)
+                Option(stringResource(R.string.invest_option_bought), stringResource(R.string.invest_option_bought_sub)) { buying = true }
+                Option(stringResource(R.string.invest_option_recorded), stringResource(R.string.invest_option_recorded_sub), onRecorded)
+                Option(stringResource(R.string.invest_option_later), stringResource(R.string.invest_option_later_sub), onDismiss)
                 return@Column
             }
             HoldingChips(existing, input)
             TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
-            SharesAndPrice(input, "Price each")
+            SharesAndPrice(input, stringResource(R.string.invest_price_each))
             val cost = input.total
             Text(
                 when {
-                    cost == null -> "Anything left over stays as uninvested cash."
-                    cost > p.amount -> "That costs ${Money.format(cost)}, more than the ${Money.format(p.amount)} you moved."
-                    else -> "${Money.format(cost)} invested, ${Money.format(p.amount - cost)} stays as uninvested cash."
+                    cost == null -> stringResource(R.string.invest_allocate_left_over)
+                    cost > p.amount -> stringResource(R.string.invest_allocate_too_much, Money.format(cost), Money.format(p.amount))
+                    else -> stringResource(R.string.invest_allocate_invested, Money.format(cost), Money.format(p.amount - cost))
                 },
                 style = KassaType.small, color = if (cost != null && cost > p.amount) figureColor(Kassa.colors.attention) else Kassa.colors.ink2,
                 modifier = Modifier.padding(top = 8.dp),
             )
             Gap(12)
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            Text(stringResource(R.string.invest_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
             DateRow(date, ledger.today) { date = it }
             Gap(8)
-            PrimaryButton("Add to holdings") {
+            PrimaryButton(stringResource(R.string.invest_add_to_holdings)) {
                 if (input.check()) onBuy(TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, momentOn(date, ledger.today, ledger.zone)))
             }
-            TextButton(onClick = { buying = false }) { Text("Back", color = Kassa.colors.ink2) }
+            TextButton(onClick = { buying = false }) { Text(stringResource(R.string.invest_back), color = Kassa.colors.ink2) }
         }
     }
 }
@@ -238,13 +241,13 @@ fun HoldingSheet(
 @Composable
 private fun NewHolding(holding: Holding, onSave: (Holding) -> Unit) {
     val input = rememberSaveable(saver = TradeInputSaver) { TradeInput() }
-    Text("Add shares you own", style = KassaType.section, color = Kassa.colors.ink)
+    Text(stringResource(R.string.invest_add_shares_title), style = KassaType.section, color = Kassa.colors.ink)
     TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
     SharesField(input.shares, { input.shares = it; input.sharesProblem = null }, input.sharesProblem, Modifier.fillMaxWidth())
-    AmountField(input.price, { input.price = it; input.priceProblem = null }, "Price you paid per share", Modifier.fillMaxWidth(), problem = input.priceProblem)
-    Text("Your broker's \"Average cost\".", style = KassaType.small, color = Kassa.colors.ink2)
+    AmountField(input.price, { input.price = it; input.priceProblem = null }, stringResource(R.string.invest_price_paid_per_share), Modifier.fillMaxWidth(), problem = input.priceProblem)
+    Text(stringResource(R.string.invest_average_cost_hint), style = KassaType.small, color = Kassa.colors.ink2)
     Gap(12)
-    PrimaryButton("Add shares") {
+    PrimaryButton(stringResource(R.string.invest_add_shares)) {
         if (input.check()) {
             val paid = input.priceCents!!
             onSave(holding.copy(ticker = input.cleanTicker, microShares = input.microShares!!, price = paid, priceMillis = System.currentTimeMillis(), avgCost = paid))
@@ -269,24 +272,24 @@ private fun ExistingHolding(holding: Holding, onSave: (Holding) -> Unit, onDelet
 
     Text(holding.ticker, style = KassaType.section, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     Column(Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Kassa.colors.ground).padding(horizontal = 12.dp, vertical = 4.dp)) {
-        Figure("Shares", Shares.format(holding.microShares))
-        holding.avgCost?.let { Figure("Average cost", Money.format(it)) }
-        Figure("Worth", Money.format(preview.value))
+        Figure(stringResource(R.string.invest_shares), Shares.format(holding.microShares))
+        holding.avgCost?.let { Figure(stringResource(R.string.invest_figure_average_cost), Money.format(it)) }
+        Figure(stringResource(R.string.invest_figure_worth), Money.format(preview.value))
         preview.profit?.let { p ->
             val cost = preview.cost ?: 0L
             Figure(
-                "Profit", Money.format(p, showPlus = true) + if (cost > 0 && !Money.isHidden) " · ${percentOf(Math.abs(p), cost)}" else "",
+                stringResource(R.string.invest_figure_profit), Money.format(p, showPlus = true) + if (cost > 0 && !Money.isHidden) " · ${percentOf(Math.abs(p), cost)}" else "",
                 figureColor(if (p < 0) Kassa.colors.attention else Kassa.colors.positive),
             )
         }
     }
-    AmountField(price, { price = it; priceProblem = null }, "Price today", Modifier.fillMaxWidth().padding(top = 8.dp), problem = priceProblem)
+    AmountField(price, { price = it; priceProblem = null }, stringResource(R.string.invest_price_today), Modifier.fillMaxWidth().padding(top = 8.dp), problem = priceProblem)
     if (askPaid) {
-        AmountField(paid, { paid = it; paidProblem = null }, "Price you paid per share", Modifier.fillMaxWidth(), problem = paidProblem, placeholder = "Optional")
-        Text("Your broker's \"Average cost\".", style = KassaType.small, color = Kassa.colors.ink2)
+        AmountField(paid, { paid = it; paidProblem = null }, stringResource(R.string.invest_price_paid_per_share), Modifier.fillMaxWidth(), problem = paidProblem, placeholder = stringResource(R.string.invest_optional))
+        Text(stringResource(R.string.invest_average_cost_hint), style = KassaType.small, color = Kassa.colors.ink2)
     }
     Gap(12)
-    PrimaryButton(if (askPaid) "Save" else "Save price") {
+    PrimaryButton(if (askPaid) stringResource(R.string.invest_save) else stringResource(R.string.invest_save_price)) {
         val cents = Money.parseCents(price)
         priceProblem = InputRules.amountProblem(cents)
         val paidCents = if (paid.isBlank()) null else Money.parseCents(paid)
@@ -300,11 +303,11 @@ private fun ExistingHolding(holding: Holding, onSave: (Holding) -> Unit, onDelet
             ))
         }
     }
-    TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text("Remove holding", color = Kassa.colors.attention) }
+    TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.invest_remove_holding), color = Kassa.colors.attention) }
     if (confirmRemove) ConfirmDialog(
-        title = "Remove ${holding.ticker}?",
-        body = "It comes off your holdings and net worth. No cash moves; trades stay as they are.",
-        confirm = "Remove", onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
+        title = stringResource(R.string.invest_remove_title, holding.ticker),
+        body = stringResource(R.string.invest_remove_body),
+        confirm = stringResource(R.string.invest_remove), onConfirm = { onDelete(holding) }, onDismiss = { confirmRemove = false },
     )
 }
 
@@ -340,18 +343,18 @@ fun PricesSheet(holdings: List<Holding>, onSave: (List<Holding>) -> Unit, onDism
     val problems = remember { mutableStateMapOf<Long, String>() }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
-            Text("Update prices", style = KassaType.section, color = Kassa.colors.ink)
+            Text(stringResource(R.string.invest_update_prices), style = KassaType.section, color = Kassa.colors.ink)
             holdings.forEach { h ->
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(end = 8.dp)) {
                         Text(h.ticker, style = KassaType.bodyStrong, color = Kassa.colors.ink)
-                        Text("${Shares.format(h.microShares)} shares", style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.invest_shares_count, Shares.format(h.microShares)), style = KassaType.small, color = Kassa.colors.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    AmountField(prices[h.id].orEmpty(), { prices[h.id] = it; problems.remove(h.id) }, "Price", Modifier.width(160.dp), problem = problems[h.id])
+                    AmountField(prices[h.id].orEmpty(), { prices[h.id] = it; problems.remove(h.id) }, stringResource(R.string.invest_price), Modifier.width(160.dp), problem = problems[h.id])
                 }
             }
             Gap(12)
-            PrimaryButton("Save prices") {
+            PrimaryButton(stringResource(R.string.invest_save_prices)) {
                 val now = System.currentTimeMillis()
                 problems.clear()
                 holdings.forEach { h -> InputRules.amountProblem(Money.parseCents(prices[h.id].orEmpty()))?.let { problems[h.id] = it } }
@@ -373,34 +376,35 @@ fun TradeSheet(
     onSell: (TradeOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     var buy by rememberSaveable { mutableStateOf(true) }
     var date by rememberSavedDate { today }
     val input = rememberSaveable(saver = TradeInputSaver) { TradeInput().apply { holdings.firstOrNull()?.let { pick(it) } } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
-            Text("Buy or sell", style = KassaType.section, color = Kassa.colors.ink)
+            Text(stringResource(R.string.invest_buy_or_sell), style = KassaType.section, color = Kassa.colors.ink)
             FlowRow(Modifier.padding(top = 10.dp)) {
-                Chip("Buy", selected = buy) { buy = true }
-                Chip("Sell", selected = !buy) { buy = false }
+                Chip(stringResource(R.string.invest_buy), selected = buy) { buy = true }
+                Chip(stringResource(R.string.invest_sell), selected = !buy) { buy = false }
             }
             HoldingChips(holdings, input)
             // A sale is always of something you hold, so it's picked from the chips.
             if (buy) TickerField(input)
-            SharesAndPrice(input, "Price")
+            SharesAndPrice(input, stringResource(R.string.invest_price))
             val total = input.total ?: 0L
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            Text(stringResource(R.string.invest_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
             DateRow(date, today) { date = it }
-            Text(if (buy) "Costs ${Money.format(total)} of ${Money.format(cash)} cash" else "Adds ${Money.format(total)} to cash",
+            Text(if (buy) stringResource(R.string.invest_costs_of_cash, Money.format(total), Money.format(cash)) else stringResource(R.string.invest_adds_to_cash, Money.format(total)),
                 style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
             Gap(12)
-            PrimaryButton(if (buy) "Save buy" else "Save sale") {
+            PrimaryButton(if (buy) stringResource(R.string.invest_save_buy) else stringResource(R.string.invest_save_sale)) {
                 if (!input.check()) return@PrimaryButton
                 val held = holdings.firstOrNull { it.ticker == input.cleanTicker }
                 val order = TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, momentOn(date, today, zone))
                 when {
                     buy -> onBuy(order)
-                    held == null -> input.tickerProblem = "Pick a holding to sell."
-                    input.microShares!! > held.microShares -> input.sharesProblem = "You hold ${Shares.format(held.microShares)}."
+                    held == null -> input.tickerProblem = context.getString(R.string.invest_pick_holding_to_sell)
+                    input.microShares!! > held.microShares -> input.sharesProblem = context.getString(R.string.invest_you_hold, Shares.format(held.microShares))
                     else -> onSell(order)
                 }
             }
@@ -441,41 +445,41 @@ fun TradeEditSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
             if (trade != null) {
-                Text(if (buy) "Edit buy" else "Edit sale", style = KassaType.section, color = Kassa.colors.ink)
+                Text(if (buy) stringResource(R.string.invest_edit_buy) else stringResource(R.string.invest_edit_sale), style = KassaType.section, color = Kassa.colors.ink)
                 TickerField(input, Modifier.fillMaxWidth().padding(top = 8.dp))
-                SharesAndPrice(input, "Price")
+                SharesAndPrice(input, stringResource(R.string.invest_price))
             } else {
-                Text("${if (buy) "Buy" else "Sale"} of $ticker · ${Money.format(entry.amount)}", style = KassaType.section, color = Kassa.colors.ink,
+                Text(if (buy) stringResource(R.string.invest_buy_of, ticker, Money.format(entry.amount)) else stringResource(R.string.invest_sale_of, ticker, Money.format(entry.amount)), style = KassaType.section, color = Kassa.colors.ink,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Note("This trade is from before Kassa kept shares and price, so only its date can change. To change your $ticker shares, open $ticker under Holdings.")
+                Note(stringResource(R.string.invest_old_trade_note, ticker))
             }
-            Text("Date", style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+            Text(stringResource(R.string.invest_date), style = KassaType.tiny, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
             DateRow(date, today) { date = it }
             if (trade != null) {
-                input.total?.let { Text("Total ${Money.format(it)}", style = KassaType.small, color = Kassa.colors.ink2) }
-                Note("Saving updates the cash and your $ticker shares${if (buy) " and average cost" else ""} together.")
+                input.total?.let { Text(stringResource(R.string.invest_total, Money.format(it)), style = KassaType.small, color = Kassa.colors.ink2) }
+                Note(if (buy) stringResource(R.string.invest_saving_updates_buy, ticker) else stringResource(R.string.invest_saving_updates_sale, ticker))
             }
             Gap(12)
-            PrimaryButton(if (trade != null) "Save changes" else "Save date") {
+            PrimaryButton(if (trade != null) stringResource(R.string.invest_save_changes) else stringResource(R.string.invest_save_date)) {
                 when {
                     trade == null -> onMove(at())
                     input.check() -> onSave(TradeOrder(input.cleanTicker, input.microShares!!, input.priceCents!!, at()))
                 }
             }
             TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (buy) "Delete buy" else "Delete sale", color = Kassa.colors.attention, style = KassaType.bodyStrong)
+                Text(if (buy) stringResource(R.string.invest_delete_buy) else stringResource(R.string.invest_delete_sale), color = Kassa.colors.attention, style = KassaType.bodyStrong)
             }
         }
     }
     if (confirmDelete) ConfirmDialog(
-        title = if (buy) "Delete this buy?" else "Delete this sale?",
+        title = if (buy) stringResource(R.string.invest_delete_buy_title) else stringResource(R.string.invest_delete_sale_title),
         body = when {
-            trade != null && buy -> "${Money.format(entry.amount)} goes back to cash and ${Shares.format(trade.microShares)} $ticker shares come off. This can't be undone."
-            trade != null -> "${Money.format(entry.amount)} comes out of cash and ${Shares.format(trade.microShares)} $ticker shares come back. This can't be undone."
-            buy -> "${Money.format(entry.amount)} goes back to cash. Your $ticker shares stay as they are; edit $ticker to change them."
-            else -> "${Money.format(entry.amount)} comes out of cash. Your $ticker shares stay as they are; edit $ticker to change them."
+            trade != null && buy -> stringResource(R.string.invest_delete_buy_body, Money.format(entry.amount), Shares.format(trade.microShares), ticker)
+            trade != null -> stringResource(R.string.invest_delete_sale_body, Money.format(entry.amount), Shares.format(trade.microShares), ticker)
+            buy -> stringResource(R.string.invest_delete_buy_old_body, Money.format(entry.amount), ticker)
+            else -> stringResource(R.string.invest_delete_sale_old_body, Money.format(entry.amount), ticker)
         },
-        confirm = "Delete", onConfirm = onDelete, onDismiss = { confirmDelete = false },
+        confirm = stringResource(R.string.invest_delete), onConfirm = onDelete, onDismiss = { confirmDelete = false },
     )
 }
 

@@ -145,7 +145,6 @@
     <string name="invest_add_to_holdings">Add to holdings</string>
     <string name="invest_add_shares_title">Add shares you own</string>
     <string name="invest_add_shares">Add shares</string>
-    <string name="invest_figure_shares">Shares</string>
     <string name="invest_figure_average_cost">Average cost</string>
     <string name="invest_figure_worth">Worth</string>
     <string name="invest_figure_profit">Profit</string>
@@ -239,7 +238,7 @@
     <string name="categories_cancel">Cancel</string>
     <string name="categories_sub_hide_archived">Hide archived (%1$d)</string>
     <string name="categories_sub_archived">Archived (%1$d)</string>
-    <string name="categories_sub_archive_body">It leaves the pickers. Its entries stay and still count under %2$s, and you can restore it here. To move them instead, use Merge.</string>
+    <string name="categories_sub_archive_body">It leaves the pickers. Its entries stay and still count under %1$s, and you can restore it here. To move them instead, use Merge.</string>
     <string name="categories_sub_merge_title">Merge %1$s into %2$s?</string>
     <string name="categories_sub_merge_body">Every %1$s entry moves there, then %1$s is archived. This can\'t be undone.</string>
     <string name="categories_sub_merge_confirm">Merge</string>

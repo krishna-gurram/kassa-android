@@ -19,11 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.kassa.money.R
 import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
@@ -48,7 +50,7 @@ internal fun ColumnScope.SplitPanel(s: EntryState, ledger: Ledger) {
 /** The pad for one person's exact share. An empty pad keeps their current share. */
 @Composable
 private fun ColumnScope.ShareKeypad(s: EntryState, person: Person?) {
-    PanelTitle("${person?.name ?: "Their"} share", back = { s.editingShare = null }, onDone = s::commitShare)
+    PanelTitle(stringResource(R.string.entry_their_share, person?.name ?: stringResource(R.string.entry_their)), back = { s.editingShare = null }, onDone = s::commitShare)
     val current = person?.let { s.exactShares[it.id] } ?: 0L
     Text(
         if (s.shareInput.isEmpty()) Money.format(current) else Money.symbol + displayAmount(s.shareInput),
@@ -56,38 +58,38 @@ private fun ColumnScope.ShareKeypad(s: EntryState, person: Person?) {
         maxLines = 1, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
     )
     NumberPad(Modifier.weight(1f)) { k -> s.shareInput = applyKey(s.shareInput, k) }
-    PrimaryButton("Done", s::commitShare)
+    PrimaryButton(stringResource(R.string.entry_done), s::commitShare)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.SplitChoices(s: EntryState, ledger: Ledger, people: Map<Long, Person>) {
-    PanelTitle("Split") { s.field = null }
+    PanelTitle(stringResource(R.string.entry_split_title)) { s.field = null }
     // Archived people stay listed only while they're already in this split.
     val everyone = ledger.people.people.filter { !it.archived || it.id in s.splitPeople }.sortedBy { it.name.lowercase() }
     val nameOf: (Long) -> String = { people[it]?.name ?: "?" }
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SplitLabel("With")
-        if (everyone.isEmpty()) Text("Add people in Accounts to split with them.", style = KassaType.small, color = Kassa.colors.ink2)
+        SplitLabel(stringResource(R.string.entry_with))
+        if (everyone.isEmpty()) Text(stringResource(R.string.entry_add_people), style = KassaType.small, color = Kassa.colors.ink2)
         FlowRow { everyone.forEach { p -> Chip(p.name, selected = p.id in s.splitPeople) { s.toggleSplitWith(p.id) } } }
         if (!s.shared) return@Column
 
-        SplitLabel("Paid by")
+        SplitLabel(stringResource(R.string.entry_paid_by))
         FlowRow {
-            Chip("You", selected = s.paidBy == null) { s.paidBy = null }
+            Chip(stringResource(R.string.entry_you), selected = s.paidBy == null) { s.paidBy = null }
             s.splitPeople.forEach { id -> Chip(nameOf(id), selected = s.paidBy == id) { s.paidBy = id } }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SplitLabel("Shares", Modifier.weight(1f))
-            Chip("Equally", selected = !s.exact, small = true, onClick = s::useEqualShares)
-            Chip("Exact amounts", selected = s.exact, small = true, onClick = s::useExactShares)
+            SplitLabel(stringResource(R.string.entry_shares), Modifier.weight(1f))
+            Chip(stringResource(R.string.entry_equally), selected = !s.exact, small = true, onClick = s::useEqualShares)
+            Chip(stringResource(R.string.entry_exact_amounts), selected = s.exact, small = true, onClick = s::useExactShares)
         }
         val shares = s.shares
-        ShareLine("You", s.myShare, s.cents, editable = false) {}
+        ShareLine(stringResource(R.string.entry_you), s.myShare, s.cents, editable = false) {}
         s.splitPeople.forEach { id -> ShareLine(nameOf(id), shares[id] ?: 0L, s.cents, editable = s.exact) { s.startShare(id) } }
-        if (s.myShare < 0) Text("The shares add up to more than ${Money.format(s.cents)}.", style = KassaType.small, color = Kassa.colors.attention)
+        if (s.myShare < 0) Text(stringResource(R.string.entry_shares_exceed, Money.format(s.cents)), style = KassaType.small, color = Kassa.colors.attention)
         Text(
-            s.paidBy?.let { "You owe ${nameOf(it)} ${Money.format(s.myShare.coerceAtLeast(0))}." } ?: "Each person owes you their share.",
+            s.paidBy?.let { stringResource(R.string.entry_you_owe, nameOf(it), Money.format(s.myShare.coerceAtLeast(0))) } ?: stringResource(R.string.entry_each_owes),
             style = KassaType.small, color = Kassa.colors.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
         )
     }
@@ -109,7 +111,7 @@ private fun ShareLine(name: String, amount: Long, total: Long, editable: Boolean
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(name, style = KassaType.bodyStrong, color = Kassa.colors.ink, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (total > 0 && !Money.isHidden) Text("${Math.round(amount * 100.0 / total)}%", style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(horizontal = 10.dp))
+        if (total > 0 && !Money.isHidden) Text(stringResource(R.string.entry_percent, Math.round(amount * 100.0 / total)), style = KassaType.tiny, color = Kassa.colors.ink3, modifier = Modifier.padding(horizontal = 10.dp))
         Text(Money.format(amount), style = KassaType.bodyStrong, maxLines = 1, color = figureColor(if (amount < 0) Kassa.colors.attention else Kassa.colors.ink))
     }
 }
