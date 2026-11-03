@@ -9,12 +9,14 @@ struct ActivityScreen: View {
     let today: Int
     let onToggleHidden: () -> Void
     let onShift: (Int) -> Void
+    /// A tap on an editable row. Nil draws rows that do nothing.
+    var onOpen: ((EntryRowData) -> Void)? = nil
 
     var body: some View {
         ScrollView {
             ActivityContent(
                 data: data, hidden: hidden, today: today, lazy: true,
-                onToggleHidden: onToggleHidden, onShift: onShift
+                onToggleHidden: onToggleHidden, onShift: onShift, onOpen: onOpen
             )
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
@@ -32,6 +34,7 @@ struct ActivityContent: View {
     let lazy: Bool
     let onToggleHidden: () -> Void
     let onShift: (Int) -> Void
+    var onOpen: ((EntryRowData) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -72,7 +75,7 @@ struct ActivityContent: View {
 
     private var days: some View {
         ForEach(data.days, id: \.epochDay) { day in
-            DaySection(day: day, today: today)
+            DaySection(day: day, today: today, onOpen: onOpen)
         }
     }
 }
@@ -137,6 +140,7 @@ struct TotalTile: View {
 struct DaySection: View {
     let day: DayData
     let today: Int
+    var onOpen: ((EntryRowData) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -157,7 +161,7 @@ struct DaySection: View {
             .accessibilityElement(children: .combine)
             Hairline()
             ForEach(day.entries, id: \.id) { entry in
-                EntryRowView(entry: entry, showDivider: entry.id != day.entries.last?.id)
+                EntryRowView(entry: entry, showDivider: entry.id != day.entries.last?.id, onOpen: onOpen)
             }
         }
     }
@@ -167,10 +171,23 @@ struct DaySection: View {
 struct EntryRowView: View {
     let entry: EntryRowData
     let showDivider: Bool
+    var onOpen: ((EntryRowData) -> Void)? = nil
 
     var body: some View {
+        // Only expenses, income and transfers open the entry page. Rows of a loan payment, a buy or sale, a payment to or from a
+        // person, a card payment or a balance correction are not editable there (`EntryRowData.editable`): tapping does nothing,
+        // as Android sends each of those to its own sheet, which iOS doesn't have yet.
+        if entry.editable, let open = onOpen {
+            Button(action: { open(entry) }) { content }
+                .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         let words = Wording.entry(entry)
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
                 EntryBadge(entry: entry)
                 VStack(alignment: .leading, spacing: 2) {

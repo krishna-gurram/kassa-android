@@ -8,10 +8,12 @@ struct AccountsScreen: View {
     let data: AccountsData
     let hidden: Bool
     let onToggleHidden: () -> Void
+    /// Opens the Add account sheet. Nil leaves the button out.
+    var onAdd: (() -> Void)? = nil
 
     var body: some View {
         ScrollView {
-            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden)
+            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
         }
@@ -24,6 +26,7 @@ struct AccountsContent: View {
     let data: AccountsData
     let hidden: Bool
     let onToggleHidden: () -> Void
+    var onAdd: (() -> Void)? = nil
 
     /// Folded groups, by key. Closed starts folded.
     @State private var folded: Set<String> = ["CLOSED"]
@@ -34,6 +37,16 @@ struct AccountsContent: View {
             NetWorthHero(data: data)
             ForEach(data.groups, id: \.key) { group in
                 groupView(group)
+            }
+            if let add = onAdd {
+                Button(action: add) {
+                    Label("accounts.addAccount", systemImage: "plus")
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(Palette.ink)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
             }
         }
         .padding(.horizontal, 16)

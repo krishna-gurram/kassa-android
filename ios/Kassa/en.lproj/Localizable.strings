@@ -88,3 +88,114 @@
 "start.cantOpen" = "Kassa couldn't open its data on this phone.";
 "start.keyMissing" = "Its key is missing from this phone, so the data can't be read.";
 "start.tryAgain" = "Try again";
+
+/* Write path: refusals and failures */
+"write.failed" = "Couldn't save. Try again.";
+"write.entryGone" = "This entry is gone.";
+"write.entryNotHere" = "This entry can't be changed here.";
+
+/* Accessibility */
+"a11y.back" = "Back";
+"a11y.clearSearch" = "Clear search";
+"a11y.decimalMark" = "Decimal mark";
+"a11y.deleteDigit" = "Delete last digit";
+
+/* First run */
+"firstRun.currency" = "Currency";
+"firstRun.chooseCurrency" = "Choose";
+"firstRun.currencyTitle" = "Choose your currency";
+"firstRun.currencyBody" = "Amounts are never converted. You can change this in Settings.";
+"firstRun.searchCurrencies" = "Search currencies";
+"firstRun.categoriesTitle" = "Starter categories";
+"firstRun.categoriesBody" = "Tick the ones you want. You can change them later.";
+"firstRun.spending" = "Spending";
+"firstRun.income" = "Income";
+"firstRun.start" = "Start";
+
+/* Add account and person */
+"accounts.addAccount" = "Add an account";
+"account.addTitle" = "Add an account";
+"account.cancel" = "Cancel";
+"account.add" = "Add";
+"account.addPerson" = "Add a person";
+"account.people" = "People";
+"account.group.creditAndLoans" = "Credit and loans";
+"account.group.other" = "Other";
+"accountType.CHECKING" = "Checking";
+"accountType.SAVINGS" = "Savings";
+"accountType.CASH" = "Cash";
+"accountType.PREPAID" = "Prepaid or wallet";
+"accountType.CREDIT_CARD" = "Credit card";
+"accountType.OTHER_ASSET" = "Other asset";
+"accountType.OTHER_DEBT" = "Other debt";
+"account.name" = "Name";
+"account.last4" = "Last 4 digits";
+"account.balance" = "Balance";
+"account.owed" = "Amount owed";
+"account.statementDay" = "Statement day";
+"account.dueDay" = "Due day";
+"account.dayHint" = "1 to 31";
+"account.limit" = "Credit limit";
+"account.limitHint" = "Optional";
+"account.payFrom" = "Pay from";
+"account.noPayFrom" = "No account";
+"person.name" = "Name";
+"person.direction" = "Who owes";
+"person.owesMe" = "They owe me";
+"person.iOwe" = "I owe them";
+"person.amount" = "Already owed";
+"person.amountHint" = "Optional";
+
+/* Add and edit entry */
+"entry.title.new" = "Add";
+"entry.title.editExpense" = "Edit expense";
+"entry.title.editIncome" = "Edit income";
+"entry.title.editTransfer" = "Edit transfer";
+"entry.kind" = "Kind";
+"entry.kind.expense" = "Expense";
+"entry.kind.income" = "Income";
+"entry.kind.transfer" = "Transfer";
+"entry.amount" = "Amount";
+"entry.category" = "Category";
+"entry.paidWith" = "Paid with";
+"entry.into" = "Into";
+"entry.from" = "From";
+"entry.to" = "To";
+"entry.choose" = "Choose";
+"entry.today" = "Today";
+"entry.yesterday" = "Yesterday";
+"entry.otherDay" = "Other day";
+"entry.date" = "Date";
+"entry.merchantOrNote" = "Store or note";
+"entry.addNote" = "Add a note";
+"entry.next.category" = "Next";
+"entry.next.to" = "Next";
+"entry.next.from" = "Next";
+"entry.next.into" = "Next";
+"entry.next.paidWith" = "Next";
+"entry.add" = "Add";
+"entry.save" = "Save";
+"entry.delete" = "Delete";
+"entry.thisEntry" = "This entry";
+"entry.delete.title" = "Delete this entry?";
+"entry.delete.body" = "%@, %@. Balances update right away. This can't be undone.";
+"entry.delete.confirm" = "Delete";
+"entry.delete.keep" = "Keep";
+"entry.discard.title" = "Discard your changes?";
+"entry.discard.newBody" = "What you typed won't be added.";
+"entry.discard.editBody" = "Your changes to this entry won't be saved.";
+"entry.discard.confirm" = "Discard";
+"entry.discard.keep" = "Keep editing";
+"entry.searchCategories" = "Search categories";
+"entry.searchAccounts" = "Search accounts";
+"entry.noCategories" = "No categories yet.";
+"entry.noCategoryMatches" = "No category matches \"%@\".";
+"entry.noAccountMatches" = "No account matches \"%@\".";
+"entry.addAccountFirst" = "Add an account first, on the Accounts tab.";
+"entry.noSubcategory" = "No subcategory";
+"entry.recent" = "Recent";
+"entry.accountEnding" = "%@, ending %@";
+"entry.filter.all" = "All";
+"entry.filter.cards" = "Cards";
+"entry.filter.other" = "Other";
+"a11y.add" = "Add";

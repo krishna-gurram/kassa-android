@@ -49,4 +49,10 @@ object AccountPicking {
         val byId = available.associateBy { it.id }
         return usedIds.distinct().mapNotNull { byId[it] }.take(limit)
     }
+
+    /** The accounts a card can be paid from: open checking, savings and cash accounts, A to Z. */
+    fun payFromOptions(accounts: List<Account>): List<Account> =
+        accounts.filter { it.isActive && it.type in PAY_FROM_TYPES }.sortedWith(Names.order { it.name })
+
+    private val PAY_FROM_TYPES = setOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH)
 }

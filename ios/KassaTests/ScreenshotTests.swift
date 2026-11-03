@@ -35,6 +35,7 @@ final class ScreenshotTests: XCTestCase {
             let activity = view.activity(year: 2025, month: 12, hidden: false, todayEpochDay: today, timeZoneId: "UTC")
             let todayDay = Int(today)
             draw(target, accounts: accounts, hiddenAccounts: hiddenAccounts, activity: activity, today: todayDay)
+            drawAdd(target, view: view, today: todayDay)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -52,6 +53,39 @@ final class ScreenshotTests: XCTestCase {
                 data: activity, hidden: false, today: today, lazy: false, onToggleHidden: {}, onShift: { _ in }
             )
             save(activityView, scheme: scheme, to: target.appendingPathComponent("activity-\(suffix).png"))
+        }
+    }
+
+    /// The Add page (empty, and filled in with the first category and account) and the Add account sheet, light and dark.
+    @MainActor
+    private func drawAdd(_ target: URL, view: LedgerView, today: Int) {
+        let zone = "UTC"
+        let categories: [CategoryChoiceData] = view.categoryChoices(kind: "EXPENSE", query: "")
+        let picked: [AccountChoiceData] = view.accountPick(
+            entryKind: "EXPENSE", field: "ACCOUNT", accountId: 0, filter: "ALL", query: "", recentLimit: 0
+        ).groups.flatMap { $0.accounts }
+        let defaults = UserDefaults(suiteName: "kassa-shots-" + UUID().uuidString) ?? UserDefaults.standard
+        let model = AppModel(defaults: defaults, openStore: { throw KeyUnreadable() })
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let empty = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
+            let emptyPage = AddEntryScreen(draft: empty, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            save(emptyPage, scheme: scheme, to: target.appendingPathComponent("add-empty-\(suffix).png"))
+
+            let filled = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
+            for key in ["1", "2", ".", "5", "0"] { filled.press(key) }
+            if let category = categories.first { filled.pick(category: category) }
+            if let account = picked.first { filled.pick(account: account.id) }
+            let filledPage = AddEntryScreen(draft: filled, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            save(filledPage, scheme: scheme, to: target.appendingPathComponent("add-filled-\(suffix).png"))
+
+            let picking = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
+            picking.show(.category)
+            let pickingPage = AddEntryScreen(draft: picking, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            save(pickingPage, scheme: scheme, to: target.appendingPathComponent("add-category-\(suffix).png"))
+
+            let sheet = AddAccountSheet(model: model, onClose: {})
+            save(sheet, scheme: scheme, to: target.appendingPathComponent("add-account-\(suffix).png"))
         }
     }
 

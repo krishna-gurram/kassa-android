@@ -14,7 +14,8 @@ enum LedgerStoreError: Error, Equatable {
 /// The encrypted on-device database of the iOS app: SQLCipher, one file in Application Support, tables identical to
 /// Android's Room schema 10 (`Schema`), plus two Swift-only tables: `settings` (key/value text: `createdAt`, `monthStartDay`,
 /// `currency`, `accountArrangement`, the values a backup carries outside the Room tables) and `icons` (category pictures,
-/// name and bytes). It restores from a `BackupData` and exports one; nothing else writes to it yet.
+/// name and bytes). It restores from a `BackupData` and exports one, and `LedgerStore+Write.swift` adds the write path (start fresh,
+/// accounts, people, entries) whose rules come from :domain through :shared.
 ///
 /// The data crosses from and to Kotlin as flat text cells (`BackupRows`, `BackupBuilder` in :shared), read by the column
 /// kinds that `BackupRows` reports, so no Kotlin class is walked from Swift.
@@ -23,7 +24,11 @@ final class LedgerStore {
     static let fileName = "kassa.db"
 
     let databaseURL: URL
-    private let db: SQLiteDB
+
+    /// For tests only: runs inside `addEntry`'s transaction right after the row is written; a throw there must roll the row back.
+    var afterInsertHook: (() throws -> Void)?
+    // Not `private`: `LedgerStore+Write.swift` (the write path) is an extension in its own file.
+    let db: SQLiteDB
 
     /// Opens the database in `directory`, making it (and the key, when there is no data yet) if needed.
     /// Throws `KeyUnreadable` when a database is there and its key is not, `SQLiteError` (with `isNotADatabase`) when the key
@@ -95,11 +100,13 @@ final class LedgerStore {
 
     /// Replaces everything with `data`, in one transaction: all rows of every table, the settings and the pictures are
     /// deleted, then `data` is inserted. If anything fails (a duplicate id, a value that does not fit) nothing changes.
-    func replace(with data: BackupData) throws {
+    /// [currency] (a code Kassa lists) is stored instead of the backup's own, which is how a backup without a currency gets the one
+    /// the person picked; nil keeps the backup's.
+    func replace(with data: BackupData, currency: String? = nil) throws {
         try db.transaction { () throws -> Void in
             try clearAll()
             try insertRows(data)
-            try insertSettings(data)
+            try insertSettings(data, currency: currency)
             try insertIcons(data)
         }
     }
@@ -135,7 +142,7 @@ final class LedgerStore {
         }
     }
 
-    private static func bind(_ statement: SQLiteStatement, _ index: Int32, kind: String, value: String?) throws {
+    static func bind(_ statement: SQLiteStatement, _ index: Int32, kind: String, value: String?) throws {
         guard let text = value else {
             try statement.bindNull(index)
             return
@@ -148,13 +155,13 @@ final class LedgerStore {
         }
     }
 
-    private func insertSettings(_ data: BackupData) throws {
+    private func insertSettings(_ data: BackupData, currency chosen: String?) throws {
         let statement = try db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
         var pairs: [(String, String)] = [
             ("createdAt", String(data.createdAt)),
             ("monthStartDay", String(data.monthStartDay)),
         ]
-        if let currency = data.currency { pairs.append(("currency", currency)) }
+        if let currency = chosen ?? data.currency { pairs.append(("currency", currency)) }
         if let arrangement = data.accountArrangement { pairs.append(("accountArrangement", arrangement)) }
         for pair in pairs {
             try statement.reset()

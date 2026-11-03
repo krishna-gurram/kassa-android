@@ -70,6 +70,14 @@ object Currencies {
 
     /** The listed currency with this ISO [code] (any case), or null when Kassa doesn't list it. The app works the code out from the phone's region. */
     fun forCode(code: String?): CurrencyStyle? = if (code == null) null else all.firstOrNull { it.code.equals(code, ignoreCase = true) }
+
+    /**
+     * The currency a phone starts with: its region's own currency ([regionCode] is where the phone says it is, such as "IN", and
+     * [currencyCode] what that region uses, such as "INR") when Kassa lists it. Null when the phone has no region or its currency
+     * isn't listed, and then the first-run screen asks. Android works the same from `java.util.Locale`.
+     */
+    fun forRegion(regionCode: String?, currencyCode: String?): CurrencyStyle? =
+        if (regionCode.isNullOrEmpty()) null else forCode(currencyCode)
 }
 
 object Money {

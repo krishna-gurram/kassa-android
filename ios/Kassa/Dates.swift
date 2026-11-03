@@ -6,8 +6,10 @@ import Foundation
 /// Formatters are cached, so call from the main thread (screens do).
 enum KassaDates {
 
-    private static let utc: TimeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone.current
+    static let utc: TimeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone.current
     private static var formatters: [String: DateFormatter] = [:]
+
+    static var gregorian: Calendar { gregorianUTC }
 
     private static var gregorianUTC: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -26,8 +28,13 @@ enum KassaDates {
         return made
     }
 
-    private static func date(epochDay: Int) -> Date {
+    static func date(epochDay: Int) -> Date {
         return Date(timeIntervalSince1970: Double(epochDay) * 86_400)
+    }
+
+    /// The epoch day of the calendar day [date] falls on in UTC (what the graphical calendar hands back).
+    static func epochDay(of date: Date) -> Int {
+        return Int((date.timeIntervalSince1970 / 86_400).rounded(.down))
     }
 
     /// "Nov 14" / "14 Nov".

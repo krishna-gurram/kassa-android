@@ -10,8 +10,17 @@ Stage B (first real screens, read-only): the app opens the encrypted store, buil
 and Activity are real, the rest say "Coming soon". An empty database shows the first-run screen: "Choose backup file" (file picker for
 the `.kassa` type declared in `project.yml`, a password prompt for protected files) or "Start fresh". The eye hides every amount.
 Figures, colours (`Tone`) and money text come from the shared Kotlin rules, so they equal Android's; Swift only lays out and words
-them (`Wording.swift`, `Localizable.strings`, `Dates.swift` for the phone's date patterns). Not yet on iOS: currency picker,
-Overview, Insights, Settings, search and filters in Activity, opening a row, archived accounts, restoring over existing data.
+them (`Wording.swift`, `Localizable.strings`, `Dates.swift` for the phone's date patterns). Not yet on iOS: Overview, Insights,
+Settings, search and filters in Activity, archived accounts, restoring over existing data.
+
+Stage C (write path): first run picks a currency (the phone's region currency when Kassa lists it, otherwise the list opens before
+Start fresh or a backup without one) and the starter categories; Accounts has Add account (type first: cash and bank, cards, other,
+people; loans, investments and fixed deposits are Android-only for now); every tab has a floating Add button that opens the entry page
+(expense, income, transfer; number pad, category and account pickers, date row, note), and tapping an expense, income or transfer
+row in Activity edits or deletes it. Other rows (loan payments, buys and sales, person payments, card payments, corrections) do nothing
+yet. An unfinished new entry is kept per scene (`@SceneStorage`). All rules are :domain's (`EntryRules`, `AccountForm`, `PersonForm`,
+`StarterCategories`, `AmountPad`, `CategoryPicking`), reached through `WriteBridge.kt` and `LedgerView`; `LedgerStore+Write.swift` runs each
+change in one transaction; Swift only lays out.
 
 Storage (stage A): `Kassa/Storage` holds an encrypted SQLCipher database (SPM package `SQLCipher.swift`, tables copied from Android's Room
 schema 10, key in the Keychain) that restores from and exports to a `.kassa` backup; `StorageTests` cover it.

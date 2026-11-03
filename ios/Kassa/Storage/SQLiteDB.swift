@@ -90,6 +90,18 @@ final class SQLiteDB {
         }
     }
 
+    /// The id SQLite gave the row the last INSERT on this connection made (AUTOINCREMENT ids start at 1).
+    func lastInsertRowId() -> Int64 {
+        guard let open = handle else { return 0 }
+        return sqlite3_last_insert_rowid(open)
+    }
+
+    /// Rows the last INSERT, UPDATE or DELETE changed.
+    func changes() -> Int {
+        guard let open = handle else { return 0 }
+        return Int(sqlite3_changes(open))
+    }
+
     /// `PRAGMA user_version`.
     func userVersion() throws -> Int {
         let statement = try prepare("PRAGMA user_version")

@@ -4,6 +4,8 @@ import app.kassa.money.backup.BackupData
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountArrangement
 import app.kassa.money.domain.AccountLine
+import app.kassa.money.domain.AccountKindFilter
+import app.kassa.money.domain.AccountPicking
 import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.AccountsOverview
@@ -13,7 +15,10 @@ import app.kassa.money.domain.CardCycle
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
+import app.kassa.money.domain.CategoryPicking
 import app.kassa.money.domain.CountedSpending
+import app.kassa.money.domain.EntryField
+import app.kassa.money.domain.EntryRules
 import app.kassa.money.domain.CurrencyStyle
 import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.LoanEngine
@@ -133,6 +138,11 @@ data class EntryRowData(
     val amountTone: Tone,
     /** True for amounts that are not spending or income (transfers, buys, person payments, corrections): secondary colour. */
     val amountMuted: Boolean,
+    /**
+     * Whether the entry page may open this row (`EntryRules.isEditable`): an expense, income or transfer that isn't a loan payment,
+     * a split, a person's payment or a card payment. Other rows do nothing when tapped yet.
+     */
+    val editable: Boolean,
 )
 
 /** One day of Activity: newest first, with what was spent that day (empty when nothing was, except while hidden). */
@@ -154,6 +164,43 @@ data class ActivityData(
     val days: List<DayData>,
 )
 
+/** One category in the picker. [iconKind] is "emoji", "symbol" (an Android icon-catalog name) or "image"; [color] is ARGB. [parentName] is empty for a top-level category. */
+data class CategoryChoiceData(
+    val id: Long,
+    val name: String,
+    val parentName: String,
+    val iconKind: String,
+    val iconValue: String,
+    val color: Int,
+    val hasSubcategories: Boolean,
+)
+
+/** One account in the picker or on a tile; [type] is an `AccountType` name. No amount, on purpose. */
+data class AccountChoiceData(val id: Long, val name: String, val last4: String, val type: String, val closed: Boolean)
+
+/** The accounts of one kind in the picker; [key] is an `AccountSection` name. */
+data class AccountChoiceGroupData(val key: String, val accounts: List<AccountChoiceData>)
+
+/** The account picker: the kind chips ([filters] are `AccountKindFilter` names, "ALL" first), the groups, the Recent row, and whether no account is open at all. */
+data class AccountPickData(
+    val filters: List<String>,
+    val groups: List<AccountChoiceGroupData>,
+    val recent: List<AccountChoiceData>,
+    val noneOpen: Boolean,
+)
+
+/** An entry as the page edits it: flat, 0 means "none", [kind] is a `TxKind` name. */
+data class EntryEditData(
+    val id: Long,
+    val kind: String,
+    val amount: Long,
+    val accountId: Long,
+    val toAccountId: Long,
+    val categoryId: Long,
+    val epochMillis: Long,
+    val note: String,
+)
+
 /** The ledger of one restored backup, worked out for the iOS screens. Build one per refresh; see the file comment. */
 class LedgerView(data: BackupData, fallbackCurrency: String?) {
 
@@ -167,6 +214,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     private val accountById: Map<Long, Account> = accounts.associateBy { it.id }
     private val balances: Map<Long, Long> = Balances.of(accounts, transactions)
     private val loanIndex = LoanEntryIndex(parts.loanPayments, parts.loanTerms)
+    private val splitEntryIds: Set<Long> = parts.loanEntries.mapNotNull { it.transactionId }.toSet()
 
     /**
      * The arrangement the person made (Accounts > Order > Your order). A backup carries it but not the sort, so a backup
@@ -416,13 +464,132 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             amountText = amount,
             amountTone = tone,
             amountMuted = muted,
+            editable = isEditable(t, to),
         )
     }
+
+    /** `EntryRules.isEditable` for [t] (its destination [to]), by what the ledger knows about its loan payment and split. */
+    private fun isEditable(t: Transaction, to: Account?): Boolean =
+        EntryRules.isEditable(
+            t.kind, to?.type, loanIndex.isLoanEntry(t.id), t.personId != null, t.myShare != null || t.id in splitEntryIds,
+        )
 
     private fun badgeOf(c: Category): String = when (val icon = c.icon) {
         is CategoryIcon.Emoji -> icon.value
         is CategoryIcon.Symbol -> c.name.trim().take(1).uppercase()
         is CategoryIcon.Image -> c.name.trim().take(1).uppercase()
+    }
+
+    // ---------- Pickers and editing (the write path) ----------
+
+    /** Every account's name, archived and closed ones too: what a new account's name may not repeat. */
+    fun accountNames(): List<String> = accounts.map { it.name }
+
+    /** Every person's name, archived ones too: what a new person's name may not repeat. */
+    fun personNames(): List<String> = parts.people.map { it.name }
+
+    /** Where the largest sort order of the accounts is, so a new account goes last. */
+    fun nextAccountSortOrder(): Int = (accounts.maxOfOrNull { it.sortOrder } ?: -1) + 1
+
+    /** The accounts a card can be paid from (open checking, savings and cash), A to Z. */
+    fun payFromChoices(): List<AccountChoiceData> = AccountPicking.payFromOptions(accounts).map(::accountChoiceOf)
+
+    private fun categoryChoiceOf(c: Category, withParent: Boolean): CategoryChoiceData {
+        val parent = c.parentId?.let { categoryById[it] }
+        val shown = parent ?: c
+        val (kind, value) = iconParts(shown.icon)
+        val hasChildren = c.parentId == null && CategoryPicking.subcategories(parts.categories, c).isNotEmpty()
+        return CategoryChoiceData(
+            id = c.id,
+            name = c.name,
+            parentName = if (withParent) parent?.name ?: "" else "",
+            iconKind = kind,
+            iconValue = value,
+            color = shown.color,
+            hasSubcategories = hasChildren,
+        )
+    }
+
+    /**
+     * What the category picker shows for [kind], a `CategoryKind` name ("EXPENSE" or "INCOME"; a transfer has no category): the top-level categories A to Z, or, once something is typed in [query], the categories and
+     * subcategories that match, best first. Hidden (archived) categories are never offered.
+     */
+    fun categoryChoices(kind: String, query: String): List<CategoryChoiceData> {
+        val k = categoryKindOf(kind) ?: return emptyList()
+        val q = query.trim()
+        if (q.isEmpty()) return CategoryPicking.top(parts.categories, k).map { categoryChoiceOf(it, false) }
+        return CategoryPicking.search(parts.categories, k, q).map { categoryChoiceOf(it, true) }
+    }
+
+    /** The subcategories of the top-level category [topId], A to Z. */
+    fun subcategoryChoices(topId: Long): List<CategoryChoiceData> {
+        val top = categoryById[topId] ?: return emptyList()
+        return CategoryPicking.subcategories(parts.categories, top).map { categoryChoiceOf(it, true) }
+    }
+
+    /** One category for the page's tile (its parent's name set when it is a subcategory), or null. */
+    fun categoryChoice(id: Long): CategoryChoiceData? = categoryById[id]?.let { categoryChoiceOf(it, true) }
+
+    private fun accountChoiceOf(a: Account) = AccountChoiceData(a.id, a.name, a.last4 ?: "", a.type.name, a.isClosed)
+
+    /** One account for the page's tile, or null. A closed account is still described (an old entry may sit on it). */
+    fun accountChoice(id: Long): AccountChoiceData? = accountById[id]?.let(::accountChoiceOf)
+
+    /**
+     * What the account picker shows (`AccountPicking`): open accounts the page doesn't exclude (`EntryRules.excludedAccounts`),
+     * grouped by kind and A to Z, filtered by the kind chip [filter] (an `AccountKindFilter` name) and the typed [query]; the
+     * Recent row (accounts used on the newest entries, newest first, only with nothing typed and the All chip) holds at most [recentLimit].
+     * [field] is "ACCOUNT" or "TO", [accountId] the source already picked (0 for none). No amounts, nothing preselected.
+     */
+    fun accountPick(entryKind: String, field: String, accountId: Long, filter: String, query: String, recentLimit: Int): AccountPickData {
+        val k = TxKind.entries.firstOrNull { it.name == entryKind } ?: TxKind.EXPENSE
+        val f = if (field == EntryField.TO.name) EntryField.TO else EntryField.ACCOUNT
+        val excluded = EntryRules.excludedAccounts(k, f, if (accountId > 0) accountId else null, accounts)
+        val available = AccountPicking.available(accounts, excluded)
+        val chosen = AccountKindFilter.entries.firstOrNull { it.name == filter } ?: AccountKindFilter.ALL
+        val q = query.trim()
+        val groups = AccountPicking.groups(available, chosen, q).map { g ->
+            AccountChoiceGroupData(g.section.name, g.accounts.map(::accountChoiceOf))
+        }
+        val recent = if (q.isEmpty() && chosen == AccountKindFilter.ALL) {
+            val used = transactions.sortedByDescending { it.epochMillis }.mapNotNull { it.accountId }
+            AccountPicking.recent(used, available, recentLimit).map(::accountChoiceOf)
+        } else emptyList()
+        return AccountPickData(AccountPicking.filtersFor(available).map { it.name }, groups, recent, available.isEmpty())
+    }
+
+    /**
+     * The entry [id] as the page edits it, or null when there is none or the page may not edit it (`EntryRowData.editable`). Read from
+     * the stored entry, not the counted one, so a transfer is a transfer.
+     */
+    fun entryEdit(id: Long): EntryEditData? {
+        val t = transactions.firstOrNull { it.id == id } ?: return null
+        if (!isEditable(t, t.toAccountId?.let { accountById[it] })) return null
+        return EntryEditData(
+            id = t.id, kind = t.kind.name, amount = t.amount, accountId = t.accountId ?: 0, toAccountId = t.toAccountId ?: 0,
+            categoryId = t.categoryId ?: 0, epochMillis = t.epochMillis, note = t.note,
+        )
+    }
+
+    /** The entry's amount in this ledger's currency, as Money.format writes it (the mask while [hidden]): the "Delete this entry?" question names it, as Android's does. */
+    fun entryAmountText(id: Long, hidden: Boolean): String {
+        val t = transactions.firstOrNull { it.id == id } ?: return ""
+        return shown(hidden) { Money.format(t.amount) }
+    }
+
+    /** The ledger currency's bare symbol ("$"), for the amount at the top of the entry page; the only place a symbol stands without a figure. */
+    fun currencySymbol(): String = currency.symbol.trim()
+
+    /**
+     * The picker for "Pay from" on a card: only open checking, savings and cash accounts (`AccountPicking.payFromOptions`), grouped
+     * and filtered like [accountPick] but with no Recent row and no kind chips.
+     */
+    fun payFromPick(query: String): AccountPickData {
+        val options = AccountPicking.payFromOptions(accounts)
+        val groups = AccountPicking.groups(options, AccountKindFilter.ALL, query.trim()).map { g ->
+            AccountChoiceGroupData(g.section.name, g.accounts.map(::accountChoiceOf))
+        }
+        return AccountPickData(listOf(AccountKindFilter.ALL.name), groups, emptyList(), options.isEmpty())
     }
 
     // ---------- Money state and colour ----------

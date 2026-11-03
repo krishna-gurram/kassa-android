@@ -20,8 +20,14 @@ enum AppPhase {
 /// calls at once must not overlap); results come back to the main thread. Properties marked "queue only" are touched
 /// nowhere else. Failures reach the screen only as plain sentences (`BackupError`, `BackupBridge.refusal`, Localizable.strings).
 ///
-/// There is no currency picker yet: the currency is the backup's, else the phone's region currency when Kassa lists it, else
-/// US dollars (`LedgerView`).
+/// The currency is the backup's, else the one picked on first run (which starts as the phone's region currency when Kassa lists it,
+/// and otherwise as nothing: Start fresh and Choose backup file ask first), saved in the store (`LedgerStore.currencyCode`) so moving
+/// regions never changes entered amounts.
+///
+/// The write path (`addEntry`, `updateEntry`, `deleteEntry`, `addAccount`, `addPerson`, `startFresh`) runs on the same queue,
+/// inside one store transaction each, then reads the figures again; the answer comes back on the main thread as a `WriteOutcome`.
+/// Anything that words an amount (a validation sentence, the delete question) is asked on the queue too, because the shared rules
+/// switch Money's currency and mask while they work. Pure pickers read `picks` on the main thread (they touch no Money).
 final class AppModel: ObservableObject {
 
     static let hideKey = "hideAmounts"
@@ -39,19 +45,30 @@ final class AppModel: ObservableObject {
     @Published private(set) var working = false
     /// True while the password prompt is up for a protected backup.
     @Published var asksPassword = false
+    /// The currency picked on first run, a code Kassa lists; nil until one is picked (the phone's region currency counts when listed).
+    @Published private(set) var chosenCurrency: String?
+    /// True while the currency list is up because a backup was read that carries no currency and none was picked.
+    @Published var asksCurrencyForBackup = false
+    /// The ledger the pickers read (categories, accounts, what an entry holds). Replaced after every read of the store.
+    @Published private(set) var picks: LedgerView?
+    /// The entry page that is open (new or editing), or nil.
+    @Published var entryPage: EntryPageRequest?
 
-    private let queue = DispatchQueue(label: "app.kassa.ledger", qos: .userInitiated)
+    // Internal (not private) so `AppModel+Write.swift` can use the one queue and the store.
+    let queue = DispatchQueue(label: "app.kassa.ledger", qos: .userInitiated)
     private let defaults: UserDefaults
     private let openStore: () throws -> LedgerStore
     private var started = false
-    private var store: LedgerStore?      // queue only
-    private var view: LedgerView?        // queue only
+    var store: LedgerStore?      // queue only
+    var view: LedgerView?        // queue only
     private var pendingFile: Data?       // queue only
+    private var pendingBackup: BackupData?   // queue only: a backup read and waiting for a currency
 
     init(defaults: UserDefaults = UserDefaults.standard, openStore: @escaping () throws -> LedgerStore = { try LedgerStore.openDefault() }) {
         self.defaults = defaults
         self.openStore = openStore
         self.hideAmounts = defaults.bool(forKey: AppModel.hideKey)
+        self.chosenCurrency = AppModel.regionCurrency()
         let now = KassaDates.todayEpochDay()
         let current = KassaDates.yearMonth(epochDay: now)
         self.today = now
@@ -72,22 +89,24 @@ final class AppModel: ObservableObject {
     // MARK: Inputs
 
     /// What the figures depend on, read on the main thread and handed to the queue.
-    private struct Inputs {
+    struct Inputs {
         let hidden: Bool
         let year: Int
         let month: Int
         let today: Int
         let zone: String
+        /// The currency picked on first run (see `chosenCurrency`).
+        let currency: String?
     }
 
-    private func inputs() -> Inputs {
+    func inputs() -> Inputs {
         return Inputs(
             hidden: hideAmounts, year: shownYear, month: shownMonth,
-            today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier
+            today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier, currency: chosenCurrency
         )
     }
 
-    private func publish(_ block: @escaping () -> Void) {
+    func publish(_ block: @escaping () -> Void) {
         DispatchQueue.main.async(execute: block)
     }
 
@@ -118,6 +137,7 @@ final class AppModel: ObservableObject {
                     self.publish { self.phase = .firstRun }
                     return
                 }
+                try self.rememberRegionCurrency(opened, given)
                 try self.load(opened, given)
                 self.publish { self.phase = .ready }
             } catch {
@@ -125,6 +145,23 @@ final class AppModel: ObservableObject {
                 self.publish { self.phase = .failed(text) }
             }
         }
+    }
+
+    /// Data from before the currency was stored (a backup without one) keeps showing the phone's region currency when Kassa lists
+    /// it; it is saved at once, so moving the phone to another region never changes the currency under amounts already entered.
+    private func rememberRegionCurrency(_ opened: LedgerStore, _ given: Inputs) throws {
+        if try opened.currencyCode() != nil { return }
+        guard let code = given.currency else { return }
+        try opened.setCurrency(code)
+    }
+
+    /// The currency of the phone's region when Kassa lists it, else nil (Locale.current.currency alone would name one for a
+    /// phone with no region, which Android's `regionCurrency` does not).
+    static func regionCurrency() -> String? {
+        let region = Locale.current.region?.identifier ?? ""
+        let code = Locale.current.currency?.identifier ?? ""
+        let listed = StartBridge.shared.regionCurrency(regionCode: region, currencyCode: code)
+        return listed.isEmpty ? nil : listed
     }
 
     private func isEmpty(_ opened: LedgerStore) throws -> Bool {
@@ -139,13 +176,15 @@ final class AppModel: ObservableObject {
         return String(localized: "start.cantOpen")
     }
 
-    /// "Start fresh": the app opens empty. There is no currency picker yet.
-    func startFresh() {
+    /// "Start fresh": the currency picked on first run and the starter categories the person ticked are saved, and the app opens with
+    /// no accounts. The first-run screen asks for the currency first when none is chosen.
+    func startFresh(categories names: [String]) {
         defaults.set(true, forKey: AppModel.startedFreshKey)
         let given = inputs()
         queue.async {
             guard let opened = self.store else { return }
             do {
+                try opened.startFresh(currency: given.currency, categories: names)
                 try self.load(opened, given)
                 self.publish { self.phase = .ready }
             } catch {
@@ -155,13 +194,19 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The person picked a currency on the first-run screen (a code from `StartBridge.currencies()`).
+    func chooseCurrency(_ code: String) {
+        chosenCurrency = code
+    }
+
     // MARK: Figures
 
     /// Reads the whole store into a new `LedgerView` and publishes its figures. Queue only.
-    private func load(_ opened: LedgerStore, _ given: Inputs) throws {
+    func load(_ opened: LedgerStore, _ given: Inputs) throws {
         let data = try opened.export()
         let made = LedgerView(data: data, fallbackCurrency: AppModel.phoneCurrency())
         view = made
+        publish { self.picks = made }
         compute(made, given)
     }
 
@@ -254,9 +299,10 @@ final class AppModel: ObservableObject {
         restoreMessage = nil
     }
 
-    /// Opens [bytes] and replaces everything with them. Queue only. Every failure ends as a plain sentence.
+    /// Opens [bytes] and replaces everything with them. Queue only. Every failure ends as a plain sentence. A backup that carries no
+    /// currency takes the one picked on first run, or waits for the person to pick one (`asksCurrencyForBackup`).
     private func restore(_ bytes: Data, password: String?, _ given: Inputs) {
-        guard let opened = store else {
+        guard store != nil else {
             fail(String(localized: "restore.failed"))
             return
         }
@@ -267,15 +313,18 @@ final class AppModel: ObservableObject {
                 return
             }
             let parsed = try BackupBridge.shared.parse(text: json)
-            try opened.replace(with: parsed)
             pendingFile = nil
-            try load(opened, given)
-            publish {
-                self.working = false
-                self.asksPassword = false
-                self.restoreMessage = nil
-                self.phase = .ready
+            let carried = StartBridge.shared.listed(code: parsed.currency ?? "")
+            if carried.isEmpty && given.currency == nil {
+                pendingBackup = parsed
+                publish {
+                    self.working = false
+                    self.restoreMessage = nil
+                    self.asksCurrencyForBackup = true
+                }
+                return
             }
+            apply(parsed, currency: carried.isEmpty ? given.currency : nil, given)
         } catch let problem as BackupError {
             if problem == .needsPassword || problem == .wrongPassword {
                 pendingFile = bytes
@@ -290,6 +339,51 @@ final class AppModel: ObservableObject {
             }
         } catch {
             fail(String(localized: "restore.failed"))
+        }
+    }
+
+    /// Replaces the store with [parsed] (storing [currency] when the backup has none) and opens the app. Queue only.
+    private func apply(_ parsed: BackupData, currency: String?, _ given: Inputs) {
+        guard let opened = store else {
+            fail(String(localized: "restore.failed"))
+            return
+        }
+        do {
+            try opened.replace(with: parsed, currency: currency)
+            pendingBackup = nil
+            try load(opened, given)
+            publish {
+                self.working = false
+                self.asksPassword = false
+                self.asksCurrencyForBackup = false
+                self.restoreMessage = nil
+                self.phase = .ready
+            }
+        } catch {
+            fail(String(localized: "restore.failed"))
+        }
+    }
+
+    /// The currency was picked for a backup that had none: the restore goes on with it.
+    func finishBackup(currency code: String) {
+        chosenCurrency = code
+        asksCurrencyForBackup = false
+        working = true
+        let given = inputs()
+        queue.async {
+            guard let parsed = self.pendingBackup else {
+                self.fail(String(localized: "restore.failed"))
+                return
+            }
+            self.apply(parsed, currency: code, given)
+        }
+    }
+
+    /// The person left the currency list without picking: the backup is not restored.
+    func cancelCurrency() {
+        asksCurrencyForBackup = false
+        queue.async {
+            self.pendingBackup = nil
         }
     }
 
