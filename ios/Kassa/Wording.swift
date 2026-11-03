@@ -35,6 +35,54 @@ enum Wording {
         }
     }
 
+    /// The title of an account picker group (an `AccountSection` name).
+    static func sectionTitle(_ key: String) -> String {
+        switch key {
+        case "CASH_AND_BANK": return text("accounts.group.cashAndBank")
+        case "INVESTMENTS": return text("accounts.group.investments")
+        case "OTHER_ASSETS": return text("accounts.group.otherAssets")
+        case "CREDIT_CARDS": return text("accounts.group.creditCards")
+        case "LOANS": return text("accounts.group.loans")
+        case "OTHER_DEBTS": return text("accounts.group.otherDebts")
+        default: return key
+        }
+    }
+
+    /// The label of a kind chip in the account picker (an `AccountKindFilter` name).
+    static func filterTitle(_ key: String) -> String {
+        switch key {
+        case "ALL": return text("entry.filter.all")
+        case "CASH_AND_BANK": return text("accounts.group.cashAndBank")
+        case "CARDS": return text("entry.filter.cards")
+        case "LOANS": return text("accounts.group.loans")
+        case "INVESTMENTS": return text("accounts.group.investments")
+        default: return text("entry.filter.other")
+        }
+    }
+
+    /// The heading of a kind group in the Add account list.
+    static func kindGroupTitle(_ key: String) -> String {
+        switch key {
+        case "CASH_AND_BANK": return text("accounts.group.cashAndBank")
+        case "CREDIT_AND_LOANS": return text("account.group.creditAndLoans")
+        default: return text("account.group.other")
+        }
+    }
+
+    /// The name of a kind of account (an `AccountType` name) in the Add account list and its form.
+    static func accountTypeTitle(_ key: String) -> String {
+        switch key {
+        case "CHECKING": return text("accountType.CHECKING")
+        case "SAVINGS": return text("accountType.SAVINGS")
+        case "CASH": return text("accountType.CASH")
+        case "PREPAID": return text("accountType.PREPAID")
+        case "CREDIT_CARD": return text("accountType.CREDIT_CARD")
+        case "OTHER_ASSET": return text("accountType.OTHER_ASSET")
+        case "OTHER_DEBT": return text("accountType.OTHER_DEBT")
+        default: return key
+        }
+    }
+
     /// The small line under an account's name.
     static func note(_ row: AccountRowData) -> String? {
         if row.note.name == "TotalBalance" { return format("accounts.totalBalance", row.noteAmountText) }

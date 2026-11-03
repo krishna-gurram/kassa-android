@@ -29,11 +29,10 @@ import app.kassa.money.domain.AccountField
 import app.kassa.money.domain.AccountForm
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Category
-import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
+import app.kassa.money.domain.StarterCategories
 import app.kassa.money.ui.accounts.AccountFields
 import app.kassa.money.ui.accounts.AccountFormSaver
-import app.kassa.money.ui.categories.IconCatalog
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.entry.Chip
@@ -41,28 +40,8 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 
-/** A category offered on first run. [fixed] ones are bills, so they don't count toward everyday spending. */
-private data class Starter(val name: String, val kind: CategoryKind, val icon: String, val on: Boolean = true, val fixed: Boolean = false)
-
-/** Common categories for someone starting from nothing. All can be renamed or removed later. */
-private val starters = listOf(
-    Starter("Bills", CategoryKind.EXPENSE, "bills", fixed = true),
-    Starter("Car", CategoryKind.EXPENSE, "car"),
-    Starter("Dining", CategoryKind.EXPENSE, "restaurant"),
-    Starter("Entertainment", CategoryKind.EXPENSE, "movie"),
-    Starter("Gifts", CategoryKind.EXPENSE, "gift", on = false),
-    Starter("Groceries", CategoryKind.EXPENSE, "cart"),
-    Starter("Health", CategoryKind.EXPENSE, "medical"),
-    Starter("Home", CategoryKind.EXPENSE, "home", fixed = true),
-    Starter("Personal care", CategoryKind.EXPENSE, "haircut", on = false),
-    Starter("Shopping", CategoryKind.EXPENSE, "bag"),
-    Starter("Subscriptions", CategoryKind.EXPENSE, "subscriptions", fixed = true),
-    Starter("Transport", CategoryKind.EXPENSE, "bus"),
-    Starter("Travel", CategoryKind.EXPENSE, "flight"),
-    Starter("Interest", CategoryKind.INCOME, "savings"),
-    Starter("Other income", CategoryKind.INCOME, "money"),
-    Starter("Salary", CategoryKind.INCOME, "payments"),
-)
+/** The categories offered on first run, shared with iOS (see `StarterCategories` in :domain). */
+private val starters = StarterCategories.all
 
 /** The account types worth offering before anything else exists. Every type is in Accounts later. */
 private val firstTypes = listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CREDIT_CARD, AccountType.CASH)
@@ -75,17 +54,12 @@ private val firstTypes = listOf(AccountType.CHECKING, AccountType.SAVINGS, Accou
 @Composable
 fun StartFresh(onDone: (List<Category>, Account?) -> Unit, onBack: () -> Unit) {
     var step by rememberSaveable { mutableStateOf(0) }
-    var picked by rememberSaveable { mutableStateOf(starters.filter { it.on }.map { it.name }) }
+    var picked by rememberSaveable { mutableStateOf(StarterCategories.defaultNames()) }
     var form by rememberSaveable(stateSaver = AccountFormSaver) { mutableStateOf(AccountForm()) }
     var problems by remember { mutableStateOf(emptyMap<AccountField, String>()) }
     BackHandler { if (step == 1) step = 0 else onBack() }
 
-    // Colors count up separately for expense and income, so no two of a kind share one.
-    fun categories(): List<Category> = starters.filter { it.name in picked }.groupBy { it.kind }.values.flatMap { list ->
-        list.mapIndexed { i, s ->
-            Category(name = s.name, kind = s.kind, icon = CategoryIcon.Symbol(s.icon), color = IconCatalog.colors[i % IconCatalog.colors.size], countsTowardDaily = !s.fixed)
-        }
-    }
+    fun categories(): List<Category> = StarterCategories.categories(picked)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).imePadding().widthIn(max = 560.dp)) {
         if (step == 0) {

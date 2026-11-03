@@ -66,38 +66,69 @@ enum ShellTab: Hashable {
     case settings
 }
 
-/// The tabs: Overview, Activity, Insights, Accounts, Settings. Accounts and Activity are real; the rest are placeholders.
+/// The tabs: Overview, Activity, Insights, Accounts, Settings. Accounts and Activity are real; the rest are placeholders. Add is a
+/// floating button above the bar on every tab; it opens the entry page over the whole screen, so it is never shown over a page.
 struct AppShell: View {
     @ObservedObject var model: AppModel
 
     // Kassa opens on Accounts until Overview exists (Android's "Home screen" setting will pick it later).
     @State private var tab: ShellTab = .accounts
+    @State private var addingAccount = false
+    /// The scene's kept copy of an unfinished new entry, so folding or a scene recreation never loses what was typed.
+    @SceneStorage("kassa.entryDraft") private var keptDraft = ""
 
     var body: some View {
         TabView(selection: $tab) {
-            ComingSoonScreen(title: "tab.overview")
+            withAdd(ComingSoonScreen(title: "tab.overview"))
                 .tabItem { Label("tab.overview", systemImage: "house") }
                 .tag(ShellTab.overview)
-            activityTab
+            withAdd(activityTab)
                 .tabItem { Label("tab.activity", systemImage: "list.bullet") }
                 .tag(ShellTab.activity)
-            ComingSoonScreen(title: "tab.insights")
+            withAdd(ComingSoonScreen(title: "tab.insights"))
                 .tabItem { Label("tab.insights", systemImage: "chart.pie") }
                 .tag(ShellTab.insights)
-            accountsTab
+            withAdd(accountsTab)
                 .tabItem { Label("tab.accounts", systemImage: "building.columns") }
                 .tag(ShellTab.accounts)
-            ComingSoonScreen(title: "tab.settings")
+            withAdd(ComingSoonScreen(title: "tab.settings"))
                 .tabItem { Label("tab.settings", systemImage: "gearshape") }
                 .tag(ShellTab.settings)
         }
         .accentColor(Palette.ink)
+        .fullScreenCover(item: $model.entryPage) { request in
+            if let ledger = model.picks {
+                EntryPageHost(model: model, request: request, ledger: ledger, keptDraft: $keptDraft)
+            }
+        }
+        .sheet(isPresented: $addingAccount) {
+            AddAccountSheet(model: model, onClose: { addingAccount = false })
+        }
+    }
+
+    private func withAdd<Content: View>(_ content: Content) -> some View {
+        content.overlay(alignment: .bottomTrailing) {
+            Button(action: { model.openAdd(draft: keptDraft) }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(Palette.ground)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Palette.ink))
+                    .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 3)
+            }
+            .accessibilityLabel(Text("a11y.add"))
+            .padding(.trailing, 16)
+            .padding(.bottom, 16)
+        }
     }
 
     @ViewBuilder
     private var accountsTab: some View {
         if let data = model.accounts {
-            AccountsScreen(data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() })
+            AccountsScreen(
+                data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
+                onAdd: { addingAccount = true }
+            )
         } else {
             ProgressView()
         }
@@ -109,7 +140,8 @@ struct AppShell: View {
             ActivityScreen(
                 data: data, hidden: model.hideAmounts, today: model.today,
                 onToggleHidden: { model.toggleHidden() },
-                onShift: { months in model.shiftMonth(months) }
+                onShift: { months in model.shiftMonth(months) },
+                onOpen: { row in model.openEntry(id: row.id) }
             )
         } else {
             ProgressView()

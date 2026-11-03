@@ -267,7 +267,8 @@ final class ScreensTests: XCTestCase {
         let model = AppModel(defaults: defaults, openStore: { try LedgerStore(directory: folder!, keyStore: store!) })
         model.start()
         XCTAssertTrue(waitFor { model.isFirstRun })
-        model.startFresh()
+        model.chooseCurrency("USD")
+        model.startFresh(categories: [])
         XCTAssertTrue(waitFor { model.isReady })
         XCTAssertEqual(model.accounts?.netWorthText, "$0.00")
         // A second launch finds the empty store and the choice already made.
