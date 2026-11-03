@@ -1,3 +1,4 @@
+import KassaShared
 import SwiftUI
 import UIKit
 
