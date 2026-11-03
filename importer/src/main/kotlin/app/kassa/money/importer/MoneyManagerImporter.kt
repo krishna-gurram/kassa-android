@@ -14,6 +14,7 @@ import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
 import app.kassa.money.domain.balanceOf
 import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.roundHalfUp
 import kotlinx.datetime.TimeZone
 
 /**
