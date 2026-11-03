@@ -15,15 +15,15 @@ enum Palette {
 
     /// The colour of a figure. [muted] is the secondary ink for amounts that are not spending or income.
     static func figure(_ tone: Tone, muted: Bool = false) -> Color {
-        if tone == Tone.orange { return orange }
-        if tone == Tone.green { return green }
+        if tone.name == "Orange" { return orange }
+        if tone.name == "Green" { return green }
         return muted ? ink2 : ink
     }
 
     /// The tint of a hero block: green or orange, grey for Ink (and so while amounts are hidden).
     static func heroTint(_ tone: Tone) -> Color {
-        if tone == Tone.orange { return orange.opacity(0.16) }
-        if tone == Tone.green { return green.opacity(0.16) }
+        if tone.name == "Orange" { return orange.opacity(0.16) }
+        if tone.name == "Green" { return green.opacity(0.16) }
         return chip
     }
 }

@@ -48,7 +48,7 @@ final class ScreensTests: XCTestCase {
         XCTAssertEqual(accounts.netWorthText, "$1,001,245.49")
         XCTAssertEqual(accounts.assetsText, "$1,001,245.49")
         XCTAssertEqual(accounts.liabilitiesText, "$0.00")
-        XCTAssertTrue(accounts.netWorthTone == Tone.green)
+        XCTAssertTrue(accounts.netWorthTone.name == "Green")
         let keysShown: [String] = accounts.groups.map { $0.key }
         XCTAssertEqual(keysShown, ["CASH_AND_BANK", "CREDIT_CARDS", "PEOPLE", "CLOSED"])
         let cash = accounts.groups[0]
@@ -57,7 +57,7 @@ final class ScreensTests: XCTestCase {
         XCTAssertEqual(cash.rows[0].amountText, "$1,001,245.49")
         let closed = accounts.groups[3]
         XCTAssertEqual(closed.rows[0].name, "Car loan")
-        XCTAssertTrue(closed.rows[0].dueKind == DueKind.closed)
+        XCTAssertTrue(closed.rows[0].dueKind.name == "Closed")
     }
 
     func testHiddenGivesTheMaskForEveryAmount() throws {
@@ -68,24 +68,24 @@ final class ScreensTests: XCTestCase {
         XCTAssertEqual(accounts.liabilitiesText, mask)
         XCTAssertEqual(accounts.receivableText, mask)
         XCTAssertEqual(accounts.payableText, mask)
-        XCTAssertTrue(accounts.netWorthTone == Tone.ink)
+        XCTAssertTrue(accounts.netWorthTone.name == "Ink")
         for group in accounts.groups {
             if group.key != "CLOSED" {
                 XCTAssertEqual(group.totalText, mask, group.key)
             }
-            XCTAssertTrue(group.totalTone == Tone.ink)
+            XCTAssertTrue(group.totalTone.name == "Ink")
             for row in group.rows {
                 if !row.amountText.isEmpty {
                     XCTAssertEqual(row.amountText, mask, row.name)
                 }
-                XCTAssertTrue(row.amountTone == Tone.ink)
-                XCTAssertTrue(row.side == PersonSide.hidden)
+                XCTAssertTrue(row.amountTone.name == "Ink")
+                XCTAssertTrue(row.side.name == "Hidden")
             }
         }
         let activity = view.activity(year: 2025, month: 12, hidden: true, todayEpochDay: GoldenFixture.today, timeZoneId: "UTC")
         XCTAssertEqual(activity.spendingText, mask)
         XCTAssertEqual(activity.incomeText, mask)
-        XCTAssertTrue(activity.incomeTone == Tone.ink)
+        XCTAssertTrue(activity.incomeTone.name == "Ink")
         for day in activity.days {
             XCTAssertEqual(day.spentText, mask)
             for entry in day.entries {

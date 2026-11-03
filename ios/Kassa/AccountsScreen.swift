@@ -115,7 +115,7 @@ struct NetWorthHero: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-                .foregroundColor(data.netWorthTone == Tone.orange ? Palette.orange : Palette.ink)
+                .foregroundColor(data.netWorthTone.name == "Orange" ? Palette.orange : Palette.ink)
             Hairline()
             HStack(alignment: .top) {
                 foot("accounts.assets", data.assetsText)

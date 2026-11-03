@@ -37,22 +37,22 @@ enum Wording {
 
     /// The small line under an account's name.
     static func note(_ row: AccountRowData) -> String? {
-        if row.note == RowNote.totalBalance { return format("accounts.totalBalance", row.noteAmountText) }
-        if row.note == RowNote.outstanding { return format("accounts.outstanding", row.noteAmountText) }
-        if row.note == RowNote.nothingToPay { return text("accounts.nothingToPay") }
-        if row.dueKind == DueKind.closed { return text("accounts.keptInHistory") }
+        if row.note.name == "TotalBalance" { return format("accounts.totalBalance", row.noteAmountText) }
+        if row.note.name == "Outstanding" { return format("accounts.outstanding", row.noteAmountText) }
+        if row.note.name == "NothingToPay" { return text("accounts.nothingToPay") }
+        if row.dueKind.name == "Closed" { return text("accounts.keptInHistory") }
         return nil
     }
 
     /// The small line under the main figure: when a payment is due, a deposit matures, an account was closed, or who owes whom.
     static func secondLine(_ row: AccountRowData) -> String? {
         let day = Int(row.dueDay)
-        if row.dueKind == DueKind.due { return format("accounts.dueOn", KassaDates.shortDate(epochDay: day)) }
-        if row.dueKind == DueKind.matures { return format("accounts.maturesOn", KassaDates.shortDate(epochDay: day)) }
-        if row.dueKind == DueKind.closed { return format("accounts.closedOn", KassaDates.shortDate(epochDay: day)) }
-        if row.side == PersonSide.owesYou { return text("accounts.owesYou") }
-        if row.side == PersonSide.youOwe { return text("accounts.youOwe") }
-        if row.side == PersonSide.settled { return text("accounts.settled") }
+        if row.dueKind.name == "Due" { return format("accounts.dueOn", KassaDates.shortDate(epochDay: day)) }
+        if row.dueKind.name == "Matures" { return format("accounts.maturesOn", KassaDates.shortDate(epochDay: day)) }
+        if row.dueKind.name == "Closed" { return format("accounts.closedOn", KassaDates.shortDate(epochDay: day)) }
+        if row.side.name == "OwesYou" { return text("accounts.owesYou") }
+        if row.side.name == "YouOwe" { return text("accounts.youOwe") }
+        if row.side.name == "Settled" { return text("accounts.settled") }
         return nil
     }
 
@@ -66,11 +66,11 @@ enum Wording {
     }
 
     static func symbol(_ kind: EntryKind) -> String {
-        if kind == EntryKind.transfer || kind == EntryKind.cardPayment { return "arrow.left.arrow.right" }
-        if kind == EntryKind.buy { return "chart.line.uptrend.xyaxis" }
-        if kind == EntryKind.sell { return "chart.line.downtrend.xyaxis" }
-        if kind == EntryKind.correction { return "slider.horizontal.3" }
-        if kind == EntryKind.personIn || kind == EntryKind.personOut { return "person" }
+        if kind.name == "Transfer" || kind.name == "CardPayment" { return "arrow.left.arrow.right" }
+        if kind.name == "Buy" { return "chart.line.uptrend.xyaxis" }
+        if kind.name == "Sell" { return "chart.line.downtrend.xyaxis" }
+        if kind.name == "Correction" { return "slider.horizontal.3" }
+        if kind.name == "PersonIn" || kind.name == "PersonOut" { return "person" }
         return "tag"
     }
 
@@ -79,13 +79,13 @@ enum Wording {
         let anAccount = text("entry.anAccount")
         let uncategorized = text("entry.uncategorized")
         var words = EntryWords(title: e.note, subtitle: "", note: "")
-        if e.kind == EntryKind.correction {
+        if e.kind.name == "Correction" {
             if words.title.isEmpty { words.title = text("entry.balanceCorrection") }
             words.subtitle = e.accountName
-        } else if e.kind == EntryKind.transfer || e.kind == EntryKind.cardPayment {
+        } else if e.kind.name == "Transfer" || e.kind.name == "CardPayment" {
             words.title = format("entry.toAccount", e.toAccountName.isEmpty ? anAccount : e.toAccountName)
             words.subtitle = format("entry.fromAccount", e.accountName.isEmpty ? anAccount : e.accountName)
-            if e.kind == EntryKind.cardPayment {
+            if e.kind.name == "CardPayment" {
                 words.note = text("entry.cardPayment")
             } else if e.countsAsSpending {
                 words.note = text("entry.countsAsSpendingTitle")
@@ -94,11 +94,11 @@ enum Wording {
             } else {
                 words.note = text("entry.transfer")
             }
-        } else if e.kind == EntryKind.buy || e.kind == EntryKind.sell {
-            words.title = format(e.kind == EntryKind.buy ? "entry.bought" : "entry.sold", e.note)
+        } else if e.kind.name == "Buy" || e.kind.name == "Sell" {
+            words.title = format(e.kind.name == "Buy" ? "entry.bought" : "entry.sold", e.note)
             words.subtitle = e.accountName
             words.note = text("entry.investing")
-        } else if e.kind == EntryKind.personIn || e.kind == EntryKind.personOut {
+        } else if e.kind.name == "PersonIn" || e.kind.name == "PersonOut" {
             if words.title.isEmpty { words.title = personTitle(e) }
             words.subtitle = e.accountName
             words.note = text("entry.settleUp")
@@ -118,7 +118,7 @@ enum Wording {
     }
 
     private static func personTitle(_ e: EntryRowData) -> String {
-        let incoming = e.kind == EntryKind.personIn
+        let incoming = e.kind.name == "PersonIn"
         if e.personName.isEmpty {
             return incoming ? text("entry.someoneCapPaidYou") : text("entry.youPaidSomeone")
         }
