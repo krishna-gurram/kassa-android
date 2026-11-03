@@ -280,7 +280,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
         val otherPeriodBudgets = budgetCount(mmBudgets.filter { !it.isTotal && it.periodType != MmBudget.MONTHLY })
         val budgets = mmBudgets.filter { !it.isTotal && it.periodType == MmBudget.MONTHLY }.mapNotNull { b ->
             val cat = catIds[b.categoryUid] ?: return@mapNotNull null
-            Budget(categoryId = cat, month = b.period, amount = Math.round(b.amount * 100))
+            Budget(categoryId = cat, month = b.period, amount = roundHalfUp(b.amount * 100))
         }.distinctBy { it.categoryId to it.month } // merged categories keep the first budget
 
         // Review items
@@ -441,9 +441,16 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
         private fun splitLeadingSymbol(text: String): Pair<CategoryIcon, String> {
             var i = 0
             while (i < text.length) {
-                val cp = text.codePointAt(i)
-                if (Character.isLetterOrDigit(cp) || Character.isWhitespace(cp)) break
-                i += Character.charCount(cp)
+                val first = text[i]
+                val pair = first.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()
+                if (pair) {
+                    val cp = 0x10000 + ((first.code - 0xD800) shl 10) + (text[i + 1].code - 0xDC00)
+                    if (isSupplementaryLetterOrDigit(cp)) break
+                    i += 2
+                } else {
+                    if (first.isLetterOrDigit() || isJavaWhitespace(first)) break
+                    i += 1
+                }
             }
             val prefix = text.substring(0, i)
             val name = text.substring(i).trim()
@@ -453,6 +460,34 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
                 else -> CategoryIcon.Emoji(prefix) to name
             }
         }
+
+        /** The same characters the JDK's Character.isWhitespace accepts (no no-break spaces), without a JDK class. */
+        private fun isJavaWhitespace(c: Char): Boolean = when (c.category) {
+            CharCategory.SPACE_SEPARATOR -> c != '\u00A0' && c != '\u2007' && c != '\u202F'
+            CharCategory.LINE_SEPARATOR, CharCategory.PARAGRAPH_SEPARATOR -> true
+            else -> c.code in 0x09..0x0D || c.code in 0x1C..0x1F
+        }
+
+        /** Letters and digits outside the BMP, by script block (close to Unicode's letter and digit set; no whitespace lives up here). */
+        private fun isSupplementaryLetterOrDigit(cp: Int): Boolean {
+            val ranges = SUPPLEMENTARY_LETTER_BLOCKS
+            var i = 0
+            while (i < ranges.size) {
+                if (cp >= ranges[i] && cp <= ranges[i + 1]) return true
+                i += 2
+            }
+            return false
+        }
+
+        private val SUPPLEMENTARY_LETTER_BLOCKS = intArrayOf(
+            0x10000, 0x100FA, 0x10280, 0x105BC, 0x10600, 0x107BA, 0x10800, 0x1089E, 0x108E0, 0x10939, 0x10980, 0x109BF,
+            0x10A00, 0x10B91, 0x10C00, 0x10D39, 0x10E80, 0x10EB1, 0x10F00, 0x11361, 0x11400, 0x114D9, 0x11580, 0x11746,
+            0x11800, 0x1182B, 0x118A0, 0x11959, 0x119A0, 0x11AF8, 0x11C00, 0x11C8F, 0x11D00, 0x11DA9, 0x11EE0, 0x11F59,
+            0x11FB0, 0x11FB0, 0x12000, 0x12399, 0x12480, 0x12543, 0x12F90, 0x13446, 0x14400, 0x14646, 0x16800, 0x16B8F,
+            0x16E40, 0x16E7F, 0x16F00, 0x16F50, 0x16F93, 0x16F9F, 0x16FE0, 0x18D08, 0x1AFF0, 0x1B2FB, 0x1BC00, 0x1BC99,
+            0x1D400, 0x1D7FF, 0x1DF00, 0x1DF2A, 0x1E030, 0x1E06D, 0x1E100, 0x1E14E, 0x1E290, 0x1E2F9, 0x1E4D0, 0x1E4F9,
+            0x1E7E0, 0x1E959, 0x1EE00, 0x1EEBB, 0x1FBF0, 0x1FBF9, 0x20000, 0x2EBE0, 0x2F800, 0x2FA1D, 0x30000, 0x323AF,
+        )
 
         /** Groups names that look like the same account: equal, or one a prefix of the other, ignoring case and spaces. */
         fun duplicateNames(names: List<String>): List<List<String>> {

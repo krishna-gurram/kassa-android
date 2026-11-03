@@ -47,9 +47,8 @@ data class Holding(
         val avg = avgCost?.let { a ->
             if (left == 0L) a
             else {
-                val restCost = BigDecimal.valueOf(this.microShares).multiply(BigDecimal.valueOf(a)) -
-                    BigDecimal.valueOf(microShares).multiply(BigDecimal.valueOf(price))
-                if (restCost.signum() > 0) restCost.divide(BigDecimal.valueOf(left), 0, RoundingMode.HALF_UP).toLong() else a
+                val restCost = BigInt.of(this.microShares) * BigInt.of(a) - BigInt.of(microShares) * BigInt.of(price)
+                if (restCost.signum() > 0) restCost.divHalfUp(BigInt.of(left)).toLongWrapped() else a
             }
         }
         return copy(microShares = left, avgCost = avg)
@@ -79,28 +78,23 @@ object Shares {
     fun parse(text: String): Long? {
         val parts = NumberText.parts(text.trim(), grouping = false) ?: return null
         if (!parts.hasDigits) return null
-        return try {
-            parts.toBigDecimal().movePointRight(DECIMALS).setScale(0, RoundingMode.HALF_UP).longValueExact().takeIf { it > 0 }
-        } catch (e: ArithmeticException) {
-            null
-        }
+        return parts.scaled(DECIMALS)?.takeIf { it > 0 }
     }
 
     /** 1,500,000 as "1.5" for showing or for a field, with the phone's decimal mark. */
-    fun format(microShares: Long): String = NumberText.toField(BigDecimal.valueOf(microShares).movePointLeft(DECIMALS))
+    fun format(microShares: Long): String = NumberText.toField(microShares, DECIMALS)
 
     /** What [microShares] cost at [price] each, rounded to the nearest minor unit. Capped at [Long.MAX_VALUE] so a typo can't wrap around. */
     fun cost(microShares: Long, price: Long): Long =
-        BigDecimal.valueOf(microShares).multiply(BigDecimal.valueOf(price)).movePointLeft(DECIMALS).setScale(0, RoundingMode.HALF_UP)
-            .min(BigDecimal.valueOf(Long.MAX_VALUE)).toLong()
+        (BigInt.of(microShares) * BigInt.of(price)).divHalfUp(MICROS).let { if (it > LONG_MAX) Long.MAX_VALUE else it.toLongWrapped() }
 
     /** For a shares field's onValueChange: digits and one decimal mark, [WHOLE_DIGITS] whole digits and [DECIMALS] decimals. */
     fun typed(raw: String): String = NumberText.fieldText(NumberText.partsForField(raw, grouping = false), WHOLE_DIGITS, DECIMALS)
 
     /** The average cost per share after adding [addShares] at [addPrice] to [shares] that averaged [avg]. */
     fun average(shares: Long, avg: Long, addShares: Long, addPrice: Long): Long {
-        val total = BigDecimal.valueOf(shares).multiply(BigDecimal.valueOf(avg)) + BigDecimal.valueOf(addShares).multiply(BigDecimal.valueOf(addPrice))
-        return total.divide(BigDecimal.valueOf(shares + addShares), 0, RoundingMode.HALF_UP).toLong()
+        val total = BigInt.of(shares) * BigInt.of(avg) + BigInt.of(addShares) * BigInt.of(addPrice)
+        return total.divHalfUp(BigInt.of(shares + addShares)).toLongWrapped()
     }
 
     fun problem(microShares: Long?): String? = if (microShares == null) "Enter how many shares." else null
@@ -115,3 +109,6 @@ data class InvestmentTransfer(
     val amount: Long,
     val epochMillis: Long,
 )
+
+private val MICROS = BigInt.of(1_000_000L)
+private val LONG_MAX = BigInt.of(Long.MAX_VALUE)

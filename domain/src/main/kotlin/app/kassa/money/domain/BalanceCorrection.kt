@@ -1,5 +1,7 @@
 package app.kassa.money.domain
 
+import kotlin.math.abs
+
 /**
  * A dated balance correction: the smallest way to make an account show what its bank or lender shows without rewriting
  * anything before it. It is an ordinary entry of kind [TxKind.ADJUST_IN] (balance goes up) or [TxKind.ADJUST_OUT]
@@ -28,7 +30,7 @@ object BalanceCorrection {
 
     /** The entry for [change] to [accountId]'s balance, or null when there is nothing to correct. */
     fun entry(id: Long, accountId: Long, change: Long, epochMillis: Long): Transaction? =
-        kindFor(change)?.let { Transaction(id = id, kind = it, amount = Math.abs(change), accountId = accountId, epochMillis = epochMillis) }
+        kindFor(change)?.let { Transaction(id = id, kind = it, amount = abs(change), accountId = accountId, epochMillis = epochMillis) }
 
     /** The figure screens show for a [balance]: what is owed for a debt (a loan, a card), the balance itself for the rest. */
     fun shownFrom(balance: Long, debt: Boolean): Long = if (debt) -balance else balance
@@ -38,7 +40,7 @@ object BalanceCorrection {
 
     /** The problem with a [change], as a message to show, or null. A correction can't be zero or beyond the largest amount. */
     fun problem(change: Long): String? =
-        if (change == 0L) "That's the balance Kassa already shows." else InputRules.amountProblem(Math.abs(change))
+        if (change == 0L) "That's the balance Kassa already shows." else InputRules.amountProblem(abs(change))
 
     /**
      * The change as the person reads it: positive when the figure shown for the account went up. A debt (a loan, a card)
@@ -63,5 +65,5 @@ object BalanceCorrection {
     }
 
     /** An arrow and the size of the change, like "↓ 24.80". */
-    fun describe(shown: Long): String = arrow(shown) + Money.format(Math.abs(shown))
+    fun describe(shown: Long): String = arrow(shown) + Money.format(abs(shown))
 }

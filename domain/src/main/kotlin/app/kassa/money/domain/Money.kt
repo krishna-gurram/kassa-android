@@ -1,9 +1,6 @@
 package app.kassa.money.domain
 
-import java.math.BigDecimal
-import java.math.RoundingMode
-import java.util.Currency
-import java.util.Locale
+import kotlin.concurrent.Volatile
 
 /**
  * One currency a phone can show. Amounts are stored as whole minor units (cents, pence, fils, paise) and are never
@@ -71,16 +68,8 @@ object Currencies {
     /** The list in the phone's alphabetical order of names, for pickers. */
     fun sorted(): List<CurrencyStyle> = all.sortedWith(Names.order { it.name })
 
-    /** The currency of [locale]'s country (en-IN gives INR), or null when the phone's region has none Kassa supports. */
-    fun forLocale(locale: Locale = Locale.getDefault()): CurrencyStyle? {
-        if (locale.country.isEmpty()) return null
-        val code = try {
-            Currency.getInstance(locale)?.currencyCode
-        } catch (e: IllegalArgumentException) {
-            null
-        }
-        return all.firstOrNull { it.code == code }
-    }
+    /** The listed currency with this ISO [code] (any case), or null when Kassa doesn't list it. The app works the code out from the phone's region. */
+    fun forCode(code: String?): CurrencyStyle? = if (code == null) null else all.firstOrNull { it.code.equals(code, ignoreCase = true) }
 }
 
 object Money {
@@ -104,20 +93,24 @@ object Money {
     /** True while amounts are hidden; screens use it to drop signs and state colors that would give a figure away. */
     val isHidden: Boolean get() = hideAmounts()
 
+    /**
+     * Asked by [numberStyle] each time. The app sets it to read the phone's language, so a language change applies at
+     * once; the default is the US style.
+     */
     @Volatile
-    private var pinned: Locale? = null
+    var numberStyleProvider: () -> NumberStyle = { NumberStyle.US }
 
-    /** The phone's language for numbers, read on every call so a language change applies at once. */
-    val locale: Locale get() = pinned ?: Locale.getDefault()
+    /** How the phone writes numbers, read on every call so a language change applies at once. */
+    val numberStyle: NumberStyle get() = numberStyleProvider()
 
-    /** Runs [block] with numbers written for [locale]; for tests that check one language's style. */
-    fun <T> withLocale(locale: Locale, block: () -> T): T {
-        val before = pinned
-        pinned = locale
+    /** Runs [block] with numbers written in [style]; for tests that check one language's style. */
+    fun <T> withStyle(style: NumberStyle, block: () -> T): T {
+        val before = numberStyleProvider
+        numberStyleProvider = { style }
         try {
             return block()
         } finally {
-            pinned = before
+            numberStyleProvider = before
         }
     }
 
@@ -129,28 +122,30 @@ object Money {
     fun parseCents(text: String): Long? {
         val parts = NumberText.parts(text.trim()) ?: return null
         if (!parts.hasDigits) return null
-        return try {
-            parts.toBigDecimal().movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
-        } catch (e: ArithmeticException) {
-            null
-        }
+        return parts.scaled(2)
     }
 
     /** Reads an amount from another app's file ("1234.5"): the point is always the decimal mark, whatever the phone's language. */
     fun parsePlain(text: String): Long? {
         val cleaned = text.trim().filter { it.isDigit() || it == '.' || it == '-' }
         if (cleaned.isEmpty() || cleaned == "-" || cleaned == ".") return null
-        return try {
-            BigDecimal(cleaned).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
-        } catch (e: NumberFormatException) {
-            null
-        } catch (e: ArithmeticException) {
-            null
+        // What is left must read as one plain number: an optional leading minus, digits, at most one point.
+        val negative = cleaned.startsWith('-')
+        val body = if (negative) cleaned.substring(1) else cleaned
+        if (body.count { it == '.' } > 1 || '-' in body) return null
+        val whole = StringBuilder()
+        val fraction = StringBuilder()
+        var afterPoint = false
+        for (ch in body) {
+            if (ch == '.') { afterPoint = true; continue }
+            (if (afterPoint) fraction else whole).append('0' + (ch.digitToIntOrNull() ?: return null))
         }
+        if (whole.isEmpty() && fraction.isEmpty()) return null
+        return Decimals.scaled(negative, whole.toString(), fraction.toString(), 2)
     }
 
     /** 1234.5 as a plain number for an input field: no symbol, no grouping, no trailing zeros, the phone's decimal mark. */
-    fun toInput(cents: Long): String = NumberText.toField(BigDecimal.valueOf(cents).movePointLeft(2))
+    fun toInput(cents: Long): String = NumberText.toField(cents, 2)
 
     /**
      * £1,234.56 or −£12.00 in the phone's currency and number style. Uses a real minus sign so negatives line up with tabular figures.
@@ -165,8 +160,7 @@ object Money {
      * what 1,234.50 looks like in each currency. Every real amount goes through [format].
      */
     fun sample(cents: Long, wholeDollars: Boolean = false, showPlus: Boolean = false, style: CurrencyStyle = this.style): String {
-        val abs = BigDecimal.valueOf(cents).abs().movePointLeft(2)
-        val number = NumberText.decimal(abs, if (wholeDollars) 0 else 2)
+        val number = NumberText.decimalOf(false, Decimals.digitsOf(cents), 2, if (wholeDollars) 0 else 2, numberStyle, false)
         val sign = when {
             cents < 0 -> "−"
             showPlus && cents > 0 -> "+"

@@ -3,6 +3,7 @@ package app.kassa.money
 import android.app.Application
 import app.kassa.money.data.CrashReport
 import app.kassa.money.data.DayClock
+import app.kassa.money.data.PlatformRules
 import app.kassa.money.data.Settings
 import app.kassa.money.data.backup.BackupRepository
 import app.kassa.money.data.db.DatabaseOpen
@@ -100,6 +101,7 @@ class KassaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        PlatformRules.install()
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, e ->
             runCatching {
