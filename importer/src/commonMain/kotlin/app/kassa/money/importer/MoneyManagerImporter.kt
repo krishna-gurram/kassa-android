@@ -176,7 +176,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
                 name = name,
                 kind = kind,
                 icon = icon,
-                color = PALETTE[perKind.merge(kind, 1, Int::plus)!!.minus(1) % PALETTE.size],
+                color = PALETTE[nextIndex(perKind, kind) % PALETTE.size],
                 countsTowardDaily = c.type != 0 && !looksLikeBill(name),
                 hidden = c.deleted,
                 sortOrder = i,
@@ -365,7 +365,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
             if (t.kind == TxKind.EXPENSE) impExp[m] = (impExp[m] ?: 0) + t.amount
             if (t.kind == TxKind.INCOME) impInc[m] = (impInc[m] ?: 0) + t.amount
         }
-        val months = (srcExp.keys + srcInc.keys + impExp.keys + impInc.keys).toSortedSet().map {
+        val months = (srcExp.keys + srcInc.keys + impExp.keys + impInc.keys).sorted().map {
             Reconcile.MonthCheck(it, srcExp[it] ?: 0, impExp[it] ?: 0, srcInc[it] ?: 0, impInc[it] ?: 0)
         }
         return Reconcile(accountChecks, months)
@@ -384,6 +384,13 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
 
     private fun transferNote(note: String, other: String?): String =
         fit(listOf(note, "Transfer with ${other ?: "a deleted account"}").filter { it.isNotBlank() }.joinToString(" · "), InputRules.NOTE_MAX)
+
+    /** How many categories of [kind] were handed out before this one (0 for the first), counting this one. */
+    private fun nextIndex(counts: MutableMap<CategoryKind, Int>, kind: CategoryKind): Int {
+        val before = counts[kind] ?: 0
+        counts[kind] = before + 1
+        return before
+    }
 
     private fun monthOf(millis: Long): YearMonth = YearMonth.from(dateOfMillis(millis, zone))
 
