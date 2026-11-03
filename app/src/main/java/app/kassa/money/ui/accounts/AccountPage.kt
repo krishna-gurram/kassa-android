@@ -121,8 +121,8 @@ fun AccountPage(
 
     var monthsBack by rememberSaveable(account.id) { mutableIntStateOf(0) }
     val period = Period.startingIn(ledger.period.yearMonth.minusMonths(monthsBack.toLong()), ledger.monthStartDay)
-    fun dateOf(t: Transaction) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
-    val earliest = history.minOfOrNull { it.epochMillis }?.let { Period.containing(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate(), ledger.monthStartDay).start }
+    fun dateOf(t: Transaction) = dateOfMillis(t.epochMillis, ledger.zone)
+    val earliest = history.minOfOrNull { it.epochMillis }?.let { Period.containing(dateOfMillis(it, ledger.zone), ledger.monthStartDay).start }
     val canGoBack = earliest != null && period.start.isAfter(earliest)
     val rows = after.filter { (t, _) -> dateOf(t) in period }
     val endBalance = balance - history.filter { dateOf(it).isAfter(period.endInclusive) }.sumOf { it.effectOn(account.id) }
@@ -274,7 +274,7 @@ private fun InvestmentBody(
     var holdingOpen by remember { mutableStateOf<Holding?>(null) }
     var pricing by rememberSaveable { mutableStateOf(false) }
     var trading by rememberSaveable { mutableStateOf(false) }
-    val months = after.groupBy { (t, _) -> YearMonth.from(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone)) }.toList()
+    val months = after.groupBy { (t, _) -> YearMonth.from(dateOfMillis(t.epochMillis, ledger.zone)) }.toList()
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
         item {

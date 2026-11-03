@@ -257,7 +257,7 @@ internal data class Licence(val name: String, val licence: String, val file: Str
 
 internal val licences = listOf(
     Licence("Android Jetpack libraries", "Apache 2.0", "apache-2.0.txt"),
-    Licence("Kotlin and kotlinx.coroutines", "Apache 2.0", "apache-2.0.txt"),
+    Licence("Kotlin, kotlinx.coroutines and kotlinx-datetime", "Apache 2.0", "apache-2.0.txt"),
     Licence("Material icons", "Apache 2.0", "apache-2.0.txt"),
     Licence("SQLCipher for Android", "BSD-style", "sqlcipher.txt"),
     Licence("Hanken Grotesk font", "SIL OFL 1.1", "ofl-1.1.txt"),

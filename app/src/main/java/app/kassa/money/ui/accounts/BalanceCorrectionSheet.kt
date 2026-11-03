@@ -75,7 +75,7 @@ fun BalanceCorrectionSheet(
     val shownWithout = BalanceCorrection.shownFrom(without, debt)
     // Typed input survives folding or rotating the phone.
     var text by rememberSaveable { mutableStateOf(editing?.let { Money.toInput(BalanceCorrection.shownFrom(now, debt)) } ?: "") }
-    var date by rememberSavedDate { editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() } ?: ledger.today }
+    var date by rememberSavedDate { editing?.let { dateOfMillis(it.epochMillis, ledger.zone) } ?: ledger.today }
     var problem by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 

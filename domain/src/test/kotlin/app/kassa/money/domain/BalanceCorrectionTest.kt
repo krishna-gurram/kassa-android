@@ -1,16 +1,16 @@
 package app.kassa.money.domain
 
-import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.junit.Test
 
 class BalanceCorrectionTest {
-    private val zone = ZoneId.of("UTC")
-    private val at = LocalDate.of(2026, 10, 20).atStartOfDay(zone).toInstant().toEpochMilli()
+    private val zone = TimeZone.of("UTC")
+    private val at = startOfDayMillis(LocalDate(2026, 10, 20), zone)
 
     private val loan = Account(id = 1, name = "Car loan", type = AccountType.LOAN, openingBalance = -2_148_000)
     private val bank = Account(id = 2, name = "Checking", type = AccountType.CHECKING, openingBalance = 100_000)
@@ -58,7 +58,7 @@ class BalanceCorrectionTest {
             assertNotNull(BalanceCorrection.entry(0, 2, 50_000, at)),
             assertNotNull(BalanceCorrection.entry(0, 2, -30_000, at)),
         )
-        val day = LocalDate.of(2026, 10, 20)
+        val day = LocalDate(2026, 10, 20)
         assertEquals(1_000, Patterns.spent(listOf(spend) + fix, day, day, zone))
         val saved = Patterns.saved(listOf(spend) + fix, day, 1, zone, count = 1)
         assertEquals(0, saved.sumOf { it.income })

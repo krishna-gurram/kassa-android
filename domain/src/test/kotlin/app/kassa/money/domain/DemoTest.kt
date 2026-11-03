@@ -1,18 +1,18 @@
 package app.kassa.money.domain
 
-import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.junit.Test
 
 class DemoTest {
     private val today = LocalDate.parse("2026-10-24")
-    private val demo = Demo.data(today, ZoneOffset.UTC)
+    private val demo = Demo.data(today, TimeZone.UTC)
 
     @Test
     fun sameSeedSameData() {
-        assertEquals(demo, Demo.data(today, ZoneOffset.UTC))
+        assertEquals(demo, Demo.data(today, TimeZone.UTC))
     }
 
     @Test
@@ -37,7 +37,7 @@ class DemoTest {
 
     @Test
     fun repeatingChargesShowUp() {
-        val repeats = Repeats.find(demo.transactions, today, ZoneOffset.UTC).map { it.name }
+        val repeats = Repeats.find(demo.transactions, today, TimeZone.UTC).map { it.name }
         assertTrue("Streaming" in repeats && "Salary" in repeats && "Electricity" in repeats, repeats.toString())
     }
 }

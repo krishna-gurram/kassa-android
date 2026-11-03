@@ -211,7 +211,7 @@ fun CategoryEditor(
             OutlinedTextField(budget, { budget = InputRules.typedAmount(it); error = null }, singleLine = true, label = { Text(stringResource(R.string.categories_budget_every_month)) }, placeholder = { Text(stringResource(R.string.categories_budget_none)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
             if (!isNew) OutlinedTextField(thisMonth, { thisMonth = InputRules.typedAmount(it); error = null }, singleLine = true,
-                label = { Text(stringResource(R.string.categories_budget_just_for, month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()))) },
+                label = { Text(stringResource(R.string.categories_budget_just_for, monthName(month))) },
                 placeholder = { Text(stringResource(R.string.categories_budget_same)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {

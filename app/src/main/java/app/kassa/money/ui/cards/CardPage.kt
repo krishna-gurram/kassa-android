@@ -206,7 +206,7 @@ fun CardPage(
         // Statement by statement: 0 is what's charged since the last statement, 1 the last statement, and so on back.
         var back by androidx.compose.runtime.saveable.rememberSaveable(id) { androidx.compose.runtime.mutableIntStateOf(0) }
         val all = (if (history.isNotEmpty()) history else ledger.recent).filter { it.accountId == id || it.toAccountId == id }
-        val oldest = all.minOfOrNull { it.epochMillis }?.let { Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate() }
+        val oldest = all.minOfOrNull { it.epochMillis }?.let { dateOfMillis(it, ledger.zone) }
         val statementDay = a.statementDay ?: 1
         var close = s.lastClose
         repeat((back - 1).coerceAtLeast(0)) { close = app.kassa.money.domain.CardCycle.previousClose(statementDay, close) }
@@ -249,7 +249,7 @@ private fun Box2(modifier: Modifier, content: @Composable () -> Unit) {
     Column(modifier.clip(RoundedCornerShape(14.dp)).background(Kassa.colors.raised.copy(alpha = 0.55f)).padding(12.dp)) { content() }
 }
 
-private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+private fun dateOf(t: Transaction, ledger: Ledger) = dateOfMillis(t.epochMillis, ledger.zone)
 
 /** The card's own default payment account, if you set one and it's still open. Nothing else is guessed. */
 private fun defaultPayFrom(c: CardSnapshotFor, ledger: Ledger): Long? =
@@ -265,7 +265,7 @@ fun PaySheet(c: CardSnapshotFor, ledger: Ledger, onDismiss: () -> Unit, onPay: (
     var other by rememberSaveable { mutableStateOf("") }
     var from by rememberSaveable { mutableStateOf(defaultPayFrom(c, ledger)) }
     var dateDay by rememberSaveable { mutableStateOf(ledger.today.toEpochDay()) }
-    val date = java.time.LocalDate.ofEpochDay(dateDay)
+    val date = localDateOfEpochDay(dateDay)
     var error by remember { mutableStateOf<String?>(null) }
     val amount = when (option) { "payable" -> s.payable; "total" -> total; else -> Money.parseCents(other) ?: 0 }
     var amountProblem by remember { mutableStateOf<String?>(null) }

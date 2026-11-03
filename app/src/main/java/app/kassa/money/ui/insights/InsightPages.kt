@@ -53,7 +53,7 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
-private fun short(m: YearMonth) = m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+private fun short(m: YearMonth) = monthName(m, full = false)
 
 /** The full view behind each Insights tile or "All" link. */
 @Composable
@@ -161,7 +161,7 @@ fun InsightDetailPage(
                 // Per weekday: what it mostly goes to and how many purchases over the 13 weeks.
                 val from = ledger.today.minusWeeks(13)
                 val byDay = ledger.counted.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
-                    .map { it to java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
+                    .map { it to dateOfMillis(it.epochMillis, ledger.zone) }
                     .filter { (_, d) -> !d.isBefore(from) && d.isBefore(ledger.today) }
                     .groupBy({ it.second.dayOfWeek }, { it.first })
                 Column {
@@ -277,7 +277,7 @@ fun DayPage(
     load: (Long, Long) -> kotlinx.coroutines.flow.Flow<List<app.kassa.money.domain.Transaction>>,
 ) {
     val loaded by androidx.compose.runtime.remember(date) {
-        load(date.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+        load(startOfDayMillis(date, ledger.zone), startOfDayMillis(date.plusDays(1), ledger.zone) - 1)
     }.collectAsState(initial = null)
     val list = (loaded ?: ledger.counted.filter { dateOf(it, ledger) == date })
         .sortedWith(compareByDescending<app.kassa.money.domain.Transaction> { it.epochMillis }.thenByDescending { it.id })

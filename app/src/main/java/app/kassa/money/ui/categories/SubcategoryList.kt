@@ -80,7 +80,7 @@ fun SubcategoryList(
     for (t in ledger.counted) {
         if (t.kind != TxKind.EXPENSE && t.kind != TxKind.INCOME) continue
         val id = t.categoryId ?: continue
-        val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+        val d = dateOfMillis(t.epochMillis, ledger.zone)
         if (d !in p) continue
         val (a, n) = figures[id] ?: (0L to 0)
         figures[id] = (a + t.categoryAmount) to (n + 1)

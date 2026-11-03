@@ -1,17 +1,17 @@
 package app.kassa.money.domain
 
-import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.junit.Test
 
 class CardCycleTest {
 
-    private val zone = ZoneOffset.UTC
-    private val today = LocalDate.of(2026, 10, 22)
+    private val zone = TimeZone.UTC
+    private val today = LocalDate(2026, 10, 22)
 
-    private fun millis(date: String) = LocalDate.parse(date).atTime(12, 0).toInstant(zone).toEpochMilli()
+    private fun millis(date: String) = millisAt(LocalDate.parse(date), 12, 0, zone)
 
     private fun card(statement: Int, due: Int) =
         Account(id = 10, name = "Card", type = AccountType.CREDIT_CARD, statementDay = statement, dueDay = due)
@@ -26,57 +26,57 @@ class CardCycleTest {
     fun dueSameMonthWhenDueDayIsAfterStatementDay() {
         // Statement closes on the 2nd, due on the 27th of the same month.
         val close = CardCycle.lastClose(2, today)
-        assertEquals(LocalDate.of(2026, 10, 2), close)
-        assertEquals(LocalDate.of(2026, 10, 27), CardCycle.dueFor(2, 27, close))
+        assertEquals(LocalDate(2026, 10, 2), close)
+        assertEquals(LocalDate(2026, 10, 27), CardCycle.dueFor(2, 27, close))
     }
 
     @Test
     fun dueNextMonthWhenDueDayIsBeforeStatementDay() {
         // Statement closes on the 9th, due on the 4th of the next month.
         val close = CardCycle.lastClose(9, today)
-        assertEquals(LocalDate.of(2026, 10, 9), close)
-        assertEquals(LocalDate.of(2026, 11, 4), CardCycle.dueFor(9, 4, close))
+        assertEquals(LocalDate(2026, 10, 9), close)
+        assertEquals(LocalDate(2026, 11, 4), CardCycle.dueFor(9, 4, close))
     }
 
     @Test
     fun dueAlwaysFallsAfterTheCloseInShortMonths() {
         // Statement on the 30th, due on the 31st: February closes on the 28th, and a due day clamped to the 28th would
         // be the close itself, so it is due in March.
-        val feb = CardCycle.lastClose(30, LocalDate.of(2026, 3, 5))
-        assertEquals(LocalDate.of(2026, 2, 28), feb)
-        assertEquals(LocalDate.of(2026, 3, 31), CardCycle.dueFor(30, 31, feb))
+        val feb = CardCycle.lastClose(30, LocalDate(2026, 3, 5))
+        assertEquals(LocalDate(2026, 2, 28), feb)
+        assertEquals(LocalDate(2026, 3, 31), CardCycle.dueFor(30, 31, feb))
         // The same card in a 31-day month keeps its same-month due date.
-        assertEquals(LocalDate.of(2026, 1, 31), CardCycle.dueFor(30, 31, LocalDate.of(2026, 1, 30)))
+        assertEquals(LocalDate(2026, 1, 31), CardCycle.dueFor(30, 31, LocalDate(2026, 1, 30)))
         // A 30-day month: statement on the 29th, due on the 30th, closes on the 29th, due the next day.
-        assertEquals(LocalDate.of(2026, 4, 30), CardCycle.dueFor(29, 30, LocalDate.of(2026, 4, 29)))
+        assertEquals(LocalDate(2026, 4, 30), CardCycle.dueFor(29, 30, LocalDate(2026, 4, 29)))
         // Statement on the 28th, due on the 30th: February closes on the 28th, due in March on the 30th.
-        assertEquals(LocalDate.of(2026, 3, 30), CardCycle.dueFor(28, 30, LocalDate.of(2026, 2, 28)))
+        assertEquals(LocalDate(2026, 3, 30), CardCycle.dueFor(28, 30, LocalDate(2026, 2, 28)))
     }
 
     @Test
     fun dueOnOrBeforeTheStatementDayIsNextMonthEvenWhenTheCloseMovedBack() {
         // Statement on the 31st, due on the 31st or the 30th: always the following month.
-        assertEquals(LocalDate.of(2026, 3, 31), CardCycle.dueFor(31, 31, LocalDate.of(2026, 2, 28)))
-        assertEquals(LocalDate.of(2026, 3, 30), CardCycle.dueFor(31, 30, LocalDate.of(2026, 2, 28)))
+        assertEquals(LocalDate(2026, 3, 31), CardCycle.dueFor(31, 31, LocalDate(2026, 2, 28)))
+        assertEquals(LocalDate(2026, 3, 30), CardCycle.dueFor(31, 30, LocalDate(2026, 2, 28)))
         // Following month shorter than the due day: clamped to its last day (January's close, February's due).
-        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.dueFor(31, 31, LocalDate.of(2026, 1, 31)))
-        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.dueFor(31, 29, LocalDate.of(2026, 1, 31)))
+        assertEquals(LocalDate(2026, 2, 28), CardCycle.dueFor(31, 31, LocalDate(2026, 1, 31)))
+        assertEquals(LocalDate(2026, 2, 28), CardCycle.dueFor(31, 29, LocalDate(2026, 1, 31)))
     }
 
     @Test
     fun leapYearFebruaryHasA29th() {
-        val close = CardCycle.lastClose(30, LocalDate.of(2028, 3, 5))
-        assertEquals(LocalDate.of(2028, 2, 29), close)
-        assertEquals(LocalDate.of(2028, 3, 31), CardCycle.dueFor(30, 31, close))
+        val close = CardCycle.lastClose(30, LocalDate(2028, 3, 5))
+        assertEquals(LocalDate(2028, 2, 29), close)
+        assertEquals(LocalDate(2028, 3, 31), CardCycle.dueFor(30, 31, close))
         // Statement on the 28th, due on the 29th: a leap February has room, a plain one does not.
-        assertEquals(LocalDate.of(2028, 2, 29), CardCycle.dueFor(28, 29, LocalDate.of(2028, 2, 28)))
-        assertEquals(LocalDate.of(2026, 3, 29), CardCycle.dueFor(28, 29, LocalDate.of(2026, 2, 28)))
+        assertEquals(LocalDate(2028, 2, 29), CardCycle.dueFor(28, 29, LocalDate(2028, 2, 28)))
+        assertEquals(LocalDate(2026, 3, 29), CardCycle.dueFor(28, 29, LocalDate(2026, 2, 28)))
     }
 
     @Test
     fun theDueDateIsAfterTheCloseForEveryDayPairInEveryMonthOfTwoYears() {
         for (year in listOf(2026, 2028)) for (m in 1..12) for (statement in 1..31) for (due in 1..31) {
-            val close = CardCycle.closeIn(java.time.YearMonth.of(year, m), statement)
+            val close = CardCycle.closeIn(YearMonth.of(year, m), statement)
             val d = CardCycle.dueFor(statement, due, close)
             assertTrue(d.isAfter(close), "statement $statement due $due close $close gave $d")
             assertTrue(d.isBefore(close.plusDays(63)), "statement $statement due $due close $close gave $d")
@@ -85,13 +85,13 @@ class CardCycleTest {
 
     @Test
     fun lastCloseRollsBackWhenThisMonthsCloseIsAhead() {
-        assertEquals(LocalDate.of(2026, 9, 29), CardCycle.lastClose(29, today))
+        assertEquals(LocalDate(2026, 9, 29), CardCycle.lastClose(29, today))
     }
 
     @Test
     fun shortMonthsUseTheirLastDay() {
-        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.closeIn(java.time.YearMonth.of(2026, 2), 31))
-        assertEquals(LocalDate.of(2026, 2, 28), CardCycle.lastClose(30, LocalDate.of(2026, 3, 5)))
+        assertEquals(LocalDate(2026, 2, 28), CardCycle.closeIn(YearMonth.of(2026, 2), 31))
+        assertEquals(LocalDate(2026, 2, 28), CardCycle.lastClose(30, LocalDate(2026, 3, 5)))
     }
 
     @Test
@@ -112,7 +112,7 @@ class CardCycleTest {
         assertEquals(37_500, s.totalBalance)
         assertEquals(7_500, s.notYetBilled)
         assertEquals(CardSnapshot.Status.PARTLY_PAID, s.status)
-        assertEquals(LocalDate.of(2026, 11, 4), s.due)
+        assertEquals(LocalDate(2026, 11, 4), s.due)
         assertEquals(13, s.daysUntilDue(today))
     }
 
@@ -199,7 +199,7 @@ class CardCycleTest {
     @Test
     fun theStatementDateStartsTheNextCycle() {
         // Statement on the 16th: the 15th is payable, the 16th is outstanding.
-        val today16 = LocalDate.of(2026, 10, 20)
+        val today16 = LocalDate(2026, 10, 20)
         val txs = listOf(charge("2026-10-15", 10_000), charge("2026-10-16", 2_500))
         val s = CardCycle.snapshot(card(16, 10), txs, today16, zone)
         assertEquals(10_000, s.payable)
@@ -208,10 +208,10 @@ class CardCycleTest {
 
     @Test
     fun onTheStatementDateItsChargesAreOutstanding() {
-        val day = LocalDate.of(2026, 10, 16)
+        val day = LocalDate(2026, 10, 16)
         val txs = listOf(charge("2026-10-15", 10_000), charge("2026-10-16", 2_500))
         val s = CardCycle.snapshot(card(16, 10), txs, day, zone)
-        assertEquals(LocalDate.of(2026, 10, 16), s.lastClose)
+        assertEquals(LocalDate(2026, 10, 16), s.lastClose)
         assertEquals(10_000, s.payable)
         assertEquals(2_500, s.outstanding)
     }

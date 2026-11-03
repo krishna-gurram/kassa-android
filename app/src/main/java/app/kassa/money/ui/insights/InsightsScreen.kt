@@ -95,7 +95,7 @@ interface InsightActions {
 @Composable
 fun InsightsScreen(ledger: Ledger, contentPadding: PaddingValues, actions: InsightActions) {
     var week by rememberSaveable { mutableStateOf(false) }
-    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val monthName = monthName(ledger.period.yearMonth)
 
     // Swipe between this week and this month, the same as tapping the toggle.
     BoxWithConstraints(Modifier.fillMaxSize().swipeShift { d -> week = d > 0 }) {
@@ -150,7 +150,7 @@ private fun FittedLines(lines: List<app.kassa.money.ui.common.CatLine>, limit: I
 
 /* ---------- month ---------- */
 
-internal fun dateOf(t: Transaction, ledger: Ledger): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+internal fun dateOf(t: Transaction, ledger: Ledger): LocalDate = dateOfMillis(t.epochMillis, ledger.zone)
 
 @Composable
 private fun MonthHero(ledger: Ledger, strip: Boolean = false) {
@@ -160,7 +160,7 @@ private fun MonthHero(ledger: Ledger, strip: Boolean = false) {
     val (from, to) = Patterns.samePointBefore(p.start, ledger.today, prev.start)
     val before = Patterns.spent(ledger.counted, from, to, ledger.zone)
     val hasBefore = ledger.counted.any { !dateOf(it, ledger).isAfter(to) && !dateOf(it, ledger).isBefore(from) }
-    val label = stringResource(R.string.insights_spent_in, p.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
+    val label = stringResource(R.string.insights_spent_in, monthName(p.yearMonth))
     if (strip) {
         // Unfolded: the total on the left and the comparison on the right, at the strip's natural height.
         app.kassa.money.ui.common.TonalHero(app.kassa.money.ui.common.HeroTone.GREY) {

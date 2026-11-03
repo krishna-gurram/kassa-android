@@ -70,7 +70,7 @@ internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate)
      */
     var accountId by mutableStateOf(editing?.accountId ?: prefill?.accountId ?: start.preset?.accountId)
     var toAccountId by mutableStateOf(editing?.toAccountId ?: prefill?.toAccountId)
-    var date by mutableStateOf(originalMillis?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: today)
+    var date by mutableStateOf(originalMillis?.let { dateOfMillis(it, zone) } ?: today)
     var note by mutableStateOf((editing?.note ?: prefill?.note ?: "").take(InputRules.NOTE_MAX))
         private set
 
@@ -136,7 +136,7 @@ internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate)
         categoryId = v[2].toLongOrNull()
         accountId = v[3].toLongOrNull()
         toAccountId = v[4].toLongOrNull()
-        v[5].toLongOrNull()?.let { date = LocalDate.ofEpochDay(it); calendarMonth = YearMonth.from(date) }
+        v[5].toLongOrNull()?.let { date = localDateOfEpochDay(it); calendarMonth = YearMonth.from(date) }
         note = v[6].take(InputRules.NOTE_MAX)
         splitPeople = v[7].split(",").mapNotNull { it.toLongOrNull() }
         paidBy = v[8].toLongOrNull()

@@ -1,9 +1,7 @@
 package app.kassa.money.domain
 
-import java.time.Instant
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * A bill that comes back every month. It never posts by itself: on its day it becomes a card on Today that asks
@@ -33,9 +31,9 @@ object RecurringRules {
         t.kind == TxKind.EXPENSE && t.categoryId == r.categoryId && Repeats.key(t.note) == Repeats.key(r.name)
 
     /** Average of the last three matching entries before [before], or the fixed amount. Null when there's no history. */
-    fun estimate(r: Recurring, history: List<Transaction>, before: LocalDate, zone: ZoneId): Long? {
+    fun estimate(r: Recurring, history: List<Transaction>, before: LocalDate, zone: TimeZone): Long? {
         r.fixedAmount?.let { return it }
-        val last = history.filter { matches(r, it) && Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate().isBefore(before) }
+        val last = history.filter { matches(r, it) && dateOfMillis(it.epochMillis, zone).isBefore(before) }
             .sortedByDescending { it.epochMillis }.take(3)
         return if (last.isEmpty()) null else Math.round(last.sumOf { it.amount }.toDouble() / last.size)
     }
@@ -47,12 +45,12 @@ object RecurringRules {
      * Whether to ask about [r] today: its day has come this month, it hasn't been handled, and nothing matching
      * was already logged this month (so a bill entered by hand never gets asked about twice).
      */
-    fun isDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: ZoneId): Boolean {
+    fun isDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: TimeZone): Boolean {
         if (!r.active) return false
         val month = YearMonth.from(today)
         if (r.handledMonth >= Budgets.key(month)) return false
         if (today.isBefore(dueDate(r, month))) return false
-        return history.none { matches(r, it) && YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) == month }
+        return history.none { matches(r, it) && YearMonth.from(dateOfMillis(it.epochMillis, zone)) == month }
     }
 
     /**
@@ -60,13 +58,13 @@ object RecurringRules {
      * logged. Null when [r] is off. How soon to show it is up to the screen: the Notifications page shows it on its
      * due day and while it is overdue, a phone notification some days ahead (see [DueNotices]).
      */
-    fun nextDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: ZoneId): LocalDate? {
+    fun nextDue(r: Recurring, history: List<Transaction>, today: LocalDate, zone: TimeZone): LocalDate? {
         if (!r.active) return null
         val now = YearMonth.from(today)
         return listOf(now, now.plusMonths(1)).map { dueDate(r, it) }.firstOrNull { due ->
             val month = YearMonth.from(due)
             r.handledMonth < Budgets.key(month) &&
-                history.none { matches(r, it) && YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) == month }
+                history.none { matches(r, it) && YearMonth.from(dateOfMillis(it.epochMillis, zone)) == month }
         }
     }
 

@@ -7,9 +7,10 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.time.LocalDate
-import java.time.ZoneId
-import java.util.TimeZone
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 /**
  * What day it is, and in which time zone, for everything that reads "today": the ledger, its query windows, Activity's current
@@ -23,7 +24,7 @@ import java.util.TimeZone
  */
 class DayClock(private val context: Context) {
     /** A day in a time zone: the pair every "today" is read from. */
-    data class Day(val today: LocalDate, val zone: ZoneId)
+    data class Day(val today: LocalDate, val zone: TimeZone)
 
     private val _day = MutableStateFlow(read())
     val day: StateFlow<Day> = _day
@@ -31,7 +32,7 @@ class DayClock(private val context: Context) {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             // The runtime keeps the zone it first read; a zone change means read it again.
-            if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) TimeZone.setDefault(null)
+            if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) java.util.TimeZone.setDefault(null)
             refresh()
         }
     }
@@ -50,7 +51,7 @@ class DayClock(private val context: Context) {
     fun refresh() { _day.value = read() }
 
     private fun read(): Day {
-        val zone = ZoneId.systemDefault()
-        return Day(LocalDate.now(zone), zone)
+        val zone = TimeZone.currentSystemDefault()
+        return Day(Clock.System.todayIn(zone), zone)
     }
 }

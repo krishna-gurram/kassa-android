@@ -5,14 +5,13 @@ import app.kassa.money.R
 import app.kassa.money.data.repo.AccountsState
 import app.kassa.money.data.repo.LoansState
 import app.kassa.money.data.repo.PeopleState
-import app.kassa.money.domain.Trade
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Budget
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.CardCycle
 import app.kassa.money.domain.CardSnapshot
-import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InvestmentTransfer
 import app.kassa.money.domain.Money
@@ -21,14 +20,15 @@ import app.kassa.money.domain.Period
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Spending
+import app.kassa.money.domain.Trade
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.WeekPace
 import app.kassa.money.domain.personBalance
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.ZoneId
 import java.time.temporal.WeekFields
 import java.util.Locale
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * One consistent snapshot of what the screens show: categories, accounts, budgets, people, bills, investments and
@@ -54,7 +54,7 @@ data class Ledger(
     val loans: LoansState,
     val monthStartDay: Int,
     val today: LocalDate,
-    val zone: ZoneId,
+    val zone: TimeZone,
 ) {
     val categoryById: Map<Long, Category> = categories.associateBy { it.id }
     val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }

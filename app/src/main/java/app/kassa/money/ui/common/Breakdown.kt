@@ -83,7 +83,7 @@ fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transa
     val got = HashMap<Long, Long>()
     for (t in txs) {
         if (t.kind != TxKind.INCOME) continue
-        val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+        val d = dateOfMillis(t.epochMillis, ledger.zone)
         if (d.isBefore(from) || d.isAfter(to)) continue
         val c = Spending.topOf(t.categoryId, ledger.categoryById) ?: continue
         got[c.id] = (got[c.id] ?: 0) + t.amount

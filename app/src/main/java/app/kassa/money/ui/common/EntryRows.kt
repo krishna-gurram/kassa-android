@@ -31,7 +31,7 @@ fun TransactionRow(
     /** Puts the date in front of the second line, for lists that aren't grouped by day. */
     showDate: Boolean = false,
 ) {
-    val date = if (showDate) Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { d ->
+    val date = if (showDate) dateOfMillis(t.epochMillis, ledger.zone).let { d ->
         (if (d.year == ledger.today.year) shortDate(d) else shortDateYear(d)) + " \u00b7 "
     } else ""
     val m = if (onClick != null) modifier.clickable { onClick(t) } else modifier

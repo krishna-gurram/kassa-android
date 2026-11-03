@@ -1,11 +1,11 @@
 package app.kassa.money.domain
 
-import java.time.LocalDate
-import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import org.junit.Test
 
 class LoanDatesTest {
     private fun day(y: Int, m: Int, d: Int) = LoanDates.epochDay(y, m, d)
@@ -19,11 +19,11 @@ class LoanDatesTest {
 
     @Test
     fun matchesTheCalendarForEveryDayForTwoHundredYears() {
-        // java.time is only the oracle here; the loan rules don't use it.
+        // kotlinx-datetime is only the oracle here; the loan rules don't use it.
         for (d in -36_500..36_500) {
-            val ld = LocalDate.ofEpochDay(d.toLong())
+            val ld = localDateOfEpochDay(d)
             val ymd = LoanDates.ymd(d)
-            assertEquals(Triple(ld.year, ld.monthValue, ld.dayOfMonth), Triple(ymd.year, ymd.month, ymd.day), "day $d")
+            assertEquals(Triple(ld.year, ld.monthNumber, ld.dayOfMonth), Triple(ymd.year, ymd.month, ymd.day), "day $d")
             assertEquals(d, LoanDates.epochDay(ymd.year, ymd.month, ymd.day))
         }
     }

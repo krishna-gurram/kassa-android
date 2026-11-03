@@ -1,14 +1,14 @@
 package app.kassa.money.domain
 
 import app.kassa.money.domain.DueNotices.Moment
-import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.junit.Test
 
 class DueNoticesTest {
     private fun day(text: String): Int = LocalDate.parse(text).toEpochDay().toInt()
@@ -159,9 +159,9 @@ class DueNoticesTest {
 
     // ---------- what is due, from the data ----------
 
-    private val zone = ZoneOffset.UTC
+    private val zone = TimeZone.UTC
     private val today = LocalDate.parse("2026-10-30")
-    private fun millis(d: String) = LocalDate.parse(d).atTime(12, 0).toInstant(zone).toEpochMilli()
+    private fun millis(d: String) = millisAt(LocalDate.parse(d), 12, 0, zone)
 
     private val creditCard = Account(id = 1, name = "Card A", type = AccountType.CREDIT_CARD, statementDay = 16, dueDay = 14)
     private val loanAccount = Account(id = 2, name = "Car loan", type = AccountType.LOAN)

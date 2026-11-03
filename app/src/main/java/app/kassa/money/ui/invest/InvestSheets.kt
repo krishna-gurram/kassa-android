@@ -176,7 +176,7 @@ fun AllocateSheet(
     var buying by rememberSaveable { mutableStateOf(false) }
     val input = rememberSaveable(saver = TradeInputSaver) { TradeInput() }
     // Most buys happen the day the money arrives, so the date starts there.
-    var date by rememberSavedDate { Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).toLocalDate() }
+    var date by rememberSavedDate { dateOfMillis(p.epochMillis, ledger.zone) }
     val existing = ledger.holdings.filter { it.accountId == p.accountId }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
@@ -432,7 +432,7 @@ fun TradeEditSheet(
 ) {
     val buy = entry.kind == TxKind.BUY
     val ticker = trade?.ticker ?: entry.note
-    val originalDate = Instant.ofEpochMilli(entry.epochMillis).atZone(zone).toLocalDate()
+    val originalDate = dateOfMillis(entry.epochMillis, zone)
     var date by rememberSavedDate { originalDate }
     val input = rememberSaveable(saver = TradeInputSaver) {
         TradeInput(ticker, trade?.let { Money.toInput(it.price) }.orEmpty(), savedTicker = ticker)

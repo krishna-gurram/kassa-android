@@ -15,8 +15,10 @@ import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.balanceOf
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.importer.MoneyManagerImporter.Companion.fit
 import app.kassa.money.importer.MoneyManagerImporter.Companion.uniqueNames
+import kotlinx.datetime.TimeZone
 
 /** What the user decides before a Cashew import: each account's kind, accounts to leave out, and what each loan is. */
 data class CashewChoices(
@@ -65,7 +67,7 @@ data class CashewScan(
  * Upcoming entries that aren't paid stay behind; monthly subscriptions among them become bills. Category limits
  * from monthly budgets become category budgets. Amounts come in unchanged, whatever the account's currency.
  */
-class CashewImporter(private val zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) {
+class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault()) {
 
     fun scan(source: CashewSource): CashewScan {
         val wallets = source.wallets().sortedBy { it.order }
@@ -303,7 +305,7 @@ class CashewImporter(private val zone: java.time.ZoneId = java.time.ZoneId.syste
             if (bills.any { it.name.equals(name, ignoreCase = true) && it.accountId == accountId }) continue
             bills += Recurring(
                 id = bills.size + 1L, name = name, categoryId = categoryId, accountId = accountId,
-                dayOfMonth = java.time.Instant.ofEpochMilli(r.epochMillis).atZone(zone).dayOfMonth, fixedAmount = kotlin.math.abs(signed),
+                dayOfMonth = dateOfMillis(r.epochMillis, zone).dayOfMonth, fixedAmount = kotlin.math.abs(signed),
             )
         }
         val repeatingPks = upcoming.filter { it.type == SUBSCRIPTION || it.type == REPETITIVE }

@@ -1,21 +1,19 @@
 package app.kassa.money.domain
 
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 
 /**
  * A budget month. Most people use the 1st, but the month can start on any day from 1 to 28,
  * for example on payday. The period is named after the calendar month it starts in.
  */
 data class Period(val start: LocalDate, val endInclusive: LocalDate) {
-    val days: Long get() = ChronoUnit.DAYS.between(start, endInclusive) + 1
+    val days: Long get() = daysBetween(start, endInclusive) + 1
     val yearMonth: YearMonth get() = YearMonth.from(start)
     operator fun contains(date: LocalDate): Boolean = !date.isBefore(start) && !date.isAfter(endInclusive)
 
     /** Share of the period that has passed, counting [today] as passed. */
     fun progress(today: LocalDate): Double =
-        ((ChronoUnit.DAYS.between(start, today) + 1).coerceIn(0, days)).toDouble() / days
+        ((daysBetween(start, today) + 1).coerceIn(0, days)).toDouble() / days
 
     companion object {
         fun startingIn(month: YearMonth, startDay: Int): Period {

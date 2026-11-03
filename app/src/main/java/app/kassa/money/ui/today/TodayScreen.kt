@@ -236,7 +236,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val rows = spendingByCategory(ledger, from, kind)
     val total = rows.sumOf { it.second }
     val top = rows.take(3)
-    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val monthName = monthName(ledger.period.yearMonth)
     var menu by remember { androidx.compose.runtime.mutableStateOf(false) }
 
     app.kassa.money.ui.common.TonalHero(if (income) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY) {
@@ -391,7 +391,7 @@ fun SpendingPage(
     // The week before is loaded too, for the weekly comparison.
     val loadFrom = if (month) from else from.minusWeeks(1)
     val loaded by remember(loadFrom, to) {
-        load(loadFrom.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), to.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+        load(startOfDayMillis(loadFrom, ledger.zone), startOfDayMillis(to.plusDays(1), ledger.zone) - 1)
     }.collectAsState(initial = null)
     val txs = loaded ?: ledger.counted
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
@@ -402,7 +402,7 @@ fun SpendingPage(
         else -> app.kassa.money.ui.common.weekLines(ledger, from, txs)
     }
     val total = entries.sumOf { it.categoryAmount }
-    val monthName = period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val monthName = monthName(period.yearMonth)
     val title = when {
         month -> stringResource(if (income) R.string.today_title_month_income else R.string.today_title_month_spending, monthName)
         back == 0 -> stringResource(if (income) R.string.today_title_this_week_income else R.string.today_title_this_week_spending)
@@ -439,5 +439,5 @@ fun SpendingPage(
     }
 }
 
-private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+private fun dateOf(t: Transaction, ledger: Ledger) = dateOfMillis(t.epochMillis, ledger.zone)
 

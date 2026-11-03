@@ -1,14 +1,16 @@
 package app.kassa.money.ui.common
 
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import java.time.LocalDate
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.toEpochDay
+import kotlinx.datetime.LocalDate
 
 /** A date kept across a fold or rotation as its epoch day, which is how Kassa stores days everywhere. */
-val LocalDateSaver: Saver<LocalDate, Long> = Saver(save = { it.toEpochDay() }, restore = { LocalDate.ofEpochDay(it) })
+val LocalDateSaver: Saver<LocalDate, Long> = Saver(save = { it.toEpochDay() }, restore = { localDateOfEpochDay(it) })
 
 /**
  * State for a date field that survives the screen being recreated. Use it like `var date by rememberSavedDate { today }`;

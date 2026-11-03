@@ -14,7 +14,10 @@ import app.kassa.money.domain.DueItem
 import app.kassa.money.domain.DueItems
 import app.kassa.money.domain.DueNotices
 import app.kassa.money.domain.QueryWindows
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.MainActivity
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,8 +25,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.time.ZoneId
-import java.time.ZonedDateTime
+import kotlinx.datetime.toKotlinLocalDate
+import kotlinx.datetime.toKotlinTimeZone
 
 /**
  * Phone notifications for payments that come due. It reads the data, finds what wants a notification now and posts it,
@@ -82,14 +85,15 @@ object DueNotifier {
         }
         val zone = ZoneId.systemDefault()
         val now = ZonedDateTime.now(zone)
-        val today = now.toLocalDate()
+        val today = now.toLocalDate().toKotlinLocalDate()
+        val kzone = zone.toKotlinTimeZone()
         val accounts = app.accounts.state.first()
         // The same window the Ledger reads: enough for card statements.
-        val history = app.entries.between(QueryWindows.recentFrom(today, zone), Long.MAX_VALUE).first()
+        val history = app.entries.between(QueryWindows.recentFrom(today, kzone), Long.MAX_VALUE).first()
         val bills = app.bills.bills.first()
         val loans = app.loans.state.first()
         val items = DueItems.build(
-            accounts.accounts, accounts.balances, history, bills, loans.terms, loans.changes, loans.payments, today, zone, forPhone = true,
+            accounts.accounts, accounts.balances, history, bills, loans.terms, loans.changes, loans.payments, today, kzone, forPhone = true,
         )
         val here = DueNotices.Moment(today.toEpochDay().toInt(), now.hour * 60 + now.minute)
         val cleared = settings.cleared.value

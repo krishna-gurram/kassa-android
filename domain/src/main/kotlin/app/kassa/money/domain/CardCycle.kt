@@ -1,8 +1,7 @@
 package app.kassa.money.domain
 
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * Statement math for a credit card.
@@ -46,7 +45,7 @@ data class CardSnapshot(
     /** Same as [totalBalance]; adds up with other debts. */
     val owed: Long get() = totalBalance
 
-    fun daysUntilDue(today: LocalDate): Long = java.time.temporal.ChronoUnit.DAYS.between(today, due)
+    fun daysUntilDue(today: LocalDate): Long = daysBetween(today, due)
 
     val status: Status
         get() = when {
@@ -108,7 +107,7 @@ object CardCycle {
         card: Account,
         transactions: Iterable<Transaction>,
         today: LocalDate,
-        zone: ZoneId,
+        zone: TimeZone,
         balance: Long? = null,
     ): CardSnapshot {
         val statementDay = requireNotNull(card.statementDay) { "${card.name} has no statement day" }
@@ -123,7 +122,7 @@ object CardCycle {
         for (t in transactions) {
             val effect = t.effectOn(card.id)
             if (effect == 0L) continue
-            val date = java.time.Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
+            val date = dateOfMillis(t.epochMillis, zone)
             // The statement covers everything up to the day before the statement date; the statement date itself
             // starts the new cycle (statement on the 16th: through the 15th is payable, the 16th on is outstanding).
             if (date.isBefore(last)) continue

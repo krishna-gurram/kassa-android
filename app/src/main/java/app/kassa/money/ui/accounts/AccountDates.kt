@@ -18,7 +18,7 @@ import java.time.format.FormatStyle
 
 /** Accounts keep a maturity or closing day as an epoch day (the rules know nothing of java.time); these convert at the edge. */
 internal fun LocalDate.accountDay(): Int = toEpochDay().toInt()
-internal fun dateOfAccountDay(day: Int): LocalDate = LocalDate.ofEpochDay(day.toLong())
+internal fun dateOfAccountDay(day: Int): LocalDate = localDateOfEpochDay(day.toLong())
 
 /** "Mar 18, 2027" in the phone's language and order. */
 internal fun accountDate(day: Int): String = dateOfAccountDay(day).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))

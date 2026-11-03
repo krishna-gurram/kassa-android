@@ -5,7 +5,7 @@ import java.math.MathContext
 import java.math.RoundingMode
 
 /*
- * Loans that know their terms. Plain Kotlin, no Android and no java.time: dates are epoch days (see LoanDates),
+ * Loans that know their terms. Plain Kotlin, no Android and no platform date classes: dates are epoch days (see LoanDates),
  * amounts are whole minor units in a Long, and rates are Longs in 1/10000 of a percent (6.125% is 61,250).
  *
  * Rounding rule used everywhere: interest is rounded half-up to the minor unit, principal is the remainder, so the

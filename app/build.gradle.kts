@@ -81,6 +81,7 @@ ksp {
 dependencies {
     implementation(project(":domain"))
     implementation(project(":importer"))
+    implementation(libs.kotlinx.datetime)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)

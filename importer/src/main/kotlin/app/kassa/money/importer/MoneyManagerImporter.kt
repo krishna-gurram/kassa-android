@@ -11,10 +11,10 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
 import app.kassa.money.domain.balanceOf
-import java.time.Instant
-import java.time.YearMonth
-import java.time.ZoneId
+import app.kassa.money.domain.dateOfMillis
+import kotlinx.datetime.TimeZone
 
 /**
  * Everything an import would write, plus what the review screen shows before anything is saved.
@@ -97,7 +97,7 @@ data class Reconcile(
     val allMatch: Boolean get() = accounts.all { it.matches } && months.all { it.matches }
 }
 
-class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
+class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDefault()) {
 
     fun plan(source: MoneyManagerSource): ImportPlan {
         val skipped = mutableListOf<ImportIssue>()
@@ -384,7 +384,7 @@ class MoneyManagerImporter(private val zone: ZoneId = ZoneId.systemDefault()) {
     private fun transferNote(note: String, other: String?): String =
         fit(listOf(note, "Transfer with ${other ?: "a deleted account"}").filter { it.isNotBlank() }.joinToString(" · "), InputRules.NOTE_MAX)
 
-    private fun monthOf(millis: Long): YearMonth = YearMonth.from(Instant.ofEpochMilli(millis).atZone(zone))
+    private fun monthOf(millis: Long): YearMonth = YearMonth.from(dateOfMillis(millis, zone))
 
     private fun mirrors(out: MmTransaction, inRow: MmTransaction): Boolean =
         out.amount == inRow.amount && out.epochMillis == inRow.epochMillis &&

@@ -142,7 +142,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             onOpenStore = { app.push(Page.Store(it)) }, onEdit = app.editFromPage,
         )
         is Page.Store -> InsightStorePage(l, page.name, padding, onBack, onEdit = app.editFromPage)
-        is Page.Day -> DayPage(l, LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween)
+        is Page.Day -> DayPage(l, localDateOfEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween)
         is Page.Spending -> SpendingPage(
             l, page.month, page.income, padding, onBack, load = vm::countedBetween,
             onOpenCategory = { id, monthsBack -> app.push(Page.CategoryDetail(id, monthsBack)) },

@@ -70,7 +70,7 @@ import java.time.LocalDate
 
 /** Loan screens keep dates as epoch days (the rules know nothing of java.time); these convert at the edge. */
 internal fun LocalDate.loanDay(): Int = toEpochDay().toInt()
-internal fun dateOfLoanDay(day: Int): LocalDate = LocalDate.ofEpochDay(day.toLong())
+internal fun dateOfLoanDay(day: Int): LocalDate = localDateOfEpochDay(day.toLong())
 
 /** "Nov 2030", in the phone's language. */
 internal fun monthYear(day: Int): String = monthYearShort(YearMonth.from(dateOfLoanDay(day)))

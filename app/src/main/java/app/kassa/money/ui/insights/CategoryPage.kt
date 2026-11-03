@@ -83,11 +83,11 @@ fun CategoryPage(
     // Six months ending at the one shown, so the bars and the month before are always loaded.
     val first = Period.startingIn(p.yearMonth.minusMonths(5), ledger.monthStartDay)
     val loaded by remember(first.start, current.endInclusive) {
-        load(first.start.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), current.endInclusive.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+        load(startOfDayMillis(first.start, ledger.zone), startOfDayMillis(current.endInclusive.plusDays(1), ledger.zone) - 1)
     }.collectAsState(initial = null)
     val txs = loaded ?: ledger.counted
     val ids = ledger.categories.filter { it.id == c.id || it.parentId == c.id }.map { it.id }.toSet()
-    fun inPeriod(t: Transaction, q: Period) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate().let { it in q }
+    fun inPeriod(t: Transaction, q: Period) = dateOfMillis(t.epochMillis, ledger.zone).let { it in q }
     val kind = if (c.kind == app.kassa.money.domain.CategoryKind.INCOME) TxKind.INCOME else TxKind.EXPENSE
     val mine = txs.filter { it.kind == kind && it.categoryId in ids }
     val entries = mine.filter { inPeriod(it, p) }.sortedByDescending { it.epochMillis }
@@ -99,7 +99,7 @@ fun CategoryPage(
     val months = (5 downTo 0).map { i -> Period.startingIn(p.yearMonth.minusMonths(i.toLong()), ledger.monthStartDay) }
     val totals = months.map { q -> mine.filter { inPeriod(it, q) }.sumOf { it.categoryAmount } }
     val prevTotal = totals[4]
-    val monthName = { q: Period -> q.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) }
+    val monthName = { q: Period -> monthName(q.yearMonth) }
 
     Column(Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(c.name, onBack)
@@ -134,7 +134,7 @@ fun CategoryPage(
                     Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.BottomCenter) {
                         Box(Modifier.fillMaxWidth().fillMaxHeight((totals[i].toFloat() / max).coerceIn(0.02f, 1f)).clip(RoundedCornerShape(6.dp)).background(if (sel) Color(c.color) else Kassa.colors.track))
                     }
-                    Text(q.yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = if (sel) Kassa.colors.ink else Kassa.colors.ink2)
+                    Text(monthName(q.yearMonth, full = false), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = if (sel) Kassa.colors.ink else Kassa.colors.ink2)
                 }
             }
         }

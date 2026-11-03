@@ -6,20 +6,21 @@ import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.balanceOf
 import app.kassa.money.domain.personBalance
-import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
+import app.kassa.money.domain.startOfDayMillis
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.junit.Test
 
 /** Synthetic Cashew backups shaped like Cashew's real tables. No real data. */
 class CashewImporterTest {
-    private val zone = ZoneOffset.UTC
+    private val zone = TimeZone.UTC
     private val importer = CashewImporter(zone)
 
-    private fun day(d: Int, month: Int = 10) = LocalDate.of(2026, month, d).atStartOfDay(zone).toInstant().toEpochMilli()
+    private fun day(d: Int, month: Int = 10) = startOfDayMillis(LocalDate(2026, month, d), zone)
 
     private class Fake(
         val wallets: List<CwWallet> = listOf(CwWallet("w1", "Everyday", null, 0)),

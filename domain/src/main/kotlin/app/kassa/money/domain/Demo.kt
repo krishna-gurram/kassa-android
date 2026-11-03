@@ -1,9 +1,9 @@
 package app.kassa.money.domain
 
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.random.Random
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /** A made-up household for screenshots and walkthroughs. Same seed, same data; nothing here is anyone's real money. */
 data class DemoData(
@@ -28,7 +28,7 @@ object Demo {
     private const val CASH = 4L
     private const val BROKERAGE = 5L
 
-    fun data(today: LocalDate, zone: ZoneId, days: Long = 120): DemoData {
+    fun data(today: LocalDate, zone: TimeZone, days: Long = 120): DemoData {
         val rnd = Random(7)
         val start = today.minusDays(days)
 
@@ -66,7 +66,7 @@ object Demo {
         fun sub(parent: Long, name: String) = cats.first { it.parentId == parent && it.name == name }.id
 
         val txs = mutableListOf<Transaction>()
-        fun at(d: LocalDate, hour: Int = 12) = d.atTime(hour, rnd.nextInt(0, 59)).atZone(zone).toInstant().toEpochMilli()
+        fun at(d: LocalDate, hour: Int = 12) = millisAt(d, hour, rnd.nextInt(0, 59), zone)
         fun spend(d: LocalDate, cents: Long, cat: Long, note: String, account: Long = CARD) =
             txs.add(Transaction(kind = TxKind.EXPENSE, amount = cents, accountId = account, categoryId = cat, epochMillis = at(d), note = note))
         fun between(lo: Int, hi: Int) = rnd.nextLong(lo * 100L, hi * 100L)
@@ -85,7 +85,7 @@ object Demo {
             if (d.dayOfMonth == 2) txs += Transaction(kind = TxKind.TRANSFER, amount = 30_000, accountId = CHECKING, toAccountId = SAVINGS, epochMillis = at(d, 9), note = "Savings")
             if (d.dayOfMonth == 28) txs += Transaction(kind = TxKind.INCOME, amount = between(10, 14), accountId = SAVINGS, categoryId = interest, epochMillis = at(d, 6), note = "Interest")
             // Paid every other Friday.
-            if (d.dayOfWeek == DayOfWeek.FRIDAY && java.time.temporal.ChronoUnit.DAYS.between(start, d) / 7 % 2 == 0L)
+            if (d.dayOfWeek == DayOfWeek.FRIDAY && daysBetween(start, d) / 7 % 2 == 0L)
                 txs += Transaction(kind = TxKind.INCOME, amount = 248_000, accountId = CHECKING, categoryId = salary, epochMillis = at(d, 8), note = "Salary")
             // Everyday spending.
             if (d.dayOfWeek in setOf(DayOfWeek.WEDNESDAY, DayOfWeek.SATURDAY)) spend(d, between(40, 140), groceries, if (rnd.nextBoolean()) "Corner market" else "Warehouse store")

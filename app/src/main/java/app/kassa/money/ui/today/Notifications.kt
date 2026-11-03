@@ -124,14 +124,14 @@ fun notices(ledger: Ledger): List<Notice> {
         ledger.accounts.accounts, ledger.accounts.balances, ledger.recent, ledger.bills,
         ledger.loans.terms, ledger.loans.changes, ledger.loans.payments, ledger.today, ledger.zone,
     ).filter { DueNotices.isWaiting(it, today) }.mapNotNull { item ->
-        val day = LocalDate.ofEpochDay(item.dueDay.toLong())
+        val day = localDateOfEpochDay(item.dueDay.toLong())
         when (item.kind) {
             DueKind.CARD -> cards[item.id]?.let { Notice.Card(it) }
             DueKind.LOAN -> ledger.accountById[item.id]?.let { Notice.Loan(it, day, item.amount ?: 0L) }
             DueKind.BILL -> ledger.bills.firstOrNull { it.id == item.id }?.let { Notice.Bill(it, day) }
         }
     }
-    val transfers = ledger.transfers.map { Notice.Transfer(it, Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate()) }
+    val transfers = ledger.transfers.map { Notice.Transfer(it, dateOfMillis(it.epochMillis, ledger.zone)) }
     val billKeys = ledger.bills.map { Repeats.key(it.name) }.toSet()
     val suggestions = ledger.repeats
         .filter { it.steadyMonthly && it.key !in billKeys && ledger.categoryById[it.categoryId]?.hidden == false }
