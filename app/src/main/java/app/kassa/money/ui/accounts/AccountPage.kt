@@ -41,7 +41,12 @@ import app.kassa.money.domain.Period
 import app.kassa.money.domain.Shares
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.daysBetween
 import app.kassa.money.domain.effectOn
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.minusMonths
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.GlyphBadge
@@ -71,9 +76,6 @@ import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
 import java.math.BigDecimal
-import java.time.Instant
-import java.time.YearMonth
-import java.time.temporal.ChronoUnit
 
 /**
  * One account, built like the card page: a summary with two equal boxes, then the details.
@@ -121,8 +123,8 @@ fun AccountPage(
 
     var monthsBack by rememberSaveable(account.id) { mutableIntStateOf(0) }
     val period = Period.startingIn(ledger.period.yearMonth.minusMonths(monthsBack.toLong()), ledger.monthStartDay)
-    fun dateOf(t: Transaction) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
-    val earliest = history.minOfOrNull { it.epochMillis }?.let { Period.containing(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate(), ledger.monthStartDay).start }
+    fun dateOf(t: Transaction) = dateOfMillis(t.epochMillis, ledger.zone)
+    val earliest = history.minOfOrNull { it.epochMillis }?.let { Period.containing(dateOfMillis(it, ledger.zone), ledger.monthStartDay).start }
     val canGoBack = earliest != null && period.start.isAfter(earliest)
     val rows = after.filter { (t, _) -> dateOf(t) in period }
     val endBalance = balance - history.filter { dateOf(it).isAfter(period.endInclusive) }.sumOf { it.effectOn(account.id) }
@@ -274,7 +276,7 @@ private fun InvestmentBody(
     var holdingOpen by remember { mutableStateOf<Holding?>(null) }
     var pricing by rememberSaveable { mutableStateOf(false) }
     var trading by rememberSaveable { mutableStateOf(false) }
-    val months = after.groupBy { (t, _) -> YearMonth.from(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone)) }.toList()
+    val months = after.groupBy { (t, _) -> YearMonth.from(dateOfMillis(t.epochMillis, ledger.zone)) }.toList()
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
         item {
@@ -304,9 +306,9 @@ private fun InvestmentBody(
                 }
                 status()
                 if (holdings.isNotEmpty()) {
-                    val oldest = Instant.ofEpochMilli(holdings.minOf { it.priceMillis }).atZone(ledger.zone)
-                    val days = ChronoUnit.DAYS.between(oldest.toLocalDate(), ledger.today)
-                    SectionHeader(stringResource(R.string.accounts_holdings_header), if (days > 14) stringResource(R.string.accounts_prices_days_old, days) else stringResource(R.string.accounts_prices_from, shortDate(oldest.toLocalDate())))
+                    val oldest = dateOfMillis(holdings.minOf { it.priceMillis }, ledger.zone)
+                    val days = daysBetween(oldest, ledger.today)
+                    SectionHeader(stringResource(R.string.accounts_holdings_header), if (days > 14) stringResource(R.string.accounts_prices_days_old, days) else stringResource(R.string.accounts_prices_from, shortDate(oldest)))
                     holdings.forEachIndexed { i, h -> HoldingRow(h, showDivider = i < holdings.lastIndex) { holdingOpen = h } }
                     TextButton(onClick = { holdingOpen = newHolding() }) { Text(stringResource(R.string.accounts_add_shares_you_own), color = Kassa.colors.ink) }
                 }

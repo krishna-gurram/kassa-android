@@ -35,6 +35,7 @@ import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.domain.isBefore
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.LocalSettings

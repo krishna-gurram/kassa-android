@@ -1,15 +1,14 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import org.junit.Test
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class PlanningTest {
-    private val zone = ZoneOffset.UTC
-    private fun at(d: String) = LocalDate.parse(d).atTime(10, 0).toInstant(zone).toEpochMilli()
+    private val zone = TimeZone.UTC
+    private fun at(d: String) = millisAt(LocalDate.parse(d), 10, 0, zone)
 
     private val groceries = Category(id = 1, name = "Groceries", kind = CategoryKind.EXPENSE, color = 0)
     private val costco = Category(id = 2, name = "Store C", kind = CategoryKind.EXPENSE, parentId = 1, color = 0)

@@ -28,11 +28,15 @@ import app.kassa.money.domain.Period
 import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.minusWeeks
+import app.kassa.money.domain.plusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /*
  * The one way the app lists categories with amounts: Overview's spending page, Insights, Activity's month pane.
@@ -83,7 +87,7 @@ fun incomeLines(ledger: Ledger, from: LocalDate, to: LocalDate, txs: List<Transa
     val got = HashMap<Long, Long>()
     for (t in txs) {
         if (t.kind != TxKind.INCOME) continue
-        val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+        val d = dateOfMillis(t.epochMillis, ledger.zone)
         if (d.isBefore(from) || d.isAfter(to)) continue
         val c = Spending.topOf(t.categoryId, ledger.categoryById) ?: continue
         got[c.id] = (got[c.id] ?: 0) + t.amount

@@ -34,6 +34,7 @@ import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.domain.effectOn
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.cards.cardMoney
@@ -47,7 +48,6 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
 
 /**
  * Make an account show the balance its bank or lender shows, with a dated balance correction (see [BalanceCorrection]):
@@ -75,7 +75,7 @@ fun BalanceCorrectionSheet(
     val shownWithout = BalanceCorrection.shownFrom(without, debt)
     // Typed input survives folding or rotating the phone.
     var text by rememberSaveable { mutableStateOf(editing?.let { Money.toInput(BalanceCorrection.shownFrom(now, debt)) } ?: "") }
-    var date by rememberSavedDate { editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() } ?: ledger.today }
+    var date by rememberSavedDate { editing?.let { dateOfMillis(it.epochMillis, ledger.zone) } ?: ledger.today }
     var problem by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 

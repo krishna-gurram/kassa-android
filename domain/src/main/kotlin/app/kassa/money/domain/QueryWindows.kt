@@ -1,8 +1,7 @@
 package app.kassa.money.domain
 
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * The time windows the app reads entries for, worked out from "today" and the phone's zone. Plain Kotlin, so the day
@@ -17,16 +16,16 @@ object QueryWindows {
     const val HISTORY_DAYS = 800L
 
     /** The first moment of [day] in [zone], in epoch milliseconds (a day that starts in a daylight saving gap starts after it). */
-    fun startOf(day: LocalDate, zone: ZoneId): Long = day.atStartOfDay(zone).toInstant().toEpochMilli()
+    fun startOf(day: LocalDate, zone: TimeZone): Long = startOfDayMillis(day, zone)
 
     /** From where the recent window reads: the start of the day [RECENT_DAYS] before [today]. */
-    fun recentFrom(today: LocalDate, zone: ZoneId): Long = startOf(today.minusDays(RECENT_DAYS), zone)
+    fun recentFrom(today: LocalDate, zone: TimeZone): Long = startOf(today.minusDays(RECENT_DAYS), zone)
 
     /** From where the repeating-charges window reads. */
-    fun historyFrom(today: LocalDate, zone: ZoneId): Long = startOf(today.minusDays(HISTORY_DAYS), zone)
+    fun historyFrom(today: LocalDate, zone: TimeZone): Long = startOf(today.minusDays(HISTORY_DAYS), zone)
 
     /** The first and last millisecond of [month] in [zone]. */
-    fun monthRange(month: YearMonth, zone: ZoneId): LongRange =
+    fun monthRange(month: YearMonth, zone: TimeZone): LongRange =
         startOf(month.atDay(1), zone)..(startOf(month.plusMonths(1).atDay(1), zone) - 1)
 
     /**

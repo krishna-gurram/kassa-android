@@ -1,11 +1,8 @@
 package app.kassa.money.domain
 
-import java.time.DayOfWeek
-import java.time.Instant
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * What already happened, counted from your entries: no forecasts and no averages that a payday spree would skew.
@@ -35,15 +32,15 @@ object Patterns {
     /** Under this counts as a small purchase; it follows the phone's currency. */
     val SMALL_LIMIT: Long get() = Money.style.smallLimit
 
-    private fun dateOf(t: Transaction, zone: ZoneId): LocalDate = Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
+    private fun dateOf(t: Transaction, zone: TimeZone): LocalDate = dateOfMillis(t.epochMillis, zone)
 
     /** Every expense between two dates, inclusive. */
-    fun spent(transactions: Iterable<Transaction>, from: LocalDate, to: LocalDate, zone: ZoneId): Long =
+    fun spent(transactions: Iterable<Transaction>, from: LocalDate, to: LocalDate, zone: TimeZone): Long =
         transactions.filter { it.kind == TxKind.EXPENSE }.filter { dateOf(it, zone).let { d -> !d.isBefore(from) && !d.isAfter(to) } }.sumOf { it.categoryAmount }
 
     /** The same stretch of the period before: Oct 1 to 22 becomes Sep 1 to 22, Monday to Thursday becomes last Monday to Thursday. */
     fun samePointBefore(start: LocalDate, today: LocalDate, previousStart: LocalDate): Pair<LocalDate, LocalDate> {
-        val span = ChronoUnit.DAYS.between(start, today)
+        val span = daysBetween(start, today)
         val end = previousStart.plusDays(span).let { if (!it.isBefore(start)) start.minusDays(1) else it }
         return previousStart to end
     }
@@ -52,20 +49,20 @@ object Patterns {
     fun weekStart(date: LocalDate, firstDay: DayOfWeek = DayOfWeek.MONDAY): LocalDate = WeekPace.startOf(date, firstDay)
 
     /** Expenses per day this week so far, from the first day of the week. Days after today are null. */
-    fun daysThisWeek(transactions: Iterable<Transaction>, today: LocalDate, zone: ZoneId, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<Pair<LocalDate, Long?>> {
+    fun daysThisWeek(transactions: Iterable<Transaction>, today: LocalDate, zone: TimeZone, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<Pair<LocalDate, Long?>> {
         val start = weekStart(today, firstDay)
         val sums = LongArray(7)
         for (t in transactions) {
             if (t.kind != TxKind.EXPENSE) continue
             val d = dateOf(t, zone)
             if (d.isBefore(start) || d.isAfter(today)) continue
-            sums[ChronoUnit.DAYS.between(start, d).toInt()] += t.categoryAmount
+            sums[daysBetween(start, d).toInt()] += t.categoryAmount
         }
         return (0 until 7).map { i -> start.plusDays(i.toLong()).let { d -> d to (if (d.isAfter(today)) null else sums[i]) } }
     }
 
     /** Income against spending for the last [count] budget months; the current one runs to today. */
-    fun saved(transactions: Iterable<Transaction>, today: LocalDate, monthStartDay: Int, zone: ZoneId, count: Int = 4): List<SavedMonth> {
+    fun saved(transactions: Iterable<Transaction>, today: LocalDate, monthStartDay: Int, zone: TimeZone, count: Int = 4): List<SavedMonth> {
         val current = Period.containing(today, monthStartDay)
         return (count - 1 downTo 0).map { i ->
             val p = Period.startingIn(current.yearMonth.minusMonths(i.toLong()), monthStartDay)
@@ -94,7 +91,7 @@ object Patterns {
     }
 
     /** Where the money went by store (the entry's note), largest first. */
-    fun stores(transactions: Iterable<Transaction>, byId: Map<Long, Category>, from: LocalDate, to: LocalDate, zone: ZoneId): List<Store> =
+    fun stores(transactions: Iterable<Transaction>, byId: Map<Long, Category>, from: LocalDate, to: LocalDate, zone: TimeZone): List<Store> =
         transactions.filter { it.kind == TxKind.EXPENSE && it.note.isNotBlank() && dateOf(it, zone).let { d -> !d.isBefore(from) && !d.isAfter(to) } }
             .groupBy { it.note.trim().lowercase() }
             .map { (_, list) ->
@@ -105,7 +102,7 @@ object Patterns {
             .sortedByDescending { it.total }
 
     /** Buys under [limit] between two dates: how many, how much, and in which categories. */
-    fun smallBuys(transactions: Iterable<Transaction>, byId: Map<Long, Category>, from: LocalDate, to: LocalDate, zone: ZoneId, limit: Long = SMALL_LIMIT): SmallBuys {
+    fun smallBuys(transactions: Iterable<Transaction>, byId: Map<Long, Category>, from: LocalDate, to: LocalDate, zone: TimeZone, limit: Long = SMALL_LIMIT): SmallBuys {
         val list = transactions.filter { it.kind == TxKind.EXPENSE && it.categoryAmount in 1 until limit && dateOf(it, zone).let { d -> !d.isBefore(from) && !d.isAfter(to) } }
         val byCat = list.groupBy { Spending.topOf(it.categoryId, byId) }
             .mapNotNull { (c, l) -> c?.let { Triple(it, l.sumOf { t -> t.categoryAmount }, l.size) } }
@@ -114,7 +111,7 @@ object Patterns {
     }
 
     /** Small-buy totals for the last [count] budget months, the current one to today. */
-    fun smallBuysByMonth(transactions: Iterable<Transaction>, byId: Map<Long, Category>, today: LocalDate, monthStartDay: Int, zone: ZoneId, count: Int = 4): List<Pair<YearMonth, Long>> {
+    fun smallBuysByMonth(transactions: Iterable<Transaction>, byId: Map<Long, Category>, today: LocalDate, monthStartDay: Int, zone: TimeZone, count: Int = 4): List<Pair<YearMonth, Long>> {
         val current = Period.containing(today, monthStartDay)
         return (count - 1 downTo 0).map { i ->
             val p = Period.startingIn(current.yearMonth.minusMonths(i.toLong()), monthStartDay)
@@ -126,7 +123,7 @@ object Patterns {
      * Categories that went up every month over the last [months] completed budget months, by at least 20% and $50
      * overall. The current month isn't counted because it isn't over.
      */
-    fun creeping(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, monthStartDay: Int, zone: ZoneId, months: Int = 3): List<Creep> {
+    fun creeping(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, monthStartDay: Int, zone: TimeZone, months: Int = 3): List<Creep> {
         val byId = categories.associateBy { it.id }
         val current = Period.containing(today, monthStartDay)
         val periods = (months downTo 1).map { Period.startingIn(current.yearMonth.minusMonths(it.toLong()), monthStartDay) }
@@ -144,7 +141,7 @@ object Patterns {
     }
 
     /** This week so far against the same days last week, per top category. */
-    fun weekChanges(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, zone: ZoneId, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<CategoryChange> {
+    fun weekChanges(transactions: List<Transaction>, categories: List<Category>, today: LocalDate, zone: TimeZone, firstDay: DayOfWeek = DayOfWeek.MONDAY): List<CategoryChange> {
         val byId = categories.associateBy { it.id }
         val monday = weekStart(today, firstDay)
         val (from, to) = samePointBefore(monday, today, monday.minusWeeks(1))

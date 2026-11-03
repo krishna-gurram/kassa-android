@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.R
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.ui.common.figureColor
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InputRules
@@ -61,9 +62,8 @@ import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /*
  * Sheets for investment accounts. Kassa never looks prices up: every price here is typed by you.
@@ -176,7 +176,7 @@ fun AllocateSheet(
     var buying by rememberSaveable { mutableStateOf(false) }
     val input = rememberSaveable(saver = TradeInputSaver) { TradeInput() }
     // Most buys happen the day the money arrives, so the date starts there.
-    var date by rememberSavedDate { Instant.ofEpochMilli(p.epochMillis).atZone(ledger.zone).toLocalDate() }
+    var date by rememberSavedDate { dateOfMillis(p.epochMillis, ledger.zone) }
     val existing = ledger.holdings.filter { it.accountId == p.accountId }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Kassa.colors.raised) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 20.dp)) {
@@ -371,7 +371,7 @@ fun TradeSheet(
     holdings: List<Holding>,
     cash: Long,
     today: LocalDate,
-    zone: ZoneId,
+    zone: TimeZone,
     onBuy: (TradeOrder) -> Unit,
     onSell: (TradeOrder) -> Unit,
     onDismiss: () -> Unit,
@@ -424,7 +424,7 @@ fun TradeEditSheet(
     entry: Transaction,
     trade: Trade?,
     today: LocalDate,
-    zone: ZoneId,
+    zone: TimeZone,
     onSave: (TradeOrder) -> Unit,
     onMove: (Long) -> Unit,
     onDelete: () -> Unit,
@@ -432,7 +432,7 @@ fun TradeEditSheet(
 ) {
     val buy = entry.kind == TxKind.BUY
     val ticker = trade?.ticker ?: entry.note
-    val originalDate = Instant.ofEpochMilli(entry.epochMillis).atZone(zone).toLocalDate()
+    val originalDate = dateOfMillis(entry.epochMillis, zone)
     var date by rememberSavedDate { originalDate }
     val input = rememberSaveable(saver = TradeInputSaver) {
         TradeInput(ticker, trade?.let { Money.toInput(it.price) }.orEmpty(), savedTicker = ticker)

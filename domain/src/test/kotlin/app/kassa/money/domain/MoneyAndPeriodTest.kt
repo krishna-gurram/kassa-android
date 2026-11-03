@@ -1,8 +1,7 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
 import org.junit.Test
-import java.time.LocalDate
-import java.time.YearMonth
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
@@ -26,9 +25,9 @@ class MoneyAndPeriodTest {
 
     @Test
     fun periodWithCustomStartDay() {
-        val p = Period.containing(LocalDate.of(2026, 10, 3), startDay = 15)
-        assertEquals(LocalDate.of(2026, 9, 15), p.start)
-        assertEquals(LocalDate.of(2026, 10, 14), p.endInclusive)
+        val p = Period.containing(LocalDate(2026, 10, 3), startDay = 15)
+        assertEquals(LocalDate(2026, 9, 15), p.start)
+        assertEquals(LocalDate(2026, 10, 14), p.endInclusive)
         assertEquals(YearMonth.of(2026, 9), p.yearMonth)
     }
 

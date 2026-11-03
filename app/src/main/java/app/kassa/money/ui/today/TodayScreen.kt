@@ -52,6 +52,15 @@ import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.WeekPace
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.minusMonths
+import app.kassa.money.domain.minusWeeks
+import app.kassa.money.domain.monthsBetween
+import app.kassa.money.domain.plusDays
+import app.kassa.money.domain.startOfDayMillis
+import app.kassa.money.ui.common.monthLabel
 import app.kassa.money.ui.common.monthYear
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.Ledger
@@ -68,11 +77,7 @@ import app.kassa.money.ui.common.TransactionRow
 import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
-import java.time.format.TextStyle
-import java.time.temporal.ChronoUnit
-import java.time.temporal.WeekFields
-import java.util.Locale
+import kotlinx.datetime.LocalDate
 import app.kassa.money.ui.theme.scaledSp
 
 /** Account types that count as cash and bank on Today. */
@@ -83,7 +88,7 @@ fun weekPace(ledger: Ledger): WeekPace.Result =
 
 /** How many things are waiting to be confirmed: bank alerts, investment transfers and bills due. */
 /** A card payment or a recurring bill coming up. [accountId] is set for card payments. */
-data class Upcoming(val date: java.time.LocalDate, val name: String, @StringRes val kind: Int, val amount: Long?, val accountId: Long?)
+data class Upcoming(val date: LocalDate, val name: String, @StringRes val kind: Int, val amount: Long?, val accountId: Long?)
 
 fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
     val until = ledger.today.plusDays(days)
@@ -236,7 +241,7 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
     val rows = spendingByCategory(ledger, from, kind)
     val total = rows.sumOf { it.second }
     val top = rows.take(3)
-    val monthName = ledger.period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val monthName = monthLabel(ledger.period.yearMonth)
     var menu by remember { androidx.compose.runtime.mutableStateOf(false) }
 
     app.kassa.money.ui.common.TonalHero(if (income) app.kassa.money.ui.common.HeroTone.GREEN else app.kassa.money.ui.common.HeroTone.GREY) {
@@ -364,7 +369,7 @@ fun UpcomingPage(ledger: Ledger, contentPadding: PaddingValues, onBack: (() -> U
 }
 
 /** Expenses from [from] through today, by top category, largest first. */
-private fun spendingByCategory(ledger: Ledger, from: java.time.LocalDate, kind: TxKind = TxKind.EXPENSE): List<Pair<app.kassa.money.domain.Category?, Long>> =
+private fun spendingByCategory(ledger: Ledger, from: LocalDate, kind: TxKind = TxKind.EXPENSE): List<Pair<app.kassa.money.domain.Category?, Long>> =
     ledger.counted.filter { it.kind == kind && dateOf(it, ledger).let { d -> !d.isBefore(from) && !d.isAfter(ledger.today) } }
         .groupBy { Spending.topOf(it.categoryId, ledger.categoryById) }
         .map { (c, l) -> c to l.sumOf { it.categoryAmount } }.sortedByDescending { it.second }
@@ -391,7 +396,7 @@ fun SpendingPage(
     // The week before is loaded too, for the weekly comparison.
     val loadFrom = if (month) from else from.minusWeeks(1)
     val loaded by remember(loadFrom, to) {
-        load(loadFrom.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), to.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+        load(startOfDayMillis(loadFrom, ledger.zone), startOfDayMillis(to.plusDays(1), ledger.zone) - 1)
     }.collectAsState(initial = null)
     val txs = loaded ?: ledger.counted
     val kind = if (income) TxKind.INCOME else TxKind.EXPENSE
@@ -402,7 +407,7 @@ fun SpendingPage(
         else -> app.kassa.money.ui.common.weekLines(ledger, from, txs)
     }
     val total = entries.sumOf { it.categoryAmount }
-    val monthName = period.yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val monthName = monthLabel(period.yearMonth)
     val title = when {
         month -> stringResource(if (income) R.string.today_title_month_income else R.string.today_title_month_spending, monthName)
         back == 0 -> stringResource(if (income) R.string.today_title_this_week_income else R.string.today_title_this_week_spending)
@@ -431,7 +436,7 @@ fun SpendingPage(
         }
         SectionHeader(stringResource(R.string.today_by_category))
         // A category opens on the month shown here; from a week, on the month that week starts in.
-        val categoryBack = if (month) back else java.time.temporal.ChronoUnit.MONTHS.between(
+        val categoryBack = if (month) back else monthsBetween(
             app.kassa.money.domain.Period.containing(from, ledger.monthStartDay).yearMonth, ledger.period.yearMonth,
         ).toInt()
         app.kassa.money.ui.common.CategoryLinesAll(lines, stringResource(if (income) R.string.today_nothing_received else R.string.today_no_spending_short)) { onOpenCategory(it.id, categoryBack) }
@@ -439,5 +444,5 @@ fun SpendingPage(
     }
 }
 
-private fun dateOf(t: Transaction, ledger: Ledger) = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+private fun dateOf(t: Transaction, ledger: Ledger) = dateOfMillis(t.epochMillis, ledger.zone)
 

@@ -51,6 +51,11 @@ import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Repeats
 import app.kassa.money.domain.Spending
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.plusDays
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.common.weekdayDate
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.CardSnapshotFor
@@ -65,8 +70,7 @@ import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /**
  * One thing that needs the user. Nothing here posts by itself: each choice is theirs.
@@ -108,7 +112,8 @@ sealed interface Notice {
     /** A monthly charge with the same amount each time that isn't a bill yet. Clearing it never suggests it again. */
     data class Suggestion(val repeat: Repeat) : Notice {
         override val key get() = "suggest:${repeat.key}:${repeat.categoryId}"
-        override val date: LocalDate get() = LocalDate.MAX
+        // Only orders the page (suggestions go last); never shown.
+        override val date: LocalDate get() = LocalDate(9999, 12, 31)
         override val label get() = repeat.name
     }
 }
@@ -124,14 +129,14 @@ fun notices(ledger: Ledger): List<Notice> {
         ledger.accounts.accounts, ledger.accounts.balances, ledger.recent, ledger.bills,
         ledger.loans.terms, ledger.loans.changes, ledger.loans.payments, ledger.today, ledger.zone,
     ).filter { DueNotices.isWaiting(it, today) }.mapNotNull { item ->
-        val day = LocalDate.ofEpochDay(item.dueDay.toLong())
+        val day = localDateOfEpochDay(item.dueDay.toLong())
         when (item.kind) {
             DueKind.CARD -> cards[item.id]?.let { Notice.Card(it) }
             DueKind.LOAN -> ledger.accountById[item.id]?.let { Notice.Loan(it, day, item.amount ?: 0L) }
             DueKind.BILL -> ledger.bills.firstOrNull { it.id == item.id }?.let { Notice.Bill(it, day) }
         }
     }
-    val transfers = ledger.transfers.map { Notice.Transfer(it, Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate()) }
+    val transfers = ledger.transfers.map { Notice.Transfer(it, dateOfMillis(it.epochMillis, ledger.zone)) }
     val billKeys = ledger.bills.map { Repeats.key(it.name) }.toSet()
     val suggestions = ledger.repeats
         .filter { it.steadyMonthly && it.key !in billKeys && ledger.categoryById[it.categoryId]?.hidden == false }

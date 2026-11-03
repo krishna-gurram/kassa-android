@@ -56,7 +56,7 @@ import app.kassa.money.ui.common.monthShort
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.theme.scaledSp
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /* The top half of the entry and bill pages: the amount, the tiles that open each input, the note and the split line. */
 

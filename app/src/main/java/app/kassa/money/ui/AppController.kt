@@ -21,6 +21,9 @@ import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.millisAt
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.entry.EntryPreset
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.insights.InsightActions
@@ -32,8 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.YearMonth
+import kotlinx.datetime.LocalDate
 
 /** The phone's settings, for any screen: `LocalSettings.current.theme.collectAsState()`. */
 val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings is provided by MainActivity") }
@@ -179,7 +181,7 @@ class AppController(
             val r = n.bill
             val draft = EntryDraft(
                 id = null, kind = TxKind.EXPENSE, amount = amount, accountId = r.accountId, toAccountId = null, categoryId = r.categoryId,
-                personId = null, epochMillis = minOf(n.due, l.today).atTime(9, 0).atZone(l.zone).toInstant().toEpochMilli(), note = r.name,
+                personId = null, epochMillis = millisAt(minOf(n.due, l.today), 9, 0, l.zone), note = r.name,
             )
             openFromList(Page.Entry(EntryStart(prefill = draft, afterSave = { vm.billHandled(r, n.due) })))
         }

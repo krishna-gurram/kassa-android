@@ -15,6 +15,11 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.kassa.money.R
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.minusDays
+import app.kassa.money.domain.plusMonths
+import app.kassa.money.ui.common.monthLabel
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -76,11 +81,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDate
 import app.kassa.money.ui.common.swipeShift
-import java.time.YearMonth
-import java.time.format.TextStyle
+import kotlinx.datetime.LocalDate
 import java.util.Locale
 
 enum class ActivityFilter { ALL, EXPENSE, INCOME }
@@ -167,11 +169,11 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
             isCurrentMonth = m == YearMonth.from(day.today),
             query = q,
             filter = f,
-            days = if (searching) emptyList() else shown.groupBy { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }.toList(),
+            days = if (searching) emptyList() else shown.groupBy { dateOfMillis(it.epochMillis, zone) }.toList(),
             spent = list.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
             income = list.filter { it.kind == TxKind.INCOME }.sumOf { it.amount },
             monthEntries = list,
-            results = hits.groupBy { YearMonth.from(Instant.ofEpochMilli(it.epochMillis).atZone(zone)) }.toList(),
+            results = hits.groupBy { YearMonth.from(dateOfMillis(it.epochMillis, zone)) }.toList(),
             resultCount = hits.size,
             resultSpent = hits.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount },
             categories = catMap,
@@ -254,7 +256,7 @@ fun ActivityScreen(
                     items(entries, key = { "r${it.id}" }) { t ->
                         app.kassa.money.ui.common.TransactionRow(
                             t, ledger, showDivider = t !== entries.last(), modifier = Modifier.widthIn(max = 720.dp),
-                            noteOverride = shortDateYear(Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()),
+                            noteOverride = shortDateYear(dateOfMillis(t.epochMillis, ledger.zone)),
                             onClick = onEdit,
                         )
                     }
@@ -391,7 +393,7 @@ fun MonthBreakdown(ledger: app.kassa.money.ui.Ledger, contentPadding: PaddingVal
     val period = app.kassa.money.domain.Period.startingIn(s.month, ledger.monthStartDay)
     val lines = app.kassa.money.ui.common.monthLines(ledger, period, s.monthEntries)
     Column(Modifier.fillMaxSize().androidx_scroll().padding(contentPadding)) {
-        app.kassa.money.ui.common.SectionHeader(stringResource(R.string.activity_where_it_went), s.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()))
+        app.kassa.money.ui.common.SectionHeader(stringResource(R.string.activity_where_it_went), monthLabel(s.month))
         app.kassa.money.ui.common.CategoryLinesAll(lines, stringResource(R.string.activity_no_spending), onOpenCategory)
     }
 }

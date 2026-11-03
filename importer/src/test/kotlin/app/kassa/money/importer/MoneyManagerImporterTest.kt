@@ -4,8 +4,8 @@ import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.TxKind
+import kotlinx.datetime.TimeZone
 import org.junit.Test
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -51,7 +51,7 @@ class MoneyManagerImporterTest {
         override fun budgets() = listOf(MmBudget("c-gro", 0, 850.0), MmBudget("c-gro", 202601, 900.0))
     }
 
-    private val plan = MoneyManagerImporter(ZoneOffset.UTC).plan(source)
+    private val plan = MoneyManagerImporter(TimeZone.UTC).plan(source)
 
     @Test
     fun transfersAreImportedOnceFromTheOutHalf() {
@@ -144,7 +144,7 @@ class MoneyManagerImporterTest {
             )
             override fun budgets() = listOf(MmBudget("c-ph1", 0, 60.0), MmBudget("c-ph2", 0, 70.0))
         }
-        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(dupes)
+        val p = MoneyManagerImporter(TimeZone.UTC).plan(dupes)
         val phone = p.categories.filter { it.name.equals("phone bill", ignoreCase = true) }.single()
         assertTrue(!phone.hidden, "a visible duplicate keeps the merged category visible")
         assertEquals(1, p.categories.count { it.name.equals("beauty", ignoreCase = true) })
@@ -165,7 +165,7 @@ class MoneyManagerImporterTest {
             )
             override fun transactions() = emptyList<MmTransaction>()
         }
-        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(linked)
+        val p = MoneyManagerImporter(TimeZone.UTC).plan(linked)
         val chk = p.accounts.first { it.name == "Everyday" }.id
         assertEquals(chk, p.accounts.first { it.name == "Card one" }.payFromId)
         listOf("Card two", "Card three", "Card four").forEach { assertEquals(null, p.accounts.first { a -> a.name == it }.payFromId, it) }
@@ -188,7 +188,7 @@ class MoneyManagerImporterTest {
                 MmTransaction("t6", 4, "a-chk", "a-old", null, "5", t0 + 2 * day, "", "p2"),
             )
         }
-        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(withDeleted)
+        val p = MoneyManagerImporter(TimeZone.UTC).plan(withDeleted)
         assertEquals(listOf("Everyday"), p.accounts.map { it.name })
         assertEquals(1, p.issues.filterIsInstance<ImportIssue.DeletedAccounts>().single().count)
         assertEquals(2, p.issues.filterIsInstance<ImportIssue.TransfersAsEntries>().single().count)
@@ -207,7 +207,7 @@ class MoneyManagerImporterTest {
                 MmTransaction("t4", 1, "a-nowhere", null, "c-gro", "5", t0, "", null),
             )
         }
-        val skipped = MoneyManagerImporter(ZoneOffset.UTC).plan(odd).issues.filterIsInstance<ImportIssue.SkippedRows>()
+        val skipped = MoneyManagerImporter(TimeZone.UTC).plan(odd).issues.filterIsInstance<ImportIssue.SkippedRows>()
         assertEquals(2, skipped.single { it.reason == "Entries of a kind Kassa doesn't have" }.count)
         assertEquals(1, skipped.single { it.reason == "Rows with an unreadable amount or a missing account" }.count)
     }
@@ -225,7 +225,7 @@ class MoneyManagerImporterTest {
                 MmTransaction("t2", 1, "a-chk", null, "c-gro", "12", t0, "Home", null, currencyUid = "cur-main", accountAmount = "99"),
             )
         }
-        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(fx)
+        val p = MoneyManagerImporter(TimeZone.UTC).plan(fx)
         assertEquals(listOf(3_333L, 1_200L), p.transactions.map { it.amount })
         assertTrue(p.reconcile.allMatch, p.reconcile.toString())
         assertEquals(-4_533L, p.reconcile.accounts.first { it.name == "Everyday" }.source)
@@ -243,7 +243,7 @@ class MoneyManagerImporterTest {
                 MmBudget("c-pay", 0, 90.0, periodType = 1, budgetUid = "b3"),
             )
         }
-        val p = MoneyManagerImporter(ZoneOffset.UTC).plan(b)
+        val p = MoneyManagerImporter(TimeZone.UTC).plan(b)
         val gro = p.categories.first { it.name == "Groceries" }.id
         assertEquals(setOf(gro), p.budgets.map { it.categoryId }.toSet())
         assertEquals(2, p.budgets.size)
@@ -258,7 +258,7 @@ class MoneyManagerImporterTest {
         val some = object : MoneyManagerSource by source {
             override fun extras() = MmExtras(repeating = 2, installmentPlans = 1, tags = 3, taggedEntries = 8, memos = 0)
         }
-        val left = MoneyManagerImporter(ZoneOffset.UTC).plan(some).issues.filterIsInstance<ImportIssue.LeftBehind>()
+        val left = MoneyManagerImporter(TimeZone.UTC).plan(some).issues.filterIsInstance<ImportIssue.LeftBehind>()
         assertEquals(
             listOf(
                 "Repeating entries" to 2,
@@ -270,6 +270,6 @@ class MoneyManagerImporterTest {
         val all = object : MoneyManagerSource by source {
             override fun extras() = MmExtras(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
         }
-        assertEquals(9, MoneyManagerImporter(ZoneOffset.UTC).plan(all).issues.count { it is ImportIssue.LeftBehind })
+        assertEquals(9, MoneyManagerImporter(TimeZone.UTC).plan(all).issues.count { it is ImportIssue.LeftBehind })
     }
 }

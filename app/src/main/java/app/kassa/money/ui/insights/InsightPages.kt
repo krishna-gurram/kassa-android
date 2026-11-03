@@ -34,6 +34,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.R
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.minusWeeks
+import app.kassa.money.domain.plusDays
+import app.kassa.money.domain.startOfDayMillis
+import app.kassa.money.ui.common.monthLabel
 import app.kassa.money.ui.common.weekdayDateLong
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.common.figureColor
@@ -49,11 +56,11 @@ import app.kassa.money.ui.common.CategoryBadge
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.YearMonth
+import kotlinx.datetime.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-private fun short(m: YearMonth) = m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+private fun short(m: YearMonth) = monthLabel(m, full = false)
 
 /** The full view behind each Insights tile or "All" link. */
 @Composable
@@ -161,7 +168,7 @@ fun InsightDetailPage(
                 // Per weekday: what it mostly goes to and how many purchases over the 13 weeks.
                 val from = ledger.today.minusWeeks(13)
                 val byDay = ledger.counted.filter { it.kind == app.kassa.money.domain.TxKind.EXPENSE }
-                    .map { it to java.time.Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
+                    .map { it to dateOfMillis(it.epochMillis, ledger.zone) }
                     .filter { (_, d) -> !d.isBefore(from) && d.isBefore(ledger.today) }
                     .groupBy({ it.second.dayOfWeek }, { it.first })
                 Column {
@@ -272,12 +279,12 @@ private fun ListRow(title: String, middle: String, value: String, showDivider: B
 /** One day: what was spent and every entry that day. Opened from a day anywhere in the app (week strip, Activity, spending page). */
 @Composable
 fun DayPage(
-    ledger: Ledger, date: java.time.LocalDate, contentPadding: PaddingValues, onBack: (() -> Unit)?,
+    ledger: Ledger, date: LocalDate, contentPadding: PaddingValues, onBack: (() -> Unit)?,
     onEdit: (app.kassa.money.domain.Transaction) -> Unit,
     load: (Long, Long) -> kotlinx.coroutines.flow.Flow<List<app.kassa.money.domain.Transaction>>,
 ) {
     val loaded by androidx.compose.runtime.remember(date) {
-        load(date.atStartOfDay(ledger.zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(ledger.zone).toInstant().toEpochMilli() - 1)
+        load(startOfDayMillis(date, ledger.zone), startOfDayMillis(date.plusDays(1), ledger.zone) - 1)
     }.collectAsState(initial = null)
     val list = (loaded ?: ledger.counted.filter { dateOf(it, ledger) == date })
         .sortedWith(compareByDescending<app.kassa.money.domain.Transaction> { it.epochMillis }.thenByDescending { it.id })

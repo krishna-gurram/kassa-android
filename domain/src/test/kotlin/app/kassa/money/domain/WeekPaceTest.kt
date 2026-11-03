@@ -1,24 +1,24 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import org.junit.Test
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class WeekPaceTest {
-    private val zone = ZoneOffset.UTC
+    private val zone = TimeZone.UTC
     private fun spend(d: String, cents: Long, share: Long? = null) = Transaction(
         kind = TxKind.EXPENSE, amount = cents, accountId = 1, myShare = share,
-        epochMillis = LocalDate.parse(d).atTime(12, 0).toInstant(zone).toEpochMilli(),
+        epochMillis = millisAt(LocalDate.parse(d), 12, 0, zone),
     )
-    private val thursday = LocalDate.of(2026, 10, 22)
+    private val thursday = LocalDate(2026, 10, 22)
 
     @Test
     fun weekStartsOnTheChosenDay() {
-        assertEquals(LocalDate.of(2026, 10, 19), WeekPace.startOf(thursday, DayOfWeek.MONDAY))
-        assertEquals(LocalDate.of(2026, 10, 18), WeekPace.startOf(thursday, DayOfWeek.SUNDAY))
+        assertEquals(LocalDate(2026, 10, 19), WeekPace.startOf(thursday, DayOfWeek.MONDAY))
+        assertEquals(LocalDate(2026, 10, 18), WeekPace.startOf(thursday, DayOfWeek.SUNDAY))
         assertEquals(thursday, WeekPace.startOf(thursday, DayOfWeek.THURSDAY))
     }
 
@@ -31,7 +31,7 @@ class WeekPaceTest {
             // Two weeks ago: 40_000 by Thursday, 50_000 whole week.
             spend("2026-10-08", 40_000), spend("2026-10-11", 10_000),
             // Income doesn't count.
-            Transaction(kind = TxKind.INCOME, amount = 99_000, accountId = 1, epochMillis = LocalDate.parse("2026-10-20").atStartOfDay(zone).toInstant().toEpochMilli()),
+            Transaction(kind = TxKind.INCOME, amount = 99_000, accountId = 1, epochMillis = startOfDayMillis(LocalDate.parse("2026-10-20"), zone)),
         )
         val r = WeekPace.compute(txs, thursday, DayOfWeek.MONDAY, zone, weeks = 2)
         assertEquals(15_000, r.spent)

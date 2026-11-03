@@ -1,7 +1,7 @@
 package app.kassa.money.domain
 
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /*
  * Payments that come due: which ones there are, which day each wants a notification, and when the next one rings.
@@ -182,7 +182,7 @@ object DueItems {
         changes: List<LoanTermChange>,
         payments: List<LoanPayment>,
         today: LocalDate,
-        zone: ZoneId,
+        zone: TimeZone,
         forPhone: Boolean = false,
     ): List<DueItem> {
         val items = ArrayList<DueItem>()

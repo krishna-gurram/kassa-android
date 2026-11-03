@@ -14,6 +14,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.accounts.AccountClosing
 import app.kassa.money.ui.accounts.AccountPage
 import app.kassa.money.ui.accounts.AccountsScreen
@@ -39,7 +41,7 @@ import app.kassa.money.ui.today.PinAccountsPage
 import app.kassa.money.ui.today.SpendingPage
 import app.kassa.money.ui.today.TodayScreen
 import app.kassa.money.ui.today.UpcomingPage
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /*
  * Which composable draws each tab and each page. Adding a page means a [Page] in Nav.kt and a branch here.
@@ -142,7 +144,7 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             onOpenStore = { app.push(Page.Store(it)) }, onEdit = app.editFromPage,
         )
         is Page.Store -> InsightStorePage(l, page.name, padding, onBack, onEdit = app.editFromPage)
-        is Page.Day -> DayPage(l, LocalDate.ofEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween)
+        is Page.Day -> DayPage(l, localDateOfEpochDay(page.epochDay), padding, onBack, onEdit = app.editFromPage, load = vm::countedBetween)
         is Page.Spending -> SpendingPage(
             l, page.month, page.income, padding, onBack, load = vm::countedBetween,
             onOpenCategory = { id, monthsBack -> app.push(Page.CategoryDetail(id, monthsBack)) },

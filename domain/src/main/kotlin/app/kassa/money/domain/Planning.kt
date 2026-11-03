@@ -1,9 +1,9 @@
 package app.kassa.money.domain
 
-import java.time.Instant
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.ZoneId
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
 
 /** Budget lookup: a one-month override wins over the category's default. */
 object Budgets {
@@ -29,12 +29,12 @@ object Spending {
         categories: Map<Long, Category>,
         from: LocalDate,
         to: LocalDate,
-        zone: ZoneId,
+        zone: TimeZone,
     ): Map<Long, Long> {
         val out = HashMap<Long, Long>()
         for (t in transactions) {
             if (t.kind != TxKind.EXPENSE) continue
-            val d = Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
+            val d = dateOfMillis(t.epochMillis, zone)
             if (d.isBefore(from) || d.isAfter(to)) continue
             val top = topOf(t.categoryId, categories) ?: continue
             out[top.id] = (out[top.id] ?: 0) + t.categoryAmount
@@ -95,21 +95,21 @@ object WeekPace {
         val weeksCompared: Int,
     )
 
-    fun startOf(day: LocalDate, firstDay: java.time.DayOfWeek): LocalDate =
-        day.minusDays(((day.dayOfWeek.value - firstDay.value + 7) % 7).toLong())
+    fun startOf(day: LocalDate, firstDay: DayOfWeek): LocalDate =
+        day.minusDays(((day.dayOfWeek.isoDayNumber - firstDay.isoDayNumber + 7) % 7).toLong())
 
     fun compute(
         transactions: Iterable<Transaction>,
         today: LocalDate,
-        firstDay: java.time.DayOfWeek,
-        zone: java.time.ZoneId,
+        firstDay: DayOfWeek,
+        zone: TimeZone,
         weeks: Int = 8,
     ): Result {
         val byDay = HashMap<LocalDate, Long>()
         var first: LocalDate? = null
         for (t in transactions) {
             if (t.kind != TxKind.EXPENSE) continue
-            val d = java.time.Instant.ofEpochMilli(t.epochMillis).atZone(zone).toLocalDate()
+            val d = dateOfMillis(t.epochMillis, zone)
             byDay[d] = (byDay[d] ?: 0) + t.categoryAmount
             if (first == null || d.isBefore(first)) first = d
         }
@@ -120,7 +120,7 @@ object WeekPace {
             return s
         }
         val start = startOf(today, firstDay)
-        val offset = java.time.temporal.ChronoUnit.DAYS.between(start, today)
+        val offset = daysBetween(start, today)
         val spent = sum(start, today)
         var n = 0
         var byNow = 0L

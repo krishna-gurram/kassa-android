@@ -1,16 +1,16 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RepeatsTest {
-    private val zone = ZoneOffset.UTC
+    private val zone = TimeZone.UTC
     private val today = LocalDate.parse("2026-10-24")
-    private fun at(d: LocalDate) = d.atTime(12, 0).toInstant(zone).toEpochMilli()
+    private fun at(d: LocalDate) = millisAt(d, 12, 0, zone)
     private fun e(d: LocalDate, cents: Long, note: String, kind: TxKind = TxKind.EXPENSE) =
         Transaction(kind = kind, amount = cents, accountId = 1, categoryId = 7, epochMillis = at(d), note = note)
 

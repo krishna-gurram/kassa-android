@@ -41,6 +41,9 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.minusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.ConfirmDialog
@@ -62,7 +65,6 @@ import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
-import java.time.Instant
 
 /** One line of a person's history: a split share or a payment. [amount] is positive when it adds to what they owe you. */
 /** [payment] lines settle up; the rest (splits, starting balance) change what's owed. */
@@ -130,7 +132,7 @@ fun PersonPage(
             )
             BigMoney(Math.abs(balance), sizeSp = 36f, color = favourColor(balance))
             if (balance != 0L && !Money.isHidden) since?.let {
-                Text(stringResource(R.string.accounts_since, shortDate(Instant.ofEpochMilli(it).atZone(ledger.zone).toLocalDate())), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
+                Text(stringResource(R.string.accounts_since, shortDate(dateOfMillis(it, ledger.zone))), style = KassaType.bodyStrong, color = Kassa.colors.ink2)
             }
             Gap(14)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -149,7 +151,7 @@ fun PersonPage(
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(line.note, style = KassaType.body, color = Kassa.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(shortDateYear(Instant.ofEpochMilli(line.millis).atZone(ledger.zone).toLocalDate()), style = KassaType.small, color = Kassa.colors.ink2)
+                    Text(shortDateYear(dateOfMillis(line.millis, ledger.zone)), style = KassaType.small, color = Kassa.colors.ink2)
                 }
                 // A payment either way only settles up, so it's plain with no sign. A split or starting balance shows
                 // which way it moved: + green when they owe you more, − orange when you owe them more.
@@ -198,7 +200,7 @@ internal fun PaymentSheet(
     }
     // Nothing guesses an account: you pick where the money went.
     var account by rememberSaveable { mutableStateOf(editing?.accountId) }
-    val originalDate = editing?.let { Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate() }
+    val originalDate = editing?.let { dateOfMillis(it.epochMillis, ledger.zone) }
     var date by rememberSavedDate { originalDate ?: ledger.today }
     var amountProblem by rememberSaveable { mutableStateOf<String?>(null) }
     var accountProblem by rememberSaveable { mutableStateOf<String?>(null) }
@@ -258,7 +260,7 @@ private fun SplitSheet(p: Person, ledger: Ledger, onDismiss: () -> Unit, onPick:
     val from = ledger.today.minusDays(60)
     val choices = ledger.recent
         .filter { it.kind == TxKind.EXPENSE && it.accountId != null && it.id !in alreadySplit && !ledger.loans.isLoanEntry(it.id) }
-        .filter { !Instant.ofEpochMilli(it.epochMillis).atZone(ledger.zone).toLocalDate().isBefore(from) }
+        .filter { !dateOfMillis(it.epochMillis, ledger.zone).isBefore(from) }
         .sortedByDescending { it.epochMillis }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kassa.colors.raised) {

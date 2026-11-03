@@ -32,11 +32,17 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kassa.money.R
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.lengthOfMonth
+import app.kassa.money.domain.minusMonths
+import app.kassa.money.domain.plusMonths
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
-import java.time.YearMonth
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.toJavaLocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -80,7 +86,7 @@ fun MonthCalendar(
             }
         }
         // Blank cells before the 1st, so it falls under its weekday.
-        val lead = (month.atDay(1).dayOfWeek.value - firstDay.value + 7) % 7
+        val lead = (month.atDay(1).dayOfWeek.isoDayNumber - firstDay.isoDayNumber + 7) % 7
         val cells = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
         cells.chunked(7).forEach { week ->
             // Each day's cell is its own 48dp target; the row gives way only when the panel is shorter than six of them.
@@ -100,7 +106,7 @@ private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, allow
     val future = d.isAfter(today) && !allowFuture
     Box(
         Modifier.fillMaxSize().clickable(enabled = !future, role = Role.Button) { onPick(d) }
-            .semantics { contentDescription = d.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)); this.selected = selected },
+            .semantics { contentDescription = d.toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)); this.selected = selected },
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(38.dp).clip(CircleShape).background(if (selected) Kassa.colors.ink else Color.Transparent), contentAlignment = Alignment.Center) {

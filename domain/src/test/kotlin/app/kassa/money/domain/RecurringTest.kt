@@ -1,16 +1,16 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RecurringTest {
-    private val zone = ZoneOffset.UTC
-    private fun at(d: String) = LocalDate.parse(d).atTime(9, 0).toInstant(zone).toEpochMilli()
+    private val zone = TimeZone.UTC
+    private fun at(d: String) = millisAt(LocalDate.parse(d), 9, 0, zone)
     private val elec = Recurring(id = 1, name = "Electric bill", categoryId = 5, accountId = 2, dayOfMonth = 20, fixedAmount = null)
     private fun bill(d: String, c: Long) = Transaction(kind = TxKind.EXPENSE, amount = c, accountId = 2, categoryId = 5, epochMillis = at(d), note = "Electric bill")
 
@@ -54,7 +54,7 @@ class RecurringTest {
 
     @Test
     fun shortMonthsClampTheDay() {
-        assertEquals(LocalDate.parse("2026-02-28"), RecurringRules.dueDate(elec.copy(dayOfMonth = 31), java.time.YearMonth.of(2026, 2)))
+        assertEquals(LocalDate.parse("2026-02-28"), RecurringRules.dueDate(elec.copy(dayOfMonth = 31), YearMonth.of(2026, 2)))
     }
 
     @Test

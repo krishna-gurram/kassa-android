@@ -19,6 +19,7 @@ fragment = "1.8.5"
 androidxTestRunner = "1.6.2"
 androidxTestExtJunit = "1.2.1"
 orgJson = "20240303"
+kotlinxDatetime = "0.6.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -40,6 +41,7 @@ sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher
 androidx-sqlite = { module = "androidx.sqlite:sqlite-ktx", version.ref = "sqlite" }
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }

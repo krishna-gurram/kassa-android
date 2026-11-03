@@ -24,9 +24,9 @@ import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.WeekPace
 import app.kassa.money.domain.personBalance
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import java.time.temporal.WeekFields
 import java.util.Locale
 
@@ -54,7 +54,7 @@ data class Ledger(
     val loans: LoansState,
     val monthStartDay: Int,
     val today: LocalDate,
-    val zone: ZoneId,
+    val zone: TimeZone,
 ) {
     val categoryById: Map<Long, Category> = categories.associateBy { it.id }
     val accountById: Map<Long, Account> = accounts.accounts.associateBy { it.id }

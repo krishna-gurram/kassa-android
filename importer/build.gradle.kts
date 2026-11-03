@@ -8,6 +8,7 @@ kotlin {
 
 dependencies {
     implementation(project(":domain"))
+    implementation(libs.kotlinx.datetime)
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
 }

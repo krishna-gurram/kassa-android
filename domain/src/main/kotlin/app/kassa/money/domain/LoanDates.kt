@@ -4,9 +4,8 @@ package app.kassa.money.domain
  * Calendar maths for loans, on plain epoch days (days since 1970-01-01, as an [Int]).
  *
  * A date with no time and no zone can't be moved by a clock change, so a daylight-saving weekend is still two days
- * and a leap year still has a 29th of February. There is no java.time in here on purpose: the loan rules are meant to
- * move into the shared Kotlin library for iOS, and the screens convert at the edges with
- * `LocalDate.toEpochDay().toInt()` and `LocalDate.ofEpochDay(day.toLong())`.
+ * and a leap year still has a 29th of February. It is plain integer maths on purpose, so the loan rules run the same on
+ * every platform, and the screens convert at the edges with `LocalDate.toEpochDay().toInt()` and `localDateOfEpochDay(day)`.
  */
 object LoanDates {
 

@@ -1,10 +1,8 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import java.text.DateFormatSymbols
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** How often a charge comes back. A gap between two charges counts when it falls in [minDays]..[maxDays]. */
@@ -90,17 +88,17 @@ object Repeats {
     }
 
     /** Charges that repeat and haven't stopped, biggest yearly cost first. */
-    fun find(transactions: List<Transaction>, today: LocalDate, zone: ZoneId): List<Repeat> =
+    fun find(transactions: List<Transaction>, today: LocalDate, zone: TimeZone): List<Repeat> =
         transactions.asSequence()
             .filter { (it.kind == TxKind.EXPENSE || it.kind == TxKind.INCOME) && it.note.isNotBlank() }
             .groupBy { it.kind to key(it.note) }
             .filterKeys { it.second.isNotEmpty() }
             .flatMap { (k, list) -> seriesIn(k.second, k.first, list.sortedBy { it.epochMillis }, zone) }
-            .filter { ChronoUnit.DAYS.between(it.last, today) <= 2L * it.cadence.days }
+            .filter { daysBetween(it.last, today) <= 2L * it.cadence.days }
             .sortedByDescending { it.perYear }
 
     /** The whole group if it's regular; otherwise each run of similar amounts that is. */
-    private fun seriesIn(key: String, kind: TxKind, list: List<Transaction>, zone: ZoneId): List<Repeat> {
+    private fun seriesIn(key: String, kind: TxKind, list: List<Transaction>, zone: TimeZone): List<Repeat> {
         regular(key, kind, list, zone)?.let { return listOf(it) }
         return byAmount(list).mapNotNull { regular(key, kind, it, zone) }
     }
@@ -116,10 +114,10 @@ object Repeats {
     }
 
     /** A repeat when the typical gap fits a cadence and at least 80% of the gaps do. */
-    private fun regular(key: String, kind: TxKind, ts: List<Transaction>, zone: ZoneId): Repeat? {
+    private fun regular(key: String, kind: TxKind, ts: List<Transaction>, zone: TimeZone): Repeat? {
         if (ts.size < 2) return null
-        val dates = ts.map { Instant.ofEpochMilli(it.epochMillis).atZone(zone).toLocalDate() }
-        val gaps = dates.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
+        val dates = ts.map { dateOfMillis(it.epochMillis, zone) }
+        val gaps = dates.zipWithNext { a, b -> daysBetween(a, b).toInt() }
         val median = gaps.sorted()[gaps.size / 2]
         val cadence = Cadence.entries.firstOrNull { median in it.minDays..it.maxDays } ?: return null
         if (ts.size < cadence.minCount) return null

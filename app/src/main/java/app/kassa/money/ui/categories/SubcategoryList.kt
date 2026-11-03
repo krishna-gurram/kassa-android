@@ -43,12 +43,12 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
 
 /**
  * A category's subcategories, A to Z, edited where they are: tap a name to rename it, ⋯ to move it to another
@@ -80,7 +80,7 @@ fun SubcategoryList(
     for (t in ledger.counted) {
         if (t.kind != TxKind.EXPENSE && t.kind != TxKind.INCOME) continue
         val id = t.categoryId ?: continue
-        val d = Instant.ofEpochMilli(t.epochMillis).atZone(ledger.zone).toLocalDate()
+        val d = dateOfMillis(t.epochMillis, ledger.zone)
         if (d !in p) continue
         val (a, n) = figures[id] ?: (0L to 0)
         figures[id] = (a + t.categoryAmount) to (n + 1)

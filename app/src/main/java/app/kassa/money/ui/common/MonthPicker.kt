@@ -38,10 +38,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.kassa.money.R
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.isAfter
 import app.kassa.money.ui.activity.Chevron
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.YearMonth
 
 /** The earliest year the picker's arrows go back to. */
 private const val EARLIEST_YEAR = 1990

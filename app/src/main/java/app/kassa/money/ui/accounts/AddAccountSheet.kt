@@ -58,7 +58,7 @@ import app.kassa.money.ui.loans.LoanFields
 import app.kassa.money.ui.loans.loanDay
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /**
  * One form for every kind of account; picking a type decides which fields appear. Checking and building the account
