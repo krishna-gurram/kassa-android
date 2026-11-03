@@ -201,7 +201,7 @@ jobs:
             --draft --title "iOS shared diagnostics ${{ github.run_number }}" --notes "Failed iOS compile log." || true
 
   ios-app:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -226,7 +226,7 @@ jobs:
           xcrun simctl list devices available 2>&1 | tee ci-output/ios-app.log
           cd ios
           xcodebuild test -project Kassa.xcodeproj -scheme Kassa \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee -a ../ci-output/ios-app.log
 
       - name: Save diagnostics
