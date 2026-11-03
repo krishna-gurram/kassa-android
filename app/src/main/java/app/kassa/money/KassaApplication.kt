@@ -110,6 +110,7 @@ class KassaApplication : Application() {
             }
             previous?.uncaughtException(thread, e)
         }
+        app.kassa.money.domain.Money.numberStyleProvider = { app.kassa.money.data.numberStyleOf(java.util.Locale.getDefault()) }
         // Loading settings sets the currency and the hide-balances hook before anything formats an amount.
         settings.currency
         // Follow the date and time zone for as long as the process lives.

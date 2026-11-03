@@ -42,7 +42,7 @@ class Settings(context: Context) {
     // A phone in a region whose currency Kassa shows starts with it; anywhere else the first-run screen asks. Saved at once,
     // so moving the phone to another region never changes the currency under amounts that are already entered.
     private val _currency = MutableStateFlow(
-        prefs.getString(CURRENCY, null) ?: Currencies.forLocale()?.code?.also { prefs.edit().putString(CURRENCY, it).apply() } ?: Currencies.fallback.code,
+        prefs.getString(CURRENCY, null) ?: regionCurrency()?.code?.also { prefs.edit().putString(CURRENCY, it).apply() } ?: Currencies.fallback.code,
     ).also { Money.style = Currencies.byCode(it.value) }
     /** The one currency this phone shows. Amounts are never converted when it changes. */
     val currency: StateFlow<String> = _currency
@@ -226,4 +226,16 @@ class Settings(context: Context) {
         const val OPEN_TAB = "open_tab"
         const val PINS = "overview_pins"
     }
+}
+
+/** The currency of the phone's region (en-IN gives INR), or null when the phone's region has none Kassa lists. */
+private fun regionCurrency(): app.kassa.money.domain.CurrencyStyle? {
+    val locale = java.util.Locale.getDefault()
+    if (locale.country.isEmpty()) return null
+    val code = try {
+        java.util.Currency.getInstance(locale)?.currencyCode
+    } catch (e: IllegalArgumentException) {
+        null
+    }
+    return Currencies.forCode(code)
 }

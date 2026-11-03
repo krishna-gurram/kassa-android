@@ -1,7 +1,5 @@
 package app.kassa.money.domain
 
-import java.math.BigDecimal
-import java.math.RoundingMode
 
 /** A stock or fund in an investment account, valued at the last price the user entered. */
 data class Holding(

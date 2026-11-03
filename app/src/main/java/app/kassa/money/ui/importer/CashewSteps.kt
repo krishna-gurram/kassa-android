@@ -178,6 +178,6 @@ internal fun Bullet(text: String) {
 /** An amount in the phone's currency, or as a plain number with its code when it's another currency. */
 private fun amountIn(cents: Long, otherCode: String?): String =
     if (otherCode == null) Money.format(cents)
-    else NumberText.decimal(java.math.BigDecimal.valueOf(cents, 2), 2) + " " + otherCode
+    else NumberText.decimal(cents, 2, 2) + " " + otherCode
 
 private fun count(n: Int): String = NumberText.group(n.toString())

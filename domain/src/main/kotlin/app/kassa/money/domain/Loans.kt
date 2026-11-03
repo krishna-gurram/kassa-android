@@ -1,6 +1,5 @@
 package app.kassa.money.domain
 
-import java.math.BigDecimal
 import kotlin.math.pow
 
 /*
