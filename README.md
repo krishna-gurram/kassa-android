@@ -22,7 +22,7 @@ number traces back to entries you made. Built to replace Money Manager.
 `domain` and `importer` are plain JVM modules, so their tests run in seconds without an emulator:
 
 ```
-./gradlew :domain:test :importer:test
+./gradlew :domain:jvmTest :importer:jvmTest
 ```
 
 ## Building

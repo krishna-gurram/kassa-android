@@ -138,7 +138,7 @@ first and upgrades over it, so a bad migration fails the build instead of reachi
   offered again the next failed day if notifications were off, and a working backup ends the streak. A one-time note says
   "Backups in this folder aren't encrypted. Add a password when you save one anywhere you don't control." before the folder picker
   and on the Backup page until dismissed. Restoring shows "Restoring..." until the result message replaces it.
-- `./gradlew :domain:test :importer:test :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
+- `./gradlew :domain:jvmTest :importer:jvmTest :app:testDebugUnitTest` runs the JVM tests (rules, importer, backup format).
 - `app/src/androidTest` holds device tests: upgrades from every database version (`app/schemas`; 1 to 3 were rebuilt
   from 4.json by undoing each migration), entries with splits, and backup round trips. CI runs them on the emulator
   after the smoke test. The debug build is `app.kassa.money.debug`, so it installs beside the real app.
