@@ -1,10 +1,10 @@
 package app.kassa.money.domain
 
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class DemoTest {
     private val today = LocalDate.parse("2026-10-24")

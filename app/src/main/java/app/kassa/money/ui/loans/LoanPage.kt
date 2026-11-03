@@ -38,6 +38,7 @@ import app.kassa.money.domain.LoanSummary
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.accounts.TwoBoxes
 import app.kassa.money.ui.cards.cardTint
@@ -50,6 +51,7 @@ import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
+import kotlinx.datetime.toJavaLocalDate
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -59,7 +61,7 @@ import java.util.Locale
 private const val NEXT_ROWS = 6
 
 /** "Nov 1, 2026", in the phone's language. */
-internal fun mediumDate(day: Int): String = dateOfLoanDay(day).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+internal fun mediumDate(day: Int): String = dateOfLoanDay(day).toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
 /** The loan's page figures, worked out from its terms, changes, payments and balance (see [LoanSummary]). */
 @Composable

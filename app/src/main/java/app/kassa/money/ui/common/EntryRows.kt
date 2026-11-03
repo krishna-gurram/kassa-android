@@ -2,7 +2,6 @@ package app.kassa.money.ui.common
 
 import androidx.compose.ui.res.stringResource
 import app.kassa.money.R
-import java.time.Instant
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -15,6 +14,7 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Shares
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.theme.Kassa
 

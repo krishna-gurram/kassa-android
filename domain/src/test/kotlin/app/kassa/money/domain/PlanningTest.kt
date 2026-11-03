@@ -1,10 +1,10 @@
 package app.kassa.money.domain
 
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class PlanningTest {
     private val zone = TimeZone.UTC

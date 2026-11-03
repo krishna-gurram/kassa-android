@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import app.kassa.money.R
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.RecurringRules
+import app.kassa.money.domain.plusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.SectionHeader

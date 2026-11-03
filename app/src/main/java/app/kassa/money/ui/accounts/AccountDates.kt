@@ -9,19 +9,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.kassa.money.R
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.plusYears
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.common.DateRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.toJavaLocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** Accounts keep a maturity or closing day as an epoch day (the rules know nothing of java.time); these convert at the edge. */
+/** Accounts keep a maturity or closing day as an epoch day (which is what the rules store); these convert at the edge. */
 internal fun LocalDate.accountDay(): Int = toEpochDay().toInt()
 internal fun dateOfAccountDay(day: Int): LocalDate = localDateOfEpochDay(day.toLong())
 
 /** "Mar 18, 2027" in the phone's language and order. */
-internal fun accountDate(day: Int): String = dateOfAccountDay(day).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+internal fun accountDate(day: Int): String = dateOfAccountDay(day).toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
 /**
  * A fixed deposit's optional maturity date: a day to pick (future days allowed, like a loan's next payment) and a way

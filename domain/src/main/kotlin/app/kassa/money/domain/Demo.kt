@@ -1,9 +1,9 @@
 package app.kassa.money.domain
 
-import kotlin.random.Random
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlin.random.Random
 
 /** A made-up household for screenshots and walkthroughs. Same seed, same data; nothing here is anyone's real money. */
 data class DemoData(

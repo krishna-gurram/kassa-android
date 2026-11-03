@@ -1,11 +1,11 @@
 package app.kassa.money.domain
 
+import kotlinx.datetime.LocalDate
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlinx.datetime.LocalDate
-import org.junit.Test
 
 class LoanDatesTest {
     private fun day(y: Int, m: Int, d: Int) = LoanDates.epochDay(y, m, d)

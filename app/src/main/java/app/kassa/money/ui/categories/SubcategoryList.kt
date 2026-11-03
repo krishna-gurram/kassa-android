@@ -43,12 +43,12 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
 
 /**
  * A category's subcategories, A to Z, edited where they are: tap a name to rename it, ⋯ to move it to another

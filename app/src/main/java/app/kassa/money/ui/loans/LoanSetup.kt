@@ -49,7 +49,9 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.PaymentSplit
 import app.kassa.money.domain.PaymentBasis
-import java.time.YearMonth
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.common.monthYearShort
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
@@ -66,9 +68,9 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.settings.SwitchRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
-/** Loan screens keep dates as epoch days (the rules know nothing of java.time); these convert at the edge. */
+/** Loan screens keep dates as epoch days (which is what the loan rules use); these convert at the edge. */
 internal fun LocalDate.loanDay(): Int = toEpochDay().toInt()
 internal fun dateOfLoanDay(day: Int): LocalDate = localDateOfEpochDay(day.toLong())
 

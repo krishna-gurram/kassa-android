@@ -3,6 +3,11 @@ package app.kassa.money.ui.insights
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import app.kassa.money.R
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.minusMonths
+import app.kassa.money.domain.plusDays
+import app.kassa.money.domain.startOfDayMillis
+import app.kassa.money.ui.common.monthLabel
 import app.kassa.money.ui.common.swipeShift
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,8 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import app.kassa.money.domain.Period
-import java.time.format.TextStyle
-import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,7 +59,6 @@ import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.common.TransactionRow
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.mutableStateOf
@@ -99,7 +101,7 @@ fun CategoryPage(
     val months = (5 downTo 0).map { i -> Period.startingIn(p.yearMonth.minusMonths(i.toLong()), ledger.monthStartDay) }
     val totals = months.map { q -> mine.filter { inPeriod(it, q) }.sumOf { it.categoryAmount } }
     val prevTotal = totals[4]
-    val monthName = { q: Period -> monthName(q.yearMonth) }
+    val monthName = { q: Period -> monthLabel(q.yearMonth) }
 
     Column(Modifier.fillMaxSize().swipeShift { d -> if (d < 0) back++ else if (back > 0) back-- }.verticalScroll(rememberScrollState()).padding(contentPadding).widthIn(max = 720.dp)) {
         PageTop(c.name, onBack)
@@ -134,7 +136,7 @@ fun CategoryPage(
                     Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.BottomCenter) {
                         Box(Modifier.fillMaxWidth().fillMaxHeight((totals[i].toFloat() / max).coerceIn(0.02f, 1f)).clip(RoundedCornerShape(6.dp)).background(if (sel) Color(c.color) else Kassa.colors.track))
                     }
-                    Text(monthName(q.yearMonth, full = false), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = if (sel) Kassa.colors.ink else Kassa.colors.ink2)
+                    Text(monthLabel(q.yearMonth, full = false), style = KassaType.tiny.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = if (sel) Kassa.colors.ink else Kassa.colors.ink2)
                 }
             }
         }

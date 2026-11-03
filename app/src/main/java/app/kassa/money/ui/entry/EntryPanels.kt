@@ -58,6 +58,8 @@ import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.minusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AccountPickerPanel
 import app.kassa.money.ui.common.CategoryPickerPanel
@@ -67,11 +69,8 @@ import app.kassa.money.ui.common.swipeShift
 import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import java.util.Locale
 
 /*

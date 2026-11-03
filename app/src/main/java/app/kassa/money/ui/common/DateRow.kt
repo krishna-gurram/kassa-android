@@ -22,13 +22,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.kassa.money.R
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.minusDays
 import app.kassa.money.ui.entry.QuickButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toJavaLocalDate
+import kotlinx.datetime.toJavaZoneId
 import java.time.LocalTime
-import java.time.YearMonth
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -45,7 +48,7 @@ fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onP
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         QuickButton(stringResource(R.string.common_today), on = date == today, modifier = Modifier.weight(1f)) { onPick(today) }
         QuickButton(stringResource(R.string.common_yesterday), on = date == yesterday, modifier = Modifier.weight(1f)) { onPick(yesterday) }
-        QuickButton(if (other) date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) else stringResource(R.string.common_other_day), on = other, modifier = Modifier.weight(1f)) {
+        QuickButton(if (other) date.toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) else stringResource(R.string.common_other_day), on = other, modifier = Modifier.weight(1f)) {
             picking = true
         }
     }
@@ -63,5 +66,7 @@ fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onP
 }
 
 /** When something on [date] happened: now for today, noon for any other day, so it sorts sensibly. */
-fun momentOn(date: LocalDate, today: LocalDate, zone: ZoneId): Long =
-    date.atTime(if (date == today) LocalTime.now(zone) else LocalTime.NOON).atZone(zone).toInstant().toEpochMilli()
+fun momentOn(date: LocalDate, today: LocalDate, zone: TimeZone): Long =
+    zone.toJavaZoneId().let { javaZone ->
+        date.toJavaLocalDate().atTime(if (date == today) LocalTime.now(javaZone) else LocalTime.NOON).atZone(javaZone).toInstant().toEpochMilli()
+    }

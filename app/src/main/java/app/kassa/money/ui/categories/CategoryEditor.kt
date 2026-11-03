@@ -56,6 +56,7 @@ import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.CategoryIconView
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.SectionHeader
+import app.kassa.money.ui.common.monthLabel
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.common.SearchBox
 import app.kassa.money.ui.importer.PrimaryButton
@@ -211,7 +212,7 @@ fun CategoryEditor(
             OutlinedTextField(budget, { budget = InputRules.typedAmount(it); error = null }, singleLine = true, label = { Text(stringResource(R.string.categories_budget_every_month)) }, placeholder = { Text(stringResource(R.string.categories_budget_none)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
             if (!isNew) OutlinedTextField(thisMonth, { thisMonth = InputRules.typedAmount(it); error = null }, singleLine = true,
-                label = { Text(stringResource(R.string.categories_budget_just_for, monthName(month))) },
+                label = { Text(stringResource(R.string.categories_budget_just_for, monthLabel(month))) },
                 placeholder = { Text(stringResource(R.string.categories_budget_same)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {

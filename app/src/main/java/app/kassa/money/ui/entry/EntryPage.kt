@@ -41,12 +41,12 @@ import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.ConfirmDialog
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.YearMonth
 
 /**
  * The add and edit page. The amount sits big at the top, then three tiles (category, account, date; for a transfer

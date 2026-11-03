@@ -52,6 +52,12 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.minusDays
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.CardSnapshotFor
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
@@ -75,9 +81,7 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.theme.scaledSp
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
+import kotlinx.datetime.LocalDate
 
 /*
  * Wording follows Money Manager and card issuers:

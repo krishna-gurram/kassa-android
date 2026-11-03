@@ -41,6 +41,9 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Person
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.minusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AmountField
 import app.kassa.money.ui.common.ConfirmDialog
@@ -62,7 +65,6 @@ import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
 import app.kassa.money.ui.today.BigMoney
-import java.time.Instant
 
 /** One line of a person's history: a split share or a payment. [amount] is positive when it adds to what they owe you. */
 /** [payment] lines settle up; the rest (splits, starting balance) change what's owed. */

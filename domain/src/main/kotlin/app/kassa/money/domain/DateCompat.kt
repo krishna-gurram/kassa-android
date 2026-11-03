@@ -1,8 +1,8 @@
 package app.kassa.money.domain
 
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toInstant
@@ -128,6 +128,9 @@ fun LocalDate.withDayOfMonth(day: Int): LocalDate = LocalDate(year, monthNumber,
 
 /** Whole days from [from] to [to]; negative when [to] is earlier. Replaces `ChronoUnit.DAYS.between`. */
 fun daysBetween(from: LocalDate, to: LocalDate): Long = to.toEpochDay() - from.toEpochDay()
+
+/** Whole months from [from] to [to]; negative when [to] is earlier. Replaces `ChronoUnit.MONTHS.between`. */
+fun monthsBetween(from: YearMonth, to: YearMonth): Long = (to.year - from.year) * 12L + (to.month - from.month)
 
 // ---------- instants and zones ----------
 

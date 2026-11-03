@@ -1,12 +1,12 @@
 package app.kassa.money.domain
 
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class QueryWindowsTest {
     private val utc = TimeZone.UTC

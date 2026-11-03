@@ -51,6 +51,11 @@ import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Repeats
 import app.kassa.money.domain.Spending
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isBefore
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.plusDays
+import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.common.weekdayDate
 import app.kassa.money.ui.common.shortDate
 import app.kassa.money.ui.CardSnapshotFor
@@ -65,8 +70,7 @@ import app.kassa.money.ui.common.SectionHeader
 import app.kassa.money.ui.entry.Chip
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /**
  * One thing that needs the user. Nothing here posts by itself: each choice is theirs.
@@ -108,7 +112,8 @@ sealed interface Notice {
     /** A monthly charge with the same amount each time that isn't a bill yet. Clearing it never suggests it again. */
     data class Suggestion(val repeat: Repeat) : Notice {
         override val key get() = "suggest:${repeat.key}:${repeat.categoryId}"
-        override val date: LocalDate get() = LocalDate.MAX
+        // Only orders the page (suggestions go last); never shown.
+        override val date: LocalDate get() = LocalDate(9999, 12, 31)
         override val label get() = repeat.name
     }
 }

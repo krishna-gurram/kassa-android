@@ -34,6 +34,7 @@ import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Transaction
+import app.kassa.money.domain.dateOfMillis
 import app.kassa.money.domain.effectOn
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.cards.cardMoney
@@ -47,7 +48,6 @@ import app.kassa.money.ui.importer.PrimaryButton
 import app.kassa.money.ui.importer.SecondaryButton
 import app.kassa.money.ui.theme.Kassa
 import app.kassa.money.ui.theme.KassaType
-import java.time.Instant
 
 /**
  * Make an account show the balance its bank or lender shows, with a dated balance correction (see [BalanceCorrection]):

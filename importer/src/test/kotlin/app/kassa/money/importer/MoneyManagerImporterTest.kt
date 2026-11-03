@@ -4,10 +4,10 @@ import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.TxKind
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlinx.datetime.TimeZone
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** Synthetic backup shaped like a real Money Manager export. No real data lives in this repo. */
 class MoneyManagerImporterTest {

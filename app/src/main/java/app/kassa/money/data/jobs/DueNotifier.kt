@@ -16,8 +16,6 @@ import app.kassa.money.domain.DueNotices
 import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.toEpochDay
 import app.kassa.money.ui.MainActivity
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +25,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.toKotlinLocalDate
 import kotlinx.datetime.toKotlinTimeZone
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * Phone notifications for payments that come due. It reads the data, finds what wants a notification now and posts it,

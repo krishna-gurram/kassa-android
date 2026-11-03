@@ -1,9 +1,9 @@
 package app.kassa.money.domain
 
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlinx.datetime.LocalDate
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class MoneyAndPeriodTest {
 

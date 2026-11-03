@@ -62,6 +62,8 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.RecurringRules
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.plusDays
 import app.kassa.money.ui.Ledger
 import app.kassa.money.ui.common.AccountPickerPanel
 import app.kassa.money.ui.common.CategoryPickerPanel
@@ -256,7 +258,7 @@ fun BillPage(
                                             name = s.take(InputRules.NAME_MAX)
                                             if (categoryId == null) ledger.recent.firstOrNull { it.note.trim() == s && it.kind == TxKind.EXPENSE }?.let { last ->
                                                 categoryId = last.categoryId
-                                                day = minOf(java.time.Instant.ofEpochMilli(last.epochMillis).atZone(ledger.zone).dayOfMonth, 31)
+                                                day = minOf(dateOfMillis(last.epochMillis, ledger.zone).dayOfMonth, 31)
                                             }
                                             advance()
                                         }.padding(horizontal = 14.dp),

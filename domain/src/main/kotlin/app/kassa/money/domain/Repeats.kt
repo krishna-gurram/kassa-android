@@ -1,9 +1,9 @@
 package app.kassa.money.domain
 
-import java.text.DateFormatSymbols
-import java.util.Locale
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import java.text.DateFormatSymbols
+import java.util.Locale
 
 /** How often a charge comes back. A gap between two charges counts when it falls in [minDays]..[maxDays]. */
 enum class Cadence(val label: String, val minDays: Int, val maxDays: Int, val days: Int, val perYear: Double) {

@@ -40,6 +40,8 @@ import app.kassa.money.domain.Repeat
 import app.kassa.money.domain.Repeats
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.millisAt
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.today.Notice
 import kotlinx.coroutines.CancellationException
@@ -60,9 +62,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.LocalDate
 import java.io.FileNotFoundException
-import java.time.LocalDate
-import java.time.YearMonth
 
 /**
  * The main screens' state ([ledger]) and every change they make. Each change runs in the background and reports
@@ -308,7 +309,7 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
         val day = minOf(due, now.today)
         val draft = EntryDraft(
             id = null, kind = TxKind.EXPENSE, amount = amount, accountId = bill.accountId, toAccountId = null,
-            categoryId = bill.categoryId, personId = null, epochMillis = day.atTime(9, 0).atZone(now.zone).toInstant().toEpochMilli(), note = bill.name,
+            categoryId = bill.categoryId, personId = null, epochMillis = millisAt(day, 9, 0, now.zone), note = bill.name,
         )
         // The entry and "handled" are one change: a failure of either leaves neither, and the bill still asks.
         kassa.bills.approve(bill, draft, Budgets.key(YearMonth.from(due)))

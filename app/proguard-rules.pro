@@ -9,3 +9,6 @@
 # Keep line numbers so crash traces stay readable.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# kotlinx-datetime mentions serialization classes it only uses when the app has them.
+-dontwarn kotlinx.serialization.**

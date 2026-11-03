@@ -15,11 +15,16 @@ import app.kassa.money.domain.Money
 import app.kassa.money.domain.Split
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
+import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.localDateOfEpochDay
+import app.kassa.money.domain.toEpochDay
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toJavaLocalDate
+import kotlinx.datetime.toJavaZoneId
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalTime
-import java.time.YearMonth
-import java.time.ZoneId
 
 /** What the entry page opens with: a blank entry, an existing one to edit, or a prefilled one (a due bill). */
 data class EntryStart(
@@ -52,9 +57,9 @@ private val PAGE_KINDS = setOf(TxKind.EXPENSE, TxKind.INCOME, TxKind.TRANSFER)
  * The composables only lay this out and call its methods. Each property is Compose state, so changes redraw the page.
  */
 @Stable
-internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate) {
+internal class EntryState(val start: EntryStart, zone: TimeZone, today: LocalDate) {
     /** The phone's zone and today's date, kept current by [updateClock] when the page stays open past midnight or across a zone change. */
-    private var zone: ZoneId = zone
+    private var zone: TimeZone = zone
     private var today: LocalDate = today
     val editing: Transaction? = start.editing
     private val prefill: EntryDraft? = start.prefill
@@ -151,7 +156,7 @@ internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate)
      * The date or zone changed while the page was open. What was picked stays as picked; only "today" moves, so a new entry saved
      * on the date picked still gets the right time of day, and the calendar's today marker follows.
      */
-    fun updateClock(zone: ZoneId, today: LocalDate) { this.zone = zone; this.today = today }
+    fun updateClock(zone: TimeZone, today: LocalDate) { this.zone = zone; this.today = today }
 
     fun typeNote(raw: String) { note = InputRules.typed(raw, InputRules.NOTE_MAX) }
 
@@ -247,19 +252,20 @@ internal class EntryState(val start: EntryStart, zone: ZoneId, today: LocalDate)
 
     /** Keeps the original time of day when editing; uses now for today and noon for other new dates. */
     private fun savedMillis(): Long {
+        val javaZone = zone.toJavaZoneId()
         val time = when {
-            originalMillis != null -> Instant.ofEpochMilli(originalMillis).atZone(zone).toLocalTime()
-            date == today -> LocalTime.now(zone)
+            originalMillis != null -> Instant.ofEpochMilli(originalMillis).atZone(javaZone).toLocalTime()
+            date == today -> LocalTime.now(javaZone)
             else -> LocalTime.NOON
         }
-        return date.atTime(time).atZone(zone).toInstant().toEpochMilli()
+        return date.toJavaLocalDate().atTime(time).atZone(javaZone).toInstant().toEpochMilli()
     }
 
     companion object {
         private const val SAVED_SIZE = 14
 
         /** Keeps an [EntryState] across recreation: a new one for [start], with what was typed put back. */
-        fun saver(start: EntryStart, zone: ZoneId, today: LocalDate): Saver<EntryState, Any> = listSaver(
+        fun saver(start: EntryStart, zone: TimeZone, today: LocalDate): Saver<EntryState, Any> = listSaver(
             save = { it.saved() },
             restore = { v -> EntryState(start, zone, today).also { it.restore(v) } },
         )
