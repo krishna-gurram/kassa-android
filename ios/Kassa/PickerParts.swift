@@ -188,3 +188,6 @@ struct GroupLabel: View {
 
 extension CategoryChoiceData: Identifiable {}
 extension AccountChoiceData: Identifiable {}
+extension StarterData: Identifiable {
+    public var id: String { name }
+}
