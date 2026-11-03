@@ -19,6 +19,12 @@ settings:
     Release:
       "FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]": "$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/releaseFramework"
       "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": "$(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework"
+# SQLCipher (community edition, BSD-style license) as a prebuilt xcframework; `import SQLCipher`. Its notice must be shown in the
+# app before release (see CLAUDE.md). `from` takes the newest 4.x release (4.20.0 when this was written).
+packages:
+  SQLCipher:
+    url: https://github.com/sqlcipher/SQLCipher.swift.git
+    from: 4.10.0
 targets:
   Kassa:
     type: application
@@ -39,6 +45,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.kassa.money
         OTHER_LDFLAGS: "$(inherited) -framework KassaShared"
         TARGETED_DEVICE_FAMILY: "1,2"
+        # What SQLCipher's README asks Swift projects to define so its C header declares the encryption calls.
+        GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) SQLITE_HAS_CODEC=1"
+    dependencies:
+      - package: SQLCipher
+        product: SQLCipher
+      - sdk: Security.framework
     preBuildScripts:
       - name: Build shared Kotlin framework
         basedOnDependencyAnalysis: false

@@ -5,6 +5,10 @@ SwiftUI app over the shared Kotlin code (`:domain` and `:importer`, exported as 
 
 First milestone: a screen that formats a sample figure through the shared rules, and tests that the framework loads.
 
+Storage (stage A): `Kassa/Storage` holds an encrypted SQLCipher database (SPM package `SQLCipher.swift`, tables copied from Android's Room
+schema 10, key in the Keychain) that restores from and exports to a `.kassa` backup; `StorageTests` cover it. The app shows a
+"Storage ready" line and nothing else uses it yet.
+
 ## CI
 
 The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
