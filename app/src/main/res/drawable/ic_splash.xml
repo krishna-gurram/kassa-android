@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The launcher icon's drawer and K on a round disc, for the starting screen. The disc keeps it readable on the light and the dark ground. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="@color/splash_disc" android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
-    <path android:fillColor="@color/launcher_accent" android:pathData="M38,33h32a3,3 0,0 1,0 6h-32a3,3 0,0 1,0 -6z" />
-    <path android:fillColor="@color/launcher_fg" android:pathData="M40,45h7v30h-7z" />
-    <path android:fillColor="@color/launcher_fg" android:pathData="M47,60.5L61.5,45h9L54.5,62 71,75h-9.5L47,63.5z" />
-</vector>
+<!-- The starting screen's icon: the disc grows in with a small overshoot, then the K and drawer fade up and settle. One short play (about half a second). -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_splash_art">
+    <target android:name="disc" android:animation="@animator/splash_disc" />
+    <target android:name="mark" android:animation="@animator/splash_mark" />
+    <target android:name="drawer" android:animation="@animator/splash_fade" />
+    <target android:name="stem" android:animation="@animator/splash_fade" />
+    <target android:name="leg" android:animation="@animator/splash_fade" />
+</animated-vector>
