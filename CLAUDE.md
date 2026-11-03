@@ -92,6 +92,9 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   `shared/.../backup` (package `app.kassa.money.backup`) reads and writes the JSON inside a `.kassa` file (`BackupJson`, `BackupData`, hand-written `JsonText`); `BackupBridge` is its Swift face, and `ios/Kassa/BackupFile.swift` is the envelope (header, password, gzip).
   Android keeps its own streaming writer/reader; the golden files in `app/src/test/resources/backup-golden` are what both must open.
   A change to the file format updates `docs/BACKUP_FORMAT.md`, the generator (`tools/make_golden_backups.py`) and all three readers (Android, `BackupJson`, `BackupFile.swift`).
+  `ios/Kassa/Storage`: the on-device database is SQLCipher through SPM (`SQLCipher.swift`, `SQLiteDB` over the C API); `Schema.swift` copies Room schema 10 (Room is the source of truth: a `DATABASE_VERSION` bump changes both), and `LedgerStore` restores/exports a `BackupData` through the flat cells of `BackupRows`/`BackupBuilder` (:shared).
+  The key is 32 random bytes in the Keychain (`AfterFirstUnlockThisDeviceOnly`); like Android's `KeyPolicy`, a missing key over an existing database throws and never makes a new key.
+  SQLCipher's BSD-style notice must be shown in the iOS app before release (third-party notices, as on Android).
 - `app/data/db`: Room entities, DAOs, `KassaDatabase` (`DATABASE_VERSION`), `Migrations.kt`.
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.
