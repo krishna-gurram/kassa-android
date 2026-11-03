@@ -88,7 +88,10 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   (iOS targets only on a Mac, `jvm()` elsewhere). `KassaCore` is the Swift-facing facade (`installDefaults()` is idempotent and sets
   the US number style until iOS reads the phone's language). Keep it thin: rules belong in `domain/`.
 - `ios/`: SwiftUI app. `project.yml` is an XcodeGen spec (the `.xcodeproj` is generated, never committed); a pre-build script runs
-  the Gradle link task for the SDK. CI job `ios-app` (macos-14) generates, builds and runs `KassaTests`; it is not in publish's needs.
+  the Gradle link task for the SDK. CI job `ios-app` (macos-15) generates, builds and runs `KassaTests`; it is not in publish's needs.
+  `shared/.../backup` (package `app.kassa.money.backup`) reads and writes the JSON inside a `.kassa` file (`BackupJson`, `BackupData`, hand-written `JsonText`); `BackupBridge` is its Swift face, and `ios/Kassa/BackupFile.swift` is the envelope (header, password, gzip).
+  Android keeps its own streaming writer/reader; the golden files in `app/src/test/resources/backup-golden` are what both must open.
+  A change to the file format updates `docs/BACKUP_FORMAT.md`, the generator (`tools/make_golden_backups.py`) and all three readers (Android, `BackupJson`, `BackupFile.swift`).
 - `app/data/db`: Room entities, DAOs, `KassaDatabase` (`DATABASE_VERSION`), `Migrations.kt`.
 - `app/data/repo`: one repository per thing (entries, accounts, categories, people, bills, investments, import). They
   are the only code that writes to the database, and each validates before writing.

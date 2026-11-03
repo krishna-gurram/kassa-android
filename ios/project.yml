@@ -53,6 +53,9 @@ targets:
     platform: iOS
     sources:
       - path: KassaTests
+      # The golden .kassa files Android's tests open too: the bundle gets plain.kassa, protected.kassa and newer.kassa.
+      - path: ../app/src/test/resources/backup-golden
+        buildPhase: resources
     dependencies:
       - target: Kassa
     settings:

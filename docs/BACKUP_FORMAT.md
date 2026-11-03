@@ -51,5 +51,7 @@ Rules that matter on every platform:
 - `app/src/test/resources/backup-golden/` holds files written by `tools/make_golden_backups.py` from this page alone (no
   shared code): `plain.kassa`, `protected.kassa` (password `golden test password`) and `newer.kassa`. `BackupGoldenTest`
   opens them on Android; the iOS app's tests must open the same files and read the same values.
-- iOS must also write files Android opens: its test writes a backup, and CI feeds it to `BackupGoldenTest`'s reader
-  (see the iOS plan).
+- The iOS app's tests (`ios/KassaTests/BackupFileTests.swift`) open the same golden files, through `ios/Kassa/BackupFile.swift`
+  (the file) and `shared/.../backup/BackupJson.kt` (the JSON, also tested against them in `shared/src/jvmTest`), and read the
+  same values. iOS must also write files Android opens: its tests write and read back a backup. Feeding a file iOS wrote to
+  Android's reader in CI is still to be added.

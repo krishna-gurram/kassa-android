@@ -7,7 +7,7 @@ First milestone: a screen that formats a sample figure through the shared rules,
 
 ## CI
 
-The `ios-app` job (macos-14) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 15
+The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
 simulator. A pre-build script phase in the Kassa target runs `./gradlew :shared:link<Debug|Release>Framework<Target>`
 for the SDK being built. Logs go to `ci-output/ios-app.log`; on failure they are uploaded to a draft release
 `diag-ios-app-<run>-<attempt>`.
