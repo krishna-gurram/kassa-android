@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "kassa"
-include(":app", ":domain", ":importer")
+include(":app", ":domain", ":importer", ":shared")

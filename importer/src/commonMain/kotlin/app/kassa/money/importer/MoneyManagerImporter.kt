@@ -109,7 +109,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
         val groups = mmGroups.mapIndexed { i, g ->
             val id = (i + 1).toLong()
             groupIds[g.uid] = id
-            AccountGroup(id = id, name = fit(g.name, InputRules.NAME_MAX), sortOrder = i)
+            AccountGroup(id = id, name = fit(g.name, InputRules.NAME_LIMIT), sortOrder = i)
         }
         val groupType = mmGroups.associate { it.uid to it.type }
 
@@ -119,7 +119,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
         val deletedAccounts = allAssets.size - mmAssets.size
         val accountIds = HashMap<String, Long>()
         // Kassa needs every account name to be unique, so a repeated Money Manager name gets " 2", " 3" and so on.
-        val accountNames = uniqueNames(mmAssets.map { fit(it.name, InputRules.NAME_MAX - 3) })
+        val accountNames = uniqueNames(mmAssets.map { fit(it.name, InputRules.NAME_LIMIT - 3) })
         val accounts = mmAssets.mapIndexed { i, a ->
             val id = (i + 1).toLong()
             accountIds[a.uid] = id
@@ -145,7 +145,7 @@ class MoneyManagerImporter(private val zone: TimeZone = TimeZone.currentSystemDe
         val cardsWithoutPayFrom = accountsWithPayFrom.count { it.type == AccountType.CREDIT_CARD && it.payFromId == null }
         val assetCurrency = mmAssets.associate { it.uid to it.currencyUid }
         val deletedUids = allAssets.filter { it.deleted }.map { it.uid }.toSet()
-        val deletedNames = allAssets.filter { it.deleted }.associate { it.uid to fit(it.name, InputRules.NAME_MAX) }
+        val deletedNames = allAssets.filter { it.deleted }.associate { it.uid to fit(it.name, InputRules.NAME_LIMIT) }
 
         // Categories: parents first so children can point at them.
         val mmCats = source.categories()

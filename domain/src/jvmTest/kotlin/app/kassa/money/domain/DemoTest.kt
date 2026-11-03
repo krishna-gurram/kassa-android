@@ -31,7 +31,7 @@ class DemoTest {
     @Test
     fun namesFitTheLimits() {
         demo.categories.forEach { assertTrue(it.name.length <= InputRules.CATEGORY_NAME_MAX) }
-        demo.accounts.forEach { assertTrue(it.name.length <= InputRules.NAME_MAX) }
+        demo.accounts.forEach { assertTrue(it.name.length <= InputRules.NAME_LIMIT) }
         demo.transactions.forEach { assertTrue(it.note.length <= InputRules.NOTE_MAX) }
     }
 

@@ -8,3 +8,7 @@ captures/
 *.jks
 *.keystore
 *.mmbak
+
+ios/*.xcodeproj
+ios/Kassa/Info.plist
+shared/build/

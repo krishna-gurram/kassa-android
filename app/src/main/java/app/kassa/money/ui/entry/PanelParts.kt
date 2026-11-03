@@ -91,7 +91,7 @@ private fun DoneButton(onClick: () -> Unit) {
 internal fun PanelSearch(query: String, onQuery: (String) -> Unit, hint: String, onFocus: (Boolean) -> Unit, onDone: () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         BasicTextField(
-            value = query, onValueChange = { onQuery(InputRules.typed(it, InputRules.NAME_MAX)) }, singleLine = true,
+            value = query, onValueChange = { onQuery(InputRules.typed(it, InputRules.NAME_LIMIT)) }, singleLine = true,
             textStyle = KassaType.body.copy(color = Kassa.colors.ink),
             cursorBrush = SolidColor(Kassa.colors.ink),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Search),

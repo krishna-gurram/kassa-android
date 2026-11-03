@@ -87,7 +87,7 @@ internal fun EditPersonSheet(
     onDismiss: () -> Unit,
     onSave: (Person, Long) -> Unit,
 ) {
-    var name by rememberSaveable { mutableStateOf(p.name.take(InputRules.NAME_MAX)) }
+    var name by rememberSaveable { mutableStateOf(p.name.take(InputRules.NAME_LIMIT)) }
     var theyOwe by rememberSaveable { mutableStateOf(starting >= 0) }
     var amount by rememberSaveable { mutableStateOf(if (starting == 0L) "" else Money.toInput(Math.abs(starting))) }
     var nameProblem by rememberSaveable { mutableStateOf<String?>(null) }
