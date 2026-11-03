@@ -200,8 +200,7 @@ struct StarterCategoriesStep: View {
 
     private func chips(_ items: [StarterData]) -> some View {
         TileGrid(items: items, columns: 2) { item in
-            let on = picked.contains(item.name)
-            PickTile(selected: on, label: item.name, action: { toggle(item.name) }) {
+            PickTile(selected: picked.contains(item.name), label: item.name, action: { toggle(item.name) }) {
                 HStack(spacing: 6) {
                     Image(systemName: IconSymbols.symbol(for: item.icon))
                         .foregroundColor(Palette.ink2)
