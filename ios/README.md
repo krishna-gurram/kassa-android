@@ -25,10 +25,20 @@ change in one transaction; Swift only lays out.
 Storage (stage A): `Kassa/Storage` holds an encrypted SQLCipher database (SPM package `SQLCipher.swift`, tables copied from Android's Room
 schema 10, key in the Keychain) that restores from and exports to a `.kassa` backup; `StorageTests` cover it.
 
+Stage D (Overview and Settings): Kassa opens on Overview: the Spending or Income hero of the current month (its period starts on the
+backup's month start day, as Android's `Ledger.period`), the three largest categories with their icons, and the pinned accounts (open
+accounts in Accounts order, then People, at most eight). All of it is `LedgerView.overview` in :shared (JVM-tested against the demo
+backup). Settings has Hide balances (remembered in UserDefaults, applied to every figure; the eye is also in the top bar of Overview,
+Activity and Accounts), Currency (relabels amounts without converting, asks first when there is data, as Android), Back up now (a `.kassa`
+through `BackupFile`, optional password, saved with the system file exporter), Restore from a backup (file importer, password prompt, then a
+"Replace everything?" question), and Third-party notices (SQLCipher's BSD-style notice and Apache 2.0, bundled from
+`app/src/main/assets/licences`). Failures are worded by `Failures.swift` from `failure.*` strings (Android's `data/Failures.kt` sentences).
+Insights is still a placeholder.
+
 ## CI
 
 The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
-simulator. `ScreenshotTests` draws the Accounts and Activity screens (light and dark) to `ci-output/shots`, which a step uploads to
+simulator. `ScreenshotTests` draws the Accounts, Activity, Overview and Settings screens (light and dark) to `ci-output/shots`, which a step uploads to
 a draft release `ios-shots-<run>-<attempt>`; it never fails the build. A pre-build script phase in the Kassa target runs `./gradlew :shared:link<Debug|Release>Framework<Target>`
 for the SDK being built. Logs go to `ci-output/ios-app.log`; on failure they are uploaded to a draft release
 `diag-ios-app-<run>-<attempt>`.

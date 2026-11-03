@@ -36,23 +36,33 @@ final class AppModel: ObservableObject {
     @Published private(set) var phase: AppPhase = .opening
     @Published private(set) var accounts: AccountsData?
     @Published private(set) var activity: ActivityData?
+    @Published private(set) var overview: OverviewData?
+    /// The currency code the ledger shows ("USD"), or "" before the store is read.
+    @Published private(set) var currency: String = ""
     @Published private(set) var shownYear: Int
     @Published private(set) var shownMonth: Int
     @Published private(set) var today: Int
     @Published private(set) var hideAmounts: Bool
     /// The sentence to show after a restore failed (or a wrong password), or nil.
-    @Published private(set) var restoreMessage: String?
-    @Published private(set) var working = false
+    @Published var restoreMessage: String?
+    @Published var working = false
     /// True while the password prompt is up for a protected backup.
     @Published var asksPassword = false
     /// The currency picked on first run, a code Kassa lists; nil until one is picked (the phone's region currency counts when listed).
-    @Published private(set) var chosenCurrency: String?
+    @Published var chosenCurrency: String?
     /// True while the currency list is up because a backup was read that carries no currency and none was picked.
     @Published var asksCurrencyForBackup = false
     /// The ledger the pickers read (categories, accounts, what an entry holds). Replaced after every read of the store.
     @Published private(set) var picks: LedgerView?
     /// The entry page that is open (new or editing), or nil.
     @Published var entryPage: EntryPageRequest?
+    /// A plain sentence about something that worked in Settings ("Restored."), or nil.
+    @Published var notice: String?
+    /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
+    @Published var pendingExport: BackupExport?
+    /// The one line about a backup read from Settings ("12 entries, 3 accounts, 8 categories"), shown in the "Replace everything?"
+    /// question; nil when no such question is open.
+    @Published var asksReplace: String?
 
     // Internal (not private) so `AppModel+Write.swift` can use the one queue and the store.
     let queue = DispatchQueue(label: "app.kassa.ledger", qos: .userInitiated)
@@ -62,7 +72,9 @@ final class AppModel: ObservableObject {
     var store: LedgerStore?      // queue only
     var view: LedgerView?        // queue only
     private var pendingFile: Data?       // queue only
-    private var pendingBackup: BackupData?   // queue only: a backup read and waiting for a currency
+    var pendingBackup: BackupData?   // queue only: a backup read and waiting for a currency or for the "Replace everything?" answer
+    /// Queue only: true while the backup being read comes from Settings, over existing data, so it waits for the person's answer.
+    var confirmReplace = false
 
     init(defaults: UserDefaults = UserDefaults.standard, openStore: @escaping () throws -> LedgerStore = { try LedgerStore.openDefault() }) {
         self.defaults = defaults
@@ -218,11 +230,15 @@ final class AppModel: ObservableObject {
     private func compute(_ made: LedgerView, _ given: Inputs) {
         let day = Int32(given.today)
         let a = made.accounts(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        let code = made.currencyCode()
         let m = made.activity(
             year: Int32(given.year), month: Int32(given.month), hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone
         )
         publish {
             self.accounts = a
+            self.overview = o
+            self.currency = code
             self.activity = m
             self.today = given.today
         }
@@ -238,8 +254,13 @@ final class AppModel: ObservableObject {
     }
 
     func toggleHidden() {
-        hideAmounts.toggle()
-        defaults.set(hideAmounts, forKey: AppModel.hideKey)
+        setHidden(!hideAmounts)
+    }
+
+    /// Turns Hide balances on or off, remembers it, and works every figure out again with the mask or without.
+    func setHidden(_ hidden: Bool) {
+        hideAmounts = hidden
+        defaults.set(hidden, forKey: AppModel.hideKey)
         refreshFigures()
     }
 
@@ -255,12 +276,16 @@ final class AppModel: ObservableObject {
 
     // MARK: Restore
 
-    /// A file chosen in the file picker. Reads it, asks for a password when it has one, and replaces the (empty) store.
-    func chooseBackup(_ url: URL) {
+    /// A file chosen in the file picker. Reads it, asks for a password when it has one, and replaces the (empty) store. From Settings
+    /// ([replacing] true) the store has data, so once the file is read the person is asked first (`asksReplace`) and nothing changes
+    /// until `confirmReplaceNow()`.
+    func chooseBackup(_ url: URL, replacing: Bool = false) {
         working = true
         restoreMessage = nil
+        notice = nil
         let given = inputs()
         queue.async {
+            self.confirmReplace = replacing
             let scoped = url.startAccessingSecurityScopedResource()
             defer {
                 if scoped { url.stopAccessingSecurityScopedResource() }
@@ -269,7 +294,7 @@ final class AppModel: ObservableObject {
                 let bytes = try Data(contentsOf: url)
                 self.restore(bytes, password: nil, given)
             } catch {
-                self.fail(String(localized: "restore.cannotRead"))
+                self.fail(Failures.readFile(error))
             }
         }
     }
@@ -292,11 +317,39 @@ final class AppModel: ObservableObject {
         asksPassword = false
         queue.async {
             self.pendingFile = nil
+            self.confirmReplace = false
         }
     }
 
     func dismissMessage() {
         restoreMessage = nil
+        notice = nil
+    }
+
+    /// The person said "Replace" to the question after a backup was read from Settings. A backup with no currency keeps the one the
+    /// ledger shows now.
+    func confirmReplaceNow() {
+        asksReplace = nil
+        working = true
+        let given = inputs()
+        queue.async {
+            guard let parsed = self.pendingBackup else {
+                self.fail(String(localized: "restore.failed"))
+                return
+            }
+            let carried = StartBridge.shared.listed(code: parsed.currency ?? "")
+            let kept: String? = self.view?.currencyCode()
+            self.apply(parsed, currency: carried.isEmpty ? kept : nil, given)
+        }
+    }
+
+    /// The person said no: the backup read from Settings is dropped and nothing changed.
+    func cancelReplace() {
+        asksReplace = nil
+        queue.async {
+            self.pendingBackup = nil
+            self.confirmReplace = false
+        }
     }
 
     /// Opens [bytes] and replaces everything with them. Queue only. Every failure ends as a plain sentence. A backup that carries no
@@ -314,6 +367,16 @@ final class AppModel: ObservableObject {
             }
             let parsed = try BackupBridge.shared.parse(text: json)
             pendingFile = nil
+            if confirmReplace {
+                pendingBackup = parsed
+                let line = BackupBridge.shared.summary(data: parsed)
+                publish {
+                    self.working = false
+                    self.restoreMessage = nil
+                    self.asksReplace = line
+                }
+                return
+            }
             let carried = StartBridge.shared.listed(code: parsed.currency ?? "")
             if carried.isEmpty && given.currency == nil {
                 pendingBackup = parsed
@@ -351,12 +414,16 @@ final class AppModel: ObservableObject {
         do {
             try opened.replace(with: parsed, currency: currency)
             pendingBackup = nil
+            confirmReplace = false
             try load(opened, given)
+            let done = String(localized: "settings.restored")
             publish {
                 self.working = false
                 self.asksPassword = false
                 self.asksCurrencyForBackup = false
+                self.asksReplace = nil
                 self.restoreMessage = nil
+                self.notice = done
                 self.phase = .ready
             }
         } catch {
@@ -387,10 +454,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func fail(_ text: String) {
+    func fail(_ text: String) {
         publish {
             self.working = false
             self.asksPassword = false
+            self.asksReplace = nil
             self.restoreMessage = text
         }
     }

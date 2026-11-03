@@ -31,6 +31,12 @@ targets:
     platform: iOS
     sources:
       - path: Kassa
+      # The licence texts Settings > Third-party notices shows (the same files Android bundles): SQLCipher's BSD-style notice and Apache 2.0.
+      - path: ../app/src/main/assets/licences
+        includes:
+          - sqlcipher.txt
+          - apache-2.0.txt
+        buildPhase: resources
     info:
       path: Kassa/Info.plist
       properties:
@@ -76,6 +82,12 @@ targets:
       - path: KassaTests
       # The golden .kassa files Android's tests open too: the bundle gets plain.kassa, protected.kassa and newer.kassa.
       - path: ../app/src/test/resources/backup-golden
+        buildPhase: resources
+      # The demo backup and the figures worked out from its entries alone (demo.kassa, expected.json).
+      - path: ../app/src/test/resources/backup-demo
+        includes:
+          - demo.kassa
+          - expected.json
         buildPhase: resources
     dependencies:
       - target: Kassa

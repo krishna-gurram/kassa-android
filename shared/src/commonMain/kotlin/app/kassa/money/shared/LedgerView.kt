@@ -26,11 +26,15 @@ import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.LoanEntryIndex
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.domain.Period
 import app.kassa.money.domain.QueryWindows
+import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
 import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.isAfter
+import app.kassa.money.domain.isBefore
 import app.kassa.money.domain.localDateOfEpochDay
 import app.kassa.money.domain.personBalance
 import app.kassa.money.domain.toEpochDay
@@ -201,6 +205,58 @@ data class EntryEditData(
     val note: String,
 )
 
+/** Whether an account tile on Overview has a card payment waiting: coming up, or already past its due day. */
+enum class PinDue { Nothing, Due, Overdue }
+
+/** One of the top categories of the Overview hero. [id] is 0 for entries with no category (Swift words "Uncategorized"). */
+data class TopCategoryData(
+    val id: Long,
+    val name: String,
+    /** "emoji", "symbol" or "image" like [CategoryChoiceData]; empty without a category. */
+    val iconKind: String,
+    val iconValue: String,
+    /** The category's colour as ARGB; 0 without a category. */
+    val color: Int,
+    val amountText: String,
+)
+
+/** The Overview hero for one flow, spending or income, over the current period: the total and its three largest categories. */
+data class OverviewFlowData(
+    val totalText: String,
+    /** Green for income above zero, Ink otherwise and always while hidden. */
+    val tone: Tone,
+    /** Largest first, at most three; empty when nothing was spent (or earned) yet. */
+    val top: List<TopCategoryData>,
+)
+
+/** One pinned tile on Overview: an open account, or [isPeople] for everyone you owe or who owes you (then [id] is 0, [name] empty). */
+data class PinRowData(
+    val isPeople: Boolean,
+    val id: Long,
+    val name: String,
+    val last4: String,
+    val amountText: String,
+    val amountTone: Tone,
+    val dueKind: PinDue,
+    /** The card's balance payable when [dueKind] is not Nothing. */
+    val dueAmountText: String,
+    /** Epoch day of the card's due date; 0 when [dueKind] is Nothing. */
+    val dueDay: Int,
+)
+
+/**
+ * The Overview tab: the month (or custom-start period) that holds today, spending and income to date with their top three
+ * categories, and the pinned accounts (until the person can pin, the first [LedgerView.MAX_PINS] in Accounts order).
+ */
+data class OverviewData(
+    /** The period's month for its label (the month it starts in). */
+    val year: Int,
+    val month: Int,
+    val spending: OverviewFlowData,
+    val income: OverviewFlowData,
+    val pins: List<PinRowData>,
+)
+
 /** The ledger of one restored backup, worked out for the iOS screens. Build one per refresh; see the file comment. */
 class LedgerView(data: BackupData, fallbackCurrency: String?) {
 
@@ -221,6 +277,9 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
      * that has one shows it, as Android does after a restore; otherwise the groups and rows are A to Z.
      */
     private val arrangement: AccountArrangement? = AccountArrangement.decode(data.accountArrangement)
+
+    /** The day each period starts on (1 to 28), as Android's `Ledger.period` reads it. */
+    private val monthStartDay: Int = data.monthStartDay.coerceIn(1, 28)
 
     /** The currency code this ledger shows ("USD"). */
     fun currencyCode(): String = currency.code
@@ -480,6 +539,91 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         is CategoryIcon.Image -> c.name.trim().take(1).uppercase()
     }
 
+    // ---------- Overview ----------
+
+    /**
+     * The Overview as of [todayEpochDay] in the zone [timeZoneId]; [hidden] is Hide balances. Mirrors Android's `TodayScreen`: the
+     * period is `Period.containing(today, monthStartDay)`, spending and income are the entries as spending sees them
+     * (`CountedSpending`) from the period's start up to today, rolled up to top-level categories (`Spending.topOf`) with each
+     * entry's own share (`categoryAmount`), largest first. Pins are the open accounts in the person's Accounts order (A to Z
+     * until they arrange), then People when anyone is listed, at most [MAX_PINS].
+     */
+    fun overview(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): OverviewData = shown(hidden) {
+        val zone = zoneOf(timeZoneId)
+        val today = localDateOfEpochDay(todayEpochDay)
+        val period = Period.containing(today, monthStartDay)
+        val inPeriod = transactions.filter { t ->
+            val day = dateOfMillis(t.epochMillis, zone)
+            !day.isBefore(period.start) && !day.isAfter(today)
+        }
+        val counted = CountedSpending.apply(inPeriod, parts.loanPayments, parts.loanTerms, parts.categories)
+        OverviewData(
+            year = period.yearMonth.year,
+            month = period.yearMonth.month,
+            spending = overviewFlow(counted, TxKind.EXPENSE, false),
+            income = overviewFlow(counted, TxKind.INCOME, true),
+            pins = overviewPins(todayEpochDay, zone),
+        )
+    }
+
+    private fun overviewFlow(list: List<Transaction>, kind: TxKind, positive: Boolean): OverviewFlowData {
+        val grouped = list.filter { it.kind == kind }.groupBy { Spending.topOf(it.categoryId, categoryById) }
+        val rows = grouped.entries.map { e -> Pair(e.key, e.value.sumOf { it.categoryAmount }) }.sortedByDescending { it.second }
+        val total = rows.sumOf { it.second }
+        val top = rows.take(3).map { r -> topCategoryOf(r.first, r.second) }
+        val tone = if (positive && total > 0) figurePositive() else Tone.Ink
+        return OverviewFlowData(Money.format(total), tone, top)
+    }
+
+    private fun topCategoryOf(c: Category?, amount: Long): TopCategoryData {
+        if (c == null) return TopCategoryData(0L, "", "", "", 0, Money.format(amount))
+        val icon = iconParts(c.icon)
+        return TopCategoryData(c.id, c.name, icon.first, icon.second, c.color, Money.format(amount))
+    }
+
+    private fun overviewPins(todayEpochDay: Int, zone: TimeZone): List<PinRowData> {
+        val open = accounts.filter { it.isActive }
+        val arranged = arrangement
+        val ordered: List<Account> = if (arranged == null) {
+            open.sortedWith(Names.order { a: Account -> a.name })
+        } else {
+            arranged.flatten(
+                open,
+                { a: Account -> AccountSection.of(a.type).name },
+                { a: Account -> AccountSection.of(a.type).title },
+                { a: Account -> a.id },
+                { a: Account -> a.name },
+            )
+        }
+        val cards = cardSnapshots(todayEpochDay, zone)
+        val rows = ArrayList<PinRowData>()
+        for (a in ordered) {
+            val balance = (balances[a.id] ?: 0L) + holdingsValue(a)
+            val debt = a.type.isDebt
+            val text = if (debt) cardMoney(-balance) else Money.format(balance)
+            val tone = if (debt) cardTint(-balance) else balanceTone(a.type, balance)
+            var due = PinDue.Nothing
+            var dueText = ""
+            var dueDay = 0
+            val snapshot = cards[a.id]
+            if (snapshot != null && snapshot.payable > 0) {
+                dueText = Money.format(snapshot.payable)
+                dueDay = snapshot.due.toEpochDay().toInt()
+                due = if (dueDay < todayEpochDay) PinDue.Overdue else PinDue.Due
+            }
+            rows.add(PinRowData(false, a.id, a.name, a.last4 ?: "", text, tone, due, dueText, dueDay))
+        }
+        val people = openPeople()
+        if (people.isNotEmpty()) {
+            val owed = people.map { p -> personBalance(p.id, parts.loanEntries, transactions) }
+            val theyOwe = owed.filter { it > 0 }.sum()
+            val youOwe = -owed.filter { it < 0 }.sum()
+            val net = if (theyOwe > 0L || youOwe == 0L) theyOwe else -youOwe
+            rows.add(PinRowData(true, 0L, "", "", Money.format(abs(net)), favour(net), PinDue.Nothing, "", 0))
+        }
+        return rows.take(MAX_PINS)
+    }
+
     // ---------- Pickers and editing (the write path) ----------
 
     /** Every account's name, archived and closed ones too: what a new account's name may not repeat. */
@@ -635,6 +779,8 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
 
     companion object {
         const val PEOPLE = "PEOPLE"
+        /** At most this many tiles on Overview, as Android's `MAX_PINS`. */
+        const val MAX_PINS = 8
         const val CLOSED = "CLOSED"
     }
 }

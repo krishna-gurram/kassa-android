@@ -199,3 +199,53 @@
 "entry.filter.cards" = "Cards";
 "entry.filter.other" = "Other";
 "a11y.add" = "Add";
+
+/* Overview */
+"overview.spending" = "Spending";
+"overview.income" = "Income";
+"overview.noSpending" = "No spending yet.";
+"overview.noIncome" = "No income yet.";
+"overview.accounts" = "Accounts";
+"overview.allAccounts" = "All accounts";
+"overview.noAccounts" = "No accounts yet. Add one on the Accounts tab.";
+"overview.cardDue" = "%@ due %@";
+"overview.cardOverdue" = "%@ overdue";
+
+/* Settings */
+"settings.hideBalances" = "Hide balances";
+"settings.hideBalancesHint" = "Shows •••• instead of every amount, on every screen.";
+"settings.currency" = "Currency";
+"settings.currency.confirmTitle" = "Show amounts in %@?";
+"settings.currency.confirmBody" = "Every amount already in Kassa keeps its number and shows as %@. Nothing is converted.";
+"settings.currency.switch" = "Switch to %@";
+"settings.cancel" = "Cancel";
+"settings.backup.header" = "Backup and restore";
+"settings.backup.now" = "Back up now";
+"settings.backup.working" = "Working...";
+"settings.backup.passwordTitle" = "Protect this backup?";
+"settings.backup.passwordMessage" = "Add a password, or leave it empty for a backup anyone can open. Kassa can't recover a lost password.";
+"settings.backup.passwordField" = "Password (optional)";
+"settings.backup.save" = "Save";
+"settings.backup.note" = "A backup without a password isn't encrypted. Add one when you save it anywhere you don't control.";
+"settings.backupSaved" = "Backup saved.";
+"settings.restored" = "Restored from the backup.";
+"settings.restore.button" = "Restore from a backup";
+"settings.replace.title" = "Replace everything in Kassa?";
+"settings.replace.body" = "%@\n\nAll accounts, entries and settings in Kassa now are replaced by this backup. This can't be undone.";
+"settings.replace.confirm" = "Replace";
+"settings.about" = "About";
+"settings.notices" = "Third-party notices";
+"settings.notices.intro" = "Kassa is built with these. Tap one for its full licence.";
+"settings.footer" = "Kassa never uses the network. Data is encrypted on this phone.";
+
+/* What went wrong, in plain words (Android's data/Failures.kt) */
+"failure.notABackup" = "This file isn't a Kassa backup.";
+"failure.needsPassword" = "This backup has a password. Enter it, then pick the file again.";
+"failure.wrongPassword" = "That password doesn't open this backup.";
+"failure.tooLarge" = "This backup is too large to open on this phone.";
+"failure.noSpace" = "Not enough space on this phone. Free some space and try again.";
+"failure.locationGone" = "Kassa can't reach that folder or file any more. Pick it again.";
+"failure.fileUnreadable" = "That file couldn't be opened. Try picking it again.";
+"failure.fileDamaged" = "The file is damaged or cut short. Back up again and pick the new file.";
+"failure.couldntOpen" = "Couldn't open that file.";
+"failure.backupNotSaved" = "The backup couldn't be saved. Try again.";
