@@ -71,7 +71,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: swaps the starting theme (the icon on the ground colour) for Theme.Kassa.
-        installSplashScreen()
+        val splash = installSplashScreen()
+        // A cold start holds the icon for about 0.6 seconds so its short animation can be seen; recreation (fold, rotate) never waits.
+        val shownAt = android.os.SystemClock.uptimeMillis()
+        if (savedInstanceState == null)
+            splash.setKeepOnScreenCondition { android.os.SystemClock.uptimeMillis() - shownAt < SPLASH_MIN_MS }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) {
@@ -198,6 +202,8 @@ class MainActivity : FragmentActivity() {
     }
 
     private companion object {
+        /** How long a cold start keeps the starting icon on screen, so its animation is seen. */
+        const val SPLASH_MIN_MS = 600L
         const val STATE_LOCKED = "locked"
         const val STATE_HIDDEN_AT = "hiddenAt"
         const val STATE_OPEN_ADD = "openAdd"

@@ -10,6 +10,7 @@
     <style name="Theme.Kassa.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/ground</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenAnimationDuration">600</item>
         <item name="postSplashScreenTheme">@style/Theme.Kassa</item>
     </style>
 </resources>
