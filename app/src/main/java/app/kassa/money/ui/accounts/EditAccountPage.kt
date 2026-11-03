@@ -101,7 +101,7 @@ fun EditAccountPage(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Group(if (isCard) stringResource(R.string.accounts_card) else stringResource(R.string.accounts_account)) {
-                Field(stringResource(R.string.accounts_name), form.name, { v -> edit(AccountField.NAME) { it.copy(name = InputRules.typed(v, InputRules.NAME_MAX)) } },
+                Field(stringResource(R.string.accounts_name), form.name, { v -> edit(AccountField.NAME) { it.copy(name = InputRules.typed(v, InputRules.NAME_LIMIT)) } },
                     problem = problems[AccountField.NAME])
                 Field(stringResource(R.string.accounts_last4), form.last4, { v -> edit(AccountField.LAST4) { it.copy(last4 = InputRules.typedDigits(v, 4)) } },
                     KeyboardType.NumberPassword, stringResource(R.string.accounts_optional), problems[AccountField.LAST4])
@@ -142,7 +142,7 @@ fun EditAccountPage(
                         else -> groups.firstOrNull { it.id == form.groupId }?.name ?: stringResource(R.string.accounts_none)
                     },
                 ) { picking = Picker.GROUP }
-                if (creatingGroup) Field(stringResource(R.string.accounts_new_group_name), form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = InputRules.typed(v, InputRules.NAME_MAX)) } },
+                if (creatingGroup) Field(stringResource(R.string.accounts_new_group_name), form.newGroup, { v -> edit(AccountField.NEW_GROUP) { it.copy(newGroup = InputRules.typed(v, InputRules.NAME_LIMIT)) } },
                     problem = problems[AccountField.NEW_GROUP])
                 PickRow(stringResource(R.string.accounts_type), form.type.label, last = form.type != AccountType.FIXED_DEPOSIT) { picking = Picker.TYPE }
                 if (form.type.hasMaturity) MaturityField(form.maturityDay, ledger.today) { d -> edit(null) { it.copy(maturityDay = d) } }

@@ -24,7 +24,7 @@ fun NameField(
     onChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
-    max: Int = InputRules.NAME_MAX,
+    max: Int = InputRules.NAME_LIMIT,
     problem: String? = null,
 ) {
     OutlinedTextField(

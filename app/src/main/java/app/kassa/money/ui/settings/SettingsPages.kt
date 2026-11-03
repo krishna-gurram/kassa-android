@@ -112,7 +112,7 @@ internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
         val balance = ledger.accounts.balances[a.id] ?: 0
         val open = pickedId == a.id
         Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { pickedId = if (open) null else a.id; typed = a.name.take(InputRules.NAME_MAX) }) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { pickedId = if (open) null else a.id; typed = a.name.take(InputRules.NAME_LIMIT) }) {
                 EntryRow(
                     badge = { GlyphBadge(a.name.take(1)) },
                     title = a.name,
@@ -124,7 +124,7 @@ internal fun AccountsToPeople(ledger: Ledger, actions: SettingsActions) {
                 val problem = InputRules.nameProblem(typed, "person", taken = { n -> ledger.people.people.any { it.name.equals(n, ignoreCase = true) } })
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        typed, { typed = InputRules.typed(it, InputRules.NAME_MAX) }, singleLine = true, label = { Text(stringResource(R.string.settings_people_name)) },
+                        typed, { typed = InputRules.typed(it, InputRules.NAME_LIMIT) }, singleLine = true, label = { Text(stringResource(R.string.settings_people_name)) },
                         isError = problem != null, supportingText = problem?.let { { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) } },
                         modifier = Modifier.weight(1f),
                     )

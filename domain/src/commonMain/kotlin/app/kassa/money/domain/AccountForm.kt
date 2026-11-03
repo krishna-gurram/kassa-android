@@ -73,7 +73,7 @@ data class AccountForm(
         /** The form for editing [a], whose balance today is [balance]. */
         fun of(a: Account, balance: Long) = AccountForm(
             type = a.type,
-            name = a.name.take(InputRules.NAME_MAX),
+            name = a.name.take(InputRules.NAME_LIMIT),
             last4 = a.last4.orEmpty(),
             balance = Money.toInput(if (a.type.isDebt) -balance else balance),
             statementDay = a.statementDay?.toString().orEmpty(),

@@ -10,7 +10,7 @@ import kotlin.math.abs
  */
 object InputRules {
     /** Accounts, people, bills, account groups. */
-    const val NAME_MAX = 40
+    const val NAME_LIMIT = 40
     /** Categories and subcategories; they sit in tiles and chips. */
     const val CATEGORY_NAME_MAX = 30
     /** An entry's merchant or note. */
@@ -180,7 +180,7 @@ object InputRules {
      * A name that must be present, fit [max], and not repeat another (case-insensitive) when [taken] says so.
      * [what] reads in the message: "Give the account a name."
      */
-    fun nameProblem(raw: String, what: String, max: Int = NAME_MAX, taken: (String) -> Boolean = { false }): String? {
+    fun nameProblem(raw: String, what: String, max: Int = NAME_LIMIT, taken: (String) -> Boolean = { false }): String? {
         val name = clean(raw)
         return when {
             name.isEmpty() -> "Give the $what a name."

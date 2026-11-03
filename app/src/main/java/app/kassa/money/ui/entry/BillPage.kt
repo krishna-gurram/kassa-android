@@ -178,7 +178,7 @@ fun BillPage(
                     }
                 }
                 NoteRow(
-                    name, { name = InputRules.typed(it, InputRules.NAME_MAX); error = null }, focused = field == BillField.NAME,
+                    name, { name = InputRules.typed(it, InputRules.NAME_LIMIT); error = null }, focused = field == BillField.NAME,
                     hint = stringResource(R.string.entry_bill_name_hint),
                     requester = nameFocus,
                     onFocused = { field = BillField.NAME },
@@ -255,7 +255,7 @@ fun BillPage(
                                 sugg.forEach { s ->
                                     Box(
                                         Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(Kassa.colors.ground).clickable {
-                                            name = s.take(InputRules.NAME_MAX)
+                                            name = s.take(InputRules.NAME_LIMIT)
                                             if (categoryId == null) ledger.recent.firstOrNull { it.note.trim() == s && it.kind == TxKind.EXPENSE }?.let { last ->
                                                 categoryId = last.categoryId
                                                 day = minOf(dateOfMillis(last.epochMillis, ledger.zone).dayOfMonth, 31)

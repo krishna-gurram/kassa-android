@@ -82,7 +82,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
             accounts = wallets.map { w ->
                 val own = byWallet[w.pk].orEmpty()
                 CashewScan.Wallet(
-                    pk = w.pk, name = fit(w.name, InputRules.NAME_MAX), currency = w.currency?.uppercase(),
+                    pk = w.pk, name = fit(w.name, InputRules.NAME_LIMIT), currency = w.currency?.uppercase(),
                     balance = own.sumOf { cents(it.amount) ?: 0L }, entries = own.size,
                     transfers = own.count { it.pk in transferPks },
                 )
@@ -91,7 +91,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
                 val linked = paid.filter { it.objectiveLoanPk == o.pk }
                 val principal = linked.filter { it.isPrincipalOf(o) }.sumOf { -(cents(it.amount) ?: 0L) }.let { kotlin.math.abs(it) }
                 CashewScan.Loan(
-                    pk = o.pk, name = fit(o.name, InputRules.NAME_MAX), lent = o.income,
+                    pk = o.pk, name = fit(o.name, InputRules.NAME_LIMIT), lent = o.income,
                     amount = if (principal != 0L) principal else kotlin.math.abs(cents(o.amount) ?: 0L),
                     payments = linked.count { !it.isPrincipalOf(o) },
                 )
@@ -114,7 +114,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
         val objectives = source.objectives()
         val loans = objectives.filter { it.type == LOAN }.associateBy { it.pk }
         val loanAccounts = loans.values.filter { choices.loans[it.pk] == LoanChoice.ACCOUNT }
-        val names = uniqueNames(wallets.map { fit(it.name, InputRules.NAME_MAX - 3) } + loanAccounts.map { fit(it.name, InputRules.NAME_MAX - 3) })
+        val names = uniqueNames(wallets.map { fit(it.name, InputRules.NAME_LIMIT - 3) } + loanAccounts.map { fit(it.name, InputRules.NAME_LIMIT - 3) })
         val accountIds = HashMap<String, Long>()
         val accounts = mutableListOf<Account>()
         wallets.forEachIndexed { i, w ->
@@ -180,7 +180,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
         val all = source.transactions()
         val paid = all.filter { it.recorded }
         for (o in loans.values.filter { choices.loans[it.pk] == LoanChoice.PERSON }.sortedBy { it.epochMillis }) {
-            val name = fit(o.name, InputRules.NAME_MAX).ifBlank { "Loan" }
+            val name = fit(o.name, InputRules.NAME_LIMIT).ifBlank { "Loan" }
             val existing = people.firstOrNull { it.name.equals(name, ignoreCase = true) }
             val id = existing?.id ?: (people.size + 1L).also { people += Person(id = it, name = name, archived = o.archived) }
             personIds[o.pk] = id
@@ -209,7 +209,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
         var corrections = 0
         var transfersAsEntries = 0
         var mismatched = 0
-        val walletNames = source.wallets().associate { it.pk to fit(it.name, InputRules.NAME_MAX) }
+        val walletNames = source.wallets().associate { it.pk to fit(it.name, InputRules.NAME_LIMIT) }
         val pairs = transferPairs(paid)
         val inPair = HashMap<String, Pair<CwTransaction, CwTransaction>>()
         pairs.forEach { inPair[it.first.pk] = it; inPair[it.second.pk] = it }
@@ -301,7 +301,7 @@ class CashewImporter(private val zone: TimeZone = TimeZone.currentSystemDefault(
             val signed = cents(r.amount)
             val monthly = r.reoccurrence == MONTHLY && (r.periodLength ?: 1) == 1
             if (accountId == null || categoryId == null || signed == null || signed >= 0 || !monthly) { otherRepeats++; continue }
-            val name = fit(r.title.ifBlank { categoryById[categoryId]?.name.orEmpty() }, InputRules.NAME_MAX)
+            val name = fit(r.title.ifBlank { categoryById[categoryId]?.name.orEmpty() }, InputRules.NAME_LIMIT)
             if (bills.any { it.name.equals(name, ignoreCase = true) && it.accountId == accountId }) continue
             bills += Recurring(
                 id = bills.size + 1L, name = name, categoryId = categoryId, accountId = accountId,

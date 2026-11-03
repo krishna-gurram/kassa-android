@@ -83,6 +83,7 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   SQLite (`data/mm`, `data/cashew`); `data/PickedFile` works out which kind of file was picked from its contents. Every
   plan checks each account's balance against the source. Names and notes are cleaned and capped on the way in. JVM tests,
   plus a device test on a real SQLite file and a CI walkthrough of the Cashew screens (`.github/scripts/demo-shots.sh`).
+- Constants in `domain/` and `importer/` must not share a name with a C macro (`NAME_MAX`, `LONG_MAX`, `EOF`...): the iOS framework header would not compile.
 - `shared/`: Kotlin Multiplatform module over `:domain` and `:importer` (`api`) that builds the static iOS framework `KassaShared`
   (iOS targets only on a Mac, `jvm()` elsewhere). `KassaCore` is the Swift-facing facade (`installDefaults()` is idempotent and sets
   the US number style until iOS reads the phone's language). Keep it thin: rules belong in `domain/`.
