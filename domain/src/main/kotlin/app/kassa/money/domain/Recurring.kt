@@ -35,7 +35,7 @@ object RecurringRules {
         r.fixedAmount?.let { return it }
         val last = history.filter { matches(r, it) && dateOfMillis(it.epochMillis, zone).isBefore(before) }
             .sortedByDescending { it.epochMillis }.take(3)
-        return if (last.isEmpty()) null else Math.round(last.sumOf { it.amount }.toDouble() / last.size)
+        return if (last.isEmpty()) null else roundHalfUp(last.sumOf { it.amount }.toDouble() / last.size)
     }
 
     fun recent(r: Recurring, history: List<Transaction>, n: Int = 3): List<Long> =

@@ -24,6 +24,6 @@ object Insights {
             val d = dateOfMillis(t.epochMillis, zone)
             if (!d.isBefore(from) && d.isBefore(today)) sums[d.dayOfWeek.isoDayNumber - 1] += t.categoryAmount
         }
-        return DayOfWeek.entries.map { it to Math.round(sums[it.isoDayNumber - 1].toDouble() / weeks) }
+        return DayOfWeek.entries.map { it to roundHalfUp(sums[it.isoDayNumber - 1].toDouble() / weeks) }
     }
 }

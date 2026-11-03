@@ -2,8 +2,8 @@ package app.kassa.money.domain
 
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
-import java.text.DateFormatSymbols
-import java.util.Locale
+import kotlin.concurrent.Volatile
+import kotlin.math.abs
 
 /** How often a charge comes back. A gap between two charges counts when it falls in [minDays]..[maxDays]. */
 enum class Cadence(val label: String, val minDays: Int, val maxDays: Int, val days: Int, val perYear: Double) {
@@ -49,8 +49,8 @@ data class Repeat(
     /** How much the latest fixed charge went up or down from the one before. Zero when it varies. */
     val change: Long get() = if (fixed && amounts.size >= 2) amounts.last() - amounts[amounts.size - 2] else 0
 
-    val perYear: Long get() = Math.round(typical * cadence.perYear)
-    val perMonth: Long get() = Math.round(typical * cadence.perYear / 12)
+    val perYear: Long get() = roundHalfUp(typical * cadence.perYear)
+    val perMonth: Long get() = roundHalfUp(typical * cadence.perYear / 12)
 
     /** The next time it should come, today or later. */
     fun next(today: LocalDate): LocalDate {
@@ -78,7 +78,7 @@ object Repeats {
      * Notes are grouped by this: lowercase, with trailing words that change every time removed (months, years,
      * numbers, #ids). "Mortgage October 2026" and "mortgage - nov" both become "mortgage".
      */
-    fun key(note: String): String = name(note).lowercase(Locale.ROOT)
+    fun key(note: String): String = name(note).lowercase()
 
     /** The note as written, without the changing words at the end. */
     fun name(note: String): String {
@@ -124,21 +124,27 @@ object Repeats {
         if (gaps.count { it in cadence.minDays..cadence.maxDays } < gaps.size * 0.8) return null
         val amounts = ts.map { it.amount }
         val mid = amounts.sorted()[amounts.size / 2]
-        val fixed = amounts.count { Math.abs(it - mid) <= mid / 10 } >= amounts.size * 0.75
+        val fixed = amounts.count { abs(it - mid) <= mid / 10 } >= amounts.size * 0.75
         val last = ts.last()
         return Repeat(key, name(last.note), kind, last.categoryId, cadence, amounts, dates, fixed)
     }
 
     private fun isNoise(word: String): Boolean {
-        val w = word.lowercase(Locale.ROOT).trim { !it.isLetterOrDigit() && it != '#' }
+        val w = word.lowercase().trim { !it.isLetterOrDigit() && it != '#' }
         return w.isEmpty() || w.startsWith("#") || w.all { it.isDigit() || it in "./-'" } || w.trimEnd('.') in months
     }
 
-    /** Month names and short names in English and the phone's language. */
-    private val months: Set<String> by lazy {
-        listOf(Locale.ENGLISH, Locale.getDefault()).flatMap { l ->
-            val s = DateFormatSymbols.getInstance(l)
-            (s.months.toList() + s.shortMonths.toList())
-        }.map { it.lowercase(Locale.ROOT).trimEnd('.') }.filter { it.isNotEmpty() }.toSet() + "sept"
+    /**
+     * Month names and short names, lowercase, no trailing dot. Android installs English plus the phone's language in
+     * `PlatformRules.install()`; the default is English only. Read once, the first time a note is checked.
+     */
+    @Volatile
+    var monthWords: () -> Set<String> = {
+        listOf(
+            "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+            "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec", "sept",
+        ).toSet()
     }
+
+    private val months: Set<String> by lazy { monthWords() }
 }

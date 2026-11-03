@@ -14,7 +14,7 @@ object Patterns {
     data class SavedMonth(val month: YearMonth, val income: Long, val spent: Long) {
         val saved: Long get() = income - spent
         /** Whole percent of income kept, or null with no income. */
-        val rate: Int? get() = if (income > 0) Math.round(saved * 100.0 / income).toInt() else null
+        val rate: Int? get() = if (income > 0) roundHalfUp(saved * 100.0 / income).toInt() else null
     }
 
     data class Store(val name: String, val category: Category?, val total: Long, val visits: Int)

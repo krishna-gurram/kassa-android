@@ -1,8 +1,6 @@
 package app.kassa.money.domain
 
-import java.math.BigDecimal
-import java.math.MathContext
-import java.math.RoundingMode
+import kotlin.math.pow
 
 /*
  * Loans that know their terms. Plain Kotlin, no Android and no platform date classes: dates are epoch days (see LoanDates),
@@ -223,11 +221,11 @@ object LoanNotes {
 /** How a rate field is shown and typed. */
 object LoanRate {
     /** "6.125" for a field (a comma in "6,125" where the phone writes one); no grouping and no trailing zeros. */
-    fun toInput(rate: Long): String = NumberText.toField(BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS))
+    fun toInput(rate: Long): String = NumberText.toField(rate, InputRules.RATE_DECIMALS)
 
     /** "6.125%" in the phone's number style, up to four decimals. */
     fun display(rate: Long): String =
-        NumberText.decimal(BigDecimal.valueOf(rate).movePointLeft(InputRules.RATE_DECIMALS), InputRules.RATE_DECIMALS, trim = true) + "%"
+        NumberText.decimal(rate, InputRules.RATE_DECIMALS, InputRules.RATE_DECIMALS, trim = true) + "%"
 }
 
 /** Where a loan stands: what is owed, the scheduled payment date, and the date interest was last paid up to. */
@@ -316,20 +314,21 @@ object LoanEngine {
 
     // ---------- payments at setup ----------
 
-    private val MC = MathContext.DECIMAL128
-
     /**
      * The payment that clears [principal] in [months] equal payments at [rate]: P r (1+r)^n / ((1+r)^n - 1) with r the
-     * monthly rate, rounded half-up. 30,000.00 at 6% over 60 months is 579.98. The formula runs in BigDecimal and the
-     * result is whole cents, so no floating point reaches a stored amount.
+     * monthly rate, rounded half-up. 30,000.00 at 6% over 60 months is 579.98. With a = rate and b = 12 x RATE_UNIT it is
+     * P a (a+b)^n / (b ((a+b)^n - b^n)), worked out exactly in whole numbers ([BigInt]), so no floating point reaches a
+     * stored amount and the only rounding is the last step to whole cents.
      */
     fun emi(principal: Long, rate: Long, months: Int): Long {
         if (principal <= 0 || months <= 0) return 0
         if (rate == 0L) return mulDivHalfUp(principal, 1, months.toLong())
-        val r = BigDecimal(rate).divide(BigDecimal(12 * RATE_UNIT), MC)
-        val growth = BigDecimal.ONE.add(r).pow(months, MC)
-        val pay = BigDecimal(principal).multiply(r).multiply(growth).divide(growth.subtract(BigDecimal.ONE), MC)
-        return pay.setScale(0, RoundingMode.HALF_UP).longValueExact()
+        val b = BigInt.of(12 * RATE_UNIT)
+        val ab = BigInt.of(rate) + b
+        val growth = ab.pow(months)
+        val top = BigInt.of(principal) * BigInt.of(rate) * growth
+        val bottom = b * (growth - b.pow(months))
+        return top.divHalfUp(bottom).toLongExact()
     }
 
     /** All the interest a flat loan charges over its term: amount x rate x years. 30,000.00 at 6% for 60 months is 9,000.00. */
@@ -351,10 +350,10 @@ object LoanEngine {
         var hi = 1.0
         repeat(100) {
             val mid = (lo + hi) / 2
-            val pay = amount * mid * Math.pow(1 + mid, months.toDouble()) / (Math.pow(1 + mid, months.toDouble()) - 1)
+            val pay = amount * mid * (1 + mid).pow(months.toDouble()) / ((1 + mid).pow(months.toDouble()) - 1)
             if (pay > payment) hi = mid else lo = mid
         }
-        return Math.round(lo * 12 * RATE_UNIT)
+        return roundHalfUp(lo * 12 * RATE_UNIT)
     }
 
     /**

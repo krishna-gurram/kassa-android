@@ -50,7 +50,7 @@ object Split {
     fun equal(total: Long, otherPeople: Int): Result {
         require(otherPeople >= 1) { "Split with at least one person" }
         val parts = otherPeople + 1
-        val mine = Math.round(total.toDouble() / parts)
+        val mine = roundHalfUp(total.toDouble() / parts)
         val rest = total - mine
         val each = rest / otherPeople
         val others = List(otherPeople) { i -> if (i == 0) each + (rest - each * otherPeople) else each }
