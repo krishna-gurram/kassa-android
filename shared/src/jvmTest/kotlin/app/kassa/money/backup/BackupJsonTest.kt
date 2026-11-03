@@ -256,7 +256,7 @@ class BackupJsonTest {
         assertNull(BackupBridge.refusal(jsonOf("plain.kassa")))
         val digest = BackupBridge.digest(data).split("\n")
         assertTrue("accounts=Checking|Card|Car loan" in digest)
-        assertTrue("amounts=450|99999999|25000" in digest)
+        assertTrue("amounts=25000|450|99999999" in digest)
         assertTrue("icons=photo.png:8" in digest)
         assertFailsWith<NotABackup> { BackupBridge.parse("nope") }
     }
