@@ -28,7 +28,7 @@ DOC = {
         {"id": 2, "kind": "INCOME", "amount": 99999999, "accountId": 1, "categoryId": 2, "epochMillis": 1767052800000, "note": ""},
         {"id": 3, "kind": "TRANSFER", "amount": 25000, "accountId": 1, "toAccountId": 3, "epochMillis": 1766966400000, "note": "Loan principal"},
     ],
-    "budgets": [{"categoryId": 1, "month": "2026-01", "amount": 20000}],
+    "budgets": [{"categoryId": 1, "month": 202601, "amount": 20000}],
     "people": [{"id": 1, "name": "Sam", "archived": False}],
     "loans": [], "recurring": [], "holdings": [], "trades": [],
     "loanTerms": [{"accountId": 3, "type": "REDUCING", "profit": False, "rate": 61250, "payment": 25000, "termMonths": 60,

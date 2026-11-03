@@ -33,11 +33,14 @@ Top level: `version`, `createdAt` (epoch ms), `monthStartDay`, optional `currenc
 `categories`, `transactions`, `budgets`, `people`, `loans`, `recurring`, `holdings`, `trades`, `loanTerms`, `loanChanges`,
 `loanPayments`, `investmentTransfers`; and `icons`, an object of file name to base64 bytes.
 
-Rows have the fields of the matching writer in `BackupContents.kt` (`BackupWriter`). Optional fields are left out when null.
+Rows have the fields of the matching writer in `BackupContents.kt` (`BackupWriter`). **A field the writer writes with `opt`
+is optional (leave it out when null); every other field is required, and a row missing one makes the file "not a Kassa
+backup".** A writer must therefore send every required field of every row, even when it is 0, false or "".
 Rules that matter on every platform:
 - Money is an integer in minor units (cents), never a decimal. Shares are millionths (`microShares`). Loan rates are
   1/10000 of a percent. Dates are epoch-day integers (`startDay`, `closedDay`, ...) or epoch milliseconds
   (`epochMillis`, `createdAt`).
+- A budget's `month` is `yyyymm` as an integer (202610), and 0 is the budget for every month.
 - Kinds and types are the stored text (`EXPENSE`, `INCOME`, `TRANSFER`, `ADJUST_IN`, `ADJUST_OUT`, ...).
 - Ids are integers that link rows within the file; a restore replaces everything and keeps them.
 
