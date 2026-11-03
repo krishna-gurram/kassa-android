@@ -1,0 +1,90 @@
+/* Kassa for iOS: screen text. English only for now. Keys are area.name; formats take one %@ (text) or %ld (number). */
+
+/* Tabs */
+"tab.overview" = "Overview";
+"tab.activity" = "Activity";
+"tab.insights" = "Insights";
+"tab.accounts" = "Accounts";
+"tab.settings" = "Settings";
+"comingSoon" = "Coming soon";
+
+/* Accessibility */
+"a11y.hideBalances" = "Hide balances";
+"a11y.showBalances" = "Show balances";
+"a11y.fold" = "Fold this group";
+"a11y.open" = "Open this group";
+"a11y.previousMonth" = "Previous month";
+"a11y.nextMonth" = "Next month";
+
+/* Accounts */
+"accounts.title" = "Accounts";
+"accounts.netWorth" = "Net worth";
+"accounts.assets" = "Assets";
+"accounts.liabilities" = "Liabilities";
+"accounts.group.cashAndBank" = "Cash and bank";
+"accounts.group.investments" = "Investments";
+"accounts.group.otherAssets" = "Other assets";
+"accounts.group.creditCards" = "Credit cards";
+"accounts.group.loans" = "Loans";
+"accounts.group.otherDebts" = "Other debts";
+"accounts.group.people" = "People";
+"accounts.group.closed" = "Closed · %ld";
+"accounts.totalBalance" = "Total balance %@";
+"accounts.outstanding" = "Outstanding %@";
+"accounts.nothingToPay" = "Nothing to pay";
+"accounts.keptInHistory" = "Kept in your history";
+"accounts.dueOn" = "Due %@";
+"accounts.maturesOn" = "Matures %@";
+"accounts.closedOn" = "Closed %@";
+"accounts.owesYou" = "owes you";
+"accounts.youOwe" = "you owe";
+"accounts.settled" = "settled";
+"accounts.noPeople" = "Add people you split costs with or lend to.";
+"accounts.receivable" = "Receivable %@";
+"accounts.payable" = "Payable %@";
+
+/* Activity */
+"activity.title" = "Activity";
+"activity.spending" = "Spending";
+"activity.income" = "Income";
+"activity.noneThisMonth" = "No transactions this month.";
+"activity.today" = "Today";
+"activity.yesterday" = "Yesterday";
+
+/* Entry rows */
+"entry.anAccount" = "an account";
+"entry.uncategorized" = "Uncategorized";
+"entry.balanceCorrection" = "Balance correction";
+"entry.toAccount" = "To %@";
+"entry.fromAccount" = "From %@";
+"entry.cardPayment" = "Card payment";
+"entry.countsAsSpendingTitle" = "Counts as spending";
+"entry.countsAsSpending" = "counts as spending";
+"entry.transfer" = "Transfer";
+"entry.bought" = "Bought %@";
+"entry.sold" = "Sold %@";
+"entry.investing" = "Investing";
+"entry.settleUp" = "Settle up";
+"entry.yourShare" = "your share %@";
+"entry.paidBy" = "Paid by %@";
+"entry.someoneCapPaidYou" = "Someone paid you";
+"entry.youPaidSomeone" = "You paid someone";
+"entry.personPaidYou" = "%@ paid you";
+"entry.youPaidPerson" = "You paid %@";
+
+/* Start */
+"firstRun.title" = "Kassa";
+"firstRun.subtitle" = "Your money, kept on your phone. Nothing leaves it.";
+"firstRun.chooseFile" = "Choose backup file";
+"firstRun.startFresh" = "Start fresh";
+"password.title" = "Backup password";
+"password.field" = "Password";
+"password.open" = "Open";
+"password.cancel" = "Cancel";
+"password.message" = "This backup is protected. Enter its password.";
+"restore.cannotRead" = "Couldn't read that file.";
+"restore.failed" = "Couldn't restore this backup. Nothing was changed.";
+"start.cantOpenTitle" = "Kassa can't open its data";
+"start.cantOpen" = "Kassa couldn't open its data on this phone.";
+"start.keyMissing" = "Its key is missing from this phone, so the data can't be read.";
+"start.tryAgain" = "Try again";

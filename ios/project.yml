@@ -36,6 +36,15 @@ targets:
       properties:
         CFBundleDisplayName: Kassa
         UILaunchScreen: {}
+        # The .kassa backup file: an exported type for the extension "kassa", so the file picker offers it (Kassa/KassaTypes.swift).
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: app.kassa.money.backup
+            UTTypeDescription: Kassa backup
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kassa
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

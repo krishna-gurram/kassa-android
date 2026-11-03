@@ -224,17 +224,29 @@ jobs:
           set -o pipefail
           mkdir -p ci-output
           xcrun simctl list devices available 2>&1 | tee ci-output/ios-app.log
+          mkdir -p ci-output/shots
           cd ios
+          # The screenshot test draws the Accounts and Activity screens into this folder (it reads KASSA_SHOTS_DIR).
+          TEST_RUNNER_KASSA_SHOTS_DIR="$GITHUB_WORKSPACE/ci-output/shots" \
           xcodebuild test -project Kassa.xcodeproj -scheme Kassa \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee -a ../ci-output/ios-app.log
+
+      - name: Save screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l ci-output/shots 2>/dev/null || true
+          gh release create "ios-shots-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/shots/* \
+            --draft --title "iOS screenshots ${{ github.run_number }}" --notes "Accounts and Activity screens drawn by the iOS tests." || true
 
       - name: Save diagnostics
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "diag-ios-app-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/* \
+          gh release create "diag-ios-app-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/*.log \
             --draft --title "iOS app diagnostics ${{ github.run_number }}" --notes "Failed iOS app build/test log." || true
 
   publish:
