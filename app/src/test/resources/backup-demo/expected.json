@@ -1,0 +1,36 @@
+{
+ "todayEpochDay": 20760,
+ "entries": 334,
+ "accounts": 7,
+ "categories": 10,
+ "balances": {
+  "1": 2064312,
+  "2": 1808685,
+  "3": 113621,
+  "4": -51853,
+  "5": -1481404,
+  "6": 100000,
+  "7": 0
+ },
+ "holdingsValue": 225000,
+ "samOwesYou": 11500,
+ "assets": 4323118,
+ "liabilities": 1533257,
+ "netWorth": 2789861,
+ "loanOwed": 1481404,
+ "cardOwed": 51853,
+ "months": {
+  "2026-10": {
+   "spending": 276329,
+   "income": 520286
+  },
+  "2026-04": {
+   "spending": 327190,
+   "income": 520314
+  },
+  "2025-12": {
+   "spending": 294227,
+   "income": 520286
+  }
+ }
+}
