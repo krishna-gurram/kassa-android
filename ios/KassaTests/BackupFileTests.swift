@@ -126,9 +126,16 @@ final class BackupFileTests: XCTestCase {
         // FEXTRA (2 bytes), FNAME, FCOMMENT, FHCRC, in the order RFC 1952 gives.
         var header = Array(body[0..<10])
         header[3] = 0x04 | 0x08 | 0x10 | 0x02
-        let fields: [UInt8] = [2, 0, 0xAA, 0xBB] + Array("a.json".utf8) + [0] + Array("note".utf8) + [0] + [0x12, 0x34]
+        var fields: [UInt8] = [2, 0, 0xAA, 0xBB]
+        fields.append(contentsOf: Array("a.json".utf8))
+        fields.append(0)
+        fields.append(contentsOf: Array("note".utf8))
+        fields.append(0)
+        fields.append(contentsOf: [0x12, 0x34])
         let rest = Array(body[10...])
-        let packed: [UInt8] = header + fields + rest
+        var packed: [UInt8] = header
+        packed.append(contentsOf: fields)
+        packed.append(contentsOf: rest)
         let wrapped = Data("KASSA0".utf8) + Data(packed)
         XCTAssertEqual(try BackupFile.open(wrapped, password: nil), sample)
     }
