@@ -368,4 +368,50 @@ final class ImportTests: XCTestCase {
         XCTAssertFalse(words.isEmpty)
         XCTAssertFalse(words.contains("Exception"))
     }
+
+    // MARK: Opened from outside (Files, share sheet)
+
+    func testAFileOpenedOnFirstRunGoesIntoTheImport() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        model.receiveFile(keep(try ImportFixtures.moneyManager()))
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.review })
+        XCTAssertFalse(model.importer.overExistingData)
+        XCTAssertEqual(model.settingsRequest, 0)
+    }
+
+    func testAFileOpenedWithDataAsksBeforeReplacingAndShowsSettings() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        model.chooseBackup(try DemoFixture.url())
+        XCTAssertTrue(waitFor { model.isReady && model.overview != nil })
+        model.receiveFile(keep(try ImportFixtures.cashew()))
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.questions || model.importer.phase == ImportPhase.review })
+        XCTAssertTrue(model.importer.overExistingData)
+        XCTAssertEqual(model.settingsRequest, 1)
+    }
+
+    func testAFileOpenedWhileOpeningWaitsUntilTheAppIsReady() throws {
+        let model = makeModel()
+        model.receiveFile(keep(try ImportFixtures.moneyManager()))
+        XCTAssertNotNil(model.pendingOpenURL)
+        XCTAssertEqual(model.importer.phase, ImportPhase.idle)
+        model.start()
+        XCTAssertTrue(waitFor { model.canTakeFiles })
+        model.drainPendingFile()
+        XCTAssertNil(model.pendingOpenURL)
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.review })
+    }
+
+    func testAnythingButAFileURLIsIgnored() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        let web = try XCTUnwrap(URL(string: "kassa://open"))
+        model.receiveFile(web)
+        XCTAssertEqual(model.importer.phase, ImportPhase.idle)
+        XCTAssertNil(model.pendingOpenURL)
+    }
 }

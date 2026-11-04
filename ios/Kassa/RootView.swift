@@ -10,6 +10,10 @@ struct RootView: View {
         content
             .modifier(ImportCover(model: model, importer: model.importer))
             .onAppear { model.start() }
+            .onOpenURL { url in model.receiveFile(url) }
+            .onChange(of: model.canTakeFiles) { ready in
+                if ready { model.drainPendingFile() }
+            }
             .onChange(of: scenePhase) { newPhase in
                 // Coming back to the app: the day may have changed.
                 if newPhase == .active {
@@ -113,6 +117,7 @@ struct AppShell: View {
                 .tag(ShellTab.settings)
         }
         .accentColor(Palette.ink)
+        .onChange(of: model.settingsRequest) { _ in tab = .settings }
         .overlay {
             if !model.readStack.isEmpty {
                 ReadHost(model: model)
