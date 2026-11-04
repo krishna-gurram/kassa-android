@@ -12,6 +12,7 @@ import app.kassa.money.domain.AccountsOverview
 import app.kassa.money.domain.Balances
 import app.kassa.money.domain.BudgetRules
 import app.kassa.money.domain.EntryFilter
+import app.kassa.money.domain.WeekPace
 import app.kassa.money.domain.WeekRules
 import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.CardCycle
@@ -274,6 +275,11 @@ data class OverviewData(
     val month: Int,
     val spending: OverviewFlowData,
     val income: OverviewFlowData,
+    /** Epoch day this week starts on: the phone's first day of the week on or before today. */
+    val weekStartDay: Int,
+    /** The same two flows from [weekStartDay] through today (Overview's "This week"). */
+    val weekSpending: OverviewFlowData,
+    val weekIncome: OverviewFlowData,
     val pins: List<PinRowData>,
 )
 
@@ -757,20 +763,28 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
      * entry's own share (`categoryAmount`), largest first. Pins are the open accounts in the person's Accounts order (A to Z
      * until they arrange), then People when anyone is listed, at most [MAX_PINS].
      */
-    fun overview(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): OverviewData = shown(hidden) {
+    fun overview(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): OverviewData = shown(hidden) {
         val zone = zoneOf(timeZoneId)
         val today = localDateOfEpochDay(todayEpochDay)
         val period = Period.containing(today, monthStartDay)
-        val inPeriod = transactions.filter { t ->
+        // This week starts on the phone's first day of the week (as Android's `weekPace(ledger).start`), and may begin before the month does.
+        val weekStart = WeekPace.startOf(today, WeekRules.firstDayOf(firstWeekday))
+        val earliest = if (weekStart.isBefore(period.start)) weekStart else period.start
+        val inWindow = transactions.filter { t ->
             val day = dateOfMillis(t.epochMillis, zone)
-            !day.isBefore(period.start) && !day.isAfter(today)
+            !day.isBefore(earliest) && !day.isAfter(today)
         }
-        val counted = CountedSpending.apply(inPeriod, parts.loanPayments, parts.loanTerms, parts.categories)
+        val counted = CountedSpending.apply(inWindow, parts.loanPayments, parts.loanTerms, parts.categories)
+        val inPeriod = counted.filter { t -> !dateOfMillis(t.epochMillis, zone).isBefore(period.start) }
+        val inWeek = counted.filter { t -> !dateOfMillis(t.epochMillis, zone).isBefore(weekStart) }
         OverviewData(
             year = period.yearMonth.year,
             month = period.yearMonth.month,
-            spending = overviewFlow(counted, TxKind.EXPENSE, false),
-            income = overviewFlow(counted, TxKind.INCOME, true),
+            spending = overviewFlow(inPeriod, TxKind.EXPENSE, false),
+            income = overviewFlow(inPeriod, TxKind.INCOME, true),
+            weekStartDay = weekStart.toEpochDay().toInt(),
+            weekSpending = overviewFlow(inWeek, TxKind.EXPENSE, false),
+            weekIncome = overviewFlow(inWeek, TxKind.INCOME, true),
             pins = overviewPins(todayEpochDay, zone),
         )
     }

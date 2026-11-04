@@ -17,6 +17,36 @@ data class NumberStyle(
 ) {
     companion object {
         val US = NumberStyle('.', ',', '0', false)
+
+        private val LAKH_REGIONS = setOf("IN", "BD", "NP")
+
+        /** True for the regions that group the Indian way (last three digits, then every two): India, Bangladesh, Nepal. */
+        fun usesLakh(region: String): Boolean = region.uppercase() in LAKH_REGIONS
+
+        /**
+         * The region in a locale identifier as phones write it: "en_IN", "en-IN", "hi-Latn-IN", "en_IN@calendar=gregorian",
+         * "en_IN.UTF-8". Empty when the identifier names a language only.
+         */
+        fun regionOf(identifier: String): String {
+            val parts = identifier.substringBefore('@').substringBefore('.').split('-', '_')
+            for (part in parts.drop(1)) {
+                if (part.length == 2 && part.all { it in 'A'..'Z' || it in 'a'..'z' }) return part.uppercase()
+            }
+            return ""
+        }
+
+        /**
+         * The style of a phone whose locale is [identifier]: the marks its platform reports for that locale, and lakh grouping
+         * decided here (from the region) so every platform agrees. An empty mark keeps the US one.
+         */
+        fun forLocale(identifier: String, decimal: String, grouping: String, zeroDigit: String, minus: String): NumberStyle =
+            NumberStyle(
+                decimal = decimal.firstOrNull() ?: '.',
+                grouping = grouping.firstOrNull() ?: ',',
+                zeroDigit = zeroDigit.firstOrNull() ?: '0',
+                lakh = usesLakh(regionOf(identifier)),
+                minus = minus.ifEmpty { "-" },
+            )
     }
 }
 

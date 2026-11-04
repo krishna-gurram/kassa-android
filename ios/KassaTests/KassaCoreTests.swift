@@ -17,4 +17,13 @@ final class KassaCoreTests: XCTestCase {
         KassaCore.shared.installDefaults()
         XCTAssertEqual(KassaCore.shared.formatMoney(cents: 5, symbol: "£"), "£0.05")
     }
+
+    func testLocaleIdentifierDecidesLakhGrouping() {
+        KassaCore.shared.useLocale(identifier: "en_IN", decimal: ".", grouping: ",", zeroDigit: "0", minus: "-")
+        XCTAssertEqual(KassaCore.shared.formatMoney(cents: 123456750, symbol: "R"), "R12,34,567.50")
+        KassaCore.shared.useLocale(identifier: "de_DE", decimal: ",", grouping: ".", zeroDigit: "0", minus: "-")
+        XCTAssertEqual(KassaCore.shared.formatMoney(cents: 123456750, symbol: "R"), "R1.234.567,50")
+        KassaCore.shared.installDefaults()
+        XCTAssertEqual(KassaCore.shared.formatMoney(cents: 123456750, symbol: "R"), "R1,234,567.50")
+    }
 }

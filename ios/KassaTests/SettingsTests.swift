@@ -142,7 +142,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(expected.octoberSpending, 276_329)
         XCTAssertEqual(expected.octoberIncome, 520_286)
         let view = try DemoFixture.view(directory: directory, keys: keys)
-        let october = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC")
+        let october = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
         XCTAssertEqual(october.year, 2026)
         XCTAssertEqual(october.month, 10)
         XCTAssertEqual(october.spending.totalText, "$2,763.29")
@@ -162,7 +162,7 @@ final class SettingsTests: XCTestCase {
     func testOverviewOnTheDemoDayIsTheCurrentMonthToDate() throws {
         let expected = try DemoFixture.expected()
         let view = try DemoFixture.view(directory: directory, keys: keys)
-        let now = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let now = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", firstWeekday: 2)
         XCTAssertEqual(now.month, 11)
         XCTAssertEqual(now.spending.totalText, "$1,815.99")
         XCTAssertEqual(now.income.totalText, "$2,600.00")
@@ -170,7 +170,7 @@ final class SettingsTests: XCTestCase {
 
     func testOverviewPinsFollowAccountsOrder() throws {
         let view = try DemoFixture.view(directory: directory, keys: keys)
-        let overview = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC")
+        let overview = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
         let names: [String] = overview.pins.map { $0.name }
         XCTAssertEqual(names, ["Brokerage", "Car loan", "Everyday checking", "Rainy day savings", "Travel card", "Wallet", ""])
         XCTAssertTrue(overview.pins[6].isPeople)
@@ -186,7 +186,7 @@ final class SettingsTests: XCTestCase {
 
     func testOverviewHiddenIsMaskedEverywhere() throws {
         let view = try DemoFixture.view(directory: directory, keys: keys)
-        let overview = view.overview(hidden: true, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC")
+        let overview = view.overview(hidden: true, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
         XCTAssertEqual(overview.spending.totalText, mask)
         XCTAssertEqual(overview.income.totalText, mask)
         XCTAssertTrue(overview.income.tone.name == "Ink")

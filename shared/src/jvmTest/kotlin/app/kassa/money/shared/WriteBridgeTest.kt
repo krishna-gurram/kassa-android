@@ -6,6 +6,7 @@ import app.kassa.money.backup.BackupData
 import app.kassa.money.backup.BackupLoanEntry
 import app.kassa.money.backup.BackupPerson
 import app.kassa.money.backup.BackupTransaction
+import app.kassa.money.domain.LoanDates
 import app.kassa.money.domain.Money
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -160,14 +161,38 @@ class WriteBridgeTest {
         val groups = AccountBridge.kindGroups()
         assertEquals(listOf("CASH_AND_BANK", "CREDIT_AND_LOANS", "OTHER"), groups.map { it.key })
         val kinds = groups.flatMap { g -> g.kinds.map { it.key } }
-        assertEquals(listOf("CHECKING", "SAVINGS", "CASH", "PREPAID", "CREDIT_CARD", "LOAN", "OTHER_ASSET", "OTHER_DEBT"), kinds)
-        for (left in listOf("INVESTMENT", "FIXED_DEPOSIT")) assertFalse(left in kinds, left)
+        assertEquals(listOf("CHECKING", "SAVINGS", "CASH", "PREPAID", "CREDIT_CARD", "LOAN", "OTHER_ASSET", "OTHER_DEBT"), kinds.filter { it != "FIXED_DEPOSIT" })
+        assertEquals("FIXED_DEPOSIT", groups[0].kinds.last().key)
+        assertTrue(groups[0].kinds.last().hasMaturity)
+        assertFalse(groups[0].kinds.first().hasMaturity)
+        assertFalse("INVESTMENT" in kinds)
         val card = groups[1].kinds.first()
         assertTrue(card.hasStatement)
         assertTrue(card.isDebt)
         assertTrue(groups[1].kinds.last().isDebt)
         assertTrue(groups[2].kinds.last().isDebt)
         assertFalse(groups[0].kinds.first().isDebt)
+    }
+
+    @Test
+    fun aFixedDepositStoresItsMaturityDayAndOtherKindsDoNot() {
+        KassaCore.installDefaults()
+        val deposit = AccountInput("FIXED_DEPOSIT", "FD", "", "5000", "", "", "", 0, 20_500)
+        assertEquals(emptyList(), AccountBridge.problems(deposit, emptyList(), "USD"))
+        assertEquals("20500", accountCells(deposit)["maturityDay"])
+        assertEquals("500000", accountCells(deposit)["openingBalance"])
+        val none = AccountInput("FIXED_DEPOSIT", "FD", "", "5000", "", "", "", 0, 0)
+        assertEquals(null, accountCells(none)["maturityDay"])
+        val savings = AccountInput("SAVINGS", "Ally", "", "", "", "", "", 0, 20_500)
+        assertEquals(null, accountCells(savings)["maturityDay"])
+        assertEquals(null, accountCells(account())["maturityDay"])
+    }
+
+    @Test
+    fun theOfferedMaturityDayIsAYearOut() {
+        val today = LoanDates.epochDay(2026, 11, 4)
+        assertEquals(LoanDates.epochDay(2027, 11, 4), AccountBridge.defaultMaturityDay(today))
+        assertEquals(LoanDates.epochDay(2029, 2, 28), AccountBridge.defaultMaturityDay(LoanDates.epochDay(2028, 2, 29)))
     }
 
     @Test

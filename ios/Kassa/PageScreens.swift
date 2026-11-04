@@ -327,6 +327,8 @@ struct CardPageContent: View {
     let onShift: (Int) -> Void
     let onSetClosed: (Bool, @escaping (WriteOutcome) -> Void) -> Void
     var onOpen: ((EntryRowData) -> Void)? = nil
+    /// "Correct balance": the card shows what is owed, typed as what the issuer shows.
+    var onCorrect: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -347,6 +349,7 @@ struct CardPageContent: View {
         VStack(alignment: .leading, spacing: 12) {
             PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
             hero
+            correction
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
             statements
         }
@@ -369,6 +372,14 @@ struct CardPageContent: View {
                 Button(action: onPay) { Text(payTitle) }
                     .buttonStyle(InkButtonStyle(filled: true))
             }
+        }
+    }
+
+    @ViewBuilder
+    private var correction: some View {
+        if let correct = onCorrect {
+            Button(action: correct) { Text("correction.open") }
+                .buttonStyle(InkButtonStyle(filled: false))
         }
     }
 
@@ -653,7 +664,8 @@ struct PageHost: View {
                     onBack: { model.closePage() }, onPay: { model.openPaySheet(cardId: card.id) },
                     onShift: { direction in model.shiftPage(direction) },
                     onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
-                    onOpen: { row in model.openEntry(id: row.id) }
+                    onOpen: { row in model.openEntry(id: row.id) },
+                    onCorrect: { model.openCorrection(accountId: target.id) }
                 )
             }
         } else {

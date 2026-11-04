@@ -271,6 +271,65 @@ class LedgerViewTest {
     }
 
     @Test
+    fun overviewWeekStartsOnThePhonesFirstDayAndNeverCountsACorrection() {
+        KassaCore.installDefaults()
+        val v = LedgerView(rich(), null)
+        // Today is Tuesday 20 January 2026. Spending in January: 12th 30.00, 16th 45.00, 17th 50.00 (loan interest); a 15.00
+        // balance correction on the 19th is in no spending figure.
+        val monday = v.overview(false, today, noZone(), 2)
+        assertEquals(20_472, monday.weekStartDay)
+        assertEquals("$0.00", monday.weekSpending.totalText)
+        assertEquals("$125.00", monday.spending.totalText)
+        assertEquals(20_471, v.overview(false, today, noZone(), 1).weekStartDay)
+        val saturday = v.overview(false, today, noZone(), 7)
+        assertEquals(20_470, saturday.weekStartDay)
+        assertEquals("$50.00", saturday.weekSpending.totalText)
+        assertEquals(listOf("Loan interest"), saturday.weekSpending.top.map { it.name })
+        val friday = v.overview(false, today, noZone(), 6)
+        assertEquals(20_469, friday.weekStartDay)
+        assertEquals("$95.00", friday.weekSpending.totalText)
+        assertEquals(listOf("Loan interest", "Groceries"), friday.weekSpending.top.map { it.name })
+        // The month is the same whichever day the week starts on.
+        assertEquals("$125.00", friday.spending.totalText)
+        assertEquals("$0.00", friday.weekIncome.totalText)
+    }
+
+    @Test
+    fun overviewWeekEqualsTheSpendingPageOfThisWeek() {
+        KassaCore.installDefaults()
+        val v = LedgerView(rich(), null)
+        for (first in listOf(1, 2, 6, 7)) {
+            val o = v.overview(false, today, noZone(), first)
+            val spending = v.spendingPage(false, today, noZone(), first, false, false, 0)
+            assertEquals(spending.totalText, o.weekSpending.totalText)
+            assertEquals(spending.fromDay, o.weekStartDay)
+            assertEquals(v.spendingPage(false, today, noZone(), first, false, true, 0).totalText, o.weekIncome.totalText)
+        }
+    }
+
+    @Test
+    fun overviewWeekMayStartBeforeTheMonthDoes() {
+        KassaCore.installDefaults()
+        val data = rich().let { it.copy(transactions = it.transactions + tx(20, "EXPENSE", 1_000, 20_452, 1, cat = 1)) }
+        // Saturday 3 January 2026: the Monday-first week began on 29 December, so it holds 30 December; the month does not.
+        val v = LedgerView(data, null).overview(false, 20_456, noZone(), 2)
+        assertEquals(20_451, v.weekStartDay)
+        assertEquals("$10.00", v.weekSpending.totalText)
+        assertEquals("$0.00", v.spending.totalText)
+        assertEquals(1, v.month)
+    }
+
+    @Test
+    fun overviewWeekIsMaskedWhileHidden() {
+        KassaCore.installDefaults()
+        val v = LedgerView(rich(), null).overview(true, today, noZone(), 6)
+        assertEquals(Money.MASK, v.weekSpending.totalText)
+        assertEquals(Money.MASK, v.weekIncome.totalText)
+        assertEquals(Tone.Ink, v.weekIncome.tone)
+        v.weekSpending.top.forEach { assertEquals(Money.MASK, it.amountText) }
+    }
+
+    @Test
     fun richActivity() {
         KassaCore.installDefaults()
         val m = LedgerView(rich(), null).activity(2026, 1, false, today, noZone())

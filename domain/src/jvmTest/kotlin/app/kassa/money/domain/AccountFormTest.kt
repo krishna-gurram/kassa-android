@@ -53,6 +53,12 @@ class AccountFormTest {
     }
 
     @Test
+    fun theOfferedMaturityIsAYearAfterTodayAndClampsToTheMonthEnd() {
+        assertEquals(LoanDates.epochDay(2027, 11, 4), AccountForm.defaultMaturityDay(LoanDates.epochDay(2026, 11, 4)))
+        assertEquals(LoanDates.epochDay(2029, 2, 28), AccountForm.defaultMaturityDay(LoanDates.epochDay(2028, 2, 29)))
+    }
+
+    @Test
     fun onlyAFixedDepositKeepsAMaturityDay() {
         val deposit = AccountForm(type = AccountType.FIXED_DEPOSIT, name = "FD", balance = "3000", maturityDay = 20_000)
             .toAccount(Account(name = "", type = AccountType.FIXED_DEPOSIT), 0)

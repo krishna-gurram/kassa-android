@@ -127,6 +127,10 @@ final class AppModel: ObservableObject {
     @Published var requestedTab: ShellTab?
     /// The import from another app (Settings > Import from another app, and a Money Manager or Cashew file chosen on first run).
     lazy var importer: ImportModel = ImportModel(app: self)
+    /// A file handed to the app (Files, "Open in Kassa") before it was ready for it; read once it is (`AppModel+OpenFile.swift`).
+    var pendingOpenURL: URL?
+    /// Counts the files that need the Settings tab (its password and replace questions live there); the tab bar watches it.
+    @Published var settingsRequest: Int = 0
     /// A plain sentence about something that worked in Settings ("Restored."), or nil.
     @Published var notice: String?
     /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
@@ -329,7 +333,7 @@ final class AppModel: ObservableObject {
     private func compute(_ made: LedgerView, _ given: Inputs) {
         let day = Int32(given.today)
         let a = made.accounts(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
-        let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, firstWeekday: Int32(given.firstWeekday))
         let i = made.insights(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, monthsBack: Int32(given.insightsBack))
         var page: CategoryPageData? = nil
         if let id = given.categoryId {

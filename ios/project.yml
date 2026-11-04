@@ -51,6 +51,35 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - kassa
+          - UTTypeIdentifier: app.kassa.money.mmbak
+            UTTypeDescription: Money Manager backup
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mmbak
+          - UTTypeIdentifier: app.kassa.money.sql
+            UTTypeDescription: Cashew backup
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - sql
+        # Open in Kassa: .kassa backups, Money Manager (.mmbak) and Cashew (.sql) files from Files or the share sheet. The file is copied
+        # into the app (not opened in place), then read by the same import as a picked file (Kassa/AppModel+OpenFile.swift).
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Kassa backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - app.kassa.money.backup
+          - CFBundleTypeName: Money Manager or Cashew backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - app.kassa.money.mmbak
+              - app.kassa.money.sql
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

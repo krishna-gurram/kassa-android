@@ -212,18 +212,25 @@ class AccountInput(
     val dueDay: String,
     val limit: String,
     val payFromId: Long,
+    /** A fixed deposit's maturity as an epoch day; 0 for none. Ignored for any other kind. */
+    val maturityDay: Int,
 ) {
+    /** The form without a maturity day (every kind but a fixed deposit). */
+    constructor(
+        type: String, name: String, last4: String, balance: String, statementDay: String, dueDay: String, limit: String, payFromId: Long,
+    ) : this(type, name, last4, balance, statementDay, dueDay, limit, payFromId, 0)
+
     internal fun form(): AccountForm? {
         val t = accountType(type) ?: return null
         return AccountForm(
             type = t, name = name, last4 = last4, balance = balance, statementDay = statementDay, dueDay = dueDay,
-            limit = limit, payFromId = idOrNull(payFromId),
+            limit = limit, payFromId = idOrNull(payFromId), maturityDay = maturityDay.takeIf { it > 0 },
         )
     }
 }
 
 /** A kind of account in the Add account list. */
-data class AccountKindData(val key: String, val hasStatement: Boolean, val isDebt: Boolean)
+data class AccountKindData(val key: String, val hasStatement: Boolean, val isDebt: Boolean, val hasMaturity: Boolean)
 
 /** A heading of the Add account list ("CASH_AND_BANK", "CREDIT_AND_LOANS", "OTHER") and its kinds. */
 data class AccountKindGroupData(val key: String, val kinds: List<AccountKindData>)
@@ -231,15 +238,15 @@ data class AccountKindGroupData(val key: String, val kinds: List<AccountKindData
 /** What the Add account sheet needs from the rules. See `AccountForm`. */
 object AccountBridge {
 
-    private fun kind(t: AccountType) = AccountKindData(t.name, t.hasStatement, t.isDebt)
+    private fun kind(t: AccountType) = AccountKindData(t.name, t.hasStatement, t.isDebt, t.hasMaturity)
 
     /**
-     * The kinds the iOS Add account sheet offers. Loan or mortgage has its own form (`LoanBridge`). Left out for now, on purpose
-     * (their extra setup isn't built on iOS and must not be faked): Investment (holdings, trades) and Fixed deposit (maturity date).
-     * An account of those kinds from a backup is shown and works as on Android.
+     * The kinds the iOS Add account sheet offers. Loan or mortgage has its own form (`LoanBridge`); Fixed deposit offers an optional
+     * maturity day. Left out for now, on purpose (its extra setup isn't built on iOS and must not be faked): Investment (holdings,
+     * trades). An investment account from a backup is shown and works as on Android.
      */
     fun kindGroups(): List<AccountKindGroupData> = listOf(
-        AccountKindGroupData("CASH_AND_BANK", listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID).map(::kind)),
+        AccountKindGroupData("CASH_AND_BANK", listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID, AccountType.FIXED_DEPOSIT).map(::kind)),
         AccountKindGroupData("CREDIT_AND_LOANS", listOf(AccountType.CREDIT_CARD, AccountType.LOAN).map(::kind)),
         AccountKindGroupData("OTHER", listOf(AccountType.OTHER_ASSET, AccountType.OTHER_DEBT).map(::kind)),
     )
@@ -269,9 +276,13 @@ object AccountBridge {
             "archived" -> flag(a.archived)
             "sortOrder" -> a.sortOrder.toString()
             "last4" -> a.last4
+            "maturityDay" -> a.maturityDay?.toString()
             else -> null
         }
     }
+
+    /** The maturity day (epoch day) offered when the person adds one to a fixed deposit: a year after [today]. */
+    fun defaultMaturityDay(today: Int): Int = AccountForm.defaultMaturityDay(today)
 
     /** A new account's `accounts` cells that are never null (the id is null). Swift uses it to know which columns to bind. */
     fun cellCount(): Int = BackupRows.columns("accounts").size

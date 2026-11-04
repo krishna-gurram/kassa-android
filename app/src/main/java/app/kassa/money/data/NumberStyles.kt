@@ -22,7 +22,7 @@ fun numberStyleOf(locale: Locale): NumberStyle {
     val negative = NumberFormat.getNumberInstance(locale).format(-1L)
     val at = negative.indexOf(symbols.zeroDigit + 1)
     val minus = if (at > 0) negative.substring(0, at) else symbols.minusSign.toString()
-    val style = NumberStyle(symbols.decimalSeparator, symbols.groupingSeparator, symbols.zeroDigit, locale.country in setOf("IN", "BD", "NP"), minus)
+    val style = NumberStyle(symbols.decimalSeparator, symbols.groupingSeparator, symbols.zeroDigit, NumberStyle.usesLakh(locale.country), minus)
     cached = StyleCache(locale, style)
     return style
 }

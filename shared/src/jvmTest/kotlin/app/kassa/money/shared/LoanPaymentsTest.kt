@@ -246,7 +246,7 @@ class LoanPaymentsTest {
         val on = data.copy(loanTerms = data.loanTerms.map { if (it.accountId == loan) it.copy(countAllAsSpending = true) else it })
         assertEquals(usd(276_329 + principal), octoberSpending(on))
         // Overview and Activity agree with Insights.
-        val overview = view(on).overview(false, 20757, "UTC").spending.totalText
+        val overview = view(on).overview(false, 20757, "UTC", 2).spending.totalText
         assertEquals(usd(276_329 + principal), overview)
         val off = on.copy(loanTerms = on.loanTerms.map { if (it.accountId == loan) it.copy(countAllAsSpending = false) else it })
         assertEquals(usd(276_329), octoberSpending(off))

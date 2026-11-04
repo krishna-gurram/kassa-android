@@ -10,6 +10,10 @@ struct RootView: View {
         content
             .modifier(ImportCover(model: model, importer: model.importer))
             .onAppear { model.start() }
+            .onOpenURL { url in model.receiveFile(url) }
+            .onChange(of: model.canTakeFiles) { ready in
+                if ready { model.drainPendingFile() }
+            }
             .onChange(of: scenePhase) { newPhase in
                 // Coming back to the app: the day may have changed.
                 if newPhase == .active {
@@ -113,6 +117,7 @@ struct AppShell: View {
                 .tag(ShellTab.settings)
         }
         .accentColor(Palette.ink)
+        .onChange(of: model.settingsRequest) { _ in tab = .settings }
         .overlay {
             if !model.readStack.isEmpty {
                 ReadHost(model: model)
@@ -220,7 +225,7 @@ struct AppShell: View {
                 notices: model.notices?.items ?? [], upcoming: model.upcoming,
                 onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts },
                 onOpenCategory: { id in model.openCategory(id) },
-                onOpenSpending: { income in model.openRead(ReadRoute.spending(month: true, income: income, back: 0)) }
+                onOpenSpending: { income, month in model.openRead(ReadRoute.spending(month: month, income: income, back: 0)) }
             )
         } else {
             ProgressView()

@@ -363,6 +363,25 @@ class LoanPagesTest {
     }
 
     @Test
+    fun aCardCorrectionIsTypedAsWhatIsOwedLikeALoan() {
+        val v = view()
+        val card = 3L
+        val sheet = v.correctionSheet(card, 0, false)
+        assertTrue(sheet.found)
+        assertTrue(sheet.debt)
+        assertFalse(sheet.isLoan)
+        // The card shows 10.00 less owed: its balance goes up, so ADJUST_IN, and the size is the difference.
+        val less = v.correctionPlan(card, 0, sheet.shownWithout - 1_000)
+        assertEquals("", less.problem)
+        assertEquals("ADJUST_IN", less.kind)
+        assertEquals(1_000L, less.amount)
+        val more = v.correctionPlan(card, 0, sheet.shownWithout + 1_000)
+        assertEquals("ADJUST_OUT", more.kind)
+        assertEquals(1_000L, more.amount)
+        assertEquals("That's the balance Kassa already shows.", v.correctionPlan(card, 0, sheet.shownWithout).problem)
+    }
+
+    @Test
     fun thePreviewShowsTheDifferenceAsAnArrowAndMasksItWhileHidden() {
         val shown = CorrectionBridge.preview(1_481_404, 1_400_000, true, true, "USD", false)
         assertEquals("↓ $814.04", shown.differenceText)
