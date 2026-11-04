@@ -252,7 +252,7 @@ struct HoldingSheet: View {
         busy = true
         error = nil
         if data.isNew {
-            model.newHoldingProblems(ticker: ticker, shares: shares, paid: paid) { found in
+            model.addHoldingProblems(ticker: ticker, shares: shares, paid: paid) { found in
                 writeIfClean(found, holdingId: 0)
             }
         } else {

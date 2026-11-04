@@ -119,11 +119,11 @@ extension AppModel {
         }
     }
 
-    func newHoldingProblems(ticker: String, shares: String, paid: String, done: @escaping ([FieldProblemData]) -> Void) {
+    func addHoldingProblems(ticker: String, shares: String, paid: String, done: @escaping ([FieldProblemData]) -> Void) {
         queue.async {
             var found: [FieldProblemData] = []
             if let made = self.view {
-                found = made.newHoldingProblems(ticker: ticker, shares: shares, paid: paid)
+                found = made.addHoldingProblems(ticker: ticker, shares: shares, paid: paid)
             }
             self.publish { done(found) }
         }

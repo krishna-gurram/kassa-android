@@ -350,7 +350,7 @@ class InvestPagesTest {
         // No cash moves: the account's cash is unchanged and the value grows by 3.25 x 210.00 = 682.50.
         assertEquals(100_000, balance(added, broker))
         assertEquals(usd(325_000 + cost(3_250_000, 21_000)), page(added).totalValueText)
-        assertEquals(listOf("TICKER", "SHARES", "PRICE"), view().newHoldingProblems("", "", "").map { it.field })
+        assertEquals(listOf("TICKER", "SHARES", "PRICE"), view().addHoldingProblems("", "", "").map { it.field })
         assertEquals("TICKER", InvestBridge.planSaveHolding(data, broker, 0, "A B", "1", "", "10", noon, "USD").field)
     }
 

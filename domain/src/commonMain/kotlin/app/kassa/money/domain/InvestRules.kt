@@ -208,7 +208,7 @@ object InvestRules {
     }
 
     /** The problems of "Add shares you own" as typed: ticker, shares, and what was paid per share. */
-    fun newHoldingProblems(ticker: String, shares: String, paid: String): List<FieldProblem> {
+    fun addHoldingProblems(ticker: String, shares: String, paid: String): List<FieldProblem> {
         val found = ArrayList<FieldProblem>()
         InputRules.tickerProblem(ticker)?.let { found.add(FieldProblem(InvestField.TICKER, it)) }
         Shares.problem(Shares.parse(shares))?.let { found.add(FieldProblem(InvestField.SHARES, it)) }
@@ -226,7 +226,7 @@ object InvestRules {
 
     /**
      * What "Add shares you own" saves: no cash moves, the price starts at what was paid and so does the average cost. Call after
-     * [newHoldingProblems] came back empty.
+     * [addHoldingProblems] came back empty.
      */
     fun newHolding(accountId: Long, ticker: String, shares: String, paid: String, nowMillis: Long): Holding {
         val cents = Money.parseCents(paid) ?: 0L

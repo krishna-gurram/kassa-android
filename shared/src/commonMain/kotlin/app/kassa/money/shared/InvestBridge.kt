@@ -273,7 +273,7 @@ object InvestBridge {
         val h: Holding?
         val checks: List<InvestRules.FieldProblem>
         if (holdingId == 0L) {
-            checks = InvestRules.newHoldingProblems(ticker, shares, paid)
+            checks = InvestRules.addHoldingProblems(ticker, shares, paid)
             h = if (checks.isEmpty()) InvestRules.newHolding(accountId, ticker, shares, paid, nowMillis) else null
         } else {
             val stored = parts.holdings.firstOrNull { it.id == holdingId }
@@ -438,8 +438,8 @@ internal class InvestSheetRules(private val parts: LedgerParts, private val bala
         }
     }
 
-    fun newHoldingProblems(ticker: String, shares: String, paid: String) =
-        InvestRules.newHoldingProblems(ticker, shares, paid).map { FieldProblemData(it.field.name, it.message) }
+    fun addHoldingProblems(ticker: String, shares: String, paid: String) =
+        InvestRules.addHoldingProblems(ticker, shares, paid).map { FieldProblemData(it.field.name, it.message) }
 
     fun holdingProblems(price: String, paid: String) =
         InvestRules.holdingProblems(price, paid).map { FieldProblemData(it.field.name, it.message) }

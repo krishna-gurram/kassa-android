@@ -1616,8 +1616,8 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     fun holdingPreview(accountId: Long, holdingId: Long, price: String, paid: String, hidden: Boolean): HoldingPreviewData =
         shown(hidden) { investRules.holdingPreview(accountId, holdingId, price, paid) }
 
-    fun newHoldingProblems(ticker: String, shares: String, paid: String): List<FieldProblemData> =
-        shown(false) { investRules.newHoldingProblems(ticker, shares, paid) }
+    fun addHoldingProblems(ticker: String, shares: String, paid: String): List<FieldProblemData> =
+        shown(false) { investRules.addHoldingProblems(ticker, shares, paid) }
 
     fun holdingProblems(price: String, paid: String): List<FieldProblemData> = shown(false) { investRules.holdingProblems(price, paid) }
 
