@@ -17,6 +17,7 @@ import app.kassa.money.domain.LoanForm
 import app.kassa.money.domain.LoanKind
 import app.kassa.money.domain.LoanRate
 import app.kassa.money.domain.LoanStage
+import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.PaymentBasis
 import app.kassa.money.domain.TxKind
@@ -256,7 +257,11 @@ object LoanBridge {
 
     /** One cell of the new `loan_terms` row for [accountId] (the columns of `BackupRows`); call only when `saveProblem` is empty. */
     fun termsCell(loan: LoanInput, accountId: Long, column: Int): String? = withMoney(null) {
-        val t = loan.form().toTerms(accountId)
+        termsCellOf(loan.form().toTerms(accountId), column)
+    }
+
+    /** One cell of the `loan_terms` row for [t] (the columns of `BackupRows`); shared by setup and Edit details. */
+    internal fun termsCellOf(t: LoanTerms, column: Int): String? =
         when (BackupRows.columns("loan_terms").getOrNull(column)) {
             "accountId" -> t.accountId.toString()
             "type" -> t.type.name
@@ -278,7 +283,6 @@ object LoanBridge {
             "principalCategoryId" -> loanText(t.principalCategoryId.takeIf { t.countAllAsSpending })
             else -> null
         }
-    }
 
     /** True when escrow is set, so the shared "Escrow" category has to exist (`LoanRepository.saveTerms`). */
     fun hasEscrow(loan: LoanInput): Boolean = withMoney(null) { loan.form().toTerms(0).escrow > 0 }

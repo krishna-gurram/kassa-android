@@ -161,6 +161,8 @@ data class EntryRowData(
     val editable: Boolean,
     /** A payment to or from a person: it opens the person payment sheet (edit or delete), not the entry page. */
     val personPayment: Boolean,
+    /** The `loan_payments` row this entry belongs to, whatever its kind (0 for none): it opens the loan payment sheet. */
+    val loanPaymentId: Long,
 )
 
 /** One day of Activity: newest first, with what was spent that day (empty when nothing was, except while hidden). */
@@ -749,6 +751,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             amountMuted = muted,
             editable = isEditable(t, to),
             personPayment = (t.kind == TxKind.PERSON_IN || t.kind == TxKind.PERSON_OUT) && !loanIndex.isLoanEntry(t.id),
+            loanPaymentId = loanIndex.paymentIdFor(t.id),
         )
     }
 
@@ -1493,6 +1496,47 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             else CorrectionPlanData("", entry.kind.name, entry.amount)
         }
     }
+
+    /** The `loan_payments` row entry [entryId] belongs to, whatever its kind (0 for none): Activity opens it on the payment sheet. */
+    fun loanPaymentIdOfEntry(entryId: Long): Long = loanIndex.paymentIdFor(entryId)
+
+    // ---------- Loans, stage G2: the payment sheet, Change terms and Edit details (rules in `LoanSheetRules`) ----------
+
+    private val loanRules: LoanSheetRules by lazy { LoanSheetRules(parts, balances) }
+
+    /** The payment sheet for loan [accountId] (0 to read it from [paymentId]): a new payment ([paymentId] 0) or the one recorded ([LoanPaymentSheetData.found] false when it is gone). */
+    fun loanPaymentSheet(accountId: Long, paymentId: Long, todayEpochDay: Int, hidden: Boolean): LoanPaymentSheetData =
+        shown(hidden) { loanRules.sheet(if (accountId > 0) accountId else loanRules.accountOfPayment(paymentId), paymentId, todayEpochDay) }
+
+    /** One edit of the payment sheet (`LoanSheetRules.apply`): the form as it is after [action] with [text]. */
+    fun loanPaymentApply(accountId: Long, paymentId: Long, input: LoanPaymentInput, action: String, text: String): LoanPaymentInput =
+        shown(false) { loanRules.apply(accountId, paymentId, input, action, text) }
+
+    /** The figures and words under the payment sheet's fields for [input]; problems are never masked. */
+    fun loanPaymentPreview(accountId: Long, paymentId: Long, input: LoanPaymentInput, hidden: Boolean): LoanPaymentPreviewData {
+        val problems = shown(false) { loanRules.problems(accountId, paymentId, input) }
+        return shown(hidden) { loanRules.preview(accountId, paymentId, input, problems) }
+    }
+
+    /** The Change terms page for loan [accountId], starting from the payment that is waiting when it is already due. */
+    fun loanChangeSheet(accountId: Long, todayEpochDay: Int): LoanChangeSheetData = shown(false) { loanRules.changeSheet(accountId, todayEpochDay) }
+
+    /** The live result under the Change terms form; problems are never masked. */
+    fun loanChangePreview(accountId: Long, input: LoanChangeInput, hidden: Boolean): LoanChangePreviewData {
+        val problems = shown(false) { loanRules.changeProblems(accountId, input) }
+        return shown(hidden) { loanRules.changePreview(accountId, input, problems) }
+    }
+
+    /** The Edit details form for loan [accountId], filled from its terms. */
+    fun loanDetailsSheet(accountId: Long): LoanDetailsSheetData = shown(false) { loanRules.detailsSheet(accountId) }
+
+    /** Each field's problem (a `LoanField` name and the sentence) of the Edit details form; empty when it can be saved. */
+    fun loanDetailsProblems(accountId: Long, input: LoanDetailsInput): List<FieldProblemData> =
+        shown(false) { loanRules.detailsProblems(accountId, input) }
+
+    /** What "Same as interest" on the Edit details Principal category row stands for. */
+    fun loanDetailsPrincipalDefault(accountId: Long, input: LoanDetailsInput): String =
+        shown(false) { loanRules.detailsPrincipalDefault(accountId, input) }
 
     // ---------- Money state and colour ----------
 

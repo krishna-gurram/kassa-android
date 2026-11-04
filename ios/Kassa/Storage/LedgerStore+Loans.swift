@@ -71,18 +71,22 @@ extension LedgerStore {
         }
     }
 
-    private func ensureCategory(_ data: BackupData, which: String) throws {
+    /// Makes sure the shared category [which] ("INTEREST" or "ESCROW") exists and is shown; returns its id.
+    @discardableResult
+    func ensureCategory(_ data: BackupData, which: String) throws -> Int64 {
         let step: LoanCategoryStep = LoanBridge.shared.categoryStep(data: data, which: which)
         if step.action == "UNHIDE" {
             let show = try db.prepare("UPDATE categories SET hidden = 0 WHERE id = ?")
             try show.bindInt(1, step.id)
             _ = try show.step()
+            return step.id
         } else if step.action == "CREATE" {
             let order = try nextSortOrder(table: "categories")
-            _ = try insertRow(table: "categories") { column in
+            return try insertRow(table: "categories") { column in
                 return LoanBridge.shared.categoryCell(data: data, which: which, column: column, sortOrder: Int32(order))
             }
         }
+        return step.id
     }
 
     private func insertTerms(_ loan: LoanInput, accountId: Int64) throws {

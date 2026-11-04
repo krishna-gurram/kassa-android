@@ -74,6 +74,9 @@ struct LoanPageContent: View {
     let onShowAll: (Bool) -> Void
     let onRemoveChange: (Int64, @escaping (WriteOutcome) -> Void) -> Void
     var onOpen: ((EntryRowData) -> Void)? = nil
+    var onRecord: () -> Void = {}
+    var onChangeTerms: () -> Void = {}
+    var onEditDetails: () -> Void = {}
 
     @State private var removing: LoanChangeData?
     @State private var removeFailure: String?
@@ -254,13 +257,21 @@ struct LoanPageContent: View {
     // MARK: Actions and entries
 
     private var actions: some View {
-        Button(action: onCorrect) {
-            Text("correction.open")
+        VStack(spacing: 8) {
+            actionButton("loan.recordPayment", filled: true, action: onRecord)
+            actionButton("loan.changeTerms", filled: false, action: onChangeTerms)
+            actionButton("loan.editDetails", filled: false, action: onEditDetails)
+            actionButton("correction.open", filled: false, action: onCorrect)
+        }
+    }
+
+    private func actionButton(_ key: LocalizedStringKey, filled: Bool, action: @escaping () -> Void) -> some View {
+        return Button(action: action) {
+            Text(key)
                 .font(.body.weight(.semibold))
-                .foregroundColor(Palette.ink)
                 .frame(maxWidth: .infinity, minHeight: 48)
         }
-        .buttonStyle(InkButtonStyle(filled: false))
+        .buttonStyle(InkButtonStyle(filled: filled))
     }
 
     @ViewBuilder

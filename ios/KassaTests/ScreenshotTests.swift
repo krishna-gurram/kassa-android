@@ -132,6 +132,18 @@ final class ScreenshotTests: XCTestCase {
             accountId: loanId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", monthsBack: 0, allRows: false
         )
         let correction = view.correctionSheet(accountId: loanId, editingId: 0, hidden: false)
+        let paySheet: LoanPaymentSheetData = view.loanPaymentSheet(accountId: loanId, paymentId: 0, todayEpochDay: expected.today, hidden: false)
+        var payFields = LoanPaymentFields(paySheet.input)
+        payFields.fromId = 1
+        let payPreview: LoanPaymentPreviewData = view.loanPaymentPreview(
+            accountId: loanId, paymentId: 0, input: payFields.input(), hidden: false
+        )
+        let changeSheet: LoanChangeSheetData = view.loanChangeSheet(accountId: loanId, todayEpochDay: expected.today)
+        var changeFields = LoanChangeFields(changeSheet.input)
+        changeFields.rate = "7"
+        let changePreview: LoanChangePreviewData = view.loanChangePreview(accountId: loanId, input: changeFields.input(), hidden: false)
+        let detailsSheet: LoanDetailsSheetData = view.loanDetailsSheet(accountId: loanId)
+        let detailsFields = LoanDetailsFields(detailsSheet.input)
         let base: LoanInput = LoanBridge.shared.starting(todayEpochDay: expected.today, payFromId: 0)
         var draft = LoanDraft(base)
         draft.amount = "30000"
@@ -166,6 +178,26 @@ final class ScreenshotTests: XCTestCase {
             save(form, scheme: scheme, to: target.appendingPathComponent("loan-add-\(suffix).png"))
             let sheet = CorrectionSheet(model: model, request: CorrectionRequest(data: correction))
             save(sheet, scheme: scheme, to: target.appendingPathComponent("loan-correct-\(suffix).png"))
+            let payment = LoanPaymentSheetContent(
+                data: paySheet, fields: payFields, preview: payPreview, showProblems: false, error: nil, busy: false,
+                payFrom: view.accountChoice(id: 1), interestChoice: nil, principalChoice: nil, costChoice: nil, today: today,
+                onAmount: { _ in }, onPrincipal: { _ in }, onInterest: { _ in }, onCounts: { _ in }, onDay: { _ in },
+                onOtherDay: {}, onPickAccount: {}, onPickInterest: {}, onPickPrincipal: {}, onPickCost: {}, onSave: {},
+                onDelete: {}, onClose: {}
+            )
+            save(payment, scheme: scheme, to: target.appendingPathComponent("loan-payment-\(suffix).png"))
+            let change = LoanChangeContent(
+                data: changeSheet, fields: Binding<LoanChangeFields>.constant(changeFields), preview: changePreview,
+                showProblems: false, error: nil, busy: false, onPickDay: {}, onSave: {}, onClose: {}
+            )
+            save(change, scheme: scheme, to: target.appendingPathComponent("loan-change-\(suffix).png"))
+            let details = LoanDetailsContent(
+                data: detailsSheet, fields: Binding<LoanDetailsFields>.constant(detailsFields), problems: [:], showProblems: false,
+                error: nil, busy: false, payFrom: view.accountChoice(id: detailsFields.payFromId > 0 ? detailsFields.payFromId : -1),
+                interestChoice: nil, principalChoice: nil, principalDefault: "", onPickAccount: {}, onPickDay: {},
+                onPickInterest: {}, onPickPrincipal: {}, onSave: {}, onClose: {}
+            )
+            save(details, scheme: scheme, to: target.appendingPathComponent("loan-details-\(suffix).png"))
         }
     }
 
