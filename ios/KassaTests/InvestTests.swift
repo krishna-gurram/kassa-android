@@ -240,7 +240,7 @@ final class InvestTests: XCTestCase {
 
     func testOneBadPriceSavesNoPrice() throws {
         let id = try store.saveHolding(
-            accountId: broker, holdingId: 0, ticker: "TWO", shares: "1", price: "10", paid: "", nowMillis: moment
+            accountId: broker, holdingId: 0, ticker: "TWO", shares: "1", price: "10", paid: "8", nowMillis: moment
         )
         let abc = try holding("ABC")?.id ?? 0
         let found = refusal {
