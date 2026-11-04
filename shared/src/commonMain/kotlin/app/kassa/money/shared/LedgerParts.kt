@@ -8,11 +8,13 @@ import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
 import app.kassa.money.domain.InterestType
+import app.kassa.money.domain.InvestmentTransfer
 import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.LoanPayment
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Person
+import app.kassa.money.domain.Trade
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 
@@ -32,6 +34,10 @@ internal class LedgerParts(
     val loanTerms: Map<Long, LoanTerms>,
     val loanChanges: List<LoanTermChange>,
     val loanPayments: List<LoanPayment>,
+    /** The shares and price behind BUY and SELL entries (none for trades from before database v7). */
+    val trades: List<Trade> = emptyList(),
+    /** Money moved into investment accounts that is still waiting to be explained. */
+    val transfers: List<InvestmentTransfer> = emptyList(),
 ) {
     companion object {
         fun of(d: BackupData): LedgerParts {
@@ -88,6 +94,8 @@ internal class LedgerParts(
                         p.edited, p.estimate, p.scheduled, p.countAllAsSpending, p.principalCategoryId,
                     )
                 },
+                trades = d.trades.map { Trade(it.id, it.transactionId, it.ticker, it.microShares, it.price) },
+                transfers = d.investmentTransfers.map { InvestmentTransfer(it.id, it.transactionId, it.accountId, it.amount, it.epochMillis) },
             )
         }
     }

@@ -125,6 +125,21 @@ struct AppShell: View {
         .sheet(item: $model.loanDetailsSheet) { request in
             LoanDetailsSheet(model: model, request: request)
         }
+        .sheet(item: $model.holdingSheet) { request in
+            HoldingSheet(model: model, request: request)
+        }
+        .sheet(item: $model.pricesSheet) { request in
+            PricesSheet(model: model, request: request)
+        }
+        .sheet(item: $model.tradeSheet) { request in
+            TradeSheet(model: model, request: request)
+        }
+        .sheet(item: $model.tradeEditSheet) { request in
+            TradeEditSheet(model: model, request: request)
+        }
+        .sheet(item: $model.allocateSheet) { request in
+            AllocateSheet(model: model, request: request)
+        }
     }
 
     private func withAdd<Content: View>(_ content: Content) -> some View {

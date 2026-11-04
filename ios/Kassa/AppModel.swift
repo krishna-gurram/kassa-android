@@ -73,6 +73,15 @@ final class AppModel: ObservableObject {
     @Published var loanPage: LoanPageData?
     /// True while the loan page shows its whole payment schedule ("Show full schedule").
     @Published var loanAll = false
+    /// An investment account's page (batch H): set when the open account is an investment account.
+    @Published var investPage: InvestPageData?
+    /// The investment sheets that are open, or nil (`AppModel+Invest.swift`): a holding, Update prices, Buy or sell, an existing buy or sale,
+    /// and the "Where did it go?" sheet of a waiting transfer.
+    @Published var holdingSheet: HoldingSheetRequest?
+    @Published var pricesSheet: PricesSheetRequest?
+    @Published var tradeSheet: TradeSheetRequest?
+    @Published var tradeEditSheet: TradeEditRequest?
+    @Published var allocateSheet: AllocateRequest?
     /// The balance correction sheet that is open, or nil (`AppModel+Loans.swift`).
     @Published var correctionSheet: CorrectionRequest?
     /// The "Add terms" sheet of a loan that has none, or nil.
@@ -298,6 +307,7 @@ final class AppModel: ObservableObject {
                 self.cardPage = pages.card
                 self.personPage = pages.person
                 self.loanPage = pages.loan
+                self.investPage = pages.invest
             }
         }
     }

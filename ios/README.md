@@ -15,7 +15,7 @@ Settings, search and filters in Activity, archived accounts, restoring over exis
 
 Stage C (write path): first run picks a currency (the phone's region currency when Kassa lists it, otherwise the list opens before
 Start fresh or a backup without one) and the starter categories; Accounts has Add account (type first: cash and bank, cards, other,
-people; loans, investments and fixed deposits are Android-only for now); every tab has a floating Add button that opens the entry page
+people; fixed deposits are Android-only for now); every tab has a floating Add button that opens the entry page
 (expense, income, transfer; number pad, category and account pickers, date row, note), and tapping an expense, income or transfer
 row in Activity edits or deletes it. Other rows (loan payments, buys and sales, person payments, card payments, corrections) do nothing
 yet. An unfinished new entry is kept per scene (`@SceneStorage`). All rules are :domain's (`EntryRules`, `AccountForm`, `PersonForm`,
@@ -42,8 +42,7 @@ share or bar. Patterns tiles, the week view and budgets are not on iOS yet.
 
 Stage F (card, account and person pages): a tap on an Accounts row opens its page in place of the list, with a back button (`PageScreens.swift`, state in
 `AppModel+Pages.swift`). A card with statement days shows Balance payable (with its due line), Total balance and Outstanding, a statement navigator and Pay card;
-a plain account shows its balance, the month's In and Out, its entries and Close or Reopen (zero balance only, after a question); investments show only
-balance and entries (a loan has its own page, stage G1). Pay card (`PaymentSheets.swift`) offers Balance payable, Total balance or another amount, picks the pay-from account (only the card's own
+a plain account shows its balance, the month's In and Out, its entries and Close or Reopen (zero balance only, after a question); an investment account has its own page (stage H below; a loan too, stage G1). Pay card (`PaymentSheets.swift`) offers Balance payable, Total balance or another amount, picks the pay-from account (only the card's own
 "pay from" is preselected) and a date, and saves a TRANSFER to the card as Android does. A person's page shows Receivable or Payable, its history and Record a
 payment; payments open their own sheet to edit or delete. Rules are in `domain/Payments.kt`, reached through `LedgerView` and `PaymentBridge.kt`.
 
@@ -82,3 +81,12 @@ open Kassa.xcodeproj
 ```
 
 JDK 17 must be on the path for the Gradle step. There is no network access in the app itself and none is to be added.
+
+Stage H (investments): an INVESTMENT account's page (`InvestScreens.swift`, shown by `PageHost`) has Total value with the gain on what was put in, Cash,
+the holdings (ticker, shares, price-based value, gain or loss: loss orange, profit green, no percent or direction while Hide balances is on), transfers
+waiting to be explained (Answer or Clear; iOS has no Notifications page yet) and the cash moves by month. Sheets (`InvestSheets.swift`): a holding
+(add shares you own, price today, what you paid while unknown, remove), Update prices (all saved together), Buy or sell, an existing trade (edit, or only
+its date for a trade from before shares were kept, delete) and "Where did it go?". Rules are `domain/InvestRules.kt` (a plan of holdings changes, mirroring
+Android's `InvestmentRepository` in the order of its checks) reached through `shared/.../InvestBridge.kt` and `LedgerView.investPage` and the sheet functions;
+`LedgerStore+Invest.swift` only runs the SQL, one transaction per change (`afterInsertHook` for rollback tests). Activity rows of a buy or sale open the trade
+sheet. Swift tests: `InvestTests`; JVM: `InvestRulesTest` and `InvestPagesTest` (demo backup: ABC 12.5 shares at 180.00 is 2,250.00, `holdingsValue`).
