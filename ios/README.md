@@ -42,15 +42,24 @@ share or bar. Patterns tiles, the week view and budgets are not on iOS yet.
 
 Stage F (card, account and person pages): a tap on an Accounts row opens its page in place of the list, with a back button (`PageScreens.swift`, state in
 `AppModel+Pages.swift`). A card with statement days shows Balance payable (with its due line), Total balance and Outstanding, a statement navigator and Pay card;
-a plain account shows its balance, the month's In and Out, its entries and Close or Reopen (zero balance only, after a question); loans and investments show only
-balance and entries. Pay card (`PaymentSheets.swift`) offers Balance payable, Total balance or another amount, picks the pay-from account (only the card's own
+a plain account shows its balance, the month's In and Out, its entries and Close or Reopen (zero balance only, after a question); investments show only
+balance and entries (a loan has its own page, stage G1). Pay card (`PaymentSheets.swift`) offers Balance payable, Total balance or another amount, picks the pay-from account (only the card's own
 "pay from" is preselected) and a date, and saves a TRANSFER to the card as Android does. A person's page shows Receivable or Payable, its history and Record a
 payment; payments open their own sheet to edit or delete. Rules are in `domain/Payments.kt`, reached through `LedgerView` and `PaymentBridge.kt`.
+
+Stage G1 (loans, part one): Add account now offers Loan or mortgage (`LoanForm.swift`; the domain's `LoanForm` decides which fields a kind needs, the
+problems and the live calculation, through `LoanBridge`). One transaction saves the account, its `loan_terms` row and the "Loan interest" category (and "Escrow"
+with escrow) when missing (`LedgerStore+Loans.swift`). A loan with terms opens its own page (`LoanScreens.swift`): Outstanding (no minus) with a bar when the
+original amount is known, Payment with its due date, Paid off, interest paid and remaining, the next six payments (Show full schedule), Terms with dated changes
+(tap to remove) and the month's entries with payment tags; a loan without terms offers Add terms. Every figure is :domain's (`LoanSummary`, `LoanEngine`,
+`CountedSpending`) through `LedgerView.loanPage`. Correct balance (account and loan pages, and a correction row in Activity) asks for what the bank or lender
+shows, shows Kassa's figure and the difference, and saves ADJUST_IN/ADJUST_OUT (edit and delete too; a closed account is refused). Record a payment, Change terms, Edit
+details, the count-as-spending switch and notifications are stage G2.
 
 ## CI
 
 The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
-simulator. `ScreenshotTests` draws the Accounts, Activity, Overview, Insights, Settings, card page and pay-card screens (light and dark) to `ci-output/shots`, which a step uploads to
+simulator. `ScreenshotTests` draws the Accounts, Activity, Overview, Insights, Settings, card page, pay-card, loan page, Add loan and correction screens (light and dark) to `ci-output/shots`, which a step uploads to
 a draft release `ios-shots-<run>-<attempt>`; it never fails the build. A pre-build script phase in the Kassa target runs `./gradlew :shared:link<Debug|Release>Framework<Target>`
 for the SDK being built. Logs go to `ci-output/ios-app.log`; on failure they are uploaded to a draft release
 `diag-ios-app-<run>-<attempt>`.

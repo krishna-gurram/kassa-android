@@ -3,8 +3,8 @@ import KassaShared
 
 /// Add an account, type first (as on Android): a list of kinds, then a form with only that kind's fields and a back arrow. Every
 /// rule (the bounds, what a card needs, the sentence under a field) is :domain's `AccountForm`, asked through `AccountBridge`;
-/// this only lays the fields out. Kinds that need more setup than this form (Loan or mortgage, Investment, Fixed deposit) are not
-/// offered here yet (`AccountBridge.kindGroups`), so nothing is faked.
+/// this only lays the fields out. Kinds that need more setup than this form (Investment, Fixed deposit) are not
+/// offered here yet (`AccountBridge.kindGroups`), so nothing is faked. Loan or mortgage has its own form (`LoanFormBody`).
 struct AddAccountSheet: View {
     @ObservedObject var model: AppModel
     let onClose: () -> Void
@@ -14,6 +14,7 @@ struct AddAccountSheet: View {
         case account(String)
         case person
         case payFrom(String)
+        case day(LoanDayTarget)
     }
 
     @State private var stage: Stage = .kinds
@@ -32,6 +33,9 @@ struct AddAccountSheet: View {
     @State private var failure: String?
     @State private var busy = false
     @State private var payQuery = ""
+    // The loan form (Loan or mortgage): the rules are :domain's `LoanForm`, the text is kept here like the other fields.
+    @State private var loan = LoanDraft.starting(today: KassaDates.todayEpochDay())
+    @State private var loanPreview: LoanPreviewData?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,11 +43,17 @@ struct AddAccountSheet: View {
             case .kinds:
                 KindList(onPick: { key in stage = .account(key) }, onPerson: { stage = .person }, onClose: onClose)
             case .account(let key):
-                accountForm(key)
+                if key == "LOAN" {
+                    loanForm
+                } else {
+                    accountForm(key)
+                }
             case .person:
                 personForm
             case .payFrom(let key):
                 payFromPicker(key)
+            case .day(let target):
+                DayPickerStage(epochDay: LoanFormBody.dayBinding($loan, target), onDone: { stage = .account("LOAN") })
             }
         }
         .background(Palette.ground.ignoresSafeArea())
@@ -150,6 +160,63 @@ struct AddAccountSheet: View {
         }
     }
 
+    // MARK: Loan form
+
+    private var loanInput: LoanInput {
+        var draft = loan
+        draft.payFromId = payFromId
+        return draft.input()
+    }
+
+    private var payFromChoice: AccountChoiceData? {
+        if payFromId <= 0 { return nil }
+        return model.picks?.accountChoice(id: payFromId)
+    }
+
+    private var loanAccountInput: AccountInput {
+        return AccountInput(type: "LOAN", name: name, last4: "", balance: "", statementDay: "", dueDay: "", limit: "", payFromId: 0)
+    }
+
+    private var loanForm: some View {
+        return VStack(spacing: 0) {
+            SheetBar(title: Wording.accountTypeTitle("LOAN"), onBack: { reset(); stage = .kinds })
+            ScrollView {
+                VStack(spacing: 12) {
+                    FormField(label: "account.name", problem: shown("NAME", !name.isEmpty)) {
+                        TextField("account.name", text: bound($name, { FieldBridge.shared.typedName(raw: $0) }, "LOAN"))
+                            .textInputAutocapitalization(.words)
+                    }
+                    LoanFormBody(
+                        draft: $loan, problems: problems, submitted: submitted, preview: loanPreview, today: model.today,
+                        payFromName: payFromChoice?.name ?? "", payFromType: payFromChoice?.type ?? "",
+                        onPickPayFrom: { payQuery = ""; stage = .payFrom("LOAN") },
+                        onPickDay: { target in stage = .day(target) }
+                    )
+                    if let message = failure {
+                        Text(message).font(.footnote).foregroundColor(Palette.orange).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(16)
+            }
+            Button("account.add") { saveLoan() }
+                .buttonStyle(InkButtonStyle(filled: true))
+                .disabled(busy)
+                .padding(16)
+        }
+        .onChange(of: loan) { _ in failure = nil; refresh("LOAN") }
+        .onAppear { refresh("LOAN") }
+    }
+
+    private func saveLoan() {
+        submitted = true
+        busy = true
+        model.loanProblems(account: loanAccountInput, loan: loanInput) { found in
+            store(found)
+            if !found.isEmpty { busy = false; return }
+            model.addLoan(name: name, last4: "", loan: loanInput) { outcome in finish(outcome) }
+        }
+    }
+
     // MARK: Person form
 
     private var personForm: some View {
@@ -193,6 +260,7 @@ struct AddAccountSheet: View {
     private func reset() {
         name = ""; last4 = ""; balance = ""; statementDay = ""; dueDay = ""; limit = ""
         payFromId = 0; theyOwe = false; problems = [:]; submitted = false; failure = nil
+        loan = LoanDraft.starting(today: KassaDates.todayEpochDay()); loanPreview = nil
     }
 
     /// A text binding that applies the shared field filter as you type, then asks for the problems again.
@@ -208,7 +276,10 @@ struct AddAccountSheet: View {
     }
 
     private func refresh(_ key: String) {
-        if key == "PERSON" {
+        if key == "LOAN" {
+            model.loanProblems(account: loanAccountInput, loan: loanInput) { found in store(found) }
+            model.loanPreview(loan: loanInput) { data in loanPreview = data }
+        } else if key == "PERSON" {
             model.personProblems(name: name, theyOwe: theyOwe, amount: balance) { found in store(found) }
         } else {
             model.accountProblems(input(key)) { found in store(found) }

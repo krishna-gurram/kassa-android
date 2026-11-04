@@ -160,11 +160,12 @@ class WriteBridgeTest {
         val groups = AccountBridge.kindGroups()
         assertEquals(listOf("CASH_AND_BANK", "CREDIT_AND_LOANS", "OTHER"), groups.map { it.key })
         val kinds = groups.flatMap { g -> g.kinds.map { it.key } }
-        assertEquals(listOf("CHECKING", "SAVINGS", "CASH", "PREPAID", "CREDIT_CARD", "OTHER_ASSET", "OTHER_DEBT"), kinds)
-        for (left in listOf("LOAN", "INVESTMENT", "FIXED_DEPOSIT")) assertFalse(left in kinds, left)
-        val card = groups[1].kinds.single()
+        assertEquals(listOf("CHECKING", "SAVINGS", "CASH", "PREPAID", "CREDIT_CARD", "LOAN", "OTHER_ASSET", "OTHER_DEBT"), kinds)
+        for (left in listOf("INVESTMENT", "FIXED_DEPOSIT")) assertFalse(left in kinds, left)
+        val card = groups[1].kinds.first()
         assertTrue(card.hasStatement)
         assertTrue(card.isDebt)
+        assertTrue(groups[1].kinds.last().isDebt)
         assertTrue(groups[2].kinds.last().isDebt)
         assertFalse(groups[0].kinds.first().isDebt)
     }

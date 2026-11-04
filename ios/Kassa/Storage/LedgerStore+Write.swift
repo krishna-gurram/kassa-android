@@ -62,7 +62,7 @@ extension LedgerStore {
     }
 
     /// One more than the largest `sortOrder` of [table] (0 for none), as Android's `maxSortOrder() + 1`.
-    private func nextSortOrder(table: String) throws -> Int {
+    func nextSortOrder(table: String) throws -> Int {
         let statement = try db.prepare("SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM \(table)")
         guard try statement.step() else { return 0 }
         return Int(statement.columnInt(0) ?? 0)
@@ -72,7 +72,7 @@ extension LedgerStore {
 
     /// Inserts one row into [table] with every column but `id` (the database numbers it), each cell from [cell] (by the column's
     /// position in `BackupRows`) and bound by the column's kind. Returns the new id.
-    private func insertRow(table: String, cell: (Int32) -> String?) throws -> Int64 {
+    func insertRow(table: String, cell: (Int32) -> String?) throws -> Int64 {
         let rows = BackupRows.shared
         let columns = rows.columns(table: table)
         let kinds = rows.columnKinds(table: table)
@@ -136,7 +136,7 @@ extension LedgerStore {
         }
     }
 
-    private func names(table: String) throws -> [String] {
+    func names(table: String) throws -> [String] {
         var result: [String] = []
         let statement = try db.prepare("SELECT name FROM \(table)")
         while try statement.step() {
@@ -155,7 +155,7 @@ extension LedgerStore {
         let editable: Bool
     }
 
-    private func accountType(_ id: Int64) throws -> String {
+    func accountType(_ id: Int64) throws -> String {
         if id <= 0 { return "" }
         let statement = try db.prepare("SELECT type FROM accounts WHERE id = ?")
         try statement.bindInt(1, id)
@@ -163,7 +163,7 @@ extension LedgerStore {
         return statement.columnText(0) ?? ""
     }
 
-    private func exists(_ sql: String, _ id: Int64) throws -> Bool {
+    func exists(_ sql: String, _ id: Int64) throws -> Bool {
         let statement = try db.prepare(sql)
         try statement.bindInt(1, id)
         return try statement.step()
@@ -204,7 +204,7 @@ extension LedgerStore {
 
     /// Refuses with "<name> is closed. Reopen it first to add to it." when any of the accounts [ids] (decimal text) is closed: the
     /// accounts a change newly touches (Android's `requireOpen`).
-    private func requireOpen(_ ids: [String]) throws {
+    func requireOpen(_ ids: [String]) throws {
         for text in ids {
             guard let id = Int64(text) else { continue }
             let statement = try db.prepare("SELECT name FROM accounts WHERE id = ? AND closedDay IS NOT NULL")

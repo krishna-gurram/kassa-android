@@ -177,9 +177,9 @@ struct EntryRowView: View {
 
     var body: some View {
         // Expenses, income, transfers and card payments open the entry page (`EntryRowData.editable`) and a payment to or from a person
-        // opens its own sheet (`personPayment`). Rows of a loan payment, a buy or sale or a balance correction do nothing when tapped:
-        // Android sends each of those to its own sheet, which iOS doesn't have yet.
-        if entry.editable || entry.personPayment, let open = onOpen {
+        // opens its own sheet (`personPayment`). Rows of a loan payment or a buy or sale do nothing when tapped:
+        // Android sends each of those to its own sheet, which iOS doesn't have yet. A balance correction opens its sheet.
+        if entry.editable || entry.personPayment || entry.kind.name == "Correction", let open = onOpen {
             Button(action: { open(entry) }) { content }
                 .buttonStyle(.plain)
         } else {

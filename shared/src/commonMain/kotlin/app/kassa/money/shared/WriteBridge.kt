@@ -234,13 +234,13 @@ object AccountBridge {
     private fun kind(t: AccountType) = AccountKindData(t.name, t.hasStatement, t.isDebt)
 
     /**
-     * The kinds the iOS Add account sheet offers. Left out for now, on purpose (their extra setup isn't built on iOS and must not be
-     * faked): Loan or mortgage (terms), Investment (holdings, trades) and Fixed deposit (maturity date). An account of those kinds
-     * from a backup is shown and works as on Android.
+     * The kinds the iOS Add account sheet offers. Loan or mortgage has its own form (`LoanBridge`). Left out for now, on purpose
+     * (their extra setup isn't built on iOS and must not be faked): Investment (holdings, trades) and Fixed deposit (maturity date).
+     * An account of those kinds from a backup is shown and works as on Android.
      */
     fun kindGroups(): List<AccountKindGroupData> = listOf(
         AccountKindGroupData("CASH_AND_BANK", listOf(AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH, AccountType.PREPAID).map(::kind)),
-        AccountKindGroupData("CREDIT_AND_LOANS", listOf(kind(AccountType.CREDIT_CARD))),
+        AccountKindGroupData("CREDIT_AND_LOANS", listOf(AccountType.CREDIT_CARD, AccountType.LOAN).map(::kind)),
         AccountKindGroupData("OTHER", listOf(AccountType.OTHER_ASSET, AccountType.OTHER_DEBT).map(::kind)),
     )
 
@@ -349,6 +349,7 @@ object FieldBridge {
     fun typedAmount(raw: String): String = InputRules.typedAmount(raw)
     fun typedBalance(raw: String): String = InputRules.typedBalance(raw)
     fun typedDigits(raw: String, max: Int): String = InputRules.typedDigits(raw, max)
+    fun typedRate(raw: String): String = InputRules.typedRate(raw)
     fun typedName(raw: String): String = InputRules.typed(raw, InputRules.NAME_LIMIT)
 }
 

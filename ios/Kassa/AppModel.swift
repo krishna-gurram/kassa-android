@@ -69,6 +69,14 @@ final class AppModel: ObservableObject {
     @Published var accountPage: AccountPageData?
     @Published var cardPage: CardPageData?
     @Published var personPage: PersonPageData?
+    /// A loan account's page (stage G1): set instead of nothing when the open account is a loan with terms.
+    @Published var loanPage: LoanPageData?
+    /// True while the loan page shows its whole payment schedule ("Show full schedule").
+    @Published var loanAll = false
+    /// The balance correction sheet that is open, or nil (`AppModel+Loans.swift`).
+    @Published var correctionSheet: CorrectionRequest?
+    /// The "Add terms" sheet of a loan that has none, or nil.
+    @Published var termsSheet: TermsRequest?
     /// How far back the open page is: months for an account page, statements for a card page (0 is the current stretch).
     @Published var pageBack: Int = 0
     /// The pay-card sheet that is open, or nil.
@@ -133,6 +141,8 @@ final class AppModel: ObservableObject {
         /// The account or person page that is open, and how far back it is (see `AppModel.openPage`, `pageBack`).
         let target: PageTarget?
         let pageBack: Int
+        /// The loan page lists every payment, not the next few.
+        let loanAll: Bool
     }
 
     func inputs() -> Inputs {
@@ -140,7 +150,7 @@ final class AppModel: ObservableObject {
             hidden: hideAmounts, year: shownYear, month: shownMonth,
             today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier,
             insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency,
-            target: openPage, pageBack: pageBack
+            target: openPage, pageBack: pageBack, loanAll: loanAll
         )
     }
 
@@ -283,6 +293,7 @@ final class AppModel: ObservableObject {
                 self.accountPage = pages.account
                 self.cardPage = pages.card
                 self.personPage = pages.person
+                self.loanPage = pages.loan
             }
         }
     }

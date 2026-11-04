@@ -26,6 +26,10 @@ import app.kassa.money.domain.Currencies
 import app.kassa.money.domain.LoanEngine
 import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.LoanEntryIndex
+import app.kassa.money.domain.LoanForm
+import app.kassa.money.domain.LoanRate
+import app.kassa.money.domain.LoanSummary
+import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
@@ -1348,6 +1352,148 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         return AccountPickData(listOf(AccountKindFilter.ALL.name), groups, emptyList(), options.isEmpty())
     }
 
+    // ---------- Loans and balance corrections ----------
+
+    /**
+     * A loan account's page as of [todayEpochDay] (`LoanSummary.of`, the same figures as Android's loan page): outstanding balance today,
+     * progress, the payment due and the payoff, interest paid and left, the next [LOAN_NEXT_ROWS] schedule rows (all of them when
+     * [allRows]), the terms in effect today with their dated changes, and the entries of the budget month [monthsBack] before the
+     * current one. A loan with no terms comes back with [LoanPageData.hasTerms] false.
+     */
+    fun loanPage(accountId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String, monthsBack: Int, allRows: Boolean): LoanPageData = shown(hidden) {
+        buildLoanPage(accountId, hidden, todayEpochDay, timeZoneId, monthsBack, allRows)
+    }
+
+    private fun emptyLoanPage(id: Long, found: Boolean, name: String, last4: String) = LoanPageData(
+        found, false, id, name, last4, 0, "", false, "", Tone.Ink, Tone.Ink, false, 0, 0, "", false, "", 0, 0, "", "", false,
+        "", "", "", false, "", 0, 0, emptyList(), 0, emptyList(), 0, 0, true, false, 0, emptyList(),
+    )
+
+    private fun buildLoanPage(accountId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String, monthsBack: Int, allRows: Boolean): LoanPageData {
+        val a = accountById[accountId]
+        if (a == null || a.type != AccountType.LOAN) return emptyLoanPage(accountId, false, "", "")
+        val terms = parts.loanTerms[a.id] ?: return emptyLoanPage(a.id, true, a.name, a.last4 ?: "")
+        val changes = parts.loanChanges.filter { it.accountId == a.id }.sortedWith(compareBy({ it.effectiveDay }, { it.id }))
+        val payments = parts.loanPayments.filter { it.accountId == a.id }
+        val byId = transactions.associateBy { it.id }
+        val interestPaid = payments.sumOf { p -> p.interestEntryId?.let { byId[it]?.amount } ?: 0L }
+        val balance = balances[a.id] ?: 0L
+        val summary = LoanSummary.of(terms, changes, payments, -balance, interestPaid)
+        val eff = terms.effective(changes, todayEpochDay)
+        val paying = summary.owed > 0
+        val fraction = summary.fractionRepaid
+        val percent = summary.percentRepaid
+        val original = summary.originalAmount
+        val progress = fraction != null && percent != null && original != null && !Money.isHidden
+        val entries = accountPage(accountId, hidden, todayEpochDay, timeZoneId, monthsBack)
+        val shownRows = if (allRows) summary.rows else summary.rows.take(LOAN_NEXT_ROWS)
+        return LoanPageData(
+            found = true,
+            hasTerms = true,
+            id = a.id,
+            name = a.name,
+            last4 = a.last4 ?: "",
+            closedDay = a.closedDay ?: 0,
+            closeProblem = ruleCloseProblem(worth(a)) ?: "",
+            profit = terms.profit,
+            balanceText = Money.format(abs(balance)),
+            balanceTone = cardTint(-balance),
+            heroTone = if (Money.isHidden) Tone.Ink else if (balance < 0) Tone.Orange else Tone.Green,
+            hasProgress = progress,
+            percent = percent ?: 0,
+            permille = ((fraction ?: 0f) * 1000f).toInt().coerceIn(0, 1000),
+            originalText = if (original != null) Money.format(original) else "",
+            paying = paying,
+            paymentText = if (paying) Money.format(summary.payment) else "",
+            nextPaymentDay = summary.nextPaymentDay,
+            payoffDay = summary.payoffDay ?: 0,
+            interestPaidText = Money.format(summary.interestPaid),
+            interestLeftText = summary.interestLeft?.let { Money.format(it) } ?: "",
+            doesntCover = paying && !summary.outlook.coversInterest && !Money.isHidden,
+            interestType = eff.type.name,
+            rateText = LoanRate.display(eff.rate),
+            termPaymentText = Money.format(eff.payment),
+            hasEscrow = terms.escrow > 0,
+            escrowText = if (terms.escrow > 0) Money.format(terms.escrow) else "",
+            termMonths = terms.termMonths ?: 0,
+            dueDay = terms.dueDay,
+            changes = changes.map { LoanChangeData(it.id, it.effectiveDay, it.summary(terms.profit)) },
+            scheduleCount = summary.rows.size,
+            rows = shownRows.map { LoanRowData(it.day, Money.format(it.principal), Money.format(it.interest), Money.format(it.balance)) },
+            year = entries.year,
+            month = entries.month,
+            isCurrentMonth = entries.isCurrentMonth,
+            hasEarlier = entries.hasEarlier,
+            entryCount = entries.entryCount,
+            days = entries.days,
+        )
+    }
+
+    /**
+     * The setup form for "Add terms" on loan account [accountId]: already partway, filled with what is owed today (`LoanForm.forAccount`).
+     * The form's `payFromId` starts as the account's own, when it has one.
+     */
+    fun loanTermsInput(accountId: Long, todayEpochDay: Int): LoanInput {
+        val a = accountById[accountId]
+        val owed = -(balances[accountId] ?: 0L)
+        return shown(false) { LoanInput.of(LoanForm.forAccount(owed, todayEpochDay, a?.payFromId)) }
+    }
+
+    /** Whether loan account [accountId] has terms. */
+    fun hasLoanTerms(accountId: Long): Boolean = parts.loanTerms.containsKey(accountId)
+
+    /**
+     * The balance correction sheet for [accountId] (a new correction) or the correction entry [editingId] (its account is read from it).
+     * Not found when the account or the correction is gone, or the entry is not a correction. See `BalanceCorrectionSheet`.
+     */
+    fun correctionSheet(accountId: Long, editingId: Long, hidden: Boolean): CorrectionSheetData = shown(hidden) {
+        val old = if (editingId > 0) transactions.firstOrNull { it.id == editingId } else null
+        val id = old?.accountId ?: accountId
+        val a = accountById[id]
+        val badEdit = editingId > 0 && (old == null || !BalanceCorrection.isCorrection(old.kind) || old.accountId != id)
+        if (a == null || badEdit) {
+            CorrectionSheetData(false, accountId, "", false, false, 0, 0, "", 0, 0)
+        } else {
+            val debt = a.type.isDebt
+            val now = balances[a.id] ?: 0L
+            val without = now - (old?.effectOn(a.id) ?: 0L)
+            val shownWithout = BalanceCorrection.shownFrom(without, debt)
+            CorrectionSheetData(
+                found = true,
+                accountId = a.id,
+                accountName = a.name,
+                debt = debt,
+                isLoan = a.type == AccountType.LOAN,
+                editingId = if (old != null) old.id else 0L,
+                shownWithout = shownWithout,
+                balanceInKassaText = if (debt) cardMoney(shownWithout) else Money.format(shownWithout),
+                initialShown = if (old != null) BalanceCorrection.shownFrom(now, debt) else 0L,
+                epochMillis = old?.epochMillis ?: 0L,
+            )
+        }
+    }
+
+    /**
+     * What saving a correction makes [accountId] show [typedShown] comes to (a debt typed as what is owed): the domain's problem
+     * sentence, or the kind and amount to store. [editingId] names an earlier correction that is replaced, so the difference is
+     * worked out without it (`EntryRepository.correctBalance`). The sentence is never masked.
+     */
+    fun correctionPlan(accountId: Long, editingId: Long, typedShown: Long): CorrectionPlanData = shown(false) {
+        val a = accountById[accountId]
+        if (a == null) {
+            CorrectionPlanData("", "", 0L)
+        } else {
+            val old = if (editingId > 0) transactions.firstOrNull { it.id == editingId } else null
+            val target = BalanceCorrection.targetFrom(typedShown, a.type.isDebt)
+            val without = (balances[accountId] ?: 0L) - (old?.effectOn(accountId) ?: 0L)
+            val change = BalanceCorrection.change(target, without)
+            val problem = InputRules.balanceProblem(target) ?: BalanceCorrection.problem(change)
+            val entry = BalanceCorrection.entry(0, accountId, change, 0)
+            if (problem != null || entry == null) CorrectionPlanData(problem ?: "", "", 0L)
+            else CorrectionPlanData("", entry.kind.name, entry.amount)
+        }
+    }
+
     // ---------- Money state and colour ----------
 
     /** Runs [block] with Money showing this ledger's currency and [hidden] as Hide balances, then puts both back. */
@@ -1394,5 +1540,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         /** At most this many tiles on Overview, as Android's `MAX_PINS`. */
         const val MAX_PINS = 8
         const val CLOSED = "CLOSED"
+        /** How many schedule rows the loan page shows before "Show full schedule", as Android's `NEXT_ROWS`. */
+        const val LOAN_NEXT_ROWS = 6
     }
 }
