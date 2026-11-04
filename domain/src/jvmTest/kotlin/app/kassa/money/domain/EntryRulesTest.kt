@@ -108,8 +108,9 @@ class EntryRulesTest {
         assertTrue(editable(TxKind.TRANSFER, AccountType.CREDIT_CARD), "a card payment is a transfer, edited on the entry page as on Android")
         assertFalse(editable(TxKind.TRANSFER, AccountType.SAVINGS, loan = true), "a loan principal")
         assertFalse(editable(TxKind.EXPENSE, loan = true), "loan interest")
-        assertFalse(editable(TxKind.EXPENSE, split = true))
-        assertFalse(editable(TxKind.EXPENSE, person = true))
+        assertTrue(editable(TxKind.EXPENSE, split = true), "a split expense is edited on the entry page")
+        assertTrue(editable(TxKind.EXPENSE, person = true, split = true), "an expense someone else paid has a person and no account")
+        assertFalse(editable(TxKind.INCOME, person = true))
         for (k in listOf(TxKind.BUY, TxKind.SELL, TxKind.PERSON_IN, TxKind.PERSON_OUT, TxKind.ADJUST_IN, TxKind.ADJUST_OUT)) assertFalse(editable(k), k.name)
     }
 
@@ -164,5 +165,19 @@ class EntryRulesTest {
         // 2026-01-01 12:00 UTC is 21:00 on 1 January in Tokyo, so "today" there is 1 January and keeps 21:00.
         assertEquals(now, noon)
         assertEquals(day, dateOfMillis(noon, tokyo))
+    }
+
+    @Test
+    fun anExpenseSomeoneElsePaidNeedsNoAccountAndMovesNone() {
+        val d = EntryRules.Draft(kind = TxKind.EXPENSE, amount = 1000, categoryId = 4, epochMillis = 1, paidBy = 7)
+        assertNull(EntryRules.problem(d))
+        assertEquals(EntryField.ACCOUNT, EntryRules.problem(d.copy(paidBy = null))?.field)
+        val n = EntryRules.normalized(d.copy(accountId = 2))
+        assertNull(n.accountId)
+        assertEquals(7L, n.paidBy)
+        assertNull(EntryRules.normalized(d.copy(kind = TxKind.INCOME, accountId = 2)).paidBy)
+        assertEquals(2L, EntryRules.normalized(d.copy(kind = TxKind.INCOME, accountId = 2)).accountId)
+        assertNull(EntryRules.missing(TxKind.EXPENSE, 4, null, null, someoneElsePaid = true))
+        assertEquals(EntryField.ACCOUNT, EntryRules.missing(TxKind.EXPENSE, 4, null, null))
     }
 }

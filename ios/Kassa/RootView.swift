@@ -137,6 +137,9 @@ struct AppShell: View {
         .sheet(item: $model.personSheet) { request in
             PersonPaymentSheet(model: model, request: request)
         }
+        .sheet(item: $model.splitSheet) { request in
+            SplitPickerSheet(model: model, request: request)
+        }
         .sheet(item: $model.correctionSheet) { request in
             CorrectionSheet(model: model, request: request)
         }

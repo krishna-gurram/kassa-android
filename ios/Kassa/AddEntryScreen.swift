@@ -18,7 +18,7 @@ struct EntryPageHost: View {
         _keptDraft = keptDraft
         let made = EntryDraftModel(
             view: ledger, editing: request.editing, draft: request.draft, today: KassaDates.todayEpochDay(),
-            zone: TimeZone.current.identifier
+            zone: TimeZone.current.identifier, split: request.split, openSplit: request.openSplit
         )
         _draft = StateObject(wrappedValue: made)
     }
@@ -193,6 +193,8 @@ struct AddEntryScreen: View {
             AccountPanel(draft: draft)
         case .date:
             DatePanel(draft: draft)
+        case .split:
+            SplitPanel(draft: draft)
         }
     }
 }
@@ -211,6 +213,9 @@ struct AddEntryForm: View {
             tiles
             DateRow(draft: draft)
             noteField
+            if draft.offersSplit {
+                SplitRow(draft: draft)
+            }
             if let problem = draft.error {
                 Text(problem)
                     .font(.footnote)
@@ -267,7 +272,11 @@ struct AddEntryForm: View {
         } else {
             HStack(spacing: 8) {
                 categoryTile
-                accountTile(label: draft.kind == "INCOME" ? "entry.into" : "entry.paidWith", id: draft.accountId, panel: .account)
+                if draft.someoneElsePaid {
+                    payerTile
+                } else {
+                    accountTile(label: draft.kind == "INCOME" ? "entry.into" : "entry.paidWith", id: draft.accountId, panel: .account)
+                }
             }
         }
     }
@@ -282,6 +291,15 @@ struct AddEntryForm: View {
             } else {
                 EmptyTileIcon()
             }
+        }
+    }
+
+    /// Someone else paid: the tile that would name your account names them instead, and opens the split.
+    private var payerTile: some View {
+        let name: String = draft.view.personName(id: draft.split.paidBy)
+        let value: String = name.isEmpty ? String(localized: "split.someone") : name
+        return EntryTile(label: "split.paidBy", value: value, selected: draft.panel == .split, action: { draft.show(.split) }) {
+            PersonIconView(size: 32)
         }
     }
 

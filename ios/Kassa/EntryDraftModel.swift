@@ -9,6 +9,7 @@ enum EntryPanel: String {
     case account
     case to
     case date
+    case split
 }
 
 /// Everything on the entry page: what is typed, which panel is open, and the steps from one input to the next. Every rule (what is
@@ -38,16 +39,28 @@ final class EntryDraftModel: ObservableObject {
     /// The search text and kind chip of the open picker; cleared whenever the panel changes.
     @Published var query = ""
     @Published var filter = "ALL"
+    /// The split: who shares an expense, who paid, and the shares (all of it :domain's `SplitRules`, kept as `SplitState`).
+    @Published var split: SplitState
+    /// The person whose exact share the pad is typing (0 for none), and what is typed so far.
+    @Published var sharePerson: Int64 = 0
+    @Published var shareTyped = ""
 
     private var initial = ""
+    /// Opened from a person's "Split a transaction": leaving asks even before anything is changed, as on Android.
+    private let opensSplit: Bool
 
-    init(view: LedgerView, editing: EntryEditData?, draft: String, today: Int, zone: String) {
+    init(
+        view: LedgerView, editing: EntryEditData?, draft: String, today: Int, zone: String,
+        split startSplit: SplitState? = nil, openSplit: Bool = false
+    ) {
         self.view = view
         self.editing = editing
         self.today = today
         self.zone = zone
         self.symbol = view.currencySymbol()
         self.decimalMark = String(EntryBridge.shared.display(typed: "0.").dropFirst())
+        self.opensSplit = openSplit
+        self.split = startSplit ?? SplitBridge.shared.none()
         if let entry = editing {
             kind = entry.kind
             typed = EntryBridge.shared.typedOf(cents: entry.amount)
@@ -65,7 +78,7 @@ final class EntryDraftModel: ObservableObject {
             epochDay = today
             note = ""
         }
-        panel = .amount
+        panel = openSplit ? .split : .amount
         initial = encoded
         if editing == nil && !draft.isEmpty { restore(draft) }
     }
@@ -77,14 +90,16 @@ final class EntryDraftModel: ObservableObject {
     /// What is typed, as one text a scene can keep (`SceneStorage`): kind, amount, ids, day and note. A new entry only.
     var encoded: String {
         let parts: [String] = [
-            "1", kind, typed, String(categoryId), String(accountId), String(toAccountId), String(epochDay), note,
+            "2", kind, typed, String(categoryId), String(accountId), String(toAccountId), String(epochDay), note, split.encoded,
         ]
         return parts.joined(separator: EntryDraftModel.separator)
     }
 
     private func restore(_ text: String) {
         let parts = text.components(separatedBy: EntryDraftModel.separator)
-        guard parts.count == 8, parts[0] == "1" else { return }
+        let current = parts.count == 9 && parts[0] == "2"
+        let older = parts.count == 8 && parts[0] == "1"
+        guard current || older else { return }
         let kinds = ["EXPENSE", "INCOME", "TRANSFER"]
         guard kinds.contains(parts[1]) else { return }
         kind = parts[1]
@@ -94,11 +109,12 @@ final class EntryDraftModel: ObservableObject {
         toAccountId = Int64(parts[5]) ?? 0
         epochDay = Int(parts[6]) ?? today
         note = EntryBridge.shared.typedNote(raw: parts[7])
+        if current { split = SplitBridge.shared.decode(text: parts[8]) }
         panel = missingPanel ?? .amount
     }
 
     /// True once anything differs from how the page opened; leaving then asks first.
-    var isDirty: Bool { encoded != initial }
+    var isDirty: Bool { encoded != initial || opensSplit }
 
     // MARK: Typing
 
@@ -121,11 +137,16 @@ final class EntryDraftModel: ObservableObject {
 
     /// The next required input still empty, in the order the tiles read; nil when the entry has all it needs.
     var missingPanel: EntryPanel? {
-        let name = EntryBridge.shared.missing(kind: kind, categoryId: categoryId, accountId: accountId, toAccountId: toAccountId)
+        let name = missingName
         if name == "CATEGORY" { return .category }
         if name == "ACCOUNT" { return .account }
         if name == "TO" { return .to }
         return nil
+    }
+
+    /// The `EntryField` name still empty; when someone else paid, no account of yours is needed.
+    private var missingName: String {
+        return EntryBridge.shared.missing(kind: kind, categoryId: categoryId, accountId: accountId, toAccountId: toAccountId, split: split)
     }
 
     func show(_ next: EntryPanel) {
@@ -186,6 +207,72 @@ final class EntryDraftModel: ObservableObject {
         error = nil
     }
 
+    // MARK: Split
+
+    /// An expense is split with someone: the shares, who paid and the sentence about it are `splitView`'s.
+    var isShared: Bool { return SplitBridge.shared.isShared(state: split, kind: kind) }
+
+    /// Someone else paid it: the entry moves none of your accounts, and the account tile gives way to "Paid by".
+    var someoneElsePaid: Bool { return SplitBridge.shared.someoneElsePaid(state: split, kind: kind) }
+
+    /// The Split row is offered for an expense while there is someone to split with (or it already is split).
+    var offersSplit: Bool { return kind == "EXPENSE" && (view.hasSplitPeople() || isShared) }
+
+    var splitView: SplitViewData {
+        return SplitBridge.shared.view(state: split, kind: kind, total: cents, currency: view.currencyCode())
+    }
+
+    /// The people to pick from, A to Z (an archived person only while already in the split).
+    var splitPeople: [SplitPersonData] { return view.splitPeople(selected: split.people) }
+
+    func isSelected(_ personId: Int64) -> Bool { return SplitBridge.shared.isSelected(state: split, personId: personId) }
+
+    func toggleSplit(_ personId: Int64) {
+        split = SplitBridge.shared.toggle(state: split, personId: personId)
+        error = nil
+    }
+
+    func useEqualShares() {
+        split = SplitBridge.shared.useEqual(state: split)
+        error = nil
+    }
+
+    func useExactShares() {
+        split = SplitBridge.shared.useExact(state: split, total: cents)
+        error = nil
+    }
+
+    /// 0 is you, who paid when nobody else did.
+    func setPayer(_ personId: Int64) {
+        split = SplitBridge.shared.payer(state: split, personId: personId)
+        error = nil
+    }
+
+    func startShare(_ personId: Int64) {
+        sharePerson = personId
+        shareTyped = ""
+    }
+
+    func pressShare(_ key: String) {
+        shareTyped = EntryBridge.shared.press(typed: shareTyped, key: key)
+    }
+
+    /// Leaves the pad without taking what was typed.
+    func cancelShare() {
+        sharePerson = 0
+        shareTyped = ""
+    }
+
+    /// Takes the share typed (an empty pad keeps the old one) and goes back to the split.
+    func commitShare() {
+        if sharePerson > 0 {
+            split = SplitBridge.shared.typedShare(state: split, personId: sharePerson, typed: shareTyped)
+        }
+        sharePerson = 0
+        shareTyped = ""
+        error = nil
+    }
+
     // MARK: Saving
 
     /// The entry as the store takes it; the moment is the picked day with the right time of day (`EntryRules.savedMillis`).
@@ -196,7 +283,7 @@ final class EntryDraftModel: ObservableObject {
         )
         return EntryInput(
             id: editing?.id ?? 0, kind: kind, amount: cents, accountId: accountId, toAccountId: toAccountId,
-            categoryId: categoryId, epochMillis: moment, note: note
+            categoryId: categoryId, epochMillis: moment, note: note, split: split
         )
     }
 
@@ -205,12 +292,13 @@ final class EntryDraftModel: ObservableObject {
         if field == "CATEGORY" { return .category }
         if field == "ACCOUNT" { return .account }
         if field == "TO" { return .to }
+        if field == "SPLIT" { return .split }
         return .amount
     }
 
     /// The text of the one ink button under the pad: what comes next until everything is set, then Add or Save.
     var buttonKey: String {
-        let next = EntryBridge.shared.missing(kind: kind, categoryId: categoryId, accountId: accountId, toAccountId: toAccountId)
+        let next = missingName
         if next == "CATEGORY" { return "entry.next.category" }
         if next == "TO" { return "entry.next.to" }
         if next == "ACCOUNT" {

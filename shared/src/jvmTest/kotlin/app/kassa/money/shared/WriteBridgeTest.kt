@@ -85,10 +85,10 @@ class WriteBridgeTest {
     }
 
     @Test
-    fun anEditOwnsOnlySevenColumns() {
+    fun anEditOwnsTheNineColumnsOfTheEntryAndItsSplit() {
         val names = BackupRows.columns("transactions")
         val owned = names.filterIndexed { i, _ -> EntryBridge.ownsColumn(i) }
-        assertEquals(listOf("kind", "amount", "accountId", "toAccountId", "categoryId", "epochMillis", "note"), owned)
+        assertEquals(listOf("kind", "amount", "accountId", "toAccountId", "categoryId", "personId", "epochMillis", "note", "myShare"), owned)
     }
 
     @Test
@@ -406,18 +406,18 @@ class WriteBridgeTest {
     }
 
     @Test
-    fun onlyPlainExpensesIncomeAndTransfersAreEditable() {
+    fun expensesIncomeAndTransfersWithSplitsAreEditable() {
         KassaCore.installDefaults()
         val v = ledger()
         val rows = v.activity(1970, 1, false, 0, "UTC").days.flatMap { it.entries }.associateBy { it.id }
-        assertEquals(setOf(10L, 11L, 12L, 14L), rows.filterValues { it.editable }.keys, "a card payment is a transfer, edited on the entry page as on Android")
-        assertFalse(rows.getValue(13).editable, "a split")
+        assertEquals(setOf(10L, 11L, 12L, 13L, 14L, 17L), rows.filterValues { it.editable }.keys, "a card payment is a transfer, edited on the entry page as on Android")
+        assertTrue(rows.getValue(13).editable, "a split is edited on the entry page")
         assertFalse(rows.getValue(15).editable, "a buy")
         assertFalse(rows.getValue(16).editable, "a person's payment")
         assertTrue(rows.getValue(16).personPayment, "it opens the person payment sheet instead")
-        assertFalse(rows.getValue(17).editable, "a share on the entry")
-        for (id in listOf(10L, 11L, 12L, 14L)) assertEquals(id, v.entryEdit(id)?.id)
-        for (id in listOf(13L, 15L, 16L, 17L, 99L)) assertNull(v.entryEdit(id), id.toString())
+        assertTrue(rows.getValue(17).editable, "a share on the entry")
+        for (id in listOf(10L, 11L, 12L, 13L, 14L, 17L)) assertEquals(id, v.entryEdit(id)?.id)
+        for (id in listOf(15L, 16L, 99L)) assertNull(v.entryEdit(id), id.toString())
     }
 
     @Test
@@ -466,8 +466,9 @@ class WriteBridgeTest {
         assertTrue(EntryBridge.isEditable("TRANSFER", "SAVINGS", false, false, false))
         assertTrue(EntryBridge.isEditable("TRANSFER", "CREDIT_CARD", false, false, false))
         assertFalse(EntryBridge.isEditable("EXPENSE", "", true, false, false))
-        assertFalse(EntryBridge.isEditable("EXPENSE", "", false, true, false))
-        assertFalse(EntryBridge.isEditable("EXPENSE", "", false, false, true))
+        assertTrue(EntryBridge.isEditable("EXPENSE", "", false, true, false), "someone else paid")
+        assertTrue(EntryBridge.isEditable("EXPENSE", "", false, false, true), "a split expense")
+        assertFalse(EntryBridge.isEditable("INCOME", "", false, true, false))
         assertFalse(EntryBridge.isEditable("BUY", "", false, false, false))
         assertFalse(EntryBridge.isEditable("nonsense", "", false, false, false))
     }

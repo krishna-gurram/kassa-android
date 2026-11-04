@@ -112,6 +112,8 @@ final class AppModel: ObservableObject {
     @Published var paySheet: PaySheetRequest?
     /// The person payment sheet that is open (new or editing), or nil.
     @Published var personSheet: PersonSheetRequest?
+    /// The "Split a transaction" sheet of a person's page, or nil (`AppModel+Split.swift`).
+    @Published var splitSheet: SplitSheetRequest?
     /// What waits on the Notifications page, Overview's Upcoming rows and the bills list (`AppModel+Due.swift`), once worked out.
     @Published private(set) var notices: NoticesData?
     @Published private(set) var upcoming: [UpcomingData] = []

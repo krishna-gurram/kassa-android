@@ -14,6 +14,7 @@ import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.PersonField
 import app.kassa.money.domain.PersonForm
+import app.kassa.money.domain.SplitRules
 import app.kassa.money.domain.StarterCategories
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.dateOfMillis
@@ -46,7 +47,7 @@ internal fun <T> withMoney(code: String?, block: () -> T): T {
     }
 }
 
-private fun txKind(name: String): TxKind? = TxKind.entries.firstOrNull { it.name == name }
+internal fun txKind(name: String): TxKind? = TxKind.entries.firstOrNull { it.name == name }
 
 private fun accountType(name: String): AccountType? = AccountType.entries.firstOrNull { it.name == name }
 
@@ -61,7 +62,11 @@ data class FieldProblemData(val field: String, val message: String)
 
 // ---------- entries ----------
 
-/** One entry as Swift hands it over: flat, 0 means "none", [kind] is a `TxKind` name, [id] 0 for a new entry. */
+/**
+ * One entry as Swift hands it over: flat, 0 means "none", [kind] is a `TxKind` name, [id] 0 for a new entry. A split rides along as
+ * [splitWith] (person ids as "1,2"; empty text for none), [splitShares] (each person's share as "id:cents,..."; empty text means equal
+ * shares) and [paidBy] (0 when you paid); only an expense is ever split, and the rules are `SplitRules`.
+ */
 class EntryInput(
     val id: Long,
     val kind: String,
@@ -71,10 +76,41 @@ class EntryInput(
     val categoryId: Long,
     val epochMillis: Long,
     val note: String,
+    val splitWith: String,
+    val splitShares: String,
+    val paidBy: Long,
 ) {
+    /** An entry that isn't split. */
+    constructor(
+        id: Long, kind: String, amount: Long, accountId: Long, toAccountId: Long, categoryId: Long, epochMillis: Long, note: String,
+    ) : this(id, kind, amount, accountId, toAccountId, categoryId, epochMillis, note, "", "", 0L)
+
+    /** An entry with the split the page has picked (its shares worked out here, as Android's entry page does before it saves). */
+    constructor(
+        id: Long, kind: String, amount: Long, accountId: Long, toAccountId: Long, categoryId: Long, epochMillis: Long, note: String,
+        split: SplitState,
+    ) : this(
+        id, kind, amount, accountId, toAccountId, categoryId, epochMillis, note,
+        SplitBridge.peopleFor(split, kind), SplitBridge.sharesFor(split, kind, amount), SplitBridge.payerFor(split, kind),
+    )
+
+    internal fun splitDraft(): SplitRules.Draft = SplitRules.Draft(
+        people = SplitText.ids(splitWith),
+        exact = splitShares.isNotEmpty(),
+        exactShares = SplitText.pairs(splitShares),
+        paidBy = idOrNull(paidBy),
+    )
+
+    internal fun kindOrNull(): TxKind? = txKind(kind)
+
+    internal fun plan(): SplitRules.Plan {
+        val k = kindOrNull() ?: return SplitRules.Plan(false, null, null, emptyList())
+        return SplitRules.plan(amount, k, splitDraft())
+    }
+
     internal fun draft(): EntryRules.Draft? {
         val k = txKind(kind) ?: return null
-        return EntryRules.Draft(idOrNull(id), k, amount, idOrNull(accountId), idOrNull(toAccountId), idOrNull(categoryId), epochMillis, note)
+        return EntryRules.Draft(idOrNull(id), k, amount, idOrNull(accountId), idOrNull(toAccountId), idOrNull(categoryId), epochMillis, note, plan().paidBy)
     }
 }
 
@@ -84,7 +120,8 @@ object EntryBridge {
     /** The first problem of [input], or null when it can be saved. [currency] words amounts. */
     fun problem(input: EntryInput, currency: String): FieldProblemData? = withMoney(currency) {
         val draft = input.draft() ?: return@withMoney FieldProblemData(EntryField.AMOUNT.name, "That kind of entry can't be saved here.")
-        EntryRules.problem(draft)?.let { FieldProblemData(it.field.name, it.message) }
+        EntryRules.problem(draft)?.let { return@withMoney FieldProblemData(it.field.name, it.message) }
+        SplitRules.problem(input.amount, draft.kind, input.splitDraft())?.let { FieldProblemData("SPLIT", it) }
     }
 
     /**
@@ -96,12 +133,32 @@ object EntryBridge {
         return EntryRules.missing(k, idOrNull(categoryId), idOrNull(accountId), idOrNull(toAccountId))?.name ?: ""
     }
 
+    /** As [missing], for a page whose split says who paid ([split]): when someone else paid, no account of yours is needed. */
+    fun missing(kind: String, categoryId: Long, accountId: Long, toAccountId: Long, split: SplitState): String {
+        val k = txKind(kind) ?: return ""
+        val other = SplitRules.someoneElsePaid(k, split.draft())
+        return EntryRules.missing(k, idOrNull(categoryId), idOrNull(accountId), idOrNull(toAccountId), other)?.name ?: ""
+    }
+
+    /** The people of the split [input] carries, as decimal text (empty for an entry that isn't split): they must all still exist. */
+    fun splitPeopleOf(input: EntryInput): List<String> {
+        val k = input.kindOrNull() ?: return emptyList()
+        val d = input.splitDraft()
+        return if (SplitRules.isShared(k, d)) d.people.map { it.toString() } else emptyList()
+    }
+
+    /** A note as stored on an entry and on the lines of its split (`InputRules.clean`). */
+    fun cleanNote(raw: String): String = InputRules.clean(raw)
+
+    /** What each person owes you (or, for the payer, what you owe: negative) from saving [input]: the `loan_entries` lines written with it. */
+    fun owed(input: EntryInput): List<SplitOwedData> = input.plan().owed.map { SplitOwedData(it.first, it.second) }
+
     /** Number of cells of a row of `transactions` (the columns of `BackupRows`). */
     fun cellCount(): Int = BackupRows.columns("transactions").size
 
     /**
      * One cell of the `transactions` row for [input] as it is stored (see `EntryRules.normalized`): null for the id (the database
-     * numbers it) and for the columns this page doesn't own (person, split share, external id), otherwise text.
+     * numbers it) and for the column this page doesn't own (external id); the person (who paid) and your share belong to the split, otherwise text.
      */
     fun cell(input: EntryInput, column: Int): String? {
         val d = EntryRules.normalized(input.draft() ?: return null)
@@ -113,13 +170,15 @@ object EntryBridge {
             "categoryId" -> text(d.categoryId)
             "epochMillis" -> d.epochMillis.toString()
             "note" -> d.note
+            "personId" -> text(d.paidBy)
+            "myShare" -> text(input.plan().myShare)
             else -> null
         }
     }
 
     /** True for the columns `cell` fills for an edit: the ones the page owns, so an edit leaves the others as they were. */
     fun ownsColumn(column: Int): Boolean =
-        BackupRows.columns("transactions").getOrNull(column) in setOf("kind", "amount", "accountId", "toAccountId", "categoryId", "epochMillis", "note")
+        BackupRows.columns("transactions").getOrNull(column) in setOf("kind", "amount", "accountId", "toAccountId", "categoryId", "epochMillis", "note", "personId", "myShare")
 
     /**
      * The accounts that must be open for this save, as decimal text: the ones it newly touches (see `EntryRules.newlyTouched`).
