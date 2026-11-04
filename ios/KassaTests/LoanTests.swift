@@ -60,6 +60,14 @@ final class LoanTests: XCTestCase {
         return nil
     }
 
+    private func rowNote(_ name: String) throws -> String? {
+        let data = try ledger().accounts(hidden: false, todayEpochDay: day, timeZoneId: "UTC")
+        for group in data.groups {
+            for row in group.rows where row.name == name { return row.noteAmountText }
+        }
+        return nil
+    }
+
     private func categoryNames() throws -> [String] {
         let data = try store.export()
         return data.categories.map { $0.name }
@@ -97,7 +105,9 @@ final class LoanTests: XCTestCase {
         XCTAssertTrue(shown.hasTerms)
         XCTAssertEqual(shown.balanceText, "$30,000.00")
         XCTAssertEqual(shown.paymentText, "$579.98")
-        XCTAssertEqual(try rowText("House"), "$30,000.00")
+        // A loan with a payment due shows that payment as its row figure and Outstanding under the name.
+        XCTAssertEqual(try rowText("House"), "$579.98")
+        XCTAssertEqual(try rowNote("House"), "$30,000.00")
     }
 
     func testEscrowMakesTheEscrowCategoryToo() throws {
@@ -211,7 +221,7 @@ final class LoanTests: XCTestCase {
         let id = try store.addLoan(account: account("LOAN", "House"), loan: newLoan())
         _ = try store.correctBalance(accountId: id, typedShown: 2_500_000, epochMillis: millis, editingId: 0)
         XCTAssertEqual(try page(id).balanceText, "$25,000.00")
-        XCTAssertEqual(try rowText("House"), "$25,000.00")
+        XCTAssertEqual(try rowNote("House"), "$25,000.00")
     }
 
     func testAClosedAccountTakesNoNewCorrection() throws {
