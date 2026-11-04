@@ -37,6 +37,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var accounts: AccountsData?
     @Published private(set) var activity: ActivityData?
     @Published private(set) var overview: OverviewData?
+    @Published private(set) var insights: InsightsData?
+    /// The category page of Insights that is open (`openCategoryId`), once worked out.
+    @Published private(set) var categoryPage: CategoryPageData?
+    /// Insights' month: how many budget months before the current one (0 is the current month).
+    @Published private(set) var insightsBack: Int = 0
+    /// The Insights category that is open (0 is spending with no category), or nil on the Insights list.
+    @Published private(set) var openCategoryId: Int64?
     /// The currency code the ledger shows ("USD"), or "" before the store is read.
     @Published private(set) var currency: String = ""
     @Published private(set) var shownYear: Int
@@ -107,6 +114,8 @@ final class AppModel: ObservableObject {
         let month: Int
         let today: Int
         let zone: String
+        let insightsBack: Int
+        let categoryId: Int64?
         /// The currency picked on first run (see `chosenCurrency`).
         let currency: String?
     }
@@ -114,7 +123,8 @@ final class AppModel: ObservableObject {
     func inputs() -> Inputs {
         return Inputs(
             hidden: hideAmounts, year: shownYear, month: shownMonth,
-            today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier, currency: chosenCurrency
+            today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier,
+            insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency
         )
     }
 
@@ -231,6 +241,14 @@ final class AppModel: ObservableObject {
         let day = Int32(given.today)
         let a = made.accounts(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
         let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        let i = made.insights(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, monthsBack: Int32(given.insightsBack))
+        var page: CategoryPageData? = nil
+        if let id = given.categoryId {
+            page = made.categoryPage(
+                hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone,
+                monthsBack: Int32(given.insightsBack), categoryId: id
+            )
+        }
         let code = made.currencyCode()
         let m = made.activity(
             year: Int32(given.year), month: Int32(given.month), hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone
@@ -238,6 +256,8 @@ final class AppModel: ObservableObject {
         publish {
             self.accounts = a
             self.overview = o
+            self.insights = i
+            self.categoryPage = page
             self.currency = code
             self.activity = m
             self.today = given.today
@@ -272,6 +292,26 @@ final class AppModel: ObservableObject {
         shownYear = next.year
         shownMonth = next.month
         refreshFigures()
+    }
+
+    /// Moves Insights (and its open category page) by [months]: -1 is the month before. Never past the current month.
+    func shiftInsights(_ months: Int) {
+        let next = insightsBack - months
+        if next < 0 { return }
+        insightsBack = next
+        refreshFigures()
+    }
+
+    /// Opens the category page of Insights for the top-level category [id] (0 for spending with no category).
+    func openInsightsCategory(_ id: Int64) {
+        openCategoryId = id
+        categoryPage = nil
+        refreshFigures()
+    }
+
+    func closeInsightsCategory() {
+        openCategoryId = nil
+        categoryPage = nil
     }
 
     // MARK: Restore
