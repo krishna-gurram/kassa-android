@@ -14,6 +14,7 @@ import app.kassa.money.domain.LoanPayment
 import app.kassa.money.domain.LoanTermChange
 import app.kassa.money.domain.LoanTerms
 import app.kassa.money.domain.Person
+import app.kassa.money.domain.Recurring
 import app.kassa.money.domain.Trade
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
@@ -38,6 +39,8 @@ internal class LedgerParts(
     val trades: List<Trade> = emptyList(),
     /** Money moved into investment accounts that is still waiting to be explained. */
     val transfers: List<InvestmentTransfer> = emptyList(),
+    /** The recurring bills. */
+    val bills: List<Recurring> = emptyList(),
 ) {
     companion object {
         fun of(d: BackupData): LedgerParts {
@@ -96,6 +99,7 @@ internal class LedgerParts(
                 },
                 trades = d.trades.map { Trade(it.id, it.transactionId, it.ticker, it.microShares, it.price) },
                 transfers = d.investmentTransfers.map { InvestmentTransfer(it.id, it.transactionId, it.accountId, it.amount, it.epochMillis) },
+                bills = d.bills.map { Recurring(it.id, it.name, it.categoryId, it.accountId, it.dayOfMonth, it.fixedAmount, it.active, it.handledMonth) },
             )
         }
     }

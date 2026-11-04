@@ -96,6 +96,19 @@ final class AppModel: ObservableObject {
     @Published var paySheet: PaySheetRequest?
     /// The person payment sheet that is open (new or editing), or nil.
     @Published var personSheet: PersonSheetRequest?
+    /// What waits on the Notifications page, Overview's Upcoming rows and the bills list (`AppModel+Due.swift`), once worked out.
+    @Published private(set) var notices: NoticesData?
+    @Published private(set) var upcoming: [UpcomingData] = []
+    @Published private(set) var billsPage: BillsData?
+    /// True while the Notifications page replaces Overview.
+    @Published var noticesOpen = false
+    /// The bill sheet and the "Enter amount" sheet of a bill notice that are open, or nil.
+    @Published var billSheet: BillSheetRequest?
+    @Published var billAmountSheet: BillAmountRequest?
+    /// True while Kassa explains why it wants to notify, before the system asks (after the first card with a due day or loan with terms).
+    @Published var asksNotifications = false
+    /// A tab a tapped notification asks the shell to show, or nil.
+    @Published var requestedTab: ShellTab?
     /// A plain sentence about something that worked in Settings ("Restored."), or nil.
     @Published var notice: String?
     /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
@@ -106,7 +119,9 @@ final class AppModel: ObservableObject {
 
     // Internal (not private) so `AppModel+Write.swift` can use the one queue and the store.
     let queue = DispatchQueue(label: "app.kassa.ledger", qos: .userInitiated)
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
+    /// The system's notification centre (or a stand-in in tests): `AppModel+Due.swift` schedules through it.
+    let noticeCenter: NoticeCenter
     private let openStore: () throws -> LedgerStore
     private var started = false
     var store: LedgerStore?      // queue only
@@ -116,8 +131,12 @@ final class AppModel: ObservableObject {
     /// Queue only: true while the backup being read comes from Settings, over existing data, so it waits for the person's answer.
     var confirmReplace = false
 
-    init(defaults: UserDefaults = UserDefaults.standard, openStore: @escaping () throws -> LedgerStore = { try LedgerStore.openDefault() }) {
+    init(
+        defaults: UserDefaults = UserDefaults.standard, openStore: @escaping () throws -> LedgerStore = { try LedgerStore.openDefault() },
+        noticeCenter: NoticeCenter = SystemNoticeCenter()
+    ) {
         self.defaults = defaults
+        self.noticeCenter = noticeCenter
         self.openStore = openStore
         self.hideAmounts = defaults.bool(forKey: AppModel.hideKey)
         self.chosenCurrency = AppModel.regionCurrency()
@@ -156,6 +175,8 @@ final class AppModel: ObservableObject {
         let pageBack: Int
         /// The loan page lists every payment, not the next few.
         let loanAll: Bool
+        /// The notices the person cleared (`DueSettings.cleared`): the Notifications page leaves them out.
+        let cleared: [String]
     }
 
     func inputs() -> Inputs {
@@ -163,7 +184,7 @@ final class AppModel: ObservableObject {
             hidden: hideAmounts, year: shownYear, month: shownMonth,
             today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier,
             insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency,
-            target: openPage, pageBack: pageBack, loanAll: loanAll
+            target: openPage, pageBack: pageBack, loanAll: loanAll, cleared: DueSettings(defaults: defaults).cleared
         )
     }
 
@@ -269,6 +290,7 @@ final class AppModel: ObservableObject {
         view = made
         publish { self.picks = made }
         compute(made, given)
+        scheduleNotifications(made)
     }
 
     private static func phoneCurrency() -> String? {
@@ -289,6 +311,7 @@ final class AppModel: ObservableObject {
             )
         }
         let pages = computePages(made, given)
+        let due: DueFigures = computeDue(made, given)
         let code = made.currencyCode()
         let m = made.activity(
             year: Int32(given.year), month: Int32(given.month), hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone
@@ -300,6 +323,9 @@ final class AppModel: ObservableObject {
             self.categoryPage = page
             self.currency = code
             self.activity = m
+            self.notices = due.notices
+            self.upcoming = due.upcoming
+            self.billsPage = due.bills
             self.today = given.today
             // A page that was closed while this was worked out stays closed.
             if self.openPage == given.target {
@@ -501,6 +527,8 @@ final class AppModel: ObservableObject {
         }
         do {
             try opened.replace(with: parsed, currency: currency)
+            // What the phone remembers by account or bill id (cleared notices, what was rung) means nothing over the restored accounts.
+            DueSettings(defaults: defaults).forgetAccountReferences()
             pendingBackup = nil
             confirmReplace = false
             try load(opened, given)

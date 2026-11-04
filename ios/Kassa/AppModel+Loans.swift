@@ -62,14 +62,14 @@ extension AppModel {
         let account = AccountInput(
             type: "LOAN", name: name, last4: last4, balance: "", statementDay: "", dueDay: "", limit: "", payFromId: 0
         )
-        perform({ opened in try opened.addLoan(account: account, loan: loan) }, done: done)
+        perform({ opened in try opened.addLoan(account: account, loan: loan) }, done: offering(done))
     }
 
     func addLoanTerms(accountId: Int64, loan: LoanInput, done: @escaping (WriteOutcome) -> Void) {
         perform({ opened in
             try opened.addLoanTerms(accountId: accountId, loan: loan)
             return accountId
-        }, done: done)
+        }, done: offering(done))
     }
 
     // MARK: Add terms

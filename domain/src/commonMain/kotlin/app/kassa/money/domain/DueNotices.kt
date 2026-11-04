@@ -62,6 +62,22 @@ data class DueRules(val card: DueRule, val loan: DueRule, val bill: DueRule) {
 /** The title and body of one notification. */
 data class DueText(val title: String, val body: String)
 
+/**
+ * One phone notification to schedule (iOS, where the system rings it and the app can't run at the time): [key] is the
+ * item's key (a notification is identified by it, so scheduling it again replaces it), [epochMillis] when to ring,
+ * [late] for one whose time passed within the grace and rings in a moment. [kind] (a [DueKind] name) and [id] say
+ * what a tap opens. The words are the caller's: they hold no amount and no name.
+ */
+data class PlannedNotice(
+    val key: String,
+    val epochMillis: Long,
+    val title: String,
+    val body: String,
+    val late: Boolean,
+    val kind: String,
+    val id: Long,
+)
+
 object DueNotices {
     /** "Other" in settings goes from the due day itself to two weeks before it. */
     const val MAX_DAYS_BEFORE = 14
@@ -137,6 +153,57 @@ object DueNotices {
         val soonest = items.filter { it.key !in posted && it.cleared !in cleared }
             .mapNotNull { momentOf(it, rules) }.filter { it > now }.minOrNull()
         return if (soonest != null && soonest < look) Next(soonest, true) else Next(look, false)
+    }
+
+    // ---------- the plan, for a phone that schedules ahead ----------
+
+    /** How many days ahead a plan looks. */
+    const val PLAN_DAYS = 60
+
+    /** iOS keeps at most 64 pending notifications; Kassa keeps one of them for the daily reminder. */
+    const val PLAN_LIMIT = 60
+
+    /** A late notification rings this long after the plan is made. */
+    const val LATE_DELAY_MILLIS = 5_000L
+
+    /**
+     * What to schedule, earliest first: for each item whose kind is on and that was neither posted ([posted], by [DueItem.key])
+     * nor cleared ([cleared]), its moment ([momentOf]: the due day minus 0 to 14 days, at the rule's time) when that is after
+     * [now] and within [horizonDays] days, or a "late" ring in a moment when it was due within the last [GRACE_MINUTES]
+     * minutes. At most one per key, at most [limit] in all. [title] and [body] are the same for every notice, so the lock
+     * screen never shows an amount, a name or a count.
+     */
+    fun plan(
+        items: List<DueItem>,
+        rules: DueRules,
+        now: Moment,
+        nowMillis: Long,
+        zone: TimeZone,
+        posted: Set<String>,
+        cleared: Set<String>,
+        title: String,
+        body: String,
+        horizonDays: Int = PLAN_DAYS,
+        limit: Int = PLAN_LIMIT,
+    ): List<PlannedNotice> {
+        val out = ArrayList<PlannedNotice>()
+        val seen = HashSet<String>()
+        for (i in items) {
+            if (i.key in posted || i.cleared in cleared) continue
+            val m = momentOf(i, rules) ?: continue
+            val at: Long
+            val late: Boolean
+            if (m > now) {
+                if (m.day - now.day > horizonDays) continue
+                at = millisAt(localDateOfEpochDay(m.day), m.minute / 60, m.minute % 60, zone)
+                late = false
+            } else if (now.wallMinutes - m.wallMinutes <= GRACE_MINUTES) {
+                at = nowMillis + LATE_DELAY_MILLIS
+                late = true
+            } else continue
+            if (seen.add(i.key)) out += PlannedNotice(i.key, at, title, body, late, i.kind.name, i.id)
+        }
+        return out.sortedWith(compareBy({ it.epochMillis }, { it.key })).take(limit)
     }
 
     // ---------- text ----------

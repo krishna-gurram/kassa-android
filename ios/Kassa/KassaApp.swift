@@ -11,6 +11,7 @@ struct KassaApp: App {
 
     init() {
         PhoneRules.install()
+        if !KassaApp.isTesting { NotificationRouter.shared.install() }
     }
 
     var body: some Scene {

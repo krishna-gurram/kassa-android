@@ -67,7 +67,7 @@ extension AppModel {
     }
 
     func addAccount(_ input: AccountInput, done: @escaping (WriteOutcome) -> Void) {
-        perform({ opened in try opened.addAccount(input) }, done: done)
+        perform({ opened in try opened.addAccount(input) }, done: offering(done))
     }
 
     func addPerson(name: String, theyOwe: Bool, amount: String, done: @escaping (WriteOutcome) -> Void) {

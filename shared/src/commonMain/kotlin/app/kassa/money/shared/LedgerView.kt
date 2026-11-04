@@ -1649,6 +1649,43 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     fun allocatePreview(transferId: Long, shares: String, price: String, hidden: Boolean): AllocatePreviewData =
         shown(hidden) { investRules.allocatePreview(transferId, shares, price) }
 
+    // ---------- Due notices, batch I: the Notifications page, Upcoming, bills and the phone's plan (rules in `DueNotices`, `BillRules`) ----------
+
+    private val dueViews: DueViews by lazy { DueViews(parts, balances, accountById, categoryById) }
+
+    /**
+     * Everything waiting on the Notifications page as of [todayEpochDay]: a card payment, a loan payment or a bill from its due day (and
+     * while overdue), investment transfers to explain, suggested bills; minus what [cleared] (the keys Clear remembered) names.
+     */
+    fun notices(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, cleared: List<String>): NoticesData =
+        shown(hidden) { dueViews.notices(todayEpochDay, zoneOf(timeZoneId), cleared.toSet()) }
+
+    /** Overview's Upcoming rows: card payments and bills due within [days] days (as Android's `upcoming(ledger, 30)`). */
+    fun upcoming(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, days: Int): List<UpcomingData> =
+        shown(hidden) { dueViews.upcoming(todayEpochDay, zoneOf(timeZoneId), days) }
+
+    /** Settings > Bills: each bill with its day, account and fixed or estimated amount, by day of the month. */
+    fun billsPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): BillsData =
+        shown(hidden) { dueViews.bills(todayEpochDay, zoneOf(timeZoneId)) }
+
+    /** Bill [billId] as its sheet opens ([found] false when it is gone); a category or account that is gone reads as none. */
+    fun billSheet(billId: Long): BillSheetData = shown(false) { dueViews.billSheet(billId) }
+
+    /** Every problem of the bill as typed; empty when it can be saved. */
+    fun billProblems(input: BillInput): List<FieldProblemData> = BillBridge.problems(input, currency.code)
+
+    /** Whether a card with a due day or a loan with terms exists: the moment Kassa offers phone notifications. */
+    fun hasNotifiable(): Boolean = dueViews.hasNotifiable()
+
+    /**
+     * The phone notifications to schedule from [nowMillis] on (at most 60, within 60 days): see `DueNotices.plan`. [posted] are the keys
+     * already rung, [cleared] the keys Clear remembered; [title] and [body] are the one generic text every notice carries.
+     */
+    fun notificationPlan(
+        rules: DueRulesInput, nowMillis: Long, timeZoneId: String, posted: List<String>, cleared: List<String>, title: String, body: String,
+    ): List<app.kassa.money.domain.PlannedNotice> =
+        dueViews.plan(rules, nowMillis, zoneOf(timeZoneId), posted.toSet(), cleared.toSet(), title, body)
+
     // ---------- Money state and colour ----------
 
     /** Runs [block] with Money showing this ledger's currency and [hidden] as Hide balances, then puts both back. */
