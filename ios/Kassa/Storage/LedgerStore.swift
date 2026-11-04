@@ -111,6 +111,23 @@ final class LedgerStore {
         }
     }
 
+    /// Saves an import from another app over what is here, in ONE transaction, as Android's `ImportRepository.replaceWith` does: the
+    /// session's accounts, categories, entries and budgets replace everything, and so does everything that points at the old accounts
+    /// and entries (holdings, trades, waiting investment transfers, loan terms, changes and payments, bills, split shares); people
+    /// already here stay and the import's people join them (`ImportSession.merged`). If anything fails nothing changes.
+    /// [currency] (a code Kassa lists) is stored as the ledger's currency; nil keeps what was stored.
+    func replaceForImport(_ session: ImportSession, currency: String?) throws {
+        try db.transaction { () throws -> Void in
+            let existing = try self.readAll()
+            let merged = try session.merged(existing: existing)
+            try self.clearAll()
+            try self.insertRows(merged)
+            try self.insertSettings(merged, currency: currency)
+            try self.insertIcons(merged)
+            try self.afterInsertHook?()
+        }
+    }
+
     private func clearAll() throws {
         for table in Schema.dataTables.reversed() {
             try db.exec("DELETE FROM \(table)")

@@ -32,6 +32,28 @@ enum Failures {
         return String(localized: "failure.backupNotSaved")
     }
 
+    // MARK: Importing from another app
+
+    /// A picked Money Manager or Cashew file that could not be copied, opened or read (Android's `Doing.IMPORT_FILE`).
+    static func importFile(_ error: Error) -> String {
+        let code = cocoaCode(error)
+        if code == CocoaCode.writeOutOfSpace { return String(localized: "failure.noSpace") }
+        if code == CocoaCode.readNoPermission || code == CocoaCode.readNoSuchFile || code == CocoaCode.fileNoSuchFile {
+            return String(localized: "failure.fileUnreadable")
+        }
+        if code == CocoaCode.fileReadCorrupt || error is SQLiteError {
+            return String(localized: "failure.fileDamaged")
+        }
+        return String(localized: "failure.importFileGeneric")
+    }
+
+    /// An import that could not be saved: nothing was changed (Android's `Doing.IMPORT_SAVE`).
+    static func importSave(_ error: Error) -> String {
+        if cocoaCode(error) == CocoaCode.writeOutOfSpace { return String(localized: "failure.noSpace") }
+        if let problem = error as? SQLiteError, problem.code == 13 { return String(localized: "failure.noSpace") } // SQLITE_FULL
+        return String(localized: "failure.importNotSaved")
+    }
+
     // MARK: Helpers
 
     /// The Foundation error code when [error] is one of Foundation's file errors, else 0.

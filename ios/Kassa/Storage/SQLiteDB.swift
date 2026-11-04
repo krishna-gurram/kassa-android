@@ -49,6 +49,40 @@ final class SQLiteDB {
         }
     }
 
+    /// Opens or creates a plain (unencrypted) SQLite file for writing, with no key. Only for tests that build another app's backup file
+    /// (Money Manager, Cashew) from synthetic rows; Kassa's own data is always encrypted.
+    init(plainPath path: String) throws {
+        var opened: OpaquePointer?
+        let flags: Int32 = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        let rc = sqlite3_open_v2(path, &opened, flags, nil)
+        if rc != SQLITE_OK {
+            let message = opened.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"
+            if let opened = opened { _ = sqlite3_close_v2(opened) }
+            throw SQLiteError(code: rc, message: message)
+        }
+        handle = opened
+    }
+
+    /// Opens an existing plain (unencrypted) SQLite file read-only, with no key: for a backup file from another app that was picked
+    /// (a copy of it, never the original). A file that isn't a database throws from the first read, here, with `isNotADatabase` set.
+    init(readOnlyPath path: String) throws {
+        var opened: OpaquePointer?
+        let flags: Int32 = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+        let rc = sqlite3_open_v2(path, &opened, flags, nil)
+        if rc != SQLITE_OK {
+            let message = opened.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"
+            if let opened = opened { _ = sqlite3_close_v2(opened) }
+            throw SQLiteError(code: rc, message: message)
+        }
+        handle = opened
+        do {
+            try exec("SELECT count(*) FROM sqlite_master")
+        } catch {
+            close()
+            throw error
+        }
+    }
+
     deinit {
         close()
     }
@@ -113,6 +147,15 @@ final class SQLiteDB {
         // PRAGMA takes no bound values; the number is ours.
         try exec("PRAGMA user_version = \(version)")
     }
+}
+
+/// The storage class of one cell of a result row.
+enum SQLiteValueKind {
+    case null
+    case integer
+    case real
+    case text
+    case blob
 }
 
 /// One prepared statement. Binding positions and column positions are what SQLite uses: binds start at 1, columns at 0.
@@ -210,6 +253,26 @@ final class SQLiteStatement {
     func columnText(_ column: Int32) -> String? {
         if isNull(column) { return nil }
         guard let pointer = sqlite3_column_text(statement, column) else { return "" }
+        return String(cString: pointer)
+    }
+
+    /// What SQLite stored in the current row's [column].
+    func columnValueKind(_ column: Int32) -> SQLiteValueKind {
+        let type = sqlite3_column_type(statement, column)
+        if type == SQLITE_NULL { return SQLiteValueKind.null }
+        if type == SQLITE_INTEGER { return SQLiteValueKind.integer }
+        if type == SQLITE_FLOAT { return SQLiteValueKind.real }
+        if type == SQLITE_BLOB { return SQLiteValueKind.blob }
+        return SQLiteValueKind.text
+    }
+
+    func columnDouble(_ column: Int32) -> Double {
+        return sqlite3_column_double(statement, column)
+    }
+
+    /// The name of result column [column] (the alias when the query gave one).
+    func columnName(_ column: Int32) -> String {
+        guard let pointer = sqlite3_column_name(statement, column) else { return "" }
         return String(cString: pointer)
     }
 

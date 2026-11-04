@@ -124,3 +124,22 @@ budgetEdit/budgetPlan/activityFiltered/activitySearch`), JVM-tested against the 
 `ReadPagesTests`; CI screenshots add `insights-patterns-*`, `insights-week-*`, `spending-page-*`, `budgets-*`, `activity-search-*`, `activity-filter-*`.
 Not on iOS: splits (so no "Split a transaction" on a person page), an Overview week toggle. Nothing in batch J was compiled on the machine that wrote it
 (no Swift toolchain there; the Kotlin ran under a small kotlinc harness); CI is the first compile of the Swift.
+
+Batch K (import from other apps, functional first): Settings > Import from another app, and Choose backup file on first run when the file is a
+Money Manager `.mmbak` or a Cashew `.sql`, pick a file the same way (the system file importer, any type). `ImportReader.swift` copies the file to a temporary
+place, opens the copy read-only without a key (`SQLiteDB(readOnlyPath:)`), runs the queries :importer lists (`MoneyManagerSql.queries`, `CashewSql.queries`: the
+same SQL as Android's `data/mm` and `data/cashew`) into a `SqlResults`, and deletes the copy whatever happens. What kind of file it is comes from its contents
+(`PickedFileRules`: .kassa goes on to the usual restore, anything else unknown is refused in plain words). All reading rules are Kotlin: `MoneyManagerReader`
+and `CashewReader` implement the importer's source interfaces over those answers, `CashewInterview` is the question order (found, account kinds, loans,
+other currencies), and `ImportSession` (:shared, `ImportBridge.kt`) holds the plan and gives Swift flat data (`ImportQuestionData`, `ImportReviewData`).
+`ImportModel` (`AppModel+Import.swift`) runs it on the app queue; `ImportScreens.swift` lays out the questions, the plan with its per-account and per-month
+balance checks, and the done screen; text is `import.*` in Localizable.strings and `Wording+Import.swift`. Saving is `LedgerStore.replaceForImport`: ONE
+transaction that mirrors `ImportRepository.replaceWith` (`ImportMerge.merge` in :shared: people stay, everything that points at old accounts and entries
+goes, settings stay, the arrangement is dropped), then `DueSettings.forgetAccountReferences` and a re-read, which re-plans the notifications. Over existing
+data (Settings) it asks "Replace everything?" first. Failures are `Failures.importFile` and `Failures.importSave`. Swift tests: `ImportTests` builds tiny
+synthetic Money Manager and Cashew SQLite files at run time (nothing from a person's data) and checks scan, questions, plan, save, balances against the
+source, rollback through `afterInsertHook`, the temporary copy and the model's first-run and Settings flows; `InteropTests` writes the demo backup as iOS
+would (see docs/BACKUP_FORMAT.md for what that does and does not prove). CI screenshots add `import-found-*`, `import-accounts-*`, `import-review-*`,
+`import-done-*` and the file `demo-from-ios.kassa`. JVM: `SqlSourcesTest` (:importer) and `ImportBridgeTest` (:shared). Not on iOS: reading the phone's
+number style for amounts in the import (the US style is installed), a share-sheet or "Open in" entry for `.mmbak` files. Nothing in batch K was compiled
+or run on the machine that wrote it (no Swift toolchain, and Gradle could not download kotlinx-datetime or JUnit); CI is the first compile.

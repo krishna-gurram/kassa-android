@@ -42,6 +42,7 @@ final class ScreenshotTests: XCTestCase {
             try drawInvestPages(target)
             try drawDuePages(target)
             try drawReadPages(target)
+            try drawImportPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -380,6 +381,36 @@ final class ScreenshotTests: XCTestCase {
 
             let sheet = AddAccountSheet(model: model, onClose: {})
             save(sheet, scheme: scheme, to: target.appendingPathComponent("add-account-\(suffix).png"))
+        }
+    }
+
+    /// The import screens from synthetic Money Manager and Cashew files: the Cashew questions, the review with its balance checks and
+    /// the done screen, light and dark.
+    @MainActor
+    private func drawImportPages(_ target: URL) throws {
+        let mm = try ImportFixtures.moneyManager()
+        let cw = try ImportFixtures.cashew()
+        defer {
+            try? FileManager.default.removeItem(at: mm)
+            try? FileManager.default.removeItem(at: cw)
+        }
+        guard case .session(let money) = try ImportReader.read(copy: mm, currency: "USD", zone: "UTC") else { return }
+        guard case .session(let cashew) = try ImportReader.read(copy: cw, currency: "USD", zone: "UTC") else { return }
+        let review = try money.review(hidden: false)
+        let found = try cashew.question(hidden: false)
+        try cashew.goOn()
+        cashew.setAccountType(pk: "w1", type: "CHECKING")
+        let accounts = try cashew.question(hidden: false)
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let foundView = ImportQuestionContent(data: found, onType: { _, _ in }, onLoan: { _, _ in }, onLeaveOut: { _, _ in }, onNext: {}, onBack: {})
+            save(foundView, scheme: scheme, to: target.appendingPathComponent("import-found-\(suffix).png"))
+            let accountsView = ImportQuestionContent(data: accounts, onType: { _, _ in }, onLoan: { _, _ in }, onLeaveOut: { _, _ in }, onNext: {}, onBack: {})
+            save(accountsView, scheme: scheme, to: target.appendingPathComponent("import-accounts-\(suffix).png"))
+            let reviewView = ImportReviewContent(data: review, overExisting: true, onImport: {}, onChooseDifferent: {})
+            save(reviewView, scheme: scheme, to: target.appendingPathComponent("import-review-\(suffix).png"))
+            let doneView = ImportDoneContent(data: review, onOpen: {})
+            save(doneView, scheme: scheme, to: target.appendingPathComponent("import-done-\(suffix).png"))
         }
     }
 
