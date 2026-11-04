@@ -125,6 +125,8 @@ final class AppModel: ObservableObject {
     @Published var asksNotifications = false
     /// A tab a tapped notification asks the shell to show, or nil.
     @Published var requestedTab: ShellTab?
+    /// The import from another app (Settings > Import from another app, and a Money Manager or Cashew file chosen on first run).
+    lazy var importer: ImportModel = ImportModel(app: self)
     /// A plain sentence about something that worked in Settings ("Restored."), or nil.
     @Published var notice: String?
     /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
@@ -584,6 +586,19 @@ final class AppModel: ObservableObject {
             }
         } catch {
             fail(String(localized: "restore.failed"))
+        }
+    }
+
+    /// Queue only. An import from another app was saved and the figures are read: opens the app on the result (`AppModel+Import.swift`).
+    func finishImport() {
+        publish {
+            self.working = false
+            self.asksPassword = false
+            self.asksCurrencyForBackup = false
+            self.asksReplace = nil
+            self.restoreMessage = nil
+            self.notice = nil
+            self.phase = .ready
         }
     }
 

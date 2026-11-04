@@ -8,6 +8,7 @@ struct RootView: View {
 
     var body: some View {
         content
+            .modifier(ImportCover(model: model, importer: model.importer))
             .onAppear { model.start() }
             .onChange(of: scenePhase) { newPhase in
                 // Coming back to the app: the day may have changed.
@@ -31,6 +32,19 @@ struct RootView: View {
             AppShell(model: model)
         case .failed(let message):
             FailedScreen(message: message, onRetry: { model.retry() })
+        }
+    }
+}
+
+/// The import from another app takes the whole screen while it runs (first run and Settings alike), and hands back to what was under it.
+struct ImportCover: ViewModifier {
+    let model: AppModel
+    @ObservedObject var importer: ImportModel
+
+    func body(content: Content) -> some View {
+        let shown = Binding<Bool>(get: { importer.isActive }, set: { _ in })
+        return content.fullScreenCover(isPresented: shown) {
+            ImportScreen(model: model, importer: importer)
         }
     }
 }

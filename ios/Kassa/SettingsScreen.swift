@@ -10,6 +10,7 @@ struct SettingsScreen: View {
     @ObservedObject var model: AppModel
 
     @State private var choosingRestore = false
+    @State private var choosingImport = false
     @State private var askingBackupPassword = false
     @State private var backupPassword = ""
     @State private var restorePassword = ""
@@ -23,6 +24,7 @@ struct SettingsScreen: View {
                     onSetHidden: { shown in model.setHidden(shown) },
                     onBackUp: { askingBackupPassword = true },
                     onRestore: { choosingRestore = true },
+                    onImport: { choosingImport = true },
                     currencyDestination: AnyView(CurrencyPage(model: model)),
                     noticesDestination: AnyView(NoticesPage()),
                     billsDestination: AnyView(BillsPage(model: model)),
@@ -37,6 +39,7 @@ struct SettingsScreen: View {
         }
         .background(exporterHost)
         .background(importerHost)
+        .background(otherAppHost)
         .background(backupPasswordHost)
         .background(restorePasswordHost)
         .background(replaceHost)
@@ -71,6 +74,17 @@ struct SettingsScreen: View {
         ) { result in
             if case .success(let urls) = result, let first = urls.first {
                 model.chooseBackup(first, replacing: true)
+            }
+        }
+    }
+
+    /// Settings > Import from another app: any file, since Money Manager and Cashew files have no type Kassa knows.
+    private var otherAppHost: some View {
+        return Color.clear.fileImporter(
+            isPresented: $choosingImport, allowedContentTypes: [UTType.data], allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let first = urls.first {
+                model.importer.begin(first, replacing: true)
             }
         }
     }
@@ -135,6 +149,8 @@ struct SettingsContent: View {
     let onSetHidden: (Bool) -> Void
     let onBackUp: () -> Void
     let onRestore: () -> Void
+    /// Settings > Import from another app (batch K); a screen without it (an older call site) does nothing.
+    var onImport: () -> Void = {}
     let currencyDestination: AnyView
     let noticesDestination: AnyView
     /// Settings > Bills and Settings > Notifications (batch I); a screen that has neither (a screenshot) leaves them out.
@@ -162,6 +178,8 @@ struct SettingsContent: View {
             actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)
             Hairline()
             actionRow(title: "settings.restore.button", symbol: "square.and.arrow.down", action: onRestore)
+            Hairline()
+            actionRow(title: "settings.import", symbol: "tray.and.arrow.down", action: onImport)
             Hairline()
             backupStatus
             sectionLabel("settings.about")

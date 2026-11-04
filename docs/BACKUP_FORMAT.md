@@ -53,5 +53,9 @@ Rules that matter on every platform:
   opens them on Android; the iOS app's tests must open the same files and read the same values.
 - The iOS app's tests (`ios/KassaTests/BackupFileTests.swift`) open the same golden files, through `ios/Kassa/BackupFile.swift`
   (the file) and `shared/.../backup/BackupJson.kt` (the JSON, also tested against them in `shared/src/jvmTest`), and read the
-  same values. iOS must also write files Android opens: its tests write and read back a backup. Feeding a file iOS wrote to
-  Android's reader in CI is still to be added.
+  same values. iOS must also write files Android opens: its tests write and read back a backup, and `InteropTests` writes the
+  demo backup as the app would and, when `KASSA_SHOTS_DIR` is set, leaves it as `demo-from-ios.kassa` in the uploaded CI shots.
+  **Remaining gap:** nothing yet feeds that file to Android's reader automatically. The Gradle tests cannot see a file the macOS job
+  makes, and the iOS test only proves the file opens again through the shared reader (`BackupJson`) and means the same thing, not
+  that Android's streaming reader accepts it. Until a job passes the artifact on, open `demo-from-ios.kassa` on Android by hand
+  after any change to the writer.

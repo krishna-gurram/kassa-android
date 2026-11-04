@@ -32,9 +32,10 @@ struct FirstRunScreen: View {
         .sheet(isPresented: sheetShown, onDismiss: sheetClosed) {
             CurrencySheet(selected: model.chosenCurrency ?? "", onPick: picked)
         }
-        .fileImporter(isPresented: $choosing, allowedContentTypes: [KassaTypes.backup], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $choosing, allowedContentTypes: [UTType.data], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let first = urls.first {
-                model.chooseBackup(first)
+                // Any file: a .kassa backup restores as before; a Money Manager or Cashew file goes to the import (`ImportModel`).
+                model.importer.begin(first, replacing: false)
             }
         }
         .alert(Text("password.title"), isPresented: $model.asksPassword) {
