@@ -107,14 +107,73 @@ extension AppModel {
         entryPage = EntryPageRequest(editing: nil, amountText: "", draft: draft)
     }
 
-    /// Opens the entry page on entry [id] when the page may edit it; any other entry does nothing yet.
+    /// Opens what edits entry [id]: the entry page for an expense, income, transfer or card payment, the person payment sheet for a payment
+    /// to or from a person (CLAUDE.md "Entries": each kind goes to its own page). Any other entry does nothing yet.
     func openEntry(id: Int64) {
         let hidden = hideAmounts
         queue.async {
-            guard let made = self.view, let edit = made.entryEdit(id: id) else { return }
-            let amount = made.entryAmountText(id: id, hidden: hidden)
-            self.publish { self.entryPage = EntryPageRequest(editing: edit, amountText: amount, draft: "") }
+            guard let made = self.view else { return }
+            if let edit = made.entryEdit(id: id) {
+                let amount = made.entryAmountText(id: id, hidden: hidden)
+                self.publish { self.entryPage = EntryPageRequest(editing: edit, amountText: amount, draft: "") }
+                return
+            }
+            if let payment = made.personPaymentEdit(id: id) {
+                let amount = made.entryAmountText(id: id, hidden: hidden)
+                self.publish {
+                    self.personSheet = PersonSheetRequest(
+                        personId: payment.personId, personName: payment.personName, defaultKind: payment.kind, suggestedCents: 0,
+                        editing: payment, amountText: amount
+                    )
+                }
+            }
         }
+    }
+
+    // MARK: Cards, people and closing
+
+    /// Pays card [cardId] [cents] from account [payFromId] on the moment [millis]: a TRANSFER into the card with the note "Card payment"
+    /// (what Android stores). The sheet's own problems (an amount, the account it is paid from) come back as `.refused` like the entry
+    /// page's; the entry rules (bounds, a closed account) run in the store, in the same transaction.
+    func payCard(cardId: Int64, payFromId: Int64, cents: Int64, millis: Int64, done: @escaping (WriteOutcome) -> Void) {
+        perform({ opened in
+            let currency = try opened.currencyCode() ?? ""
+            if let problem = CardPaymentBridge.shared.problem(cents: cents, payFromId: payFromId, currency: currency) {
+                throw WriteRefusal(field: problem.field, message: problem.message)
+            }
+            let input = EntryInput(
+                id: 0, kind: "TRANSFER", amount: cents, accountId: payFromId, toAccountId: cardId, categoryId: 0,
+                epochMillis: millis, note: CardPaymentBridge.shared.note()
+            )
+            return try opened.addEntry(input)
+        }, done: done)
+    }
+
+    func addPersonPayment(_ input: PersonPaymentInput, done: @escaping (WriteOutcome) -> Void) {
+        perform({ opened in try opened.addPersonPayment(input) }, done: done)
+    }
+
+    func updatePersonPayment(_ input: PersonPaymentInput, done: @escaping (WriteOutcome) -> Void) {
+        perform({ opened in
+            try opened.updatePersonPayment(input)
+            return input.id
+        }, done: done)
+    }
+
+    func deletePersonPayment(id: Int64, done: @escaping (WriteOutcome) -> Void) {
+        perform({ opened in
+            try opened.deletePersonPayment(id: id)
+            return id
+        }, done: done)
+    }
+
+    /// Closes account [id] today, or reopens it. Only a settled account closes (the store asks `LedgerView.closeProblem`).
+    func setAccountClosed(id: Int64, closed: Bool, done: @escaping (WriteOutcome) -> Void) {
+        let day = Int32(KassaDates.todayEpochDay())
+        perform({ opened in
+            try opened.setAccountClosed(id: id, closedDay: closed ? day : 0)
+            return id
+        }, done: done)
     }
 
     func closeEntryPage() {

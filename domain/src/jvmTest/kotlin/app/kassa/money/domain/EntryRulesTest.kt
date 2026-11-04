@@ -105,7 +105,7 @@ class EntryRulesTest {
         assertTrue(editable(TxKind.EXPENSE))
         assertTrue(editable(TxKind.INCOME))
         assertTrue(editable(TxKind.TRANSFER, AccountType.SAVINGS))
-        assertFalse(editable(TxKind.TRANSFER, AccountType.CREDIT_CARD), "a card payment")
+        assertTrue(editable(TxKind.TRANSFER, AccountType.CREDIT_CARD), "a card payment is a transfer, edited on the entry page as on Android")
         assertFalse(editable(TxKind.TRANSFER, AccountType.SAVINGS, loan = true), "a loan principal")
         assertFalse(editable(TxKind.EXPENSE, loan = true), "loan interest")
         assertFalse(editable(TxKind.EXPENSE, split = true))

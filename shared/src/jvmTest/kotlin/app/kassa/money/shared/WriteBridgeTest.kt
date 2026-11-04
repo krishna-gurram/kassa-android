@@ -384,14 +384,14 @@ class WriteBridgeTest {
         KassaCore.installDefaults()
         val v = ledger()
         val rows = v.activity(1970, 1, false, 0, "UTC").days.flatMap { it.entries }.associateBy { it.id }
-        assertEquals(setOf(10L, 11L, 12L), rows.filterValues { it.editable }.keys)
+        assertEquals(setOf(10L, 11L, 12L, 14L), rows.filterValues { it.editable }.keys, "a card payment is a transfer, edited on the entry page as on Android")
         assertFalse(rows.getValue(13).editable, "a split")
-        assertFalse(rows.getValue(14).editable, "a card payment")
         assertFalse(rows.getValue(15).editable, "a buy")
         assertFalse(rows.getValue(16).editable, "a person's payment")
+        assertTrue(rows.getValue(16).personPayment, "it opens the person payment sheet instead")
         assertFalse(rows.getValue(17).editable, "a share on the entry")
-        for (id in listOf(10L, 11L, 12L)) assertEquals(id, v.entryEdit(id)?.id)
-        for (id in listOf(13L, 14L, 15L, 16L, 17L, 99L)) assertNull(v.entryEdit(id), id.toString())
+        for (id in listOf(10L, 11L, 12L, 14L)) assertEquals(id, v.entryEdit(id)?.id)
+        for (id in listOf(13L, 15L, 16L, 17L, 99L)) assertNull(v.entryEdit(id), id.toString())
     }
 
     @Test
@@ -438,7 +438,7 @@ class WriteBridgeTest {
     fun theStoresOwnEditableCheckMatchesTheRule() {
         assertTrue(EntryBridge.isEditable("EXPENSE", "", false, false, false))
         assertTrue(EntryBridge.isEditable("TRANSFER", "SAVINGS", false, false, false))
-        assertFalse(EntryBridge.isEditable("TRANSFER", "CREDIT_CARD", false, false, false))
+        assertTrue(EntryBridge.isEditable("TRANSFER", "CREDIT_CARD", false, false, false))
         assertFalse(EntryBridge.isEditable("EXPENSE", "", true, false, false))
         assertFalse(EntryBridge.isEditable("EXPENSE", "", false, true, false))
         assertFalse(EntryBridge.isEditable("EXPENSE", "", false, false, true))

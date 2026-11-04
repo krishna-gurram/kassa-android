@@ -208,7 +208,8 @@ final class LedgerStore {
         return result
     }
 
-    private func readAll() throws -> BackupData {
+    /// Everything as a `BackupData`, without opening a transaction (the caller is inside one, or `export()` is).
+    func readAll() throws -> BackupData {
         let rows = BackupRows.shared
         let settings = try readSettings()
         let createdAt = Int64(settings["createdAt"] ?? "") ?? Int64(Date().timeIntervalSince1970 * 1000)

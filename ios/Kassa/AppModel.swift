@@ -63,6 +63,18 @@ final class AppModel: ObservableObject {
     @Published private(set) var picks: LedgerView?
     /// The entry page that is open (new or editing), or nil.
     @Published var entryPage: EntryPageRequest?
+    /// The account or person page that is open on the Accounts tab (`AppModel+Pages.swift`), or nil on the Accounts list.
+    @Published var openPage: PageTarget?
+    /// The open page's figures, once worked out: an account page, and for a card with statement days its card page too; or a person page.
+    @Published var accountPage: AccountPageData?
+    @Published var cardPage: CardPageData?
+    @Published var personPage: PersonPageData?
+    /// How far back the open page is: months for an account page, statements for a card page (0 is the current stretch).
+    @Published var pageBack: Int = 0
+    /// The pay-card sheet that is open, or nil.
+    @Published var paySheet: PaySheetRequest?
+    /// The person payment sheet that is open (new or editing), or nil.
+    @Published var personSheet: PersonSheetRequest?
     /// A plain sentence about something that worked in Settings ("Restored."), or nil.
     @Published var notice: String?
     /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
@@ -118,13 +130,17 @@ final class AppModel: ObservableObject {
         let categoryId: Int64?
         /// The currency picked on first run (see `chosenCurrency`).
         let currency: String?
+        /// The account or person page that is open, and how far back it is (see `AppModel.openPage`, `pageBack`).
+        let target: PageTarget?
+        let pageBack: Int
     }
 
     func inputs() -> Inputs {
         return Inputs(
             hidden: hideAmounts, year: shownYear, month: shownMonth,
             today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier,
-            insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency
+            insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency,
+            target: openPage, pageBack: pageBack
         )
     }
 
@@ -249,6 +265,7 @@ final class AppModel: ObservableObject {
                 monthsBack: Int32(given.insightsBack), categoryId: id
             )
         }
+        let pages = computePages(made, given)
         let code = made.currencyCode()
         let m = made.activity(
             year: Int32(given.year), month: Int32(given.month), hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone
@@ -261,6 +278,12 @@ final class AppModel: ObservableObject {
             self.currency = code
             self.activity = m
             self.today = given.today
+            // A page that was closed while this was worked out stays closed.
+            if self.openPage == given.target {
+                self.accountPage = pages.account
+                self.cardPage = pages.card
+                self.personPage = pages.person
+            }
         }
     }
 

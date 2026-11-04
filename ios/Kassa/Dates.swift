@@ -42,6 +42,11 @@ enum KassaDates {
         return formatter("MMMd").string(from: date(epochDay: epochDay))
     }
 
+    /// "Nov 14, 2026" / "14 Nov 2026".
+    static func shortDateYear(epochDay: Int) -> String {
+        return formatter("yMMMd").string(from: date(epochDay: epochDay))
+    }
+
     /// "Fri, Nov 14" / "Fri 14 Nov".
     static func weekdayDate(epochDay: Int) -> String {
         return formatter("EEEMMMd").string(from: date(epochDay: epochDay))
