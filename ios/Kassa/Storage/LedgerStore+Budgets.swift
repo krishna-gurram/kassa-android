@@ -13,7 +13,7 @@ extension LedgerStore {
     func applyBudgetChanges(_ changes: [BudgetChangeData]) throws {
         try db.transaction { () throws -> Void in
             for change in changes {
-                if change.delete {
+                if change.isRemoval {
                     try self.removeBudgetRow(categoryId: change.categoryId, month: change.month)
                 } else {
                     if let problem = ActivityBridge.shared.budgetProblem(cents: change.amount) {

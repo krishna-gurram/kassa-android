@@ -234,7 +234,7 @@ data class BudgetEditData(
 )
 
 /** One write of saving a budget editor: set the row to [amount], or remove it. */
-data class BudgetChangeData(val categoryId: Long, val month: Int, val amount: Long, val delete: Boolean)
+data class BudgetChangeData(val categoryId: Long, val month: Int, val amount: Long, val isRemoval: Boolean)
 
 /** What saving the editor does: the problems by field (EVERY_MONTH, THIS_MONTH), or the writes to run together. */
 data class BudgetPlanData(val problems: List<FieldProblemData>, val changes: List<BudgetChangeData>)

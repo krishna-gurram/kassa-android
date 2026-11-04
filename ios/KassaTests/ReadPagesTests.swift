@@ -78,15 +78,15 @@ final class ReadPagesTests: XCTestCase {
         let groceries = try budgetRow("Groceries")
         let dining = try budgetRow("Dining")
         let changes = [
-            BudgetChangeData(categoryId: groceries.categoryId, month: 0, amount: 70_000, delete: false),
-            BudgetChangeData(categoryId: dining.categoryId, month: 0, amount: 0, delete: false),
+            BudgetChangeData(categoryId: groceries.categoryId, month: 0, amount: 70_000, isRemoval: false),
+            BudgetChangeData(categoryId: dining.categoryId, month: 0, amount: 0, isRemoval: false),
         ]
         // The second amount is not a budget: the whole save is refused, and the first row is not written.
         XCTAssertThrowsError(try store.applyBudgetChanges(changes))
         XCTAssertEqual(try budgetRow("Groceries").budgetText, "$600.00")
         // A failure after the writes rolls them back too.
         store.afterInsertHook = { throw Boom() }
-        let fine = [BudgetChangeData(categoryId: groceries.categoryId, month: 0, amount: 70_000, delete: false)]
+        let fine = [BudgetChangeData(categoryId: groceries.categoryId, month: 0, amount: 70_000, isRemoval: false)]
         XCTAssertThrowsError(try store.applyBudgetChanges(fine))
         XCTAssertThrowsError(try store.removeBudgets(categoryId: dining.categoryId))
         store.afterInsertHook = nil

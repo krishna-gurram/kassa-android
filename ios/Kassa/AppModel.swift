@@ -41,7 +41,7 @@ final class AppModel: ObservableObject {
     /// The category page of Insights that is open (`openCategoryId`), once worked out.
     @Published private(set) var categoryPage: CategoryPageData?
     /// Insights' month: how many budget months before the current one (0 is the current month).
-    @Published private(set) var insightsBack: Int = 0
+    @Published var insightsBack: Int = 0
     /// The Insights category that is open (0 is spending with no category), or nil on the Insights list.
     @Published private(set) var openCategoryId: Int64?
     /// Batch J (`AppModel+Read.swift`): Insights' Patterns tiles and week view, the open page of the read stack, the budgets list and
