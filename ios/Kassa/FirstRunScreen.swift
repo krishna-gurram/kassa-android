@@ -251,7 +251,7 @@ struct CurrencySheet: View {
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(shown, id: \.code) { option in
-                        row(option)
+                        CurrencyRow(option: option, selected: selected, onPick: onPick)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -259,8 +259,15 @@ struct CurrencySheet: View {
         }
         .background(Palette.ground.ignoresSafeArea())
     }
+}
 
-    private func row(_ option: CurrencyOptionData) -> some View {
+/// One currency of the list: its name and code, a sample of how amounts will look, and a tick on the picked one.
+struct CurrencyRow: View {
+    let option: CurrencyOptionData
+    let selected: String
+    let onPick: (String) -> Void
+
+    var body: some View {
         Button(action: { onPick(option.code) }) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {

@@ -12,10 +12,10 @@ enum BackupError: Error, Equatable {
 
     var message: String {
         switch self {
-        case .notABackup: return "This file isn't a Kassa backup."
-        case .needsPassword: return "This backup has a password. Enter it, then pick the file again."
-        case .wrongPassword: return "That password doesn't open this backup."
-        case .tooLarge: return "This backup is too large to open on this phone."
+        case .notABackup: return String(localized: "failure.notABackup")
+        case .needsPassword: return String(localized: "failure.needsPassword")
+        case .wrongPassword: return String(localized: "failure.wrongPassword")
+        case .tooLarge: return String(localized: "failure.tooLarge")
         }
     }
 }
@@ -26,7 +26,7 @@ enum BackupWriteError: Error {
     case keyFailed
     case compressionFailed
 
-    var message: String { "Couldn't save the backup. Try again." }
+    var message: String { String(localized: "failure.backupNotSaved") }
 }
 
 /// The bytes of a .kassa backup file around its JSON text, as in docs/BACKUP_FORMAT.md:

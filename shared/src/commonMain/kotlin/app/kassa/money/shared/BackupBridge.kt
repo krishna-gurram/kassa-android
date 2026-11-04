@@ -32,6 +32,7 @@ object BackupBridge {
      * A few facts of [data] as "key=value" lines, so Swift tests and diagnostics can check what was read without walking
      * the classes. Lists are joined with "|".
      */
+    /** Entries are compared as sets: entries on one day have no fixed order, and a restore may order them differently. */
     fun digest(data: BackupData): String = listOf(
         "createdAt=${data.createdAt}",
         "monthStartDay=${data.monthStartDay}",
@@ -40,8 +41,8 @@ object BackupBridge {
         "accounts=${data.accounts.joinToString("|") { it.name }}",
         "closedDays=${data.accounts.mapNotNull { it.closedDay }.joinToString("|")}",
         "categories=${data.categories.joinToString("|") { it.name }}",
-        "amounts=${data.transactions.joinToString("|") { it.amount.toString() }}",
-        "notes=${data.transactions.joinToString("|") { it.note }}",
+        "amounts=${data.transactions.map { it.amount.toString() }.sorted().joinToString("|")}",
+        "notes=${data.transactions.map { it.note }.sorted().joinToString("|")}",
         "loanRates=${data.loanTerms.joinToString("|") { it.rate.toString() }}",
         "icons=${data.icons.entries.joinToString("|") { it.key + ":" + it.value.size }}",
     ).joinToString("\n")

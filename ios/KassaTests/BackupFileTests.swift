@@ -25,8 +25,8 @@ final class BackupFileTests: XCTestCase {
             "accounts=Checking|Card|Car loan",
             "closedDays=20500",
             "categories=Café ☕|Salary",
-            "amounts=450|99999999|25000",
-            "notes=Latte ₹1,00,000||Loan principal",
+            "amounts=25000|450|99999999",
+            "notes=|Latte ₹1,00,000|Loan principal",
             "loanRates=61250",
             "icons=photo.png:8",
         ] {

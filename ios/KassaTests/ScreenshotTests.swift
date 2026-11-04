@@ -36,6 +36,7 @@ final class ScreenshotTests: XCTestCase {
             let todayDay = Int(today)
             draw(target, accounts: accounts, hiddenAccounts: hiddenAccounts, activity: activity, today: todayDay)
             drawAdd(target, view: view, today: todayDay)
+            try drawOverviewAndSettings(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -53,6 +54,30 @@ final class ScreenshotTests: XCTestCase {
                 data: activity, hidden: false, today: today, lazy: false, onToggleHidden: {}, onShift: { _ in }
             )
             save(activityView, scheme: scheme, to: target.appendingPathComponent("activity-\(suffix).png"))
+        }
+    }
+
+    /// Overview (shown and hidden) and Settings of the demo backup, light and dark. Overview is drawn on the demo's own "today".
+    @MainActor
+    private func drawOverviewAndSettings(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let demoDirectory = directory.appendingPathComponent("demo", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let shown = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let masked = view.overview(hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let currencyName = "US dollar"
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let overview = OverviewContent(data: shown, hidden: false, onToggleHidden: {}, onAllAccounts: {})
+            save(overview, scheme: scheme, to: target.appendingPathComponent("overview-\(suffix).png"))
+            let hiddenOverview = OverviewContent(data: masked, hidden: true, onToggleHidden: {}, onAllAccounts: {})
+            save(hiddenOverview, scheme: scheme, to: target.appendingPathComponent("overview-hidden-\(suffix).png"))
+            let settings = SettingsContent(
+                hidden: false, currencyName: currencyName, working: false, message: nil, notice: nil, linked: false,
+                onSetHidden: { _ in }, onBackUp: {}, onRestore: {},
+                currencyDestination: AnyView(EmptyView()), noticesDestination: AnyView(EmptyView())
+            )
+            save(settings, scheme: scheme, to: target.appendingPathComponent("settings-\(suffix).png"))
         }
     }
 
