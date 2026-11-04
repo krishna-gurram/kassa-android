@@ -200,6 +200,32 @@ extension LedgerStore {
         let beforeTo = before?.toAccountId ?? 0
         let wanted = EntryBridge.shared.mustBeOpen(input: input, beforeAccountId: beforeAccount, beforeToAccountId: beforeTo)
         try requireOpen(wanted)
+        for text in EntryBridge.shared.splitPeopleOf(input: input) {
+            guard let person = Int64(text) else { continue }
+            if !(try exists("SELECT 1 FROM people WHERE id = ?", person)) {
+                throw WriteRefusal(field: "SPLIT", message: String(localized: "write.personGone"))
+            }
+        }
+    }
+
+    /// Rewrites the lines of a split: what each person owes you (or what you owe the one who paid), one `loan_entries` row per person,
+    /// dated and worded like the entry (Android's `EntryRepository.save`). Any lines the entry had are removed first, so an edit that
+    /// is no longer a split leaves none.
+    private func writeSplitLines(_ input: EntryInput, txId: Int64) throws {
+        let clear = try db.prepare("DELETE FROM loan_entries WHERE txId = ?")
+        try clear.bindInt(1, txId)
+        _ = try clear.step()
+        let note = EntryBridge.shared.cleanNote(raw: input.note)
+        let owed: [SplitOwedData] = EntryBridge.shared.owed(input: input)
+        for line in owed {
+            let insert = try db.prepare("INSERT INTO loan_entries (personId, amount, epochMillis, note, txId) VALUES (?, ?, ?, ?, ?)")
+            try insert.bindInt(1, line.personId)
+            try insert.bindInt(2, line.amount)
+            try insert.bindInt(3, input.epochMillis)
+            try insert.bindText(4, note)
+            try insert.bindInt(5, txId)
+            _ = try insert.step()
+        }
     }
 
     /// Refuses with "<name> is closed. Reopen it first to add to it." when any of the accounts [ids] (decimal text) is closed: the
@@ -233,6 +259,7 @@ extension LedgerStore {
             return EntryBridge.shared.cell(input: input, column: column)
         }
         try afterInsertHook?()
+        try writeSplitLines(input, txId: id)
         let toType = try accountType(input.toAccountId)
         if EntryBridge.shared.waitsForExplanation(kind: input.kind, toAccountType: toType) {
             let wait = try db.prepare(
@@ -247,7 +274,7 @@ extension LedgerStore {
         return id
     }
 
-    /// Saves an edit of entry `input.id`: only the columns the page owns change (kind, amount, accounts, category, date, note), so
+    /// Saves an edit of entry `input.id`: only the columns the page owns change (kind, amount, accounts, category, date, note, who paid and your share), and its split lines are rewritten, so
     /// an imported entry keeps its external id. A transfer into investments that still waits to be explained follows the entry.
     func updateEntry(_ input: EntryInput) throws {
         try db.transaction { () throws -> Void in
@@ -257,6 +284,7 @@ extension LedgerStore {
             if !before.editable { throw WriteRefusal(message: String(localized: "write.entryNotHere")) }
             try self.check(input, before: before)
             try self.updateRow(input)
+            try self.writeSplitLines(input, txId: input.id)
             let toType = try self.accountType(input.toAccountId)
             if EntryBridge.shared.waitsForExplanation(kind: input.kind, toAccountType: toType) {
                 let wait = try self.db.prepare(

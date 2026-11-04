@@ -122,7 +122,7 @@ transaction (a refused or failed save changes nothing). Over budget is orange in
 word. Everything is :domain / :shared (`ReadViews`, `ReadPages.kt`, `LedgerView.patterns/weekView/spendingPage/insightDetail/dayPage/storePage/budgetsPage/
 budgetEdit/budgetPlan/activityFiltered/activitySearch`), JVM-tested against the demo backup (`ReadPagesTest`, `BudgetRulesTest`, `MonthPickingTest`). Swift tests:
 `ReadPagesTests`; CI screenshots add `insights-patterns-*`, `insights-week-*`, `spending-page-*`, `budgets-*`, `activity-search-*`, `activity-filter-*`.
-Not on iOS: splits (so no "Split a transaction" on a person page), an Overview week toggle. Nothing in batch J was compiled on the machine that wrote it
+Not on iOS: an Overview week toggle. Nothing in batch J was compiled on the machine that wrote it
 (no Swift toolchain there; the Kotlin ran under a small kotlinc harness); CI is the first compile of the Swift.
 
 Batch K (import from other apps, functional first): Settings > Import from another app, and Choose backup file on first run when the file is a

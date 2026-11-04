@@ -16,7 +16,7 @@ data class EntryProblem(val field: EntryField, val message: String)
  * repository does the writing (one transaction) and asks these first, so a refusal leaves nothing behind and the sentences are
  * the same everywhere. Plain Kotlin with JVM tests.
  *
- * What it does not cover yet: splits, payments to people, loan payments, trades, card-payment shortcuts and balance corrections.
+ * Splits are covered by [SplitRules]. What it does not cover: payments to people, loan payments, trades, card-payment shortcuts and balance corrections.
  * Those entries are not [isEditable] here, so they are never rewritten by a page that doesn't know them.
  */
 object EntryRules {
@@ -31,6 +31,8 @@ object EntryRules {
         val categoryId: Long? = null,
         val epochMillis: Long,
         val note: String = "",
+        /** Who paid when it wasn't you (a split expense): the entry then moves none of your accounts. Null when you paid. */
+        val paidBy: Long? = null,
     )
 
     /** The kinds the entry page adds and edits. */
@@ -39,7 +41,7 @@ object EntryRules {
     fun isPageKind(kind: TxKind): Boolean = kind in PAGE_KINDS
 
     /** The next required input still empty, in the order the tiles read; null when the entry has all it needs. */
-    fun missing(kind: TxKind, categoryId: Long?, accountId: Long?, toAccountId: Long?): EntryField? = when (kind) {
+    fun missing(kind: TxKind, categoryId: Long?, accountId: Long?, toAccountId: Long?, someoneElsePaid: Boolean = false): EntryField? = when (kind) {
         TxKind.TRANSFER -> when {
             accountId == null -> EntryField.ACCOUNT
             toAccountId == null || toAccountId == accountId -> EntryField.TO
@@ -47,7 +49,7 @@ object EntryRules {
         }
         else -> when {
             categoryId == null -> EntryField.CATEGORY
-            accountId == null -> EntryField.ACCOUNT
+            accountId == null && !someoneElsePaid -> EntryField.ACCOUNT
             else -> null
         }
     }
@@ -59,7 +61,7 @@ object EntryRules {
     fun problem(d: Draft): EntryProblem? {
         InputRules.amountProblem(d.amount)?.let { return EntryProblem(EntryField.AMOUNT, it) }
         InputRules.noteProblem(d.note)?.let { return EntryProblem(EntryField.NOTE, it) }
-        return when (missing(d.kind, d.categoryId, d.accountId, d.toAccountId)) {
+        return when (missing(d.kind, d.categoryId, d.accountId, d.toAccountId, someoneElsePaid(d))) {
             EntryField.CATEGORY -> EntryProblem(EntryField.CATEGORY, "Pick a category.")
             EntryField.ACCOUNT -> EntryProblem(EntryField.ACCOUNT, "Pick an account.")
             EntryField.TO -> EntryProblem(EntryField.TO, "Pick where the money went.")
@@ -67,8 +69,12 @@ object EntryRules {
         }
     }
 
+    private fun someoneElsePaid(d: Draft): Boolean = d.kind == TxKind.EXPENSE && d.paidBy != null
+
     /** The draft as it is stored: only a transfer has a destination, only an expense or income a category, the note cleaned. */
     fun normalized(d: Draft): Draft = d.copy(
+        paidBy = if (d.kind == TxKind.EXPENSE) d.paidBy else null,
+        accountId = if (d.kind == TxKind.EXPENSE && d.paidBy != null) null else d.accountId,
         toAccountId = if (d.kind == TxKind.TRANSFER) d.toAccountId else null,
         categoryId = if (d.kind == TxKind.TRANSFER) null else d.categoryId,
         note = InputRules.clean(d.note),
@@ -93,13 +99,13 @@ object EntryRules {
 
     /**
      * Whether Activity may open this entry on the entry page. A transfer into a card is a card payment and, as on Android, an ordinary
-     * transfer there (the pay-card sheet adds one; the entry page edits or deletes it). An entry of a loan payment, a split or a
-     * person's payment has its own page, and buys, sales and balance corrections are not expenses, income or transfers; those are
+     * transfer there (the pay-card sheet adds one; the entry page edits or deletes it). An entry of a loan payment or a
+     * person's payment has its own page; a split expense (and one someone else paid, which has a person and no account) is edited here, as on Android, and buys, sales and balance corrections are not expenses, income or transfers; those are
      * never rewritten by a page that doesn't know them. [toAccountType] is kept so callers need not change.
      */
     @Suppress("UNUSED_PARAMETER")
     fun isEditable(kind: TxKind, toAccountType: AccountType?, belongsToLoanPayment: Boolean, hasPerson: Boolean, isSplit: Boolean): Boolean =
-        kind in PAGE_KINDS && !belongsToLoanPayment && !hasPerson && !isSplit
+        kind in PAGE_KINDS && !belongsToLoanPayment && (!hasPerson || kind == TxKind.EXPENSE)
 
     /**
      * The accounts the picker leaves out for [field] (ACCOUNT or TO). The destination of a transfer is never the source. A transfer

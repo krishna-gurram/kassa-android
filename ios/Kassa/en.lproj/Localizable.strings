@@ -838,3 +838,26 @@
 "import.cashew.leaveDetail" = "The account and its %@ entries stay in Cashew.";
 "import.cashew.leaveDetailTransfers" = "The account and its %1$@ entries stay in Cashew. %2$@ transfers with other accounts lose their other side and come in as plain entries, so those balances still match.";
 "import.cashew.noConvert" = "Converting isn't offered: it would need exchange rates, and Kassa never goes online.";
+
+/* Splits: the entry page's Split row and panel, and a person's "Split a transaction" */
+"split.title" = "Split";
+"split.justYou" = "Just you";
+"split.you" = "You";
+"split.someone" = "Someone";
+"split.yourShare" = "Your share %@";
+"split.with" = "With";
+"split.addPeople" = "Add people in Accounts to split with them.";
+"split.paidBy" = "Paid by";
+"split.shares" = "Shares";
+"split.equally" = "Equally";
+"split.exact" = "Exact amounts";
+"split.eachOwes" = "Each person owes you their share.";
+"split.youOwe" = "You owe %@ %@.";
+"split.their" = "Their";
+"split.theirShare" = "%@ share";
+"split.done" = "Done";
+"split.close" = "Close";
+"personPage.splitATransaction" = "Split a transaction";
+"personPage.splitWith" = "Split with %@";
+"personPage.pickExpense" = "Pick an expense";
+"personPage.noExpenses60" = "No expenses in the last 60 days.";

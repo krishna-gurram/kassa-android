@@ -19,6 +19,10 @@ struct EntryPageRequest: Identifiable {
     let amountText: String
     /// An unfinished new entry to carry on with (`EntryDraftModel.encoded`), or "".
     let draft: String
+    /// The split an edited entry opens with (its people, shares and payer), nil for a new entry.
+    var split: SplitState? = nil
+    /// Opened from a person's "Split a transaction": the split panel is showing.
+    var openSplit = false
 }
 
 /// The write path of `AppModel`: one transaction on the one queue, then the figures again, then the answer on the main thread.
@@ -109,8 +113,9 @@ extension AppModel {
 
     /// Opens what edits entry [id]: the entry page for an expense, income, transfer or card payment, the person payment sheet for a payment
     /// to or from a person, the correction sheet for a balance correction, the trade sheet for a buy or sale (CLAUDE.md "Entries": each kind
-    /// goes to its own page). Any other entry does nothing yet.
-    func openEntry(id: Int64) {
+    /// goes to its own page). A split expense opens on the entry page with its split; [withPerson] adds that person and shows the split panel
+    /// (a person's "Split a transaction"). Any other entry does nothing yet.
+    func openEntry(id: Int64, withPerson: Int64 = 0) {
         let hidden = hideAmounts
         let zone = TimeZone.current.identifier
         queue.async {
@@ -133,7 +138,12 @@ extension AppModel {
             }
             if let edit = made.entryEdit(id: id) {
                 let amount = made.entryAmountText(id: id, hidden: hidden)
-                self.publish { self.entryPage = EntryPageRequest(editing: edit, amountText: amount, draft: "") }
+                let split: SplitState = made.splitStart(entryId: id, withPersonId: withPerson)
+                self.publish {
+                    self.entryPage = EntryPageRequest(
+                        editing: edit, amountText: amount, draft: "", split: split, openSplit: withPerson > 0
+                    )
+                }
                 return
             }
             if let payment = made.personPaymentEdit(id: id) {

@@ -43,6 +43,7 @@ import app.kassa.money.domain.PersonPayment
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Spending
+import app.kassa.money.domain.SplitRules
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
@@ -1081,6 +1082,46 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     fun entryAmountText(id: Long, hidden: Boolean): String {
         val t = transactions.firstOrNull { it.id == id } ?: return ""
         return shown(hidden) { Money.format(t.amount) }
+    }
+
+    // ---------- Splits ----------
+
+    /**
+     * The split the entry page opens with for entry [entryId] (`SplitRules.start`): its people and shares read from its lines, or the
+     * payer when someone else paid. [withPersonId] (0 for none) adds a person, as "Split a transaction" from their page does.
+     */
+    fun splitStart(entryId: Long, withPersonId: Long): SplitState {
+        val t = transactions.firstOrNull { it.id == entryId } ?: return SplitBridge.none()
+        val lines = parts.loanEntries.filter { it.transactionId == t.id }.groupBy { it.personId }.mapValues { (_, rows) -> rows.sumOf { it.amount } }
+        return SplitState.of(SplitRules.start(t.kind, t.amount, t.accountId, t.personId, t.myShare, lines, withPersonId))
+    }
+
+    /** The people the split picker lists, A to Z; an archived person only while [selected] (ids as "1,2") already has them. */
+    fun splitPeople(selected: String): List<SplitPersonData> =
+        SplitRules.pickable(parts.people, SplitText.ids(selected)).map { SplitPersonData(it.id, it.name, it.archived) }
+
+    /** Whether there is anyone to split with (a person who isn't archived): the Split row is offered only then. */
+    fun hasSplitPeople(): Boolean = openPeople().isNotEmpty()
+
+    /** The name of person [id], empty text when there is none. */
+    fun personName(id: Long): String = parts.people.firstOrNull { it.id == id }?.name ?: ""
+
+    /**
+     * What "Split a transaction" on person [personId]'s page offers (`SplitRules.canSplitWith`): expenses you paid from an account in
+     * the last 60 days, newest first, not already split with them and not part of a loan payment.
+     */
+    fun splitCandidates(personId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): List<DatedRowData> = shown(hidden) {
+        val zone = zoneOf(timeZoneId)
+        val already = parts.loanEntries.filter { it.personId == personId }.mapNotNull { it.transactionId }.toSet()
+        transactions
+            .filter { t ->
+                SplitRules.canSplitWith(
+                    t.kind, t.accountId, t.id in already, loanIndex.isLoanEntry(t.id),
+                    dateOfMillis(t.epochMillis, zone).toEpochDay().toInt(), todayEpochDay,
+                )
+            }
+            .sortedByDescending { it.epochMillis }
+            .map { DatedRowData(dateOfMillis(it.epochMillis, zone).toEpochDay().toInt(), entryRow(it)) }
     }
 
     /** The ledger currency's bare symbol ("$"), for the amount at the top of the entry page; the only place a symbol stands without a figure. */

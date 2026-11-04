@@ -432,6 +432,8 @@ struct PersonPageContent: View {
     let onRecord: () -> Void
     /// A payment's entry id.
     let onOpenPayment: (Int64) -> Void
+    /// "Split a transaction": pick an expense to split with this person.
+    var onSplit: () -> Void = {}
 
     private var title: String {
         if data.archived { return String(format: String(localized: "personPage.archivedName"), data.name) }
@@ -464,6 +466,8 @@ struct PersonPageContent: View {
             }
             Button(action: onRecord) { Text("personPage.recordPayment") }
                 .buttonStyle(InkButtonStyle(filled: true))
+            Button(action: onSplit) { Text("personPage.splitATransaction") }
+                .buttonStyle(InkButtonStyle(filled: false))
         }
     }
 
@@ -578,7 +582,8 @@ struct PageHost: View {
                     PersonPageContent(
                         data: person, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                         onBack: { model.closePage() }, onRecord: { model.openNewPersonPayment(person) },
-                        onOpenPayment: { id in model.openEntry(id: id) }
+                        onOpenPayment: { id in model.openEntry(id: id) },
+                        onSplit: { model.openSplitSheet(person) }
                     )
                 }
             } else {
