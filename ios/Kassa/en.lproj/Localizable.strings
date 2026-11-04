@@ -125,6 +125,7 @@
 "accountType.SAVINGS" = "Savings";
 "accountType.CASH" = "Cash";
 "accountType.PREPAID" = "Prepaid or wallet";
+"accountType.FIXED_DEPOSIT" = "Fixed deposit";
 "accountType.CREDIT_CARD" = "Credit card";
 "accountType.LOAN" = "Loan or mortgage";
 "accountType.OTHER_ASSET" = "Other asset";
@@ -140,6 +141,9 @@
 "account.limitHint" = "Optional";
 "account.payFrom" = "Pay from";
 "account.noPayFrom" = "No account";
+"account.maturesOptional" = "Matures (optional)";
+"account.addMaturity" = "Add the maturity date";
+"account.clearMaturity" = "Clear the maturity date";
 "person.name" = "Name";
 "person.direction" = "Who owes";
 "person.owesMe" = "They owe me";

@@ -70,6 +70,9 @@ data class AccountForm(
     val newGroupName: String? get() = newGroup.takeIf { it.isNotBlank() }?.let(InputRules::clean)
 
     companion object {
+        /** The maturity day offered when the person adds one: a year after [today] (both epoch days), like Android's "Add the maturity date". */
+        fun defaultMaturityDay(today: Int): Int = LoanDates.addMonths(today, 12)
+
         /** The form for editing [a], whose balance today is [balance]. */
         fun of(a: Account, balance: Long) = AccountForm(
             type = a.type,

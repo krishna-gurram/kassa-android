@@ -109,6 +109,25 @@ final class AddTests: XCTestCase {
 
     // MARK: Accounts
 
+    func testAFixedDepositKeepsItsMaturityDayAndTheRowSaysMatures() throws {
+        try store.startFresh(currency: "USD", categories: [])
+        let maturity: Int32 = day + 365
+        let input = AccountInput(
+            type: "FIXED_DEPOSIT", name: "Term deposit", last4: "", balance: "5000", statementDay: "", dueDay: "", limit: "",
+            payFromId: 0, maturityDay: maturity
+        )
+        try store.addAccount(input)
+        let data = try ledger().accounts(hidden: false, todayEpochDay: day, timeZoneId: "UTC")
+        var found: AccountRowData?
+        for group in data.groups {
+            for row in group.rows where row.name == "Term deposit" { found = row }
+        }
+        let row = try XCTUnwrap(found)
+        XCTAssertEqual(row.dueKind.name, "Matures")
+        XCTAssertEqual(row.dueDay, maturity)
+    }
+
+
     func testAddedAccountsShowTheirOpeningBalances() throws {
         _ = try seeded()
         XCTAssertEqual(try rowText("Main"), "$1,000.00")

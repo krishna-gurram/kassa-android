@@ -4,7 +4,7 @@ import KassaShared
 /// Add an account, type first (as on Android): a list of kinds, then a form with only that kind's fields and a back arrow. Every
 /// rule (the bounds, what a card needs, the sentence under a field) is :domain's `AccountForm`, asked through `AccountBridge`;
 /// this only lays the fields out. Kinds that need more setup than this form (Investment, Fixed deposit) are not
-/// offered here yet (`AccountBridge.kindGroups`), so nothing is faked. Loan or mortgage has its own form (`LoanFormBody`).
+/// offered here yet (`AccountBridge.kindGroups`), so nothing is faked; a Fixed deposit asks for an optional maturity day. Loan or mortgage has its own form (`LoanFormBody`).
 struct AddAccountSheet: View {
     @ObservedObject var model: AppModel
     let onClose: () -> Void
@@ -15,6 +15,7 @@ struct AddAccountSheet: View {
         case person
         case payFrom(String)
         case day(LoanDayTarget)
+        case maturity(String)
     }
 
     @State private var stage: Stage = .kinds
@@ -27,6 +28,8 @@ struct AddAccountSheet: View {
     @State private var dueDay = ""
     @State private var limit = ""
     @State private var payFromId: Int64 = 0
+    /// A fixed deposit's maturity as an epoch day; 0 for none.
+    @State private var maturityDay: Int = 0
     @State private var theyOwe = false
     @State private var problems: [String: String] = [:]
     @State private var submitted = false
@@ -54,6 +57,8 @@ struct AddAccountSheet: View {
                 payFromPicker(key)
             case .day(let target):
                 DayPickerStage(epochDay: LoanFormBody.dayBinding($loan, target), onDone: { stage = .account("LOAN") })
+            case .maturity(let key):
+                DayPickerStage(epochDay: $maturityDay, onDone: { stage = .account(key); refresh(key) })
             }
         }
         .background(Palette.ground.ignoresSafeArea())
@@ -72,7 +77,7 @@ struct AddAccountSheet: View {
     private func input(_ key: String) -> AccountInput {
         return AccountInput(
             type: key, name: name, last4: last4, balance: balance, statementDay: statementDay, dueDay: dueDay,
-            limit: limit, payFromId: payFromId
+            limit: limit, payFromId: payFromId, maturityDay: Int32(maturityDay)
         )
     }
 
@@ -80,6 +85,7 @@ struct AddAccountSheet: View {
         let info = kind(key)
         let card = info?.hasStatement ?? false
         let debt = info?.isDebt ?? false
+        let matures = info?.hasMaturity ?? false
         let balanceKey: LocalizedStringKey = debt ? "account.owed" : "account.balance"
         return VStack(spacing: 0) {
             SheetBar(title: Wording.accountTypeTitle(key), onBack: { reset(); stage = .kinds })
@@ -99,6 +105,9 @@ struct AddAccountSheet: View {
                         TextField(balanceKey, text: bound($balance, { FieldBridge.shared.typedBalance(raw: $0) }, key))
                             .keyboardType(.numbersAndPunctuation)
                     }
+                    if matures {
+                        maturityFields(key)
+                    }
                     if card {
                         cardFields(key)
                     }
@@ -113,6 +122,29 @@ struct AddAccountSheet: View {
                 .disabled(busy)
                 .padding(16)
         }
+    }
+
+    /// A fixed deposit's optional maturity day: add it (a year out is offered), change it in the calendar, or clear it.
+    @ViewBuilder
+    private func maturityFields(_ key: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("account.maturesOptional").font(.caption).foregroundColor(Palette.ink2)
+            if maturityDay > 0 {
+                Button(action: { stage = .maturity(key) }) {
+                    Text(KassaDates.shortDateYear(epochDay: maturityDay)).foregroundColor(Palette.ink).frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                }
+                .padding(.horizontal, 12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
+                Button("account.clearMaturity") { maturityDay = 0; refresh(key) }
+                    .foregroundColor(Palette.ink2)
+                    .frame(minHeight: 48)
+            } else {
+                Button("account.addMaturity") { maturityDay = Int(AccountBridge.shared.defaultMaturityDay(today: Int32(model.today))); refresh(key) }
+                    .foregroundColor(Palette.ink)
+                    .frame(minHeight: 48)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -259,7 +291,7 @@ struct AddAccountSheet: View {
 
     private func reset() {
         name = ""; last4 = ""; balance = ""; statementDay = ""; dueDay = ""; limit = ""
-        payFromId = 0; theyOwe = false; problems = [:]; submitted = false; failure = nil
+        payFromId = 0; maturityDay = 0; theyOwe = false; problems = [:]; submitted = false; failure = nil
         loan = LoanDraft.starting(today: KassaDates.todayEpochDay()); loanPreview = nil
     }
 

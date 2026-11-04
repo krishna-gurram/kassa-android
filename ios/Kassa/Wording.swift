@@ -76,6 +76,7 @@ enum Wording {
         case "SAVINGS": return text("accountType.SAVINGS")
         case "CASH": return text("accountType.CASH")
         case "PREPAID": return text("accountType.PREPAID")
+        case "FIXED_DEPOSIT": return text("accountType.FIXED_DEPOSIT")
         case "CREDIT_CARD": return text("accountType.CREDIT_CARD")
         case "LOAN": return text("accountType.LOAN")
         case "OTHER_ASSET": return text("accountType.OTHER_ASSET")
