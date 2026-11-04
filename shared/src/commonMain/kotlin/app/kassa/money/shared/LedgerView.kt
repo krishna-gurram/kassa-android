@@ -26,6 +26,7 @@ import app.kassa.money.domain.LoanEntry
 import app.kassa.money.domain.LoanEntryIndex
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
+import app.kassa.money.domain.Patterns
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Spending
@@ -38,6 +39,7 @@ import app.kassa.money.domain.isBefore
 import app.kassa.money.domain.localDateOfEpochDay
 import app.kassa.money.domain.personBalance
 import app.kassa.money.domain.toEpochDay
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.math.abs
 
@@ -255,6 +257,64 @@ data class OverviewData(
     val spending: OverviewFlowData,
     val income: OverviewFlowData,
     val pins: List<PinRowData>,
+)
+
+/** One category line of Insights' By category: a top-level category's spending in the month, with its share. */
+data class InsightLineData(
+    /** 0 for spending with no category (Swift words "Uncategorized"). */
+    val id: Long,
+    val name: String,
+    /** "emoji", "symbol" or "image" like [CategoryChoiceData]; empty without a category. */
+    val iconKind: String,
+    val iconValue: String,
+    /** The category's colour as ARGB; 0 without a category. */
+    val color: Int,
+    val amountText: String,
+    /** Whole percent of the month's spending, or -1 while Hide balances is on (a share would give the size away). */
+    val percent: Int,
+    /** The bar: this line against the largest one, 0 to 1000; always 0 while hidden. */
+    val barPermille: Int,
+)
+
+/**
+ * The Insights tab for one budget month (the one [monthsBack] months before the current period): the spending hero, and By category,
+ * largest first. [year] and [month] name the month the period starts in, like [OverviewData].
+ */
+data class InsightsData(
+    val year: Int,
+    val month: Int,
+    /** The period that holds today; only it runs "up to today" and has a comparison. */
+    val isCurrentMonth: Boolean,
+    /** Whether anything was entered before this month began, so the back arrow has somewhere to go. */
+    val hasEarlier: Boolean,
+    val totalText: String,
+    /** Always Ink: spending never uses green, and a tint would give a figure away. */
+    val tone: Tone,
+    /** The same stretch of the month before ("Up to Oct 3"), only for the current month and when that stretch has entries. */
+    val hasCompare: Boolean,
+    /** Epoch day the comparison runs up to; 0 without one. */
+    val compareDay: Int,
+    val compareText: String,
+    /** Largest first; ties by the category's own order. Only categories with spending. */
+    val lines: List<InsightLineData>,
+)
+
+/** One category (with its subcategories) in one budget month: its total and every entry as spending sees it, newest day first. */
+data class CategoryPageData(
+    /** False when the category no longer exists. */
+    val found: Boolean,
+    val id: Long,
+    val name: String,
+    val iconKind: String,
+    val iconValue: String,
+    val color: Int,
+    val year: Int,
+    val month: Int,
+    val isCurrentMonth: Boolean,
+    val hasEarlier: Boolean,
+    val totalText: String,
+    val entryCount: Int,
+    val days: List<DayData>,
 )
 
 /** The ledger of one restored backup, worked out for the iOS screens. Build one per refresh; see the file comment. */
@@ -623,6 +683,135 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         }
         return rows.take(MAX_PINS)
     }
+
+    // ---------- Insights ----------
+
+    /**
+     * Insights for the budget month [monthsBack] months before the one that holds today (0 is the current one), as Android's
+     * `InsightsScreen` month view: spending is the entries as spending sees them (`CountedSpending`) from the period's start to
+     * today (the whole period once it is over), and By category rolls them up to top-level categories (`Spending.topOf`, each
+     * entry's own share) largest first, ties by the category's order, spending with no category last. The comparison is
+     * `Patterns.samePointBefore`: the same stretch of the month before. While [hidden] every amount is the mask, no share or bar
+     * is given and the tone is Ink.
+     */
+    fun insights(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, monthsBack: Int): InsightsData = shown(hidden) {
+        val zone = zoneOf(timeZoneId)
+        val today = localDateOfEpochDay(todayEpochDay)
+        val period = insightsPeriod(today, monthsBack)
+        val current = period.contains(today)
+        val to = if (current) today else period.endInclusive
+        val previous = Period.startingIn(period.yearMonth.minusMonths(1), monthStartDay)
+        val window = countedBetween(previous.start, period.endInclusive, zone)
+        val rows = spendingRows(window, period.start, to, zone)
+        val total = Patterns.spent(window, period.start, to, zone)
+
+        var hasCompare = false
+        var compareDay = 0
+        var compareText = ""
+        if (current) {
+            val same = Patterns.samePointBefore(period.start, today, previous.start)
+            val before = Patterns.spent(window, same.first, same.second, zone)
+            hasCompare = window.any { t ->
+                val d = dateOfMillis(t.epochMillis, zone)
+                !d.isBefore(same.first) && !d.isAfter(same.second)
+            }
+            compareDay = same.second.toEpochDay().toInt()
+            compareText = Money.format(before)
+        }
+        val largest = rows.firstOrNull()?.second ?: 0L
+        val lines = rows.map { r ->
+            val c = r.first
+            val icon = if (c == null) Pair("", "") else iconParts(c.icon)
+            val share = if (Money.isHidden || total <= 0L) -1 else ((r.second * 100L + total / 2L) / total).toInt()
+            val bar = if (Money.isHidden || largest <= 0L) 0 else (r.second * 1000L / largest).toInt().coerceIn(0, 1000)
+            InsightLineData(c?.id ?: 0L, c?.name ?: "", icon.first, icon.second, c?.color ?: 0, Money.format(r.second), share, bar)
+        }
+        InsightsData(
+            year = period.yearMonth.year,
+            month = period.yearMonth.month,
+            isCurrentMonth = current,
+            hasEarlier = hasEarlier(period.start, zone),
+            totalText = Money.format(total),
+            tone = Tone.Ink,
+            hasCompare = hasCompare,
+            compareDay = compareDay,
+            compareText = compareText,
+            lines = lines,
+        )
+    }
+
+    /**
+     * The category page of Insights: top-level category [categoryId] (0 for spending with no category) in the same month
+     * [insights] shows for [monthsBack]. Its entries are the counted ones (a loan principal that counts is an expense in its
+     * principal category), so the total equals the line on Insights. Days newest first, rows as in Activity.
+     */
+    fun categoryPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, monthsBack: Int, categoryId: Long): CategoryPageData = shown(hidden) {
+        val zone = zoneOf(timeZoneId)
+        val today = localDateOfEpochDay(todayEpochDay)
+        val period = insightsPeriod(today, monthsBack)
+        val current = period.contains(today)
+        val to = if (current) today else period.endInclusive
+        val category = categoryById[categoryId]
+        val found = categoryId == 0L || category != null
+        val counted = countedBetween(period.start, to, zone)
+        val mine = counted.filter { t ->
+            val top = Spending.topOf(t.categoryId, categoryById)
+            t.kind == TxKind.EXPENSE && (top?.id ?: 0L) == categoryId
+        }
+        val days = ArrayList<DayData>()
+        val grouped = mine.groupBy { dateOfMillis(it.epochMillis, zone) }
+        for ((day, entries) in grouped) {
+            val spent = entries.sumOf { it.categoryAmount }
+            days.add(DayData(day.toEpochDay().toInt(), Money.format(spent), entries.map { entryRow(it) }))
+        }
+        val icon = if (category == null) Pair("", "") else iconParts(category.icon)
+        CategoryPageData(
+            found = found,
+            id = categoryId,
+            name = category?.name ?: "",
+            iconKind = icon.first,
+            iconValue = icon.second,
+            color = category?.color ?: 0,
+            year = period.yearMonth.year,
+            month = period.yearMonth.month,
+            isCurrentMonth = current,
+            hasEarlier = hasEarlier(period.start, zone),
+            totalText = Money.format(mine.sumOf { it.categoryAmount }),
+            entryCount = mine.size,
+            days = days,
+        )
+    }
+
+    /** The budget month [monthsBack] before the one that holds [today]. */
+    private fun insightsPeriod(today: LocalDate, monthsBack: Int): Period {
+        val current = Period.containing(today, monthStartDay)
+        return Period.startingIn(current.yearMonth.minusMonths(monthsBack.coerceAtLeast(0)), monthStartDay)
+    }
+
+    /** The entries dated from [from] to [to], inclusive, as spending sees them (`CountedSpending`), newest first. */
+    private fun countedBetween(from: LocalDate, to: LocalDate, zone: TimeZone): List<Transaction> {
+        val inRange = transactions.filter { t ->
+            val d = dateOfMillis(t.epochMillis, zone)
+            !d.isBefore(from) && !d.isAfter(to)
+        }
+        return CountedSpending.apply(inRange, parts.loanPayments, parts.loanTerms, parts.categories)
+    }
+
+    /** Expense totals per top-level category (null for none) between two dates, only above zero, largest first, then by category order. */
+    private fun spendingRows(list: List<Transaction>, from: LocalDate, to: LocalDate, zone: TimeZone): List<Pair<Category?, Long>> {
+        val inRange = list.filter { t ->
+            val d = dateOfMillis(t.epochMillis, zone)
+            t.kind == TxKind.EXPENSE && !d.isBefore(from) && !d.isAfter(to)
+        }
+        val grouped = inRange.groupBy { Spending.topOf(it.categoryId, categoryById) }
+        val rows = grouped.entries.map { e -> Pair(e.key, e.value.sumOf { it.categoryAmount }) }.filter { it.second > 0L }
+        return rows.sortedWith(
+            compareByDescending<Pair<Category?, Long>> { it.second }.thenBy { it.first?.sortOrder ?: Int.MAX_VALUE },
+        )
+    }
+
+    private fun hasEarlier(start: LocalDate, zone: TimeZone): Boolean =
+        transactions.any { t -> dateOfMillis(t.epochMillis, zone).isBefore(start) }
 
     // ---------- Pickers and editing (the write path) ----------
 

@@ -72,6 +72,7 @@ final class ScreenshotTests: XCTestCase {
             save(overview, scheme: scheme, to: target.appendingPathComponent("overview-\(suffix).png"))
             let hiddenOverview = OverviewContent(data: masked, hidden: true, onToggleHidden: {}, onAllAccounts: {})
             save(hiddenOverview, scheme: scheme, to: target.appendingPathComponent("overview-hidden-\(suffix).png"))
+            drawInsights(target, view: view, today: expected.today, scheme: scheme, suffix: suffix)
             let settings = SettingsContent(
                 hidden: false, currencyName: currencyName, working: false, message: nil, notice: nil, linked: false,
                 onSetHidden: { _ in }, onBackUp: {}, onRestore: {},
@@ -79,6 +80,29 @@ final class ScreenshotTests: XCTestCase {
             )
             save(settings, scheme: scheme, to: target.appendingPathComponent("settings-\(suffix).png"))
         }
+    }
+
+    /// Insights (shown, hidden) and a category page of the demo backup on its own "today", for one colour scheme.
+    @MainActor
+    private func drawInsights(_ target: URL, view: LedgerView, today: Int32, scheme: ColorScheme, suffix: String) {
+        let zone = "UTC"
+        let shown = view.insights(hidden: false, todayEpochDay: today, timeZoneId: zone, monthsBack: 0)
+        let masked = view.insights(hidden: true, todayEpochDay: today, timeZoneId: zone, monthsBack: 0)
+        let insights = InsightsContent(data: shown, hidden: false, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _ in })
+        save(insights, scheme: scheme, to: target.appendingPathComponent("insights-\(suffix).png"))
+        let hiddenInsights = InsightsContent(data: masked, hidden: true, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _ in })
+        save(hiddenInsights, scheme: scheme, to: target.appendingPathComponent("insights-hidden-\(suffix).png"))
+        // October, not the demo's current month, so the category page has entries to list.
+        let october = view.insights(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: zone, monthsBack: 0)
+        guard let first = october.lines.first else { return }
+        let page = view.categoryPage(
+            hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: zone, monthsBack: 0, categoryId: first.id
+        )
+        let pageView = InsightsCategoryContent(
+            data: page, hidden: false, today: Int(DemoFixture.lastOfOctober), lazy: false,
+            onToggleHidden: {}, onShift: { _ in }, onBack: {}
+        )
+        save(pageView, scheme: scheme, to: target.appendingPathComponent("insights-category-\(suffix).png"))
     }
 
     /// The Add page (empty, and filled in with the first category and account) and the Add account sheet, light and dark.

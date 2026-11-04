@@ -33,12 +33,17 @@ Activity and Accounts), Currency (relabels amounts without converting, asks firs
 through `BackupFile`, optional password, saved with the system file exporter), Restore from a backup (file importer, password prompt, then a
 "Replace everything?" question), and Third-party notices (SQLCipher's BSD-style notice and Apache 2.0, bundled from
 `app/src/main/assets/licences`). Failures are worded by `Failures.swift` from `failure.*` strings (Android's `data/Failures.kt` sentences).
-Insights is still a placeholder.
+
+Stage E (Insights): the Insights tab shows one budget month (arrows move back, never past the current one): a grey spending hero with
+"Up to <date>" and the same stretch of the month before (current month only), and By category (icon, name, share, amount, a bar against
+the largest; largest first). Tapping a category opens its page with that month's entries, grouped by day with Activity's rows. All of it is
+`LedgerView.insights` / `categoryPage` in :shared (counted spending, JVM-tested against the demo backup); hidden masks every amount and gives no
+share or bar. Patterns tiles, the week view and budgets are not on iOS yet.
 
 ## CI
 
 The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
-simulator. `ScreenshotTests` draws the Accounts, Activity, Overview and Settings screens (light and dark) to `ci-output/shots`, which a step uploads to
+simulator. `ScreenshotTests` draws the Accounts, Activity, Overview, Insights and Settings screens (light and dark) to `ci-output/shots`, which a step uploads to
 a draft release `ios-shots-<run>-<attempt>`; it never fails the build. A pre-build script phase in the Kassa target runs `./gradlew :shared:link<Debug|Release>Framework<Target>`
 for the SDK being built. Logs go to `ci-output/ios-app.log`; on failure they are uploaded to a draft release
 `diag-ios-app-<run>-<attempt>`.

@@ -211,6 +211,16 @@
 "overview.cardDue" = "%@ due %@";
 "overview.cardOverdue" = "%@ overdue";
 
+/* Insights */
+"insights.spentIn" = "Spent in %@";
+"insights.upTo" = "Up to %@";
+"insights.byCategory" = "By category";
+"insights.noSpending" = "No spending in this month.";
+"insights.entries" = "Entries";
+"insights.nothingIn" = "Nothing in %@ in %@.";
+"insights.categoryGone" = "This category is no longer here.";
+"insights.percent" = "%ld%%";
+
 /* Settings */
 "settings.hideBalances" = "Hide balances";
 "settings.hideBalancesHint" = "Shows •••• instead of every amount, on every screen.";

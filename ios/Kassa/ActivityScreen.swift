@@ -84,11 +84,13 @@ struct ActivityContent: View {
 struct MonthSwitcher: View {
     let label: String
     let canForward: Bool
+    /// False when nothing was entered before this month (Insights); Activity always allows going back.
+    var canBack: Bool = true
     let onShift: (Int) -> Void
 
     var body: some View {
         HStack {
-            arrow("chevron.left", "a11y.previousMonth", enabled: true, by: -1)
+            arrow("chevron.left", "a11y.previousMonth", enabled: canBack, by: -1)
             Spacer(minLength: 8)
             Text(label)
                 .font(.headline)

@@ -66,7 +66,7 @@ enum ShellTab: Hashable {
     case settings
 }
 
-/// The tabs: Overview, Activity, Insights, Accounts, Settings. Insights is still a placeholder. Add is a floating button above the
+/// The tabs: Overview, Activity, Insights, Accounts, Settings. Add is a floating button above the
 /// bar on every tab; it opens the entry page over the whole screen, so it is never shown over a page.
 struct AppShell: View {
     @ObservedObject var model: AppModel
@@ -85,7 +85,7 @@ struct AppShell: View {
             withAdd(activityTab)
                 .tabItem { Label("tab.activity", systemImage: "list.bullet") }
                 .tag(ShellTab.activity)
-            withAdd(ComingSoonScreen(title: "tab.insights"))
+            withAdd(insightsTab)
                 .tabItem { Label("tab.insights", systemImage: "chart.pie") }
                 .tag(ShellTab.insights)
             withAdd(accountsTab)
@@ -128,6 +128,31 @@ struct AppShell: View {
             OverviewScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                 onAllAccounts: { tab = .accounts }
+            )
+        } else {
+            ProgressView()
+        }
+    }
+
+    @ViewBuilder
+    private var insightsTab: some View {
+        if let openId = model.openCategoryId {
+            if let page = model.categoryPage, page.id == openId {
+                InsightsCategoryScreen(
+                    data: page, hidden: model.hideAmounts, today: model.today,
+                    onToggleHidden: { model.toggleHidden() },
+                    onShift: { months in model.shiftInsights(months) },
+                    onBack: { model.closeInsightsCategory() },
+                    onOpen: { row in model.openEntry(id: row.id) }
+                )
+            } else {
+                ProgressView()
+            }
+        } else if let data = model.insights {
+            InsightsScreen(
+                data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
+                onShift: { months in model.shiftInsights(months) },
+                onOpenCategory: { id in model.openInsightsCategory(id) }
             )
         } else {
             ProgressView()
