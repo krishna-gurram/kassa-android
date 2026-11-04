@@ -702,7 +702,8 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         val to = if (current) today else period.endInclusive
         val previous = Period.startingIn(period.yearMonth.minusMonths(1), monthStartDay)
         val window = countedBetween(previous.start, period.endInclusive, zone)
-        val rows = spendingRows(window, period.start, to, zone)
+        // Like Android's By category (domain `Insights` skips spending with no category), so the lines can add up to less than the total.
+        val rows = spendingRows(window, period.start, to, zone).filter { it.first != null }
         val total = Patterns.spent(window, period.start, to, zone)
 
         var hasCompare = false
