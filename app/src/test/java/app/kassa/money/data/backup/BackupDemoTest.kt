@@ -36,6 +36,9 @@ class BackupDemoTest {
     }
 
     @Test fun plainDemoOpens() = check(read("demo.kassa", null))
+    /** The file the iOS app wrote from this same demo (the ios-app CI job's `demo-from-ios.kassa`): Android's reader opens it and it adds up the same. */
+    @Test fun aFileWrittenByTheIosAppOpens() = check(read("from-ios.kassa", null))
+
     @Test fun protectedDemoOpens() = check(read("demo-protected.kassa", "demo password"))
     @Test fun protectedDemoChecksPassword() {
         assertFailsWith<BackupFile.WrongPassword> { read("demo-protected.kassa", "nope") }
