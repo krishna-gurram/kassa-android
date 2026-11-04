@@ -27,7 +27,7 @@ extension AppModel {
     private static let failedText = String(localized: "write.failed")
 
     /// Runs [work] on the store, reads the figures again, and calls [done] on the main thread.
-    private func perform(_ work: @escaping (LedgerStore) throws -> Int64, done: @escaping (WriteOutcome) -> Void) {
+    func perform(_ work: @escaping (LedgerStore) throws -> Int64, done: @escaping (WriteOutcome) -> Void) {
         let given = inputs()
         queue.async {
             let outcome = self.run(work, given)
@@ -108,11 +108,16 @@ extension AppModel {
     }
 
     /// Opens what edits entry [id]: the entry page for an expense, income, transfer or card payment, the person payment sheet for a payment
-    /// to or from a person (CLAUDE.md "Entries": each kind goes to its own page). Any other entry does nothing yet.
+    /// to or from a person, the correction sheet for a balance correction (CLAUDE.md "Entries": each kind goes to its own page). Any other entry does nothing yet.
     func openEntry(id: Int64) {
         let hidden = hideAmounts
         queue.async {
             guard let made = self.view else { return }
+            let correction: CorrectionSheetData = made.correctionSheet(accountId: 0, editingId: id, hidden: hidden)
+            if correction.found {
+                self.publish { self.correctionSheet = CorrectionRequest(data: correction) }
+                return
+            }
             if let edit = made.entryEdit(id: id) {
                 let amount = made.entryAmountText(id: id, hidden: hidden)
                 self.publish { self.entryPage = EntryPageRequest(editing: edit, amountText: amount, draft: "") }

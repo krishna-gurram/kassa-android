@@ -175,8 +175,8 @@ struct ClosingSection: View {
 // MARK: - Account
 
 /// A plain account's page (bank, cash, prepaid, investment, loan, other, and a card without statement days): the balance at the end of
-/// the month shown, money in and out, Close or Reopen, and the month's entries by day with Activity's rows. A loan or investment shows
-/// only this for now (their own screens come later). Without its scroll view, so a screenshot can draw it.
+/// the month shown, money in and out, Close or Reopen, and the month's entries by day with Activity's rows. A loan without terms shows this with "Add terms" (a loan with terms has `LoanPageContent`); an investment
+/// shows only this for now. Without its scroll view, so a screenshot can draw it.
 struct AccountPageContent: View {
     let data: AccountPageData
     let hidden: Bool
@@ -187,6 +187,9 @@ struct AccountPageContent: View {
     let onShift: (Int) -> Void
     let onSetClosed: (Bool, @escaping (WriteOutcome) -> Void) -> Void
     var onOpen: ((EntryRowData) -> Void)? = nil
+    /// "Add terms" of a loan that has none, and "Correct balance" (any account; a card's own page has no button yet).
+    var onAddTerms: (() -> Void)? = nil
+    var onCorrect: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -201,6 +204,7 @@ struct AccountPageContent: View {
                 canForward: !data.isCurrentMonth, canBack: data.hasEarlier, onShift: onShift
             )
             hero
+            termsAndCorrection
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
             entries
         }
@@ -226,6 +230,26 @@ struct AccountPageContent: View {
                     .font(.footnote)
                     .foregroundColor(Palette.ink2)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var termsAndCorrection: some View {
+        if data.type == "LOAN", let addTerms = onAddTerms {
+            Text("loan.noTerms")
+                .font(.footnote)
+                .foregroundColor(Palette.ink2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: addTerms) {
+                Text("loan.addTerms")
+            }
+            .buttonStyle(InkButtonStyle(filled: true))
+        }
+        if let correct = onCorrect {
+            Button(action: correct) {
+                Text("correction.open")
+            }
+            .buttonStyle(InkButtonStyle(filled: false))
         }
     }
 
@@ -561,13 +585,30 @@ struct PageHost: View {
                 missing
             } else if account.hasCardPage {
                 cardContent
+            } else if let loan = model.loanPage, loan.id == target.id, loan.hasTerms {
+                scrolled {
+                    LoanPageContent(
+                        data: loan, hidden: model.hideAmounts, today: model.today, showAll: model.loanAll,
+                        onToggleHidden: { model.toggleHidden() }, onBack: { model.closePage() },
+                        onShift: { direction in model.shiftPage(direction) },
+                        onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
+                        onCorrect: { model.openCorrection(accountId: target.id) },
+                        onShowAll: { all in model.setLoanAll(all) },
+                        onRemoveChange: { id, finished in model.deleteLoanChange(id: id, done: finished) },
+                        onOpen: { row in model.openEntry(id: row.id) }
+                    )
+                }
+            } else if account.type == "LOAN" && model.loanPage == nil {
+                waiting
             } else {
                 scrolled {
                     AccountPageContent(
                         data: account, hidden: model.hideAmounts, today: model.today, onToggleHidden: { model.toggleHidden() },
                         onBack: { model.closePage() }, onShift: { direction in model.shiftPage(direction) },
                         onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
-                        onOpen: { row in model.openEntry(id: row.id) }
+                        onOpen: { row in model.openEntry(id: row.id) },
+                        onAddTerms: { model.openAddTerms(accountId: target.id, name: account.name) },
+                        onCorrect: { model.openCorrection(accountId: target.id) }
                     )
                 }
             }

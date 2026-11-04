@@ -38,6 +38,7 @@ final class ScreenshotTests: XCTestCase {
             drawAdd(target, view: view, today: todayDay)
             try drawOverviewAndSettings(target)
             try drawCardPages(target)
+            try drawLoanPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -113,6 +114,58 @@ final class ScreenshotTests: XCTestCase {
             save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("card-hidden-\(suffix).png"))
             let sheet = PayCardSheet(model: model, request: PaySheetRequest(data: payData))
             save(sheet, scheme: scheme, to: target.appendingPathComponent("pay-card-\(suffix).png"))
+        }
+    }
+
+    /// The demo's Car loan page (shown and hidden), the Add loan form filled in, and the correction sheet, light and dark.
+    @MainActor
+    private func drawLoanPages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let demoDirectory = directory.appendingPathComponent("demo-loans", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let loanId: Int64 = 5
+        let today = Int(expected.today)
+        let shown = view.loanPage(
+            accountId: loanId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", monthsBack: 0, allRows: false
+        )
+        let masked = view.loanPage(
+            accountId: loanId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", monthsBack: 0, allRows: false
+        )
+        let correction = view.correctionSheet(accountId: loanId, editingId: 0, hidden: false)
+        let base: LoanInput = LoanBridge.shared.starting(todayEpochDay: expected.today, payFromId: 0)
+        var draft = LoanDraft(base)
+        draft.amount = "30000"
+        draft.rate = "6"
+        draft.termMonths = "60"
+        let preview: LoanPreviewData = LoanBridge.shared.preview(loan: draft.input(), currency: "USD", hidden: false)
+        let sheetDirectory = directory.appendingPathComponent("demo-loan-sheet", isDirectory: true)
+        let sheetKeys = MemoryKeyStore()
+        let model = AppModel(defaults: UserDefaults(suiteName: "kassa-shots-" + UUID().uuidString) ?? UserDefaults.standard, openStore: {
+            try LedgerStore(directory: sheetDirectory, keyStore: sheetKeys)
+        })
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let page = LoanPageContent(
+                data: shown, hidden: false, today: today, showAll: false, onToggleHidden: {}, onBack: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }, onCorrect: {}, onShowAll: { _ in }, onRemoveChange: { _, _ in }
+            )
+            save(page, scheme: scheme, to: target.appendingPathComponent("loan-\(suffix).png"))
+            let hiddenPage = LoanPageContent(
+                data: masked, hidden: true, today: today, showAll: false, onToggleHidden: {}, onBack: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }, onCorrect: {}, onShowAll: { _ in }, onRemoveChange: { _, _ in }
+            )
+            save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("loan-hidden-\(suffix).png"))
+            let form = VStack(spacing: 12) {
+                SheetBar(title: Wording.accountTypeTitle("LOAN"), onBack: {})
+                LoanFormBody(
+                    draft: Binding<LoanDraft>.constant(draft), problems: [:], submitted: false, preview: preview, today: today,
+                    payFromName: "", payFromType: "", onPickPayFrom: {}, onPickDay: { _ in }
+                )
+                .padding(.horizontal, 16)
+            }
+            save(form, scheme: scheme, to: target.appendingPathComponent("loan-add-\(suffix).png"))
+            let sheet = CorrectionSheet(model: model, request: CorrectionRequest(data: correction))
+            save(sheet, scheme: scheme, to: target.appendingPathComponent("loan-correct-\(suffix).png"))
         }
     }
 

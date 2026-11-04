@@ -13,6 +13,8 @@ struct PagesData {
     let account: AccountPageData?
     let card: CardPageData?
     let person: PersonPageData?
+    /// Set for a loan with terms, beside [account].
+    var loan: LoanPageData? = nil
 }
 
 /// The pay-card sheet that is open, with what it opens on (`LedgerView.cardPayData`).
@@ -55,7 +57,14 @@ extension AppModel {
                 cardId: target.id, hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, back: Int32(given.pageBack)
             )
         }
-        return PagesData(account: account, card: card, person: nil)
+        var loan: LoanPageData? = nil
+        if account.type == "LOAN" {
+            loan = made.loanPage(
+                accountId: target.id, hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone,
+                monthsBack: Int32(given.pageBack), allRows: given.loanAll
+            )
+        }
+        return PagesData(account: account, card: card, person: nil, loan: loan)
     }
 
     // MARK: Pages
@@ -74,6 +83,8 @@ extension AppModel {
         accountPage = nil
         cardPage = nil
         personPage = nil
+        loanPage = nil
+        loanAll = false
         refreshFigures()
     }
 
@@ -83,12 +94,16 @@ extension AppModel {
         accountPage = nil
         cardPage = nil
         personPage = nil
+        loanPage = nil
+        loanAll = false
     }
 
     /// Moves the open page: -1 is one month (account) or statement (card) back, +1 forward. Never past what exists.
     func shiftPage(_ direction: Int) {
         var canBack = false
-        if let card = cardPage {
+        if let loan = loanPage {
+            canBack = loan.hasEarlier
+        } else if let card = cardPage {
             canBack = card.canBack
         } else if let account = accountPage {
             canBack = account.hasEarlier
