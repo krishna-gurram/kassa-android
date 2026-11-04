@@ -174,12 +174,19 @@ struct EntryRowView: View {
     let entry: EntryRowData
     let showDivider: Bool
     var onOpen: ((EntryRowData) -> Void)? = nil
+    /// Replaces the small note under the amount (the investment page says "Cash <x>" there).
+    var noteOverride: String? = nil
+
+    private var opensSomething: Bool {
+        if entry.editable || entry.personPayment || entry.loanPaymentId > 0 { return true }
+        return entry.kind.name == "Correction" || entry.kind.name == "Buy" || entry.kind.name == "Sell"
+    }
 
     var body: some View {
         // Expenses, income, transfers and card payments open the entry page (`EntryRowData.editable`) and a payment to or from a person
         // opens its own sheet (`personPayment`). Any entry that belongs to a loan payment (`loanPaymentId`, whatever its kind) opens the
-        // payment sheet; a buy or sale does nothing when tapped yet (no trade sheet on iOS). A balance correction opens its sheet.
-        if entry.editable || entry.personPayment || entry.loanPaymentId > 0 || entry.kind.name == "Correction", let open = onOpen {
+        // payment sheet; a buy or sale opens the trade sheet; a balance correction opens its sheet.
+        if opensSomething, let open = onOpen {
             Button(action: { open(entry) }) { content }
                 .buttonStyle(.plain)
         } else {
@@ -188,7 +195,8 @@ struct EntryRowView: View {
     }
 
     private var content: some View {
-        let words = Wording.entry(entry)
+        let base = Wording.entry(entry)
+        let words = EntryWords(title: base.title, subtitle: base.subtitle, note: noteOverride ?? base.note)
         return VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
                 EntryBadge(entry: entry)

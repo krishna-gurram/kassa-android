@@ -39,6 +39,7 @@ final class ScreenshotTests: XCTestCase {
             try drawOverviewAndSettings(target)
             try drawCardPages(target)
             try drawLoanPages(target)
+            try drawInvestPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -198,6 +199,42 @@ final class ScreenshotTests: XCTestCase {
                 onPickInterest: {}, onPickPrincipal: {}, onSave: {}, onClose: {}
             )
             save(details, scheme: scheme, to: target.appendingPathComponent("loan-details-\(suffix).png"))
+        }
+    }
+
+    /// The demo's Brokerage page (shown and hidden), the holding sheet and the Buy or sell sheet, light and dark.
+    @MainActor
+    private func drawInvestPages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let demoDirectory = directory.appendingPathComponent("demo-invest", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let brokerId: Int64 = 6
+        let today = Int(expected.today)
+        let shown: InvestPageData = view.investPage(accountId: brokerId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let masked: InvestPageData = view.investPage(accountId: brokerId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC")
+        var holdingId: Int64 = 0
+        for row in shown.holdings { holdingId = row.id }
+        let holdingData: HoldingSheetData = view.holdingSheet(accountId: brokerId, holdingId: holdingId, hidden: false)
+        let tradeData: TradeSheetData = view.tradeSheet(accountId: brokerId, hidden: false)
+        let sheetDirectory = directory.appendingPathComponent("demo-invest-sheet", isDirectory: true)
+        let sheetKeys = MemoryKeyStore()
+        let model = AppModel(defaults: UserDefaults(suiteName: "kassa-shots-" + UUID().uuidString) ?? UserDefaults.standard, openStore: {
+            try LedgerStore(directory: sheetDirectory, keyStore: sheetKeys)
+        })
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let page = InvestPageContent(
+                data: shown, hidden: false, today: today, onToggleHidden: {}, onBack: {}, onSetClosed: { _, _ in }
+            )
+            save(page, scheme: scheme, to: target.appendingPathComponent("invest-\(suffix).png"))
+            let hiddenPage = InvestPageContent(
+                data: masked, hidden: true, today: today, onToggleHidden: {}, onBack: {}, onSetClosed: { _, _ in }
+            )
+            save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("invest-hidden-\(suffix).png"))
+            let holdingSheet = HoldingSheet(model: model, request: HoldingSheetRequest(data: holdingData))
+            save(holdingSheet, scheme: scheme, to: target.appendingPathComponent("invest-holding-\(suffix).png"))
+            let tradeSheet = TradeSheet(model: model, request: TradeSheetRequest(data: tradeData))
+            save(tradeSheet, scheme: scheme, to: target.appendingPathComponent("invest-trade-\(suffix).png"))
         }
     }
 

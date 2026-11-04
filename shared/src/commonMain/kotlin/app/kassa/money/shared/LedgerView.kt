@@ -30,6 +30,7 @@ import app.kassa.money.domain.LoanForm
 import app.kassa.money.domain.LoanRate
 import app.kassa.money.domain.LoanSummary
 import app.kassa.money.domain.InputRules
+import app.kassa.money.domain.InvestRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
@@ -1537,6 +1538,116 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     /** What "Same as interest" on the Edit details Principal category row stands for. */
     fun loanDetailsPrincipalDefault(accountId: Long, input: LoanDetailsInput): String =
         shown(false) { loanRules.detailsPrincipalDefault(accountId, input) }
+
+    // ---------- Investments, batch H: the account page and its sheets (rules in `InvestRules`, figures in `InvestSheetRules`) ----------
+
+    private val investRules: InvestSheetRules by lazy { InvestSheetRules(parts, balances, this::zoneOf) }
+
+    private fun emptyInvestPage(id: Long) = InvestPageData(
+        false, id, "", "", 0, "", "", Tone.Ink, "NONE", "", "", Tone.Ink, false, "", "", emptyList(), 0, 0, emptyList(), false, emptyList(),
+    )
+
+    /**
+     * An investment account's page (`InvestmentBody`): total value (cash plus holdings), the gain on what was put in, the holdings by value,
+     * waiting transfers, and every cash move by month with the cash right after it. Hidden masks every figure, drops the percent and the
+     * direction of the gain, and turns every tone Ink.
+     */
+    fun investPage(accountId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): InvestPageData = shown(hidden) {
+        val a = accountById[accountId]?.takeIf { it.type == AccountType.INVESTMENT }
+        if (a == null) {
+            emptyInvestPage(accountId)
+        } else {
+            val zone = zoneOf(timeZoneId)
+            val cash = balances[a.id] ?: 0L
+            val holdings = investRules.holdingsOf(a.id)
+            val history = transactions.filter { it.accountId == a.id || it.toAccountId == a.id }
+            val s = InvestRules.summary(a, cash, holdings, history)
+            val gainKind = when {
+                s.putIn <= 0 -> "NONE"
+                Money.isHidden -> "MASKED"
+                s.gain >= 0 -> "UP"
+                else -> "DOWN"
+            }
+            // The cash right after each entry: walk back from today's.
+            var running = cash
+            val rows = ArrayList<Pair<Transaction, Long>>()
+            for (t in history) {
+                rows.add(t to running)
+                running -= t.effectOn(a.id)
+            }
+            val months = ArrayList<InvestMonthData>()
+            val grouped = rows.groupBy { (t, _) -> dateOfMillis(t.epochMillis, zone).let { it.year * 100 + it.monthNumber } }
+            for ((key, list) in grouped) {
+                months.add(InvestMonthData(key / 100, key % 100, list.map { (t, after) -> InvestEntryData(entryRow(t), Money.format(after)) }))
+            }
+            val oldestDay = if (holdings.isEmpty()) 0 else dateOfMillis(holdings.minOf { it.priceMillis }, zone).toEpochDay().toInt()
+            InvestPageData(
+                found = true,
+                id = a.id,
+                name = a.name,
+                last4 = a.last4 ?: "",
+                closedDay = a.closedDay ?: 0,
+                closeProblem = ruleCloseProblem(worth(a)) ?: "",
+                totalValueText = Money.format(s.value),
+                totalValueTone = figure(s.value < 0),
+                gainKind = gainKind,
+                gainAmountText = Money.format(abs(s.gain)),
+                gainPercentText = if (s.putIn > 0 && !Money.isHidden) InvestRules.percentOf(abs(s.gain), s.putIn) else "",
+                gainTone = if (Money.isHidden) Tone.Ink else if (s.gain >= 0) Tone.Green else Tone.Orange,
+                firstBoxIsPutIn = s.putIn > 0,
+                firstBoxText = Money.format(if (s.putIn > 0) s.putIn else s.holdingsValue),
+                cashText = Money.format(cash),
+                holdings = holdings.map { investRules.row(it) },
+                oldestPriceDay = oldestDay,
+                priceDays = if (oldestDay > 0) todayEpochDay - oldestDay else 0,
+                waiting = parts.transfers.filter { it.accountId == a.id }.sortedBy { it.epochMillis }.map {
+                    WaitingTransferData(it.id, Money.format(it.amount), dateOfMillis(it.epochMillis, zone).toEpochDay().toInt())
+                },
+                hasHistory = history.isNotEmpty(),
+                months = months,
+            )
+        }
+    }
+
+    /** What a holding's sheet opens on: [holdingId] 0 is "Add shares you own". */
+    fun holdingSheet(accountId: Long, holdingId: Long, hidden: Boolean): HoldingSheetData = shown(hidden) { investRules.holdingSheet(accountId, holdingId) }
+
+    /** The worth and profit lines of an existing holding's sheet for the price and what-was-paid typed so far. */
+    fun holdingPreview(accountId: Long, holdingId: Long, price: String, paid: String, hidden: Boolean): HoldingPreviewData =
+        shown(hidden) { investRules.holdingPreview(accountId, holdingId, price, paid) }
+
+    fun addHoldingProblems(ticker: String, shares: String, paid: String): List<FieldProblemData> =
+        shown(false) { investRules.addHoldingProblems(ticker, shares, paid) }
+
+    fun holdingProblems(price: String, paid: String): List<FieldProblemData> = shown(false) { investRules.holdingProblems(price, paid) }
+
+    /** Every holding's price in one sheet, by value as the page lists them. */
+    fun pricesSheet(accountId: Long): PricesSheetData = shown(false) { investRules.pricesSheet(accountId) }
+
+    /** Each typed price's problem (the field is the holding's id); empty when the prices can be saved. */
+    fun pricesProblems(accountId: Long, ids: List<String>, prices: List<String>): List<FieldProblemData> =
+        shown(false) { investRules.pricesProblems(accountId, ids, prices) }
+
+    /** A new buy or sale on [accountId]: its cash and the holdings as chips. */
+    fun tradeSheet(accountId: Long, hidden: Boolean): TradeSheetData = shown(hidden) { investRules.tradeSheet(accountId) }
+
+    /** "Costs X of Y cash" / "Adds X to cash": the total of the shares and price typed, and the cash. */
+    fun tradePreview(accountId: Long, shares: String, price: String, hidden: Boolean): TradePreviewData =
+        shown(hidden) { investRules.tradePreview(accountId, shares, price) }
+
+    /** The problems of a trade as typed: each field's, then (for a sale) what is not held. [savedTicker] is an edited entry's ticker, "" for a new trade. */
+    fun tradeProblems(accountId: Long, buy: Boolean, ticker: String, savedTicker: String, shares: String, price: String): List<FieldProblemData> =
+        shown(false) { investRules.tradeProblems(accountId, buy, ticker, savedTicker, shares, price) }
+
+    /** The buy or sale [entryId] on its sheet (not found for any other entry). */
+    fun tradeEditSheet(entryId: Long, hidden: Boolean, timeZoneId: String): TradeEditData = shown(hidden) { investRules.tradeEdit(entryId, timeZoneId) }
+
+    /** The "Where did it go?" sheet of waiting transfer [transferId]. */
+    fun allocateSheet(transferId: Long, hidden: Boolean, timeZoneId: String): AllocateSheetData = shown(hidden) { investRules.allocateSheet(transferId, timeZoneId) }
+
+    /** What the shares and price typed on that sheet leave of the money moved. */
+    fun allocatePreview(transferId: Long, shares: String, price: String, hidden: Boolean): AllocatePreviewData =
+        shown(hidden) { investRules.allocatePreview(transferId, shares, price) }
 
     // ---------- Money state and colour ----------
 

@@ -585,6 +585,8 @@ struct PageHost: View {
                 missing
             } else if account.hasCardPage {
                 cardContent
+            } else if account.type == "INVESTMENT" {
+                investContent
             } else if let loan = model.loanPage, loan.id == target.id, loan.hasTerms {
                 scrolled {
                     LoanPageContent(
@@ -614,6 +616,28 @@ struct PageHost: View {
                         onCorrect: { model.openCorrection(accountId: target.id) }
                     )
                 }
+            }
+        } else {
+            waiting
+        }
+    }
+
+    @ViewBuilder
+    private var investContent: some View {
+        if let invest = model.investPage, invest.id == target.id, invest.found {
+            scrolled {
+                InvestPageContent(
+                    data: invest, hidden: model.hideAmounts, today: model.today, onToggleHidden: { model.toggleHidden() },
+                    onBack: { model.closePage() },
+                    onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
+                    onOpen: { row in model.openEntry(id: row.id) },
+                    onOpenHolding: { holdingId in model.openHolding(accountId: target.id, holdingId: holdingId) },
+                    onAddShares: { model.openHolding(accountId: target.id, holdingId: 0) },
+                    onUpdatePrices: { model.openPrices(accountId: target.id) },
+                    onTrade: { model.openTrade(accountId: target.id) },
+                    onAnswer: { transferId in model.openAllocate(transferId: transferId) },
+                    onClear: { transferId, finished in model.settleTransfer(id: transferId, done: finished) }
+                )
             }
         } else {
             waiting

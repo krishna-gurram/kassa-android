@@ -108,15 +108,22 @@ extension AppModel {
     }
 
     /// Opens what edits entry [id]: the entry page for an expense, income, transfer or card payment, the person payment sheet for a payment
-    /// to or from a person, the correction sheet for a balance correction (CLAUDE.md "Entries": each kind goes to its own page). Any other entry does nothing yet.
+    /// to or from a person, the correction sheet for a balance correction, the trade sheet for a buy or sale (CLAUDE.md "Entries": each kind
+    /// goes to its own page). Any other entry does nothing yet.
     func openEntry(id: Int64) {
         let hidden = hideAmounts
+        let zone = TimeZone.current.identifier
         queue.async {
             guard let made = self.view else { return }
             // Any entry of a loan payment, whatever its kind, opens the payment sheet first (CLAUDE.md "Entries").
             let paymentId: Int64 = made.loanPaymentIdOfEntry(entryId: id)
             if paymentId > 0 {
                 self.openLoanPayment(paymentId: paymentId, accountId: 0)
+                return
+            }
+            let trade: TradeEditData = made.tradeEditSheet(entryId: id, hidden: hidden, timeZoneId: zone)
+            if trade.found {
+                self.publish { self.tradeEditSheet = TradeEditRequest(data: trade) }
                 return
             }
             let correction: CorrectionSheetData = made.correctionSheet(accountId: 0, editingId: id, hidden: hidden)

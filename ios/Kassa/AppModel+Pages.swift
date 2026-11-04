@@ -15,6 +15,8 @@ struct PagesData {
     let person: PersonPageData?
     /// Set for a loan with terms, beside [account].
     var loan: LoanPageData? = nil
+    /// Set for an investment account, beside [account].
+    var invest: InvestPageData? = nil
 }
 
 /// The pay-card sheet that is open, with what it opens on (`LedgerView.cardPayData`).
@@ -64,7 +66,11 @@ extension AppModel {
                 monthsBack: Int32(given.pageBack), allRows: given.loanAll
             )
         }
-        return PagesData(account: account, card: card, person: nil, loan: loan)
+        var invest: InvestPageData? = nil
+        if account.type == "INVESTMENT" {
+            invest = made.investPage(accountId: target.id, hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        }
+        return PagesData(account: account, card: card, person: nil, loan: loan, invest: invest)
     }
 
     // MARK: Pages
@@ -84,6 +90,7 @@ extension AppModel {
         cardPage = nil
         personPage = nil
         loanPage = nil
+        investPage = nil
         loanAll = false
         refreshFigures()
     }
@@ -95,6 +102,7 @@ extension AppModel {
         cardPage = nil
         personPage = nil
         loanPage = nil
+        investPage = nil
         loanAll = false
     }
 
