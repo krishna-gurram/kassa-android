@@ -99,6 +99,11 @@ struct AppShell: View {
                 .tag(ShellTab.settings)
         }
         .accentColor(Palette.ink)
+        .overlay {
+            if !model.readStack.isEmpty {
+                ReadHost(model: model)
+            }
+        }
         .fullScreenCover(item: $model.entryPage) { request in
             if let ledger = model.picks {
                 EntryPageHost(model: model, request: request, ledger: ledger, keptDraft: $keptDraft)
@@ -199,7 +204,9 @@ struct AppShell: View {
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                 onAllAccounts: { tab = .accounts },
                 notices: model.notices?.items ?? [], upcoming: model.upcoming,
-                onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts }
+                onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts },
+                onOpenCategory: { id in model.openCategory(id) },
+                onOpenSpending: { income in model.openRead(ReadRoute.spending(month: true, income: income, back: 0)) }
             )
         } else {
             ProgressView()
@@ -224,7 +231,14 @@ struct AppShell: View {
             InsightsScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                 onShift: { months in model.shiftInsights(months) },
-                onOpenCategory: { id in model.openInsightsCategory(id) }
+                onOpenCategory: { id in model.openInsightsCategory(id) },
+                read: InsightsRead(
+                    patterns: model.patterns, week: model.week, showWeek: model.insightsWeek, today: model.today,
+                    onSetWeek: { week in model.setInsightsWeek(week) },
+                    onOpenDetail: { kind in model.openRead(ReadRoute.detail(kind)) },
+                    onOpenSpending: { month in model.openRead(ReadRoute.spending(month: month, income: false, back: 0)) },
+                    onOpenEntry: { row in model.openEntry(id: row.id) }
+                )
             )
         } else {
             ProgressView()
@@ -251,12 +265,7 @@ struct AppShell: View {
     @ViewBuilder
     private var activityTab: some View {
         if let data = model.activity {
-            ActivityScreen(
-                data: data, hidden: model.hideAmounts, today: model.today,
-                onToggleHidden: { model.toggleHidden() },
-                onShift: { months in model.shiftMonth(months) },
-                onOpen: { row in model.openEntry(id: row.id) }
-            )
+            ActivityHost(model: model, data: data)
         } else {
             ProgressView()
         }

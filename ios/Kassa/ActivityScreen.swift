@@ -11,12 +11,14 @@ struct ActivityScreen: View {
     let onShift: (Int) -> Void
     /// A tap on an editable row. Nil draws rows that do nothing.
     var onOpen: ((EntryRowData) -> Void)? = nil
+    /// Batch J: search, the Spending and Income filters, the month picker and day pages (`AppModel+Read.swift`).
+    var read: ActivityRead? = nil
 
     var body: some View {
         ScrollView {
             ActivityContent(
                 data: data, hidden: hidden, today: today, lazy: true,
-                onToggleHidden: onToggleHidden, onShift: onShift, onOpen: onOpen
+                onToggleHidden: onToggleHidden, onShift: onShift, onOpen: onOpen, read: read
             )
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
@@ -35,26 +37,52 @@ struct ActivityContent: View {
     let onToggleHidden: () -> Void
     let onShift: (Int) -> Void
     var onOpen: ((EntryRowData) -> Void)? = nil
+    var read: ActivityRead? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TabTop(title: "activity.title", hidden: hidden, onToggle: onToggleHidden)
-            MonthSwitcher(
-                label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
-                canForward: !data.isCurrentMonth,
-                onShift: onShift
-            )
-            totals
-            dayList
+            if let extra = read {
+                SearchField(text: extra.query)
+            }
+            if let extra = read, let found = extra.search {
+                SearchResults(data: found, hidden: hidden, onOpen: onOpen)
+            } else {
+                monthBody
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
     }
 
+    private var monthBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MonthSwitcher(
+                label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
+                canForward: !data.isCurrentMonth,
+                onShift: onShift,
+                onLabel: read?.onOpenPicker
+            )
+            totals
+            dayList
+        }
+    }
+
     private var totals: some View {
-        HStack(spacing: 8) {
-            TotalTile(label: "activity.spending", value: data.spendingText, color: Palette.ink)
-            TotalTile(label: "activity.income", value: data.incomeText, color: Palette.figure(data.incomeTone))
+        let filter = read?.filter ?? "ALL"
+        return HStack(spacing: 8) {
+            Button(action: { read?.onTapFilter("EXPENSE") }) {
+                TotalTile(label: "activity.spending", value: data.spendingText, color: Palette.ink, selected: filter == "EXPENSE")
+            }
+            .buttonStyle(.plain)
+            .disabled(read == nil)
+            Button(action: { read?.onTapFilter("INCOME") }) {
+                TotalTile(
+                    label: "activity.income", value: data.incomeText, color: Palette.figure(data.incomeTone), selected: filter == "INCOME"
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(read == nil)
         }
     }
 
@@ -75,9 +103,83 @@ struct ActivityContent: View {
 
     private var days: some View {
         ForEach(data.days, id: \.epochDay) { day in
-            DaySection(day: day, today: today, onOpen: onOpen)
+            DaySection(day: day, today: today, onOpen: onOpen, onOpenDay: read?.onOpenDay)
         }
     }
+}
+
+/// What batch J adds to Activity. The app builds it from `AppModel`; a screenshot builds it from a `LedgerView`.
+struct ActivityRead {
+    /// ALL, EXPENSE or INCOME (`EntryFilter`).
+    let filter: String
+    let query: Binding<String>
+    /// The search result while something is typed, else nil.
+    let search: SearchData?
+    let onTapFilter: (String) -> Void
+    let onOpenPicker: () -> Void
+    let onOpenDay: (Int) -> Void
+}
+
+/// The search box: what is typed is text, never a pattern (the rules escape it).
+struct SearchField: View {
+    let text: Binding<String>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundColor(Palette.ink2)
+            TextField("activity.searchHint", text: text)
+                .autocorrectionDisabled(true)
+                .textInputAutocapitalization(.never)
+                .accessibilityIdentifier("activitySearch")
+            if !text.wrappedValue.isEmpty {
+                Button(action: { text.wrappedValue = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(Palette.ink2)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel(Text("a11y.clearSearch"))
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 48)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
+    }
+}
+
+/// The hits of a search over every month, newest month first. While amounts are hidden the spent line is the mask.
+struct SearchResults: View {
+    let data: SearchData
+    let hidden: Bool
+    var onOpen: ((EntryRowData) -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(String(format: String(localized: "activity.hits"), Int(data.count)))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Palette.ink2)
+                Spacer(minLength: 8)
+                if data.hasSpent {
+                    Text(data.spentText).font(.footnote.weight(.semibold)).monospacedDigit().lineLimit(1)
+                }
+            }
+            .padding(.vertical, 6)
+            if data.months.isEmpty {
+                Text("activity.noMatch").font(.body).foregroundColor(Palette.ink2).padding(.vertical, 24)
+            }
+            ForEach(data.months, id: \.id) { month in
+                ReadHeader(title: LocalizedStringKey(KassaDates.monthYear(year: Int(month.year), month: Int(month.month))))
+                ForEach(month.entries, id: \.entry.id) { row in
+                    EntryRowView(entry: row.entry, showDivider: true, onOpen: onOpen)
+                }
+            }
+        }
+    }
+}
+
+extension SearchMonthData {
+    /// yyyymm, for lists.
+    var id: Int { return Int(year) * 100 + Int(month) }
 }
 
 /// The month on show with an arrow at each edge. The forward arrow is off on the current month: nothing is later.
@@ -87,17 +189,36 @@ struct MonthSwitcher: View {
     /// False when nothing was entered before this month (Insights); Activity always allows going back.
     var canBack: Bool = true
     let onShift: (Int) -> Void
+    /// Opens the month picker; nil makes the label plain text.
+    var onLabel: (() -> Void)? = nil
 
     var body: some View {
         HStack {
             arrow("chevron.left", "a11y.previousMonth", enabled: canBack, by: -1)
             Spacer(minLength: 8)
+            labelView
+            Spacer(minLength: 8)
+            arrow("chevron.right", "a11y.nextMonth", enabled: canForward, by: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var labelView: some View {
+        if let open = onLabel {
+            Button(action: open) {
+                Text(label)
+                    .font(.headline)
+                    .foregroundColor(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(minHeight: 44)
+            }
+            .accessibilityHint(Text("a11y.chooseMonth"))
+        } else {
             Text(label)
                 .font(.headline)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Spacer(minLength: 8)
-            arrow("chevron.right", "a11y.nextMonth", enabled: canForward, by: 1)
         }
     }
 
@@ -118,6 +239,8 @@ struct TotalTile: View {
     let label: LocalizedStringKey
     let value: String
     let color: Color
+    /// The filter that is on: the tile is drawn raised.
+    var selected: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -134,7 +257,9 @@ struct TotalTile: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Palette.chip : Color.clear))
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -143,8 +268,30 @@ struct DaySection: View {
     let day: DayData
     let today: Int
     var onOpen: ((EntryRowData) -> Void)? = nil
+    /// A tap on the day's header opens the day page (batch J); nil leaves the header plain.
+    var onOpenDay: ((Int) -> Void)? = nil
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Hairline()
+            ForEach(day.entries, id: \.id) { entry in
+                EntryRowView(entry: entry, showDivider: entry.id != day.entries.last?.id, onOpen: onOpen)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        if let open = onOpenDay {
+            Button(action: { open(Int(day.epochDay)) }) { headerLine }
+                .buttonStyle(.plain)
+        } else {
+            headerLine
+        }
+    }
+
+    private var headerLine: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(Wording.dayLabel(epochDay: Int(day.epochDay), today: today))
@@ -160,11 +307,8 @@ struct DaySection: View {
             }
             .padding(.top, 18)
             .padding(.bottom, 6)
+            .frame(minHeight: 44, alignment: .bottom)
             .accessibilityElement(children: .combine)
-            Hairline()
-            ForEach(day.entries, id: \.id) { entry in
-                EntryRowView(entry: entry, showDivider: entry.id != day.entries.last?.id, onOpen: onOpen)
-            }
         }
     }
 }

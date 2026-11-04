@@ -666,3 +666,65 @@
 "notif.askBody" = "Kassa can send a notification on the day a card payment or loan payment is due. It shows no amounts or names, and it never pays anything.";
 "notif.askAllow" = "Allow";
 "notif.askNotNow" = "Not now";
+
+/* Insights: Patterns, the week view and their pages (batch J) */
+"insights.month" = "Month";
+"insights.week" = "Week";
+"insights.patterns" = "Patterns";
+"insights.tile.big" = "Big purchases";
+"insights.tile.store" = "Stores";
+"insights.tile.small" = "Small purchases";
+"insights.tile.creep" = "Creeping up";
+"insights.tile.repeat" = "Repeating";
+"insights.tile.busiest" = "Busiest day";
+"insights.detail.dues" = "Due this week";
+"insights.none" = "None";
+"insights.noneYet" = "None yet";
+"insights.sub.top" = "Top %ld";
+"insights.sub.buys" = "%ld buys";
+"insights.sub.months" = "%ld months";
+"insights.sub.changed" = "%ld changed";
+"insights.sub.charges" = "%ld charges";
+"insights.sub.steady" = "Steady";
+"insights.figure.total" = "Total";
+"insights.figure.cards" = "On cards";
+"insights.figure.thisMonth" = "This month";
+"insights.figure.buys" = "Buys";
+"insights.figure.eachUnder" = "Each under";
+"insights.figure.aMonth" = "A month";
+"insights.figure.aYear" = "A year";
+"insights.ofBudget" = "of %@ budget";
+"insights.lastWeek" = "last wk %@";
+"insights.weekOf" = "Week of %@";
+"insights.sameStretch" = "Same stretch of last week, to %@";
+"insights.vsLastWeek" = "Against last week";
+"insights.upMost" = "Up most";
+"insights.downMost" = "Down most";
+"insights.dueThisWeek" = "Due this week";
+"insights.largestBuys" = "Largest buys";
+"insights.range" = "%@ to %@";
+"insights.entryCount" = "%ld entries";
+"insights.spentThatDay" = "Spent that day";
+
+/* Activity: search, filters, month picker (batch J) */
+"activity.searchHint" = "Search notes, categories, accounts, amounts";
+"activity.hits" = "%ld results";
+"activity.noMatch" = "No transactions match.";
+"activity.noneThatDay" = "No transactions that day.";
+"a11y.chooseMonth" = "Choose month";
+
+/* Budgets (batch J) */
+"settings.budgets" = "Budgets";
+"budgets.title" = "Budgets";
+"budgets.total" = "Budgets this month add up to";
+"budgets.noCategories" = "Add an expense category to set a budget.";
+"budgets.none" = "No budget";
+"budgets.spentOf" = "%@ of %@";
+"budgets.over" = "%@ over";
+"budgets.left" = "%@ left";
+"budgets.everyMonth" = "Every month";
+"budgets.amountHint" = "No budget";
+"budgets.justFor" = "Just for %@";
+"budgets.sameAsEvery" = "Same as every month";
+"budgets.save" = "Save";
+"budgets.remove" = "Remove budget";

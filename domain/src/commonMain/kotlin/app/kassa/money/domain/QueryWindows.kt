@@ -51,4 +51,59 @@ object SearchText {
 
     /** The pattern that matches [text] anywhere in a column, for `LIKE ... ESCAPE '\'`. */
     fun contains(text: String): String = "%${escape(text.trim())}%"
+
+    /**
+     * Whether [value] matches the LIKE [pattern] that [contains] made, the way SQLite's `LIKE ... ESCAPE '\'` reads it: `%` is any run of
+     * characters, `_` any one, the escape character makes the next one plain, and letters match without regard to case (A to Z only, as
+     * SQLite does by default). A search done in memory on iOS runs through this, so a typed "50%" finds "50%" and not "500".
+     */
+    fun like(value: String, pattern: String): Boolean {
+        // The pattern as tokens: a plain character, or one of the two wildcards.
+        val plain = ArrayList<Char>()
+        val kinds = ArrayList<Int>() // 0 plain, 1 any one, 2 any run
+        var i = 0
+        while (i < pattern.length) {
+            val c = pattern[i]
+            if (c == ESCAPE && i + 1 < pattern.length) {
+                plain.add(pattern[i + 1]); kinds.add(0); i += 2
+                continue
+            }
+            when (c) {
+                '%' -> { plain.add(c); kinds.add(2) }
+                '_' -> { plain.add(c); kinds.add(1) }
+                else -> { plain.add(c); kinds.add(0) }
+            }
+            i++
+        }
+        // ok[j] after step k: the first k tokens can match the first j characters.
+        var ok = BooleanArray(value.length + 1)
+        ok[0] = true
+        for (k in kinds.indices) {
+            val next = BooleanArray(value.length + 1)
+            when (kinds[k]) {
+                2 -> {
+                    var seen = false
+                    for (j in 0..value.length) {
+                        if (ok[j]) seen = true
+                        next[j] = seen
+                    }
+                }
+                1 -> for (j in 1..value.length) next[j] = ok[j - 1]
+                else -> for (j in 1..value.length) next[j] = ok[j - 1] && sameLetter(value[j - 1], plain[k])
+            }
+            ok = next
+        }
+        return ok[value.length]
+    }
+
+    private fun sameLetter(a: Char, b: Char): Boolean =
+        a == b || (a in 'A'..'Z' && a + 32 == b) || (a in 'a'..'z' && a - 32 == b)
+
+    /** Whether any of [fields] contains the typed [text] (blank text matches nothing), or [amount] is the exact amount typed ([cents] above zero). */
+    fun matches(text: String, fields: List<String>, amount: Long, cents: Long): Boolean {
+        if (text.isBlank()) return false
+        if (cents > 0L && amount == cents) return true
+        val pattern = contains(text)
+        return fields.any { it.isNotEmpty() && like(it, pattern) }
+    }
 }

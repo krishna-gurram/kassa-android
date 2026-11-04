@@ -6,6 +6,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class QueryWindowsTest {
@@ -77,5 +78,36 @@ class QueryWindowsTest {
         assertEquals("c:\\\\x", SearchText.escape("c:\\x"))
         assertEquals("%50\\% off%", SearchText.contains("  50% off "))
         assertEquals("%coffee%", SearchText.contains("coffee"))
+    }
+
+    @Test
+    fun theLikePatternMatchesWhatWasTypedAsPlainText() {
+        // The escaped text is read back as plain characters: "50%" finds "50% off" and not "500 off".
+        assertTrue(SearchText.like("50% off", SearchText.contains("50%")))
+        assertFalse(SearchText.like("500 off", SearchText.contains("50%")))
+        assertTrue(SearchText.like("snake_case", SearchText.contains("e_c")))
+        assertFalse(SearchText.like("snakeXcase", SearchText.contains("e_c")))
+        assertTrue(SearchText.like("C:\\temp", SearchText.contains("c:\\t")))
+        assertFalse(SearchText.like("ctemp", SearchText.contains("c:\\t")))
+        // It is a substring match, whatever the case of A to Z.
+        assertTrue(SearchText.like("Whole Foods Market", SearchText.contains("foods")))
+        assertFalse(SearchText.like("Whole Foods Market", SearchText.contains("pizza")))
+        // The wildcards still work when a pattern is written by hand, and the escape makes them plain.
+        assertTrue(SearchText.like("abc", "a_c"))
+        assertTrue(SearchText.like("abc", "a%"))
+        assertFalse(SearchText.like("abc", "a\\_c"))
+        assertTrue(SearchText.like("", "%"))
+    }
+
+    @Test
+    fun aSearchMatchesAFieldOrTheExactAmountAndNothingWhenBlank() {
+        assertTrue(SearchText.matches("coffee", listOf("Blue Bottle coffee", ""), 450, -1))
+        assertFalse(SearchText.matches("coffee", listOf("Tea", "Dining"), 450, -1))
+        assertTrue(SearchText.matches("4.50", listOf("Tea"), 450, 450))
+        assertFalse(SearchText.matches("4.50", listOf("Tea"), 451, 450))
+        assertFalse(SearchText.matches("   ", listOf("anything"), 1, 1))
+        // A typed percent sign is text: "%" alone matches only fields that hold a percent sign.
+        assertFalse(SearchText.matches("%", listOf("Groceries"), 1, -1))
+        assertTrue(SearchText.matches("%", listOf("20% tip"), 1, -1))
     }
 }

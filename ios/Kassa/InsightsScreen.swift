@@ -11,11 +11,14 @@ struct InsightsScreen: View {
     /// Months to move: -1 is the month before, 1 the month after.
     let onShift: (Int) -> Void
     let onOpenCategory: (Int64) -> Void
+    /// Batch J: Patterns tiles, the week view and the pages they open (`AppModel+Read.swift`). Left out, Insights is as it was.
+    var read: InsightsRead? = nil
 
     var body: some View {
         ScrollView {
             InsightsContent(
-                data: data, hidden: hidden, onToggleHidden: onToggleHidden, onShift: onShift, onOpenCategory: onOpenCategory
+                data: data, hidden: hidden, onToggleHidden: onToggleHidden, onShift: onShift, onOpenCategory: onOpenCategory,
+                read: read
             )
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
@@ -31,22 +34,63 @@ struct InsightsContent: View {
     let onToggleHidden: () -> Void
     let onShift: (Int) -> Void
     let onOpenCategory: (Int64) -> Void
+    var read: InsightsRead? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TabTop(title: "tab.insights", hidden: hidden, onToggle: onToggleHidden)
+            if let extra = read {
+                periodPicker(extra)
+            }
+            if let extra = read, extra.showWeek, let week = extra.week {
+                WeekContent(
+                    data: week, hidden: hidden, today: extra.today,
+                    onOpenSpending: { extra.onOpenSpending(false) },
+                    onOpenCategory: onOpenCategory, onOpenDetail: extra.onOpenDetail, onOpen: extra.onOpenEntry
+                )
+            } else {
+                monthBody
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 96)
+    }
+
+    private var monthBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             MonthSwitcher(
                 label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
                 canForward: !data.isCurrentMonth,
                 canBack: data.hasEarlier,
                 onShift: onShift
             )
-            hero
+            heroButton
+            if let extra = read, let patterns = extra.patterns {
+                PatternsSection(tiles: patterns.tiles, onOpen: extra.onOpenDetail)
+            }
             sectionHeader
             lines
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 96)
+    }
+
+    @ViewBuilder
+    private var heroButton: some View {
+        if let extra = read {
+            Button(action: { extra.onOpenSpending(true) }) { hero }
+                .buttonStyle(.plain)
+        } else {
+            hero
+        }
+    }
+
+    private func periodPicker(_ extra: InsightsRead) -> some View {
+        let binding = Binding<Bool>(get: { extra.showWeek }, set: { week in extra.onSetWeek(week) })
+        return Picker("", selection: binding) {
+            Text("insights.month").tag(false)
+            Text("insights.week").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("insightsPeriod")
     }
 
     // MARK: Hero
@@ -118,6 +162,21 @@ struct InsightsContent: View {
     }
 }
 
+/// What batch J adds to Insights: the Patterns, the week view, and what taps do. The app builds it from `AppModel`; a screenshot builds it
+/// from a `LedgerView` and ignores the taps.
+struct InsightsRead {
+    let patterns: PatternsData?
+    let week: WeekData?
+    let showWeek: Bool
+    let today: Int
+    let onSetWeek: (Bool) -> Void
+    /// A Patterns or week tile: the kind of detail page (`InsightDetailData.kind`).
+    let onOpenDetail: (String) -> Void
+    /// The hero: the spending page of the month (true) or of the week (false).
+    let onOpenSpending: (Bool) -> Void
+    var onOpenEntry: ((EntryRowData) -> Void)? = nil
+}
+
 /// The icon, name and amount of a category line, its share, and a bar against the largest line. No share or bar while hidden.
 struct InsightLineView: View {
     let line: InsightLineData
@@ -146,9 +205,17 @@ struct InsightLineView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 CategoryIconView(choice: choice, size: 32)
-                Text(name)
-                    .font(.body)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.body)
+                        .lineLimit(1)
+                    if !line.refText.isEmpty {
+                        Text(String(format: String(localized: "insights.ofBudget"), line.refText))
+                            .font(.footnote)
+                            .foregroundColor(Palette.ink2)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer(minLength: 8)
                 if let text = share {
                     Text(text)
@@ -160,6 +227,7 @@ struct InsightLineView: View {
                 Text(line.amountText)
                     .font(.body.weight(.semibold))
                     .monospacedDigit()
+                    .foregroundColor(line.over ? Palette.orange : Palette.ink)
                     .lineLimit(1)
             }
             bar
@@ -179,7 +247,7 @@ struct InsightLineView: View {
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     Capsule()
-                        .fill(barColor)
+                        .fill(line.over ? Palette.orange : barColor)
                         .frame(width: proxy.size.width * CGFloat(fraction))
                 }
             }

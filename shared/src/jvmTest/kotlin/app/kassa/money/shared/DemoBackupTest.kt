@@ -157,7 +157,12 @@ class DemoBackupTest {
         assertEquals(want.map { usd(it.cents) }, i.lines.map { it.amountText })
         // Whole percent of the month, half up, and the bar against the largest line.
         assertEquals(want.map { Math.floor(it.cents * 100.0 / total + 0.5).toInt() }, i.lines.map { it.percent })
-        assertEquals(want.map { (it.cents * 1000 / want[0].cents).toInt() }, i.lines.map { it.barPermille })
+        // A category with a budget shows the part of it used (Groceries 600.00, Dining the 300.00 of October's override); the others the bar against the largest.
+        val budgets = mapOf("Groceries" to 60_000L, "Dining" to 30_000L)
+        assertEquals(want.map { (it.cents * 1000 / (budgets[it.name] ?: want[0].cents)).toInt() }, i.lines.map { it.barPermille })
+        assertEquals(listOf(738, 640), i.lines.filter { it.name in budgets }.map { it.barPermille })
+        assertEquals(listOf("$600.00", "$300.00"), i.lines.filter { it.name in budgets }.map { it.refText })
+        assertEquals(true, i.lines.none { it.over })
         assertEquals(1000, i.lines[0].barPermille)
         assertEquals(listOf("Home", "Groceries", "Dining"), i.lines.take(3).map { it.name })
         assertEquals("home", i.lines[0].iconValue)
