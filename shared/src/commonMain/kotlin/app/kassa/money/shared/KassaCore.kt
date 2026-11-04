@@ -32,6 +32,16 @@ object KassaCore {
         Money.numberStyleProvider = { style }
     }
 
+    /**
+     * Gives the rules the style of the phone's locale. Swift passes the locale identifier (`Locale.current.identifier`) and the
+     * marks `NumberFormatter` reports for it; whether the region groups the Indian way is decided here, so it matches Android.
+     * Safe to call again when the language changes.
+     */
+    fun useLocale(identifier: String, decimal: String, grouping: String, zeroDigit: String, minus: String) {
+        val style = NumberStyle.forLocale(identifier, decimal, grouping, zeroDigit, minus)
+        Money.numberStyleProvider = { style }
+    }
+
     /** Gives every A to Z list the phone's own collation (Swift implements [TextCollator] with `Locale`). */
     fun useCollator(collator: TextCollator) {
         Names.comparatorProvider = { Comparator { a, b -> collator.compare(a, b) } }

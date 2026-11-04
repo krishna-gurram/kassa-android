@@ -7,17 +7,24 @@ enum PhoneRules {
 
     static func install() {
         KassaCore.shared.installDefaults()
-        let locale = Locale.current
+        applyLocale()
+        KassaCore.shared.useCollator(collator: PhoneCollator())
+        NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: .main) { _ in
+            PhoneRules.applyLocale()
+        }
+    }
+
+    /// Hands the phone's locale identifier and the marks it reports to the shared rules, which decide lakh grouping from the region.
+    static func applyLocale() {
+        let locale: Locale = Locale.current
         let formatter = NumberFormatter()
         formatter.locale = locale
         formatter.numberStyle = .decimal
-        let decimal = formatter.decimalSeparator ?? "."
-        let grouping = formatter.groupingSeparator ?? ","
-        let zero = formatter.string(from: NSNumber(value: 0)) ?? "0"
-        let region = locale.region?.identifier ?? ""
-        let lakh = ["IN", "BD", "NP"].contains(region)
-        KassaCore.shared.useNumberStyle(decimal: decimal, grouping: grouping, zeroDigit: zero, lakh: lakh)
-        KassaCore.shared.useCollator(collator: PhoneCollator())
+        let decimal: String = formatter.decimalSeparator ?? "."
+        let grouping: String = formatter.groupingSeparator ?? ","
+        let zero: String = formatter.string(from: NSNumber(value: 0)) ?? "0"
+        let minus: String = formatter.minusSign ?? "-"
+        KassaCore.shared.useLocale(identifier: locale.identifier, decimal: decimal, grouping: grouping, zeroDigit: zero, minus: minus)
     }
 }
 
