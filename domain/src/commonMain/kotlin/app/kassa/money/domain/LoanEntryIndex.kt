@@ -22,6 +22,9 @@ class LoanEntryIndex(payments: List<LoanPayment>, private val terms: Map<Long, L
     fun countsAsSpending(entryId: Long): Boolean =
         byEntry[entryId]?.let { (p, part) -> part == LoanPart.PRINCIPAL && CountedSpending.counts(p, terms[p.accountId]) } == true
 
+    /** The id of the `loan_payments` row an entry belongs to (whatever its kind), or 0 when it belongs to none. */
+    fun paymentIdFor(entryId: Long): Long = byEntry[entryId]?.first?.id ?: 0L
+
     /** The tag Activity shows on a loan payment's entry; null for any other entry. */
     fun tagFor(entryId: Long): String? =
         byEntry[entryId]?.let { (p, part) -> p.tag(part, terms[p.accountId]?.interestWord ?: "Interest") }

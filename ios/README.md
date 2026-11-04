@@ -53,8 +53,16 @@ with escrow) when missing (`LedgerStore+Loans.swift`). A loan with terms opens i
 original amount is known, Payment with its due date, Paid off, interest paid and remaining, the next six payments (Show full schedule), Terms with dated changes
 (tap to remove) and the month's entries with payment tags; a loan without terms offers Add terms. Every figure is :domain's (`LoanSummary`, `LoanEngine`,
 `CountedSpending`) through `LedgerView.loanPage`. Correct balance (account and loan pages, and a correction row in Activity) asks for what the bank or lender
-shows, shows Kassa's figure and the difference, and saves ADJUST_IN/ADJUST_OUT (edit and delete too; a closed account is refused). Record a payment, Change terms, Edit
-details, the count-as-spending switch and notifications are stage G2.
+shows, shows Kassa's figure and the difference, and saves ADJUST_IN/ADJUST_OUT (edit and delete too; a closed account is refused).
+
+Stage G2 (loans, part two): the loan page offers Record a payment, Change terms and Edit details. Record a payment (`LoanPaymentSheet.swift`) is :domain's
+`LoanPaymentForm` (suggested split, the part that follows the one typed, the interest-edited flag), pay-from through the account picker (empty unless the loan names one),
+the shared category chooser (`LoanPickers.swift`) for interest, principal and escrow, and the one-time count-as-spending override; one transaction writes the entries and the
+`loan_payments` row exactly like Android's `LoanRepository.recordPayment` (`LoanPaymentPlanner` in :domain holds the checks in the same order, `LedgerStore+LoanPayments.swift`
+only runs the SQL). Opening a payment edits or deletes the whole payment, and any Activity row that belongs to one opens it (`EntryRowData.loanPaymentId`). Change terms
+(`LoanChangeScreen.swift`) previews with `LoanEngine.rateChange` and saves one `loan_term_changes` row; Edit details (`LoanDetailsSheet.swift`, `LoanDetailsPlanner`) includes the
+count-as-spending switch, which `CountedSpending` already carries into every spending figure. Tests: `LoanPaymentTests` (Swift), `LoanPaymentsTest` (JVM, demo backup);
+the CI screenshots add `loan-payment-*`, `loan-change-*` and `loan-details-*`. Due notifications are still to come.
 
 ## CI
 

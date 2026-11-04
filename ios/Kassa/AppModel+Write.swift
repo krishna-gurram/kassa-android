@@ -113,6 +113,12 @@ extension AppModel {
         let hidden = hideAmounts
         queue.async {
             guard let made = self.view else { return }
+            // Any entry of a loan payment, whatever its kind, opens the payment sheet first (CLAUDE.md "Entries").
+            let paymentId: Int64 = made.loanPaymentIdOfEntry(entryId: id)
+            if paymentId > 0 {
+                self.openLoanPayment(paymentId: paymentId, accountId: 0)
+                return
+            }
             let correction: CorrectionSheetData = made.correctionSheet(accountId: 0, editingId: id, hidden: hidden)
             if correction.found {
                 self.publish { self.correctionSheet = CorrectionRequest(data: correction) }

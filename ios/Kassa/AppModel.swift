@@ -77,6 +77,10 @@ final class AppModel: ObservableObject {
     @Published var correctionSheet: CorrectionRequest?
     /// The "Add terms" sheet of a loan that has none, or nil.
     @Published var termsSheet: TermsRequest?
+    /// The loan payment sheet (new or editing), the Change terms page and the Edit details sheet that are open, or nil (`AppModel+LoanPayments.swift`).
+    @Published var loanPaymentSheet: LoanPaymentRequest?
+    @Published var loanChangeSheet: LoanChangeRequest?
+    @Published var loanDetailsSheet: LoanDetailsRequest?
     /// How far back the open page is: months for an account page, statements for a card page (0 is the current stretch).
     @Published var pageBack: Int = 0
     /// The pay-card sheet that is open, or nil.

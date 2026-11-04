@@ -595,7 +595,10 @@ struct PageHost: View {
                         onCorrect: { model.openCorrection(accountId: target.id) },
                         onShowAll: { all in model.setLoanAll(all) },
                         onRemoveChange: { id, finished in model.deleteLoanChange(id: id, done: finished) },
-                        onOpen: { row in model.openEntry(id: row.id) }
+                        onOpen: { row in model.openEntry(id: row.id) },
+                        onRecord: { model.openNewLoanPayment(accountId: target.id) },
+                        onChangeTerms: { model.openLoanChange(accountId: target.id) },
+                        onEditDetails: { model.openLoanDetails(accountId: target.id) }
                     )
                 }
             } else if account.type == "LOAN" && model.loanPage == nil {
