@@ -9,10 +9,18 @@ struct OverviewScreen: View {
     let onToggleHidden: () -> Void
     /// Opens the Accounts tab.
     let onAllAccounts: () -> Void
+    /// The due notices and Upcoming rows (batch I); empty by default, so a screen that has none (a screenshot) still compiles.
+    var notices: [NoticeData] = []
+    var upcoming: [UpcomingData] = []
+    var onOpenNotices: () -> Void = {}
+    var onOpenCard: (Int64) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
-            OverviewContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts)
+            OverviewContent(
+                data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts,
+                notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard
+            )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
         }
@@ -26,6 +34,11 @@ struct OverviewContent: View {
     let hidden: Bool
     let onToggleHidden: () -> Void
     let onAllAccounts: () -> Void
+    /// The due notices and Upcoming rows (batch I); empty by default, so a screen that has none (a screenshot) still compiles.
+    var notices: [NoticeData] = []
+    var upcoming: [UpcomingData] = []
+    var onOpenNotices: () -> Void = {}
+    var onOpenCard: (Int64) -> Void = { _ in }
 
     /// Which flow the hero shows. Spending first, as on Android.
     @State private var showIncome = false
@@ -33,8 +46,10 @@ struct OverviewContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TabTop(title: "tab.overview", hidden: hidden, onToggle: onToggleHidden)
+            NoticesBar(items: notices, onOpen: onOpenNotices)
             hero
             topRows
+            UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard)
             accountsHeader
             pinRows
         }

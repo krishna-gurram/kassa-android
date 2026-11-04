@@ -84,9 +84,26 @@ JDK 17 must be on the path for the Gradle step. There is no network access in th
 
 Stage H (investments): an INVESTMENT account's page (`InvestScreens.swift`, shown by `PageHost`) has Total value with the gain on what was put in, Cash,
 the holdings (ticker, shares, price-based value, gain or loss: loss orange, profit green, no percent or direction while Hide balances is on), transfers
-waiting to be explained (Answer or Clear; iOS has no Notifications page yet) and the cash moves by month. Sheets (`InvestSheets.swift`): a holding
+waiting to be explained (Answer or Clear; the Notifications page lists them too, stage I) and the cash moves by month. Sheets (`InvestSheets.swift`): a holding
 (add shares you own, price today, what you paid while unknown, remove), Update prices (all saved together), Buy or sell, an existing trade (edit, or only
 its date for a trade from before shares were kept, delete) and "Where did it go?". Rules are `domain/InvestRules.kt` (a plan of holdings changes, mirroring
 Android's `InvestmentRepository` in the order of its checks) reached through `shared/.../InvestBridge.kt` and `LedgerView.investPage` and the sheet functions;
 `LedgerStore+Invest.swift` only runs the SQL, one transaction per change (`afterInsertHook` for rollback tests). Activity rows of a buy or sale open the trade
 sheet. Swift tests: `InvestTests`; JVM: `InvestRulesTest` and `InvestPagesTest` (demo backup: ABC 12.5 shares at 180.00 is 2,250.00, `holdingsValue`).
+
+Stage I (due notices): Overview shows a tinted Notifications bar only when something waits (opens the page in place of Overview) and three Upcoming rows (card
+payments and bills in the next 30 days; a card also while overdue). The Notifications page (`NoticesScreen.swift`) lists what is due today or overdue, waiting
+investment transfers and suggested bills, each with its own choices: Pay (the pay-card or loan payment sheet), Add or Enter amount (a bill: `BillAmountSheet`),
+Answer, Track as bill, and Clear. Clear never adds or pays anything and is remembered (`DueSettings.cleared`, UserDefaults; a bill's month is marked handled and
+a transfer stops asking, in one transaction). Everything that decides is :domain: `DueItems.build`, `DueNotices` (`plan` returns the next 60 days as
+`PlannedNotice`: key, time, generic text, kind, id), `BillRules`, `Repeats`, reached through `shared/.../DueBridge.kt` and `LedgerView.notices/upcoming/billsPage/
+billSheet/billProblems/hasNotifiable/notificationPlan`. Bills (Settings > Bills: list, add, edit, delete; `BillScreens.swift`) are saved by `LedgerStore+Bills.swift`
+in one transaction each; approving a bill writes its expense and marks the month handled together (`afterInsertHook` proves the rollback). Phone notifications
+(`DueNotifier.swift`): `DueScheduler` turns the plan into `UNCalendarNotificationTrigger`s (identifier is the key, so repeating replaces; a notice whose time just
+passed rings in 5 seconds; at most 60 plus the daily reminder, under the system's 64), with the generic text "Payment due" and no amount or name. It runs at app start,
+when the app becomes active, after every read of the store (so after every change, restore and settings change). The permission is asked once, with an explanation,
+after the first card with a due day or loan with terms is saved. Settings > Notifications (`NotificationSettingsScreen.swift`) has a rule per kind (cards and loans
+on, bills off; 0 to 14 days before; time, default 9:00), the daily reminder, and "Notifications are off for Kassa" with a button to the phone's Settings.
+`NotificationRouter` is the delegate: a tap opens the card page, the loan payment sheet, the bill, or a new entry (the reminder). iOS cannot wake Kassa at 00:05
+as Android does, so a card's new statement is noticed the next time the app opens. Swift tests: `DueTests`; JVM: `DuePlanTest`, `BillRulesTest`, `DuePagesTest`
+(demo backup). Nothing in batch I was compiled on the machine that wrote it; CI is the first compile.

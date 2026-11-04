@@ -24,7 +24,9 @@ struct SettingsScreen: View {
                     onBackUp: { askingBackupPassword = true },
                     onRestore: { choosingRestore = true },
                     currencyDestination: AnyView(CurrencyPage(model: model)),
-                    noticesDestination: AnyView(NoticesPage())
+                    noticesDestination: AnyView(NoticesPage()),
+                    billsDestination: AnyView(BillsPage(model: model)),
+                    notificationsDestination: AnyView(NotificationSettingsPage(model: model))
                 )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
@@ -134,6 +136,9 @@ struct SettingsContent: View {
     let onRestore: () -> Void
     let currencyDestination: AnyView
     let noticesDestination: AnyView
+    /// Settings > Bills and Settings > Notifications (batch I); a screen that has neither (a screenshot) leaves them out.
+    var billsDestination: AnyView = AnyView(EmptyView())
+    var notificationsDestination: AnyView = AnyView(EmptyView())
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -143,6 +148,10 @@ struct SettingsContent: View {
             hideRow
             Hairline()
             linkRow(title: "settings.currency", detail: currencyName, destination: currencyDestination)
+            Hairline()
+            linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
+            Hairline()
+            linkRow(title: "settings.bills", detail: "", destination: billsDestination)
             Hairline()
             sectionLabel("settings.backup.header")
             actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)

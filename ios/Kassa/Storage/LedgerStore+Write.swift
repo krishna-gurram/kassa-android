@@ -221,24 +221,30 @@ extension LedgerStore {
     @discardableResult
     func addEntry(_ input: EntryInput) throws -> Int64 {
         return try db.transaction { () throws -> Int64 in
-            try self.check(input, before: nil)
-            let id = try self.insertRow(table: "transactions") { column in
-                return EntryBridge.shared.cell(input: input, column: column)
-            }
-            try self.afterInsertHook?()
-            let toType = try self.accountType(input.toAccountId)
-            if EntryBridge.shared.waitsForExplanation(kind: input.kind, toAccountType: toType) {
-                let wait = try self.db.prepare(
-                    "INSERT INTO investment_transfers (transactionId, accountId, amount, epochMillis) VALUES (?, ?, ?, ?)"
-                )
-                try wait.bindInt(1, id)
-                try wait.bindInt(2, input.toAccountId)
-                try wait.bindInt(3, input.amount)
-                try wait.bindInt(4, input.epochMillis)
-                _ = try wait.step()
-            }
-            return id
+            return try self.writeEntry(input)
         }
+    }
+
+    /// What `addEntry` does, without its own transaction, for a change that writes more with the entry (approving a bill marks its
+    /// month handled in the same transaction). The caller must be inside `db.transaction`.
+    func writeEntry(_ input: EntryInput) throws -> Int64 {
+        try check(input, before: nil)
+        let id = try insertRow(table: "transactions") { column in
+            return EntryBridge.shared.cell(input: input, column: column)
+        }
+        try afterInsertHook?()
+        let toType = try accountType(input.toAccountId)
+        if EntryBridge.shared.waitsForExplanation(kind: input.kind, toAccountType: toType) {
+            let wait = try db.prepare(
+                "INSERT INTO investment_transfers (transactionId, accountId, amount, epochMillis) VALUES (?, ?, ?, ?)"
+            )
+            try wait.bindInt(1, id)
+            try wait.bindInt(2, input.toAccountId)
+            try wait.bindInt(3, input.amount)
+            try wait.bindInt(4, input.epochMillis)
+            _ = try wait.step()
+        }
+        return id
     }
 
     /// Saves an edit of entry `input.id`: only the columns the page owns change (kind, amount, accounts, category, date, note), so

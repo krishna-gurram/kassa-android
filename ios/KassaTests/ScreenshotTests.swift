@@ -40,6 +40,7 @@ final class ScreenshotTests: XCTestCase {
             try drawCardPages(target)
             try drawLoanPages(target)
             try drawInvestPages(target)
+            try drawDuePages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -203,6 +204,32 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// The demo's Brokerage page (shown and hidden), the holding sheet and the Buy or sell sheet, light and dark.
+    /// The demo's Notifications page, Overview with its bar and Upcoming rows, and Bills, light and dark, on the demo's own "today".
+    @MainActor
+    private func drawDuePages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let demoDirectory = directory.appendingPathComponent("demo-due", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let today = Int(expected.today)
+        let notices: NoticesData = view.notices(hidden: false, todayEpochDay: today, timeZoneId: "UTC", cleared: [])
+        let upcoming: [UpcomingData] = view.upcoming(hidden: false, todayEpochDay: today, timeZoneId: "UTC", days: 30)
+        let bills: BillsData = view.billsPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC")
+        let overview = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let page = NoticesContent(
+                items: notices.items, today: today, hidden: false, message: nil, actions: NoticeActions(), onBack: {}, onClearAll: {}
+            )
+            save(page, scheme: scheme, to: target.appendingPathComponent("notices-\(suffix).png"))
+            let home = OverviewContent(
+                data: overview, hidden: false, onToggleHidden: {}, onAllAccounts: {}, notices: notices.items, upcoming: upcoming
+            )
+            save(home, scheme: scheme, to: target.appendingPathComponent("overview-due-\(suffix).png"))
+            let list = BillsContent(rows: bills.rows, onOpen: { _ in }, onAdd: {})
+            save(list, scheme: scheme, to: target.appendingPathComponent("bills-\(suffix).png"))
+        }
+    }
+
     @MainActor
     private func drawInvestPages(_ target: URL) throws {
         let expected = try DemoFixture.expected()

@@ -11,7 +11,10 @@ struct RootView: View {
             .onAppear { model.start() }
             .onChange(of: scenePhase) { newPhase in
                 // Coming back to the app: the day may have changed.
-                if newPhase == .active { model.refreshFigures() }
+                if newPhase == .active {
+                    model.refreshFigures()
+                    model.refreshNotifications()
+                }
             }
     }
 
@@ -140,6 +143,35 @@ struct AppShell: View {
         .sheet(item: $model.allocateSheet) { request in
             AllocateSheet(model: model, request: request)
         }
+        .sheet(item: $model.billSheet) { request in
+            BillSheet(model: model, request: request)
+        }
+        .sheet(item: $model.billAmountSheet) { request in
+            BillAmountSheet(model: model, request: request)
+        }
+        .alert(Text("notif.askTitle"), isPresented: $model.asksNotifications) {
+            Button("notif.askAllow") { model.answerNotificationsAsk(allow: true) }
+            Button("notif.askNotNow", role: .cancel) { model.answerNotificationsAsk(allow: false) }
+        } message: {
+            Text("notif.askBody")
+        }
+        .onChange(of: model.requestedTab) { requested in
+            if let wanted = requested {
+                tab = wanted
+                model.requestedTab = nil
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.opened)) { _ in
+            openTappedNotice()
+        }
+        .onAppear { openTappedNotice() }
+    }
+
+    /// A notification that was tapped (also one that launched the app) goes to its page once.
+    private func openTappedNotice() {
+        if let route = NotificationRouter.shared.takePending() {
+            model.openDue(route)
+        }
     }
 
     private func withAdd<Content: View>(_ content: Content) -> some View {
@@ -160,10 +192,14 @@ struct AppShell: View {
 
     @ViewBuilder
     private var overviewTab: some View {
-        if let data = model.overview {
+        if model.noticesOpen {
+            NoticesScreen(model: model)
+        } else if let data = model.overview {
             OverviewScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
-                onAllAccounts: { tab = .accounts }
+                onAllAccounts: { tab = .accounts },
+                notices: model.notices?.items ?? [], upcoming: model.upcoming,
+                onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts }
             )
         } else {
             ProgressView()
