@@ -41,6 +41,7 @@ final class ScreenshotTests: XCTestCase {
             try drawLoanPages(target)
             try drawInvestPages(target)
             try drawDuePages(target)
+            try drawReadPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -286,6 +287,67 @@ final class ScreenshotTests: XCTestCase {
             onToggleHidden: {}, onShift: { _ in }, onBack: {}
         )
         save(pageView, scheme: scheme, to: target.appendingPathComponent("insights-category-\(suffix).png"))
+    }
+
+    /// Batch J on the demo backup, light and dark: Insights with its Patterns, the week view, the spending page, budgets, and Activity with
+    /// a search typed in and with the Spending filter on.
+    @MainActor
+    private func drawReadPages(_ target: URL) throws {
+        let demoDirectory = directory.appendingPathComponent("demo-read", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let day = DemoFixture.lastOfOctober
+        let zone = "UTC"
+        let today = Int(day)
+        let insights = view.insights(hidden: false, todayEpochDay: day, timeZoneId: zone, monthsBack: 0)
+        let patterns = view.patterns(hidden: false, todayEpochDay: day, timeZoneId: zone)
+        let week = view.weekView(hidden: false, todayEpochDay: day, timeZoneId: zone, firstWeekday: 1)
+        let spending = view.spendingPage(
+            hidden: false, todayEpochDay: day, timeZoneId: zone, firstWeekday: 1, month: true, income: false, back: 0
+        )
+        let budgets = view.budgetsPage(hidden: false, todayEpochDay: day, timeZoneId: zone)
+        let filtered = view.activityFiltered(year: 2026, month: 10, filter: "EXPENSE", hidden: false, todayEpochDay: day, timeZoneId: zone)
+        let found = view.activitySearch(query: "rent", hidden: false, timeZoneId: zone)
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let monthRead = InsightsRead(
+                patterns: patterns, week: week, showWeek: false, today: today,
+                onSetWeek: { _ in }, onOpenDetail: { _ in }, onOpenSpending: { _ in }
+            )
+            let monthView = InsightsContent(
+                data: insights, hidden: false, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _ in }, read: monthRead
+            )
+            save(monthView, scheme: scheme, to: target.appendingPathComponent("insights-patterns-\(suffix).png"))
+            let weekRead = InsightsRead(
+                patterns: patterns, week: week, showWeek: true, today: today,
+                onSetWeek: { _ in }, onOpenDetail: { _ in }, onOpenSpending: { _ in }
+            )
+            let weekView = InsightsContent(
+                data: insights, hidden: false, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _ in }, read: weekRead
+            )
+            save(weekView, scheme: scheme, to: target.appendingPathComponent("insights-week-\(suffix).png"))
+            let spendingView = SpendingPageContent(
+                data: spending, hidden: false, onBack: {}, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _, _ in }
+            )
+            save(spendingView, scheme: scheme, to: target.appendingPathComponent("spending-page-\(suffix).png"))
+            let budgetsView = BudgetsContent(data: budgets, hidden: false, onToggleHidden: {}, onOpen: { _ in })
+            save(budgetsView, scheme: scheme, to: target.appendingPathComponent("budgets-\(suffix).png"))
+            let typed = ActivityRead(
+                filter: "EXPENSE", query: .constant("rent"), search: found,
+                onTapFilter: { _ in }, onOpenPicker: {}, onOpenDay: { _ in }
+            )
+            let searchView = ActivityContent(
+                data: filtered, hidden: false, today: today, lazy: false, onToggleHidden: {}, onShift: { _ in }, read: typed
+            )
+            save(searchView, scheme: scheme, to: target.appendingPathComponent("activity-search-\(suffix).png"))
+            let filteredRead = ActivityRead(
+                filter: "EXPENSE", query: .constant(""), search: nil,
+                onTapFilter: { _ in }, onOpenPicker: {}, onOpenDay: { _ in }
+            )
+            let filterView = ActivityContent(
+                data: filtered, hidden: false, today: today, lazy: false, onToggleHidden: {}, onShift: { _ in }, read: filteredRead
+            )
+            save(filterView, scheme: scheme, to: target.appendingPathComponent("activity-filter-\(suffix).png"))
+        }
     }
 
     /// The Add page (empty, and filled in with the first category and account) and the Add account sheet, light and dark.

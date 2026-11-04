@@ -10,6 +10,9 @@ import app.kassa.money.domain.AccountSection
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.AccountsOverview
 import app.kassa.money.domain.Balances
+import app.kassa.money.domain.BudgetRules
+import app.kassa.money.domain.EntryFilter
+import app.kassa.money.domain.WeekRules
 import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.CardCycle
 import app.kassa.money.domain.CardPageRules
@@ -287,8 +290,12 @@ data class InsightLineData(
     val amountText: String,
     /** Whole percent of the month's spending, or -1 while Hide balances is on (a share would give the size away). */
     val percent: Int,
-    /** The bar: this line against the largest one, 0 to 1000; always 0 while hidden. */
+    /** The bar: the part of the budget used when there is one, else this line against the largest one; 0 to 1000; always 0 while hidden. */
     val barPermille: Int,
+    /** The budget this month ("of <refText>"), empty without one. */
+    val refText: String,
+    /** Past the budget: the bar and amount turn orange. Never while hidden. */
+    val over: Boolean,
 )
 
 /**
@@ -490,11 +497,11 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     private val currency: CurrencyStyle =
         Currencies.forCode(data.currency) ?: Currencies.forCode(fallbackCurrency) ?: Currencies.fallback
 
-    private val parts = LedgerParts.of(data)
+    internal val parts = LedgerParts.of(data)
     private val accounts: List<Account> = parts.accounts
-    private val transactions: List<Transaction> = parts.transactions
-    private val categoryById: Map<Long, Category> = parts.categories.associateBy { it.id }
-    private val accountById: Map<Long, Account> = accounts.associateBy { it.id }
+    internal val transactions: List<Transaction> = parts.transactions
+    internal val categoryById: Map<Long, Category> = parts.categories.associateBy { it.id }
+    internal val accountById: Map<Long, Account> = accounts.associateBy { it.id }
     private val balances: Map<Long, Long> = Balances.of(accounts, transactions)
     private val loanIndex = LoanEntryIndex(parts.loanPayments, parts.loanTerms)
     private val splitEntryIds: Set<Long> = parts.loanEntries.mapNotNull { it.transactionId }.toSet()
@@ -506,7 +513,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     private val arrangement: AccountArrangement? = AccountArrangement.decode(data.accountArrangement)
 
     /** The day each period starts on (1 to 28), as Android's `Ledger.period` reads it. */
-    private val monthStartDay: Int = data.monthStartDay.coerceIn(1, 28)
+    internal val monthStartDay: Int = data.monthStartDay.coerceIn(1, 28)
 
     /** The currency code this ledger shows ("USD"). */
     fun currencyCode(): String = currency.code
@@ -558,7 +565,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     private fun holdingsValue(a: Account): Long =
         if (a.type == AccountType.INVESTMENT) parts.holdings.filter { it.accountId == a.id }.sumOf { it.value } else 0L
 
-    private fun cardSnapshots(todayEpochDay: Int, zone: TimeZone): Map<Long, CardSnapshot> {
+    internal fun cardSnapshots(todayEpochDay: Int, zone: TimeZone): Map<Long, CardSnapshot> {
         val today = localDateOfEpochDay(todayEpochDay)
         val result = HashMap<Long, CardSnapshot>()
         for (a in accounts) {
@@ -656,38 +663,11 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
      * One calendar month of Activity ([month] 1 to 12), entries as spending sees them (`CountedSpending`: a loan principal
      * that counts is an expense in its category), the totals from that same list, days newest first like Android.
      */
-    fun activity(year: Int, month: Int, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): ActivityData = shown(hidden) {
-        val zone = zoneOf(timeZoneId)
-        val shownMonth = YearMonth(year, month.coerceIn(1, 12))
-        val range = QueryWindows.monthRange(shownMonth, zone)
-        val inMonth = transactions.filter { it.epochMillis in range }
-        val list = CountedSpending.apply(inMonth, parts.loanPayments, parts.loanTerms, parts.categories)
-        val spent = list.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-        val income = list.filter { it.kind == TxKind.INCOME }.sumOf { it.amount }
-
-        val days = ArrayList<DayData>()
-        val grouped = list.groupBy { dateOfMillis(it.epochMillis, zone) }
-        for ((day, entries) in grouped) {
-            val daySpent = entries.filter { it.kind == TxKind.EXPENSE }.sumOf { it.categoryAmount }
-            // A zero would give away which days had spending, so while hidden every day shows the mask.
-            val spentText = if (daySpent > 0 || Money.isHidden) Money.format(daySpent) else ""
-            days.add(DayData(day.toEpochDay().toInt(), spentText, entries.map { entryRow(it) }))
-        }
-        val current = YearMonth.from(localDateOfEpochDay(todayEpochDay))
-        ActivityData(
-            year = shownMonth.year,
-            month = shownMonth.month,
-            isCurrentMonth = shownMonth == current,
-            spendingText = Money.format(spent),
-            incomeText = Money.format(income),
-            incomeTone = figurePositive(),
-            entryCount = list.size,
-            days = days,
-        )
-    }
+    fun activity(year: Int, month: Int, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): ActivityData =
+        activityFiltered(year, month, "ALL", hidden, todayEpochDay, timeZoneId)
 
     /** One entry row, as `TransactionRow` in the Android app builds it. The wording is Swift's. */
-    private fun entryRow(t: Transaction): EntryRowData {
+    internal fun entryRow(t: Transaction): EntryRowData {
         val account = t.accountId?.let { accountById[it] }
         val to = t.toAccountId?.let { accountById[it] }
         val intoCard = account?.type?.hasStatement == true
@@ -893,8 +873,17 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             val c = r.first
             val icon = if (c == null) Pair("", "") else iconParts(c.icon)
             val share = if (Money.isHidden || total <= 0L) -1 else ((r.second * 100L + total / 2L) / total).toInt()
-            val bar = if (Money.isHidden || largest <= 0L) 0 else (r.second * 1000L / largest).toInt().coerceIn(0, 1000)
-            InsightLineData(c?.id ?: 0L, c?.name ?: "", icon.first, icon.second, c?.color ?: 0, Money.format(r.second), share, bar)
+            // A category with a budget shows how much of it is used (orange past it, never while hidden); one without, its size against the largest.
+            val budget = if (c == null) null else BudgetRules.lineFor(c.id, period.yearMonth, parts.budgets, r.second)
+            val limit = budget?.budget
+            val bar = if (Money.isHidden) 0
+            else if (limit != null) (budget?.usedPermille ?: 0)
+            else if (largest <= 0L) 0
+            else (r.second * 1000L / largest).toInt().coerceIn(0, 1000)
+            InsightLineData(
+                c?.id ?: 0L, c?.name ?: "", icon.first, icon.second, c?.color ?: 0, Money.format(r.second), share, bar,
+                if (limit == null) "" else Money.format(limit), !Money.isHidden && budget?.over == true,
+            )
         }
         InsightsData(
             year = period.yearMonth.year,
@@ -959,7 +948,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     }
 
     /** The entries dated from [from] to [to], inclusive, as spending sees them (`CountedSpending`), newest first. */
-    private fun countedBetween(from: LocalDate, to: LocalDate, zone: TimeZone): List<Transaction> {
+    internal fun countedBetween(from: LocalDate, to: LocalDate, zone: TimeZone): List<Transaction> {
         val inRange = transactions.filter { t ->
             val d = dateOfMillis(t.epochMillis, zone)
             !d.isBefore(from) && !d.isAfter(to)
@@ -980,7 +969,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         )
     }
 
-    private fun hasEarlier(start: LocalDate, zone: TimeZone): Boolean =
+    internal fun hasEarlier(start: LocalDate, zone: TimeZone): Boolean =
         transactions.any { t -> dateOfMillis(t.epochMillis, zone).isBefore(start) }
 
     // ---------- Pickers and editing (the write path) ----------
@@ -1651,7 +1640,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
 
     // ---------- Due notices, batch I: the Notifications page, Upcoming, bills and the phone's plan (rules in `DueNotices`, `BillRules`) ----------
 
-    private val dueViews: DueViews by lazy { DueViews(parts, balances, accountById, categoryById) }
+    internal val dueViews: DueViews by lazy { DueViews(parts, balances, accountById, categoryById) }
 
     /**
      * Everything waiting on the Notifications page as of [todayEpochDay]: a card payment, a loan payment or a bill from its due day (and
@@ -1686,10 +1675,60 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     ): List<app.kassa.money.domain.PlannedNotice> =
         dueViews.plan(rules, nowMillis, zoneOf(timeZoneId), posted.toSet(), cleared.toSet(), title, body)
 
+    // ---------- Batch J: Patterns, week, spending, day, store, budgets, Activity search (see ReadPages.kt) ----------
+
+    private val readViews: ReadViews by lazy { ReadViews(this) }
+
+    /** Insights' six Patterns tiles as of [todayEpochDay]. */
+    fun patterns(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): PatternsData =
+        shown(hidden) { readViews.patterns(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
+
+    /** Insights' week view. [firstWeekday] is the phone's `Calendar.firstWeekday` (1 Sunday ... 7 Saturday), as Android's `Ledger.firstDayOfWeek`. */
+    fun weekView(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): WeekData =
+        shown(hidden) { readViews.weekView(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), WeekRules.firstDayOf(firstWeekday)) }
+
+    /** The spending (or income) page of the month or week [back] periods before the current one. */
+    fun spendingPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int, month: Boolean, income: Boolean, back: Int): SpendingPageData =
+        shown(hidden) {
+            readViews.spendingPage(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), WeekRules.firstDayOf(firstWeekday), month, income, back)
+        }
+
+    /** The page behind a Patterns or week tile; [kind] is BIG_MONTH, BIG_WEEK, STORES, SMALL, CREEP, REPEATING, WEEKDAYS or DUES. */
+    fun insightDetail(kind: String, hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): InsightDetailData =
+        shown(hidden) { readViews.detail(kind, localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), WeekRules.firstDayOf(firstWeekday)) }
+
+    /** One day: what was spent and every entry that day (any day, from the whole history). */
+    fun dayPage(epochDay: Int, hidden: Boolean, timeZoneId: String): DayPageData =
+        shown(hidden) { readViews.dayPage(localDateOfEpochDay(epochDay), zoneOf(timeZoneId)) }
+
+    /** Every entry at one store in the last months, newest first, and this month's total. */
+    fun storePage(name: String, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): StorePageData =
+        shown(hidden) { readViews.storePage(name, localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
+
+    /** Settings > Budgets: every top-level expense category against its budget in the current budget month. */
+    fun budgetsPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): BudgetsData =
+        shown(hidden) { readViews.budgetsPage(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
+
+    /** The budget editor of [categoryId]: its stored amounts as typed text. */
+    fun budgetEdit(categoryId: Long, todayEpochDay: Int): BudgetEditData =
+        shown(false) { readViews.budgetEdit(categoryId, localDateOfEpochDay(todayEpochDay)) }
+
+    /** What saving the editor with these typed amounts does: the problems, or the writes to run in one transaction. */
+    fun budgetPlan(categoryId: Long, every: String, thisMonth: String, todayEpochDay: Int): BudgetPlanData =
+        shown(false) { readViews.budgetPlan(categoryId, every, thisMonth, localDateOfEpochDay(todayEpochDay)) }
+
+    /** [activity] with the Spending or Income total as a filter ([filter] is ALL, EXPENSE or INCOME): the totals stay, the days keep only those entries. */
+    fun activityFiltered(year: Int, month: Int, filter: String, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): ActivityData =
+        shown(hidden) { readViews.activity(year, month, EntryFilter.named(filter), localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
+
+    /** Activity's search over every month: note, category, account, person or the exact amount; what is typed is text, never a pattern. */
+    fun activitySearch(query: String, hidden: Boolean, timeZoneId: String): SearchData =
+        shown(hidden) { readViews.search(query, zoneOf(timeZoneId)) }
+
     // ---------- Money state and colour ----------
 
     /** Runs [block] with Money showing this ledger's currency and [hidden] as Hide balances, then puts both back. */
-    private fun <T> shown(hidden: Boolean, block: () -> T): T {
+    internal fun <T> shown(hidden: Boolean, block: () -> T): T {
         val style = Money.style
         val hide = Money.hideAmounts
         Money.style = currency
@@ -1702,7 +1741,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         }
     }
 
-    private fun zoneOf(id: String): TimeZone = try {
+    internal fun zoneOf(id: String): TimeZone = try {
         TimeZone.of(id)
     } catch (e: Exception) {
         TimeZone.UTC
@@ -1722,10 +1761,10 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         if (!Money.isHidden && !type.isDebt && balance < 0) Tone.Orange else Tone.Ink
 
     /** `figureColor` for orange: Orange when [against], Ink otherwise and always while hidden. */
-    private fun figure(against: Boolean): Tone = if (Money.isHidden || !against) Tone.Ink else Tone.Orange
+    internal fun figure(against: Boolean): Tone = if (Money.isHidden || !against) Tone.Ink else Tone.Orange
 
     /** `figureColor(positive)`: Green, Ink while hidden. */
-    private fun figurePositive(): Tone = if (Money.isHidden) Tone.Ink else Tone.Green
+    internal fun figurePositive(): Tone = if (Money.isHidden) Tone.Ink else Tone.Green
 
     companion object {
         const val PEOPLE = "PEOPLE"

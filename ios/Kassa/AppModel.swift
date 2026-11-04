@@ -41,9 +41,25 @@ final class AppModel: ObservableObject {
     /// The category page of Insights that is open (`openCategoryId`), once worked out.
     @Published private(set) var categoryPage: CategoryPageData?
     /// Insights' month: how many budget months before the current one (0 is the current month).
-    @Published private(set) var insightsBack: Int = 0
+    @Published var insightsBack: Int = 0
     /// The Insights category that is open (0 is spending with no category), or nil on the Insights list.
     @Published private(set) var openCategoryId: Int64?
+    /// Batch J (`AppModel+Read.swift`): Insights' Patterns tiles and week view, the open page of the read stack, the budgets list and
+    /// Activity's search result, once worked out.
+    @Published private(set) var patterns: PatternsData?
+    @Published private(set) var week: WeekData?
+    @Published private(set) var readPage: ReadPage?
+    @Published private(set) var budgets: BudgetsData?
+    @Published private(set) var searchResult: SearchData?
+    /// Insights shows its week view instead of its month.
+    @Published var insightsWeek = false
+    /// Activity's Spending or Income filter (ALL, EXPENSE or INCOME) and its search text ("" is no search).
+    @Published var activityFilter = "ALL"
+    @Published var searchText = ""
+    /// The pages opened over the tabs (spending, day, store, detail), last is on top. Empty when none is open.
+    @Published var readStack: [ReadRoute] = []
+    /// True while Settings > Budgets is open (it works its figures out only then).
+    @Published var budgetsOpen = false
     /// The currency code the ledger shows ("USD"), or "" before the store is read.
     @Published private(set) var currency: String = ""
     @Published private(set) var shownYear: Int
@@ -177,6 +193,14 @@ final class AppModel: ObservableObject {
         let loanAll: Bool
         /// The notices the person cleared (`DueSettings.cleared`): the Notifications page leaves them out.
         let cleared: [String]
+        /// Batch J (`AppModel+Read.swift`): the phone's first weekday, the week toggle of Insights, Activity's filter and search, the page of the
+        /// read stack that is open, and whether the budgets list is showing.
+        var firstWeekday: Int = 1
+        var insightsWeek: Bool = false
+        var filter: String = "ALL"
+        var query: String = ""
+        var route: ReadRoute? = nil
+        var budgetsOpen: Bool = false
     }
 
     func inputs() -> Inputs {
@@ -184,7 +208,9 @@ final class AppModel: ObservableObject {
             hidden: hideAmounts, year: shownYear, month: shownMonth,
             today: KassaDates.todayEpochDay(), zone: TimeZone.current.identifier,
             insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency,
-            target: openPage, pageBack: pageBack, loanAll: loanAll, cleared: DueSettings(defaults: defaults).cleared
+            target: openPage, pageBack: pageBack, loanAll: loanAll, cleared: DueSettings(defaults: defaults).cleared,
+            firstWeekday: Calendar.current.firstWeekday, insightsWeek: insightsWeek, filter: activityFilter, query: searchText,
+            route: readStack.last, budgetsOpen: budgetsOpen
         )
     }
 
@@ -313,10 +339,17 @@ final class AppModel: ObservableObject {
         let pages = computePages(made, given)
         let due: DueFigures = computeDue(made, given)
         let code = made.currencyCode()
-        let m = made.activity(
-            year: Int32(given.year), month: Int32(given.month), hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone
+        let m = made.activityFiltered(
+            year: Int32(given.year), month: Int32(given.month), filter: given.filter, hidden: given.hidden, todayEpochDay: day,
+            timeZoneId: given.zone
         )
+        let read: ReadFigures = computeRead(made, given)
         publish {
+            self.patterns = read.patterns
+            self.week = read.week
+            self.readPage = read.page
+            self.budgets = read.budgets
+            self.searchResult = read.search
             self.accounts = a
             self.overview = o
             self.insights = i
@@ -365,6 +398,13 @@ final class AppModel: ObservableObject {
         if next.year * 12 + next.month > now.year * 12 + now.month { return }
         shownYear = next.year
         shownMonth = next.month
+        refreshFigures()
+    }
+
+    /// Shows [year] and [month] in Activity (the caller checked the picker rules).
+    func setMonth(year: Int, month: Int) {
+        shownYear = year
+        shownMonth = month
         refreshFigures()
     }
 

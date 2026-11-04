@@ -26,6 +26,7 @@ struct SettingsScreen: View {
                     currencyDestination: AnyView(CurrencyPage(model: model)),
                     noticesDestination: AnyView(NoticesPage()),
                     billsDestination: AnyView(BillsPage(model: model)),
+                    budgetsDestination: AnyView(BudgetsPage(model: model)),
                     notificationsDestination: AnyView(NotificationSettingsPage(model: model))
                 )
                 .frame(maxWidth: 720)
@@ -138,6 +139,8 @@ struct SettingsContent: View {
     let noticesDestination: AnyView
     /// Settings > Bills and Settings > Notifications (batch I); a screen that has neither (a screenshot) leaves them out.
     var billsDestination: AnyView = AnyView(EmptyView())
+    /// Settings > Budgets (batch J).
+    var budgetsDestination: AnyView = AnyView(EmptyView())
     var notificationsDestination: AnyView = AnyView(EmptyView())
 
     var body: some View {
@@ -152,6 +155,8 @@ struct SettingsContent: View {
             linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
             Hairline()
             linkRow(title: "settings.bills", detail: "", destination: billsDestination)
+            Hairline()
+            linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
             Hairline()
             sectionLabel("settings.backup.header")
             actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)

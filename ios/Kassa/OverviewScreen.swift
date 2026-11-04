@@ -14,12 +14,16 @@ struct OverviewScreen: View {
     var upcoming: [UpcomingData] = []
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
+    /// Batch J: a top category opens Insights' category page; the total opens the month's spending (or income) page.
+    var onOpenCategory: (Int64) -> Void = { _ in }
+    var onOpenSpending: (Bool) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
             OverviewContent(
                 data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts,
-                notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard
+                notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard,
+                onOpenCategory: onOpenCategory, onOpenSpending: onOpenSpending
             )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
@@ -39,6 +43,8 @@ struct OverviewContent: View {
     var upcoming: [UpcomingData] = []
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
+    var onOpenCategory: (Int64) -> Void = { _ in }
+    var onOpenSpending: (Bool) -> Void = { _ in }
 
     /// Which flow the hero shows. Spending first, as on Android.
     @State private var showIncome = false
@@ -75,12 +81,16 @@ struct OverviewContent: View {
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
             }
-            Text(flow.totalText)
-                .font(.largeTitle.weight(.semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .foregroundColor(Palette.figure(tone))
+            Button(action: { onOpenSpending(showIncome) }) {
+                Text(flow.totalText)
+                    .font(.largeTitle.weight(.semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .foregroundColor(Palette.figure(tone))
+                    .frame(minHeight: 44, alignment: .leading)
+            }
+            .buttonStyle(.plain)
             if flow.top.isEmpty {
                 Text(showIncome ? "overview.noIncome" : "overview.noSpending")
                     .font(.footnote)
@@ -109,7 +119,12 @@ struct OverviewContent: View {
     @ViewBuilder
     private var topRows: some View {
         ForEach(flow.top, id: \.id) { item in
-            TopCategoryRow(item: item)
+            if showIncome {
+                TopCategoryRow(item: item)
+            } else {
+                Button(action: { onOpenCategory(item.id) }) { TopCategoryRow(item: item) }
+                    .buttonStyle(.plain)
+            }
         }
     }
 

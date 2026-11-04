@@ -213,7 +213,7 @@ internal class DueViews(
     }
 
     /** What repeats in about two years of entries, minus a loan's own steady escrow and interest (the loan already tracks them). */
-    private fun repeats(today: LocalDate, zone: TimeZone): List<Repeat> {
+    internal fun repeats(today: LocalDate, zone: TimeZone): List<Repeat> {
         val key = today.toEpochDay().toInt() to zone.id
         repeatsFor?.let { if (it.first == key) return it.second }
         val from = QueryWindows.historyFrom(today, zone)

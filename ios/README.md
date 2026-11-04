@@ -38,7 +38,7 @@ Stage E (Insights): the Insights tab shows one budget month (arrows move back, n
 "Up to <date>" and the same stretch of the month before (current month only), and By category (icon, name, share, amount, a bar against
 the largest; largest first). Tapping a category opens its page with that month's entries, grouped by day with Activity's rows. All of it is
 `LedgerView.insights` / `categoryPage` in :shared (counted spending, JVM-tested against the demo backup); hidden masks every amount and gives no
-share or bar. Patterns tiles, the week view and budgets are not on iOS yet.
+share or bar. Patterns tiles, the week view and budgets arrived in batch J (below).
 
 Stage F (card, account and person pages): a tap on an Accounts row opens its page in place of the list, with a back button (`PageScreens.swift`, state in
 `AppModel+Pages.swift`). A card with statement days shows Balance payable (with its due line), Total balance and Outstanding, a statement navigator and Pay card;
@@ -107,3 +107,20 @@ on, bills off; 0 to 14 days before; time, default 9:00), the daily reminder, and
 `NotificationRouter` is the delegate: a tap opens the card page, the loan payment sheet, the bill, or a new entry (the reminder). iOS cannot wake Kassa at 00:05
 as Android does, so a card's new statement is noticed the next time the app opens. Swift tests: `DueTests`; JVM: `DuePlanTest`, `BillRulesTest`, `DuePagesTest`
 (demo backup). Nothing in batch I was compiled on the machine that wrote it; CI is the first compile.
+
+Batch J (read-side extras, functional first; a visual redesign comes later): Insights has a Month/Week toggle. Month adds the six Patterns tiles
+(Big purchases, Stores, Small purchases, Creeping up, Repeating, Busiest day; each opens its detail page) and the hero opens the month's spending page;
+Week is the week view (hero against the same stretch of last week, a day strip, categories against their budget or last week, up and down most, due this
+week, largest buys). The week starts on the phone's first weekday: Swift passes `Calendar.current.firstWeekday` and `WeekRules.firstDayOf` (:domain) maps it.
+Pages open over the tabs from a stack in `AppModel` (`ReadRoute`: spending, day, store, detail; `ReadScreens.swift`, `ReadPages.swift`, `AppModel+Read.swift`);
+a category always opens Insights' category page (Overview's top rows and the spending page's lines do, via `openCategory`). Activity has a search field
+(note, category, account, person or exact amount over every month; `%`, `_` and backslash are text, `SearchText`), the Spending and Income totals as filters
+(tap again for all), a month picker sheet (months after the current one off; `MonthPicking`), and a tap on a day header opens the day page. Settings >
+Budgets lists every top-level expense category against its budget for the current budget month and edits one (an amount for every month, optionally one just
+for this month; blank removes; month 0 is every month and yyyymm an override); `BudgetRules` decides, `LedgerStore+Budgets.swift` writes a whole save in one
+transaction (a refused or failed save changes nothing). Over budget is orange in the shared row; while hidden there is no orange, no bar, no "over" or "left"
+word. Everything is :domain / :shared (`ReadViews`, `ReadPages.kt`, `LedgerView.patterns/weekView/spendingPage/insightDetail/dayPage/storePage/budgetsPage/
+budgetEdit/budgetPlan/activityFiltered/activitySearch`), JVM-tested against the demo backup (`ReadPagesTest`, `BudgetRulesTest`, `MonthPickingTest`). Swift tests:
+`ReadPagesTests`; CI screenshots add `insights-patterns-*`, `insights-week-*`, `spending-page-*`, `budgets-*`, `activity-search-*`, `activity-filter-*`.
+Not on iOS: splits (so no "Split a transaction" on a person page), an Overview week toggle. Nothing in batch J was compiled on the machine that wrote it
+(no Swift toolchain there; the Kotlin ran under a small kotlinc harness); CI is the first compile of the Swift.

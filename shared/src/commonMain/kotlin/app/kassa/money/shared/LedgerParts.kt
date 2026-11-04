@@ -3,6 +3,7 @@ package app.kassa.money.shared
 import app.kassa.money.backup.BackupData
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
+import app.kassa.money.domain.Budget
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryKind
@@ -41,6 +42,8 @@ internal class LedgerParts(
     val transfers: List<InvestmentTransfer> = emptyList(),
     /** The recurring bills. */
     val bills: List<Recurring> = emptyList(),
+    /** Every budget row: month 0 is every month, a yyyymm key is that month only. */
+    val budgets: List<Budget> = emptyList(),
 ) {
     companion object {
         fun of(d: BackupData): LedgerParts {
@@ -99,6 +102,7 @@ internal class LedgerParts(
                 },
                 trades = d.trades.map { Trade(it.id, it.transactionId, it.ticker, it.microShares, it.price) },
                 transfers = d.investmentTransfers.map { InvestmentTransfer(it.id, it.transactionId, it.accountId, it.amount, it.epochMillis) },
+                budgets = d.budgets.map { Budget(it.categoryId, it.month, it.amount) },
                 bills = d.bills.map { Recurring(it.id, it.name, it.categoryId, it.accountId, it.dayOfMonth, it.fixedAmount, it.active, it.handledMonth) },
             )
         }
