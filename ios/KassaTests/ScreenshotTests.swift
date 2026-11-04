@@ -211,9 +211,9 @@ final class ScreenshotTests: XCTestCase {
         let demoDirectory = directory.appendingPathComponent("demo-due", isDirectory: true)
         let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
         let today = Int(expected.today)
-        let notices: NoticesData = view.notices(hidden: false, todayEpochDay: today, timeZoneId: "UTC", cleared: [])
-        let upcoming: [UpcomingData] = view.upcoming(hidden: false, todayEpochDay: today, timeZoneId: "UTC", days: 30)
-        let bills: BillsData = view.billsPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC")
+        let notices: NoticesData = view.notices(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", cleared: [])
+        let upcoming: [UpcomingData] = view.upcoming(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", days: 30)
+        let bills: BillsData = view.billsPage(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
         let overview = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
         for scheme in [ColorScheme.light, ColorScheme.dark] {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"

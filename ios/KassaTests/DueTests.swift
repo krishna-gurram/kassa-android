@@ -78,7 +78,7 @@ final class DueTests: XCTestCase {
         let main = try mainAccount()
         let id = try store.saveBill(rent(account: main, category: try groceries()))
         XCTAssertGreaterThan(id, 0)
-        XCTAssertEqual(try ledger().billsPage(hidden: false, todayEpochDay: Int(day), timeZoneId: "UTC").rows.count, 1)
+        XCTAssertEqual(try ledger().billsPage(hidden: false, todayEpochDay: day, timeZoneId: "UTC").rows.count, 1)
         let edited = BillInput(id: id, name: "Rent flat", categoryId: try groceries(), accountId: main, day: 3, amount: "", active: false)
         _ = try store.saveBill(edited)
         let sheet = try ledger().billSheet(billId: id)
