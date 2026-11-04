@@ -329,7 +329,7 @@ final class AppModel: ObservableObject {
     private func compute(_ made: LedgerView, _ given: Inputs) {
         let day = Int32(given.today)
         let a = made.accounts(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
-        let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
+        let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, firstWeekday: Int32(given.firstWeekday))
         let i = made.insights(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, monthsBack: Int32(given.insightsBack))
         var page: CategoryPageData? = nil
         if let id = given.categoryId {

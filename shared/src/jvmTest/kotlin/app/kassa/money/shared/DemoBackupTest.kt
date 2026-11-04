@@ -49,7 +49,7 @@ class DemoBackupTest {
     fun overviewFiguresOfOctober() {
         KassaCore.installDefaults()
         val json = File(dir + "expected.json").readText()
-        val o = LedgerView(demo(), null).overview(false, lastOfOctober, "UTC")
+        val o = LedgerView(demo(), null).overview(false, lastOfOctober, "UTC", 2)
         assertEquals(2026, o.year)
         assertEquals(10, o.month)
         // The months of expected.json: "2026-10": spending 276329, income 520286.
@@ -65,7 +65,7 @@ class DemoBackupTest {
         // The figures of the Accounts tab are the same ones the pins show.
         val accounts = LedgerView(demo(), null).accounts(false, num(json, "todayEpochDay").toInt(), "UTC")
         val checking = accounts.groups.flatMap { it.rows }.first { it.name == "Everyday checking" }
-        val pin = LedgerView(demo(), null).overview(false, num(json, "todayEpochDay").toInt(), "UTC").pins.first { it.name == "Everyday checking" }
+        val pin = LedgerView(demo(), null).overview(false, num(json, "todayEpochDay").toInt(), "UTC", 2).pins.first { it.name == "Everyday checking" }
         assertEquals(checking.amountText, pin.amountText)
     }
 
@@ -73,7 +73,7 @@ class DemoBackupTest {
     fun overviewTodayIsTheCurrentMonthUpToToday() {
         KassaCore.installDefaults()
         val json = File(dir + "expected.json").readText()
-        val o = LedgerView(demo(), null).overview(false, num(json, "todayEpochDay").toInt(), "UTC")
+        val o = LedgerView(demo(), null).overview(false, num(json, "todayEpochDay").toInt(), "UTC", 2)
         assertEquals(11, o.month)
         assertEquals(usd(181_599), o.spending.totalText)
         assertEquals(usd(260_000), o.income.totalText)
@@ -83,7 +83,7 @@ class DemoBackupTest {
     @Test
     fun overviewPinsFollowAccountsOrderAndEndWithPeople() {
         KassaCore.installDefaults()
-        val o = LedgerView(demo(), null).overview(false, lastOfOctober, "UTC")
+        val o = LedgerView(demo(), null).overview(false, lastOfOctober, "UTC", 2)
         // Open accounts A to Z (Old savings is closed), then People.
         assertEquals(
             listOf("Brokerage", "Car loan", "Everyday checking", "Rainy day savings", "Travel card", "Wallet", ""),
@@ -100,7 +100,7 @@ class DemoBackupTest {
     @Test
     fun overviewHiddenMasksEveryAmountAndColour() {
         KassaCore.installDefaults()
-        val o = LedgerView(demo(), null).overview(true, lastOfOctober, "UTC")
+        val o = LedgerView(demo(), null).overview(true, lastOfOctober, "UTC", 2)
         assertEquals(mask, o.spending.totalText)
         assertEquals(mask, o.income.totalText)
         assertEquals("Ink", o.income.tone.name)

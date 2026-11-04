@@ -50,12 +50,25 @@ final class InsightsTests: XCTestCase {
         let names: [String] = october.lines.map { $0.name }
         XCTAssertEqual(Array(names.prefix(3)), ["Home", "Groceries", "Dining"])
         // The same top three as Overview.
-        let overview = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC")
+        let overview = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
         let overviewAmounts: [String] = overview.spending.top.map { $0.amountText }
         let amounts: [String] = october.lines.prefix(3).map { $0.amountText }
         XCTAssertEqual(amounts, overviewAmounts)
         XCTAssertEqual(october.lines[0].barPermille, 1000)
         XCTAssertTrue(october.lines[0].percent > 0)
+    }
+
+    func testOverviewWeekMatchesTheSpendingPageOfThatWeek() throws {
+        let view = try DemoFixture.view(directory: directory, keys: keys)
+        let today: Int32 = DemoFixture.lastOfOctober
+        for first: Int32 in [1, 2, 7] {
+            let overview = view.overview(hidden: false, todayEpochDay: today, timeZoneId: "UTC", firstWeekday: first)
+            let page = view.spendingPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC", firstWeekday: first, month: false, income: false, back: 0)
+            XCTAssertEqual(overview.weekSpending.totalText, page.totalText)
+            XCTAssertEqual(overview.weekStartDay, page.fromDay)
+            let income = view.spendingPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC", firstWeekday: first, month: false, income: true, back: 0)
+            XCTAssertEqual(overview.weekIncome.totalText, income.totalText)
+        }
     }
 
     func testHiddenMasksEverything() throws {

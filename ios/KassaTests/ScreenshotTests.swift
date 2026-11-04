@@ -69,8 +69,8 @@ final class ScreenshotTests: XCTestCase {
         let expected = try DemoFixture.expected()
         let demoDirectory = directory.appendingPathComponent("demo", isDirectory: true)
         let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
-        let shown = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
-        let masked = view.overview(hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let shown = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", firstWeekday: 2)
+        let masked = view.overview(hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", firstWeekday: 2)
         let currencyName = "US dollar"
         for scheme in [ColorScheme.light, ColorScheme.dark] {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
@@ -216,7 +216,7 @@ final class ScreenshotTests: XCTestCase {
         let notices: NoticesData = view.notices(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", cleared: [])
         let upcoming: [UpcomingData] = view.upcoming(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", days: 30)
         let bills: BillsData = view.billsPage(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
-        let overview = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let overview = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", firstWeekday: 2)
         for scheme in [ColorScheme.light, ColorScheme.dark] {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
             let page = NoticesContent(

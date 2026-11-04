@@ -1,7 +1,8 @@
 import SwiftUI
 import KassaShared
 
-/// The Overview: spending or income of the current month with its three largest categories, then the pinned accounts. Read-only.
+/// The Overview: spending or income of the current month (or this week, from the phone's first day of the week) with its three largest
+/// categories, then the pinned accounts. Read-only.
 /// Every figure, order and colour comes from the shared rules (`LedgerView.overview`); this only lays them out.
 struct OverviewScreen: View {
     let data: OverviewData
@@ -14,9 +15,9 @@ struct OverviewScreen: View {
     var upcoming: [UpcomingData] = []
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
-    /// Batch J: a top category opens Insights' category page; the total opens the month's spending (or income) page.
+    /// Batch J: a top category opens Insights' category page; the total opens the spending (or income) page: income first, then month.
     var onOpenCategory: (Int64) -> Void = { _ in }
-    var onOpenSpending: (Bool) -> Void = { _ in }
+    var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
 
     var body: some View {
         ScrollView {
@@ -44,10 +45,12 @@ struct OverviewContent: View {
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
     var onOpenCategory: (Int64) -> Void = { _ in }
-    var onOpenSpending: (Bool) -> Void = { _ in }
+    var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
 
     /// Which flow the hero shows. Spending first, as on Android.
     @State private var showIncome = false
+    /// Month first, as on Android: it is what budgets are measured in. The menu in the hero picks this week.
+    @State private var showWeek = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -64,24 +67,30 @@ struct OverviewContent: View {
     }
 
     private var flow: OverviewFlowData {
+        if showWeek { return showIncome ? data.weekIncome : data.weekSpending }
         return showIncome ? data.income : data.spending
+    }
+
+    private var monthTitle: String {
+        return KassaDates.monthYear(year: Int(data.year), month: Int(data.month))
+    }
+
+    private var periodTitle: String {
+        return showWeek ? String(localized: "overview.thisWeek") : monthTitle
     }
 
     // MARK: Hero
 
     private var hero: some View {
-        let tone: Tone = showIncome ? data.income.tone : data.spending.tone
+        let tone: Tone = flow.tone
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 14) {
                 flowTab("overview.spending", selected: !showIncome, income: false)
                 flowTab("overview.income", selected: showIncome, income: true)
                 Spacer(minLength: 8)
-                Text(KassaDates.monthYear(year: Int(data.year), month: Int(data.month)))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
-                    .lineLimit(1)
+                periodMenu
             }
-            Button(action: { onOpenSpending(showIncome) }) {
+            Button(action: { onOpenSpending(showIncome, !showWeek) }) {
                 Text(flow.totalText)
                     .font(.largeTitle.weight(.semibold))
                     .monospacedDigit()
@@ -100,6 +109,22 @@ struct OverviewContent: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 20).fill(Palette.heroTint(tone)))
+    }
+
+    private var periodMenu: some View {
+        return Menu {
+            Button(action: { showWeek = false }) { Text(monthTitle) }
+            Button(action: { showWeek = true }) { Text("overview.thisWeek") }
+        } label: {
+            HStack(spacing: 4) {
+                Text(periodTitle).font(.footnote.weight(.semibold)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+            }
+            .foregroundColor(Palette.ink2)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text("overview.choosePeriod"))
     }
 
     private func flowTab(_ title: LocalizedStringKey, selected: Bool, income: Bool) -> some View {

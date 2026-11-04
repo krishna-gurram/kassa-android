@@ -208,6 +208,8 @@
 /* Overview */
 "overview.spending" = "Spending";
 "overview.income" = "Income";
+"overview.thisWeek" = "This week";
+"overview.choosePeriod" = "Choose the period";
 "overview.noSpending" = "No spending yet.";
 "overview.noIncome" = "No income yet.";
 "overview.accounts" = "Accounts";
