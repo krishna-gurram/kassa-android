@@ -197,6 +197,24 @@ final class LoanTests: XCTestCase {
         XCTAssertEqual(month.incomeText, "$0.00")
     }
 
+    func testACardCorrectionIsTypedAsWhatIsOwedAndIsNotSpending() throws {
+        try fresh()
+        let card = try store.addAccount(AccountInput(
+            type: "CREDIT_CARD", name: "Travel", last4: "", balance: "500", statementDay: "5", dueDay: "25", limit: "", payFromId: 0
+        ))
+        let sheet: CorrectionSheetData = try ledger().correctionSheet(accountId: card, editingId: 0, hidden: false)
+        XCTAssertTrue(sheet.debt)
+        XCTAssertEqual(sheet.shownWithout, 50_000)
+        // The issuer shows 420.00 owed: the balance goes up by 80.00 (owed goes down).
+        let id = try store.correctBalance(accountId: card, typedShown: 42_000, epochMillis: millis, editingId: 0)
+        let data = try store.export()
+        let row = try XCTUnwrap(data.transactions.first { $0.id == id })
+        XCTAssertEqual(row.kind, "ADJUST_IN")
+        XCTAssertEqual(row.amount, 8_000)
+        let month = try ledger().activity(year: 2026, month: 3, hidden: false, todayEpochDay: day, timeZoneId: "UTC")
+        XCTAssertEqual(month.spendingText, "$0.00")
+    }
+
     func testEditingACorrectionWorksFromTheBalanceWithoutItAndDeleteUndoesIt() throws {
         try fresh()
         let main = try store.addAccount(account("CHECKING", "Main", balance: "1000"))
