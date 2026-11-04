@@ -17,7 +17,7 @@ final class CardTests: XCTestCase {
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("kassa-card-" + UUID().uuidString, isDirectory: true)
         store = try LedgerStore(directory: directory, keyStore: MemoryKeyStore())
-        try store.startFresh(currency: "USD", categories: [])
+        try store.startFresh(currency: "USD", categories: ["Groceries"])
     }
 
     override func tearDownWithError() throws {
@@ -78,8 +78,10 @@ final class CardTests: XCTestCase {
     func testPayingACardMovesMoneyFromTheAccountToTheCard() throws {
         let main = try store.addAccount(account("CHECKING", "Main", balance: "1000"))
         let visa = try store.addAccount(card("Visa"))
+        let found: [CategoryChoiceData] = try ledger().categoryChoices(kind: "EXPENSE", query: "")
+        let groceries = try XCTUnwrap(found.first, "no category").id
         _ = try store.addEntry(EntryInput(
-            id: 0, kind: "EXPENSE", amount: 20_000, accountId: visa, toAccountId: 0, categoryId: 0, epochMillis: millis, note: "Shoes"
+            id: 0, kind: "EXPENSE", amount: 20_000, accountId: visa, toAccountId: 0, categoryId: groceries, epochMillis: millis, note: "Shoes"
         ))
         let before = try ledger().accountPage(accountId: visa, hidden: false, todayEpochDay: day, timeZoneId: "UTC", monthsBack: 0)
         XCTAssertEqual(before.balanceText, "$200.00")
