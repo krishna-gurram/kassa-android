@@ -10,10 +10,12 @@ struct AccountsScreen: View {
     let onToggleHidden: () -> Void
     /// Opens the Add account sheet. Nil leaves the button out.
     var onAdd: (() -> Void)? = nil
+    /// A tap on a row: the row and whether it is a person. Nil draws rows that do nothing.
+    var onOpenRow: ((AccountRowData, Bool) -> Void)? = nil
 
     var body: some View {
         ScrollView {
-            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd)
+            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd, onOpenRow: onOpenRow)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
         }
@@ -27,6 +29,7 @@ struct AccountsContent: View {
     let hidden: Bool
     let onToggleHidden: () -> Void
     var onAdd: (() -> Void)? = nil
+    var onOpenRow: ((AccountRowData, Bool) -> Void)? = nil
 
     /// Folded groups, by key. Closed starts folded.
     @State private var folded: Set<String> = ["CLOSED"]
@@ -86,6 +89,16 @@ struct AccountsContent: View {
         }
         ForEach(group.rows, id: \.id) { row in
             Hairline()
+            rowButton(row, isPerson: group.key == "PEOPLE")
+        }
+    }
+
+    @ViewBuilder
+    private func rowButton(_ row: AccountRowData, isPerson: Bool) -> some View {
+        if let open = onOpenRow {
+            Button(action: { open(row, isPerson) }) { AccountRowView(row: row) }
+                .buttonStyle(.plain)
+        } else {
             AccountRowView(row: row)
         }
     }

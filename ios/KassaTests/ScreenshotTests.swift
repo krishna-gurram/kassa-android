@@ -37,6 +37,7 @@ final class ScreenshotTests: XCTestCase {
             draw(target, accounts: accounts, hiddenAccounts: hiddenAccounts, activity: activity, today: todayDay)
             drawAdd(target, view: view, today: todayDay)
             try drawOverviewAndSettings(target)
+            try drawCardPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -79,6 +80,39 @@ final class ScreenshotTests: XCTestCase {
                 currencyDestination: AnyView(EmptyView()), noticesDestination: AnyView(EmptyView())
             )
             save(settings, scheme: scheme, to: target.appendingPathComponent("settings-\(suffix).png"))
+        }
+    }
+
+    /// The demo's Travel card page (shown and hidden) and its pay-card sheet, light and dark, on the demo's own "today".
+    @MainActor
+    private func drawCardPages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let demoDirectory = directory.appendingPathComponent("demo-cards", isDirectory: true)
+        let view = try DemoFixture.view(directory: demoDirectory, keys: MemoryKeyStore())
+        let cardId: Int64 = 4
+        let today = Int(expected.today)
+        let shown = view.cardPage(cardId: cardId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", back: 0)
+        let masked = view.cardPage(cardId: cardId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", back: 0)
+        let payData = view.cardPayData(cardId: cardId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let sheetDirectory = directory.appendingPathComponent("demo-sheet", isDirectory: true)
+        let keys = MemoryKeyStore()
+        let model = AppModel(defaults: UserDefaults(suiteName: "kassa-shots-" + UUID().uuidString) ?? UserDefaults.standard, openStore: {
+            try LedgerStore(directory: sheetDirectory, keyStore: keys)
+        })
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let page = CardPageContent(
+                data: shown, hidden: false, today: today, onToggleHidden: {}, onBack: {}, onPay: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }
+            )
+            save(page, scheme: scheme, to: target.appendingPathComponent("card-\(suffix).png"))
+            let hiddenPage = CardPageContent(
+                data: masked, hidden: true, today: today, onToggleHidden: {}, onBack: {}, onPay: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }
+            )
+            save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("card-hidden-\(suffix).png"))
+            let sheet = PayCardSheet(model: model, request: PaySheetRequest(data: payData))
+            save(sheet, scheme: scheme, to: target.appendingPathComponent("pay-card-\(suffix).png"))
         }
     }
 

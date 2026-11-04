@@ -199,7 +199,13 @@ extension LedgerStore {
         let beforeAccount = before?.accountId ?? 0
         let beforeTo = before?.toAccountId ?? 0
         let wanted = EntryBridge.shared.mustBeOpen(input: input, beforeAccountId: beforeAccount, beforeToAccountId: beforeTo)
-        for text in wanted {
+        try requireOpen(wanted)
+    }
+
+    /// Refuses with "<name> is closed. Reopen it first to add to it." when any of the accounts [ids] (decimal text) is closed: the
+    /// accounts a change newly touches (Android's `requireOpen`).
+    private func requireOpen(_ ids: [String]) throws {
+        for text in ids {
             guard let id = Int64(text) else { continue }
             let statement = try db.prepare("SELECT name FROM accounts WHERE id = ? AND closedDay IS NOT NULL")
             try statement.bindInt(1, id)
@@ -300,6 +306,123 @@ extension LedgerStore {
             let row = try self.db.prepare("DELETE FROM transactions WHERE id = ?")
             try row.bindInt(1, id)
             _ = try row.step()
+        }
+    }
+
+    // MARK: People's payments
+
+    /// What the store knows of a stored payment to or from a person.
+    private struct StoredPayment {
+        let kind: String
+        let accountId: Int64
+        let personId: Int64
+    }
+
+    private func storedPayment(_ id: Int64) throws -> StoredPayment? {
+        let statement = try db.prepare("SELECT kind, accountId, personId FROM transactions WHERE id = ?")
+        try statement.bindInt(1, id)
+        guard try statement.step() else { return nil }
+        let kind = statement.columnText(0) ?? ""
+        let account = statement.columnInt(1) ?? 0
+        let person = statement.columnInt(2) ?? 0
+        return StoredPayment(kind: kind, accountId: account, personId: person)
+    }
+
+    /// Refuses what `PersonPayment` refuses (an amount, a note, an account, the kind), a person or account that is gone, and a closed
+    /// account the save newly touches. [beforeAccount] is the stored payment's account (0 for a new one).
+    private func checkPayment(_ input: PersonPaymentInput, beforeAccount: Int64) throws {
+        let currency = try currencyCode() ?? ""
+        if let problem = PersonPaymentBridge.shared.problem(input: input, currency: currency) {
+            throw WriteRefusal(field: problem.field, message: problem.message)
+        }
+        if !(try exists("SELECT 1 FROM people WHERE id = ?", input.personId)) {
+            throw WriteRefusal(message: String(localized: "write.personGone"))
+        }
+        if !(try exists("SELECT 1 FROM accounts WHERE id = ?", input.accountId)) {
+            throw WriteRefusal(message: String(localized: "write.accountGone"))
+        }
+        let wanted = PersonPaymentBridge.shared.mustBeOpen(input: input, beforeAccountId: beforeAccount)
+        try requireOpen(wanted)
+    }
+
+    /// Adds a payment to or from a person (PERSON_IN or PERSON_OUT on one of your accounts), in one transaction. Returns its id.
+    @discardableResult
+    func addPersonPayment(_ input: PersonPaymentInput) throws -> Int64 {
+        return try db.transaction { () throws -> Int64 in
+            try self.checkPayment(input, beforeAccount: 0)
+            return try self.insertRow(table: "transactions") { column in
+                return PersonPaymentBridge.shared.cell(input: input, column: column)
+            }
+        }
+    }
+
+    /// Saves an edit of payment `input.id`: only kind, amount, account, date and note change (the person stays, an imported payment
+    /// keeps its external id). Refuses anything that is not a payment to or from that person.
+    func updatePersonPayment(_ input: PersonPaymentInput) throws {
+        try db.transaction { () throws -> Void in
+            guard let before = try self.storedPayment(input.id) else {
+                throw WriteRefusal(message: String(localized: "write.entryGone"))
+            }
+            if !PersonPaymentBridge.shared.isPaymentKind(kind: before.kind) || before.personId != input.personId {
+                throw WriteRefusal(message: String(localized: "write.entryNotHere"))
+            }
+            try self.checkPayment(input, beforeAccount: before.accountId)
+            let rows = BackupRows.shared
+            let columns = rows.columns(table: "transactions")
+            let kinds = rows.columnKinds(table: "transactions")
+            var sets: [String] = []
+            var positions: [Int] = []
+            for (index, name) in columns.enumerated() where PersonPaymentBridge.shared.ownsColumn(column: Int32(index)) {
+                sets.append("\"\(name)\" = ?")
+                positions.append(index)
+            }
+            let statement = try self.db.prepare("UPDATE transactions SET \(sets.joined(separator: ", ")) WHERE id = ?")
+            for (slot, index) in positions.enumerated() {
+                let value = PersonPaymentBridge.shared.cell(input: input, column: Int32(index))
+                try LedgerStore.bind(statement, Int32(slot + 1), kind: kinds[index], value: value)
+            }
+            try statement.bindInt(Int32(positions.count + 1), input.id)
+            _ = try statement.step()
+        }
+    }
+
+    /// Deletes a payment to or from a person. Anything else is refused.
+    func deletePersonPayment(id: Int64) throws {
+        try db.transaction { () throws -> Void in
+            guard let stored = try self.storedPayment(id) else {
+                throw WriteRefusal(message: String(localized: "write.entryGone"))
+            }
+            if !PersonPaymentBridge.shared.isPaymentKind(kind: stored.kind) {
+                throw WriteRefusal(message: String(localized: "write.entryNotHere"))
+            }
+            let row = try self.db.prepare("DELETE FROM transactions WHERE id = ?")
+            try row.bindInt(1, id)
+            _ = try row.step()
+        }
+    }
+
+    // MARK: Closing
+
+    /// Closes account [id] on [closedDay] (an epoch day), or reopens it when 0. Only a settled account closes: its balance, and for an
+    /// investment account its holdings, have to be zero (`LedgerView.closeProblem`, asked inside the transaction). Nothing is deleted.
+    func setAccountClosed(id: Int64, closedDay: Int32) throws {
+        try db.transaction { () throws -> Void in
+            if !(try self.exists("SELECT 1 FROM accounts WHERE id = ?", id)) {
+                throw WriteRefusal(message: String(localized: "write.accountGone"))
+            }
+            if closedDay > 0 {
+                let made = LedgerView(data: try self.readAll(), fallbackCurrency: nil)
+                let problem = made.closeProblem(accountId: id)
+                if !problem.isEmpty { throw WriteRefusal(message: problem) }
+                let close = try self.db.prepare("UPDATE accounts SET closedDay = ? WHERE id = ?")
+                try close.bindInt(1, Int64(closedDay))
+                try close.bindInt(2, id)
+                _ = try close.step()
+            } else {
+                let reopen = try self.db.prepare("UPDATE accounts SET closedDay = NULL WHERE id = ?")
+                try reopen.bindInt(1, id)
+                _ = try reopen.step()
+            }
         }
     }
 }

@@ -104,6 +104,12 @@ struct AppShell: View {
         .sheet(isPresented: $addingAccount) {
             AddAccountSheet(model: model, onClose: { addingAccount = false })
         }
+        .sheet(item: $model.paySheet) { request in
+            PayCardSheet(model: model, request: request)
+        }
+        .sheet(item: $model.personSheet) { request in
+            PersonPaymentSheet(model: model, request: request)
+        }
     }
 
     private func withAdd<Content: View>(_ content: Content) -> some View {
@@ -161,10 +167,15 @@ struct AppShell: View {
 
     @ViewBuilder
     private var accountsTab: some View {
-        if let data = model.accounts {
+        if let target = model.openPage {
+            PageHost(model: model, target: target)
+        } else if let data = model.accounts {
             AccountsScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
-                onAdd: { addingAccount = true }
+                onAdd: { addingAccount = true },
+                onOpenRow: { row, isPerson in
+                    if isPerson { model.openPersonPage(row.id) } else { model.openAccountPage(row.id) }
+                }
             )
         } else {
             ProgressView()

@@ -92,12 +92,14 @@ object EntryRules {
         kind == TxKind.TRANSFER && toAccountType == AccountType.INVESTMENT
 
     /**
-     * Whether Activity may open this entry on the entry page. A transfer into a card is a card payment, an entry of a loan payment,
-     * a split or a person's payment has its own page, and buys, sales and balance corrections are not expenses, income or transfers.
-     * Those do nothing yet on iOS rather than being rewritten by a page that doesn't know them.
+     * Whether Activity may open this entry on the entry page. A transfer into a card is a card payment and, as on Android, an ordinary
+     * transfer there (the pay-card sheet adds one; the entry page edits or deletes it). An entry of a loan payment, a split or a
+     * person's payment has its own page, and buys, sales and balance corrections are not expenses, income or transfers; those are
+     * never rewritten by a page that doesn't know them. [toAccountType] is kept so callers need not change.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun isEditable(kind: TxKind, toAccountType: AccountType?, belongsToLoanPayment: Boolean, hasPerson: Boolean, isSplit: Boolean): Boolean =
-        kind in PAGE_KINDS && !belongsToLoanPayment && !hasPerson && !isSplit && toAccountType?.hasStatement != true
+        kind in PAGE_KINDS && !belongsToLoanPayment && !hasPerson && !isSplit
 
     /**
      * The accounts the picker leaves out for [field] (ACCOUNT or TO). The destination of a transfer is never the source. A transfer

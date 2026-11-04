@@ -176,10 +176,10 @@ struct EntryRowView: View {
     var onOpen: ((EntryRowData) -> Void)? = nil
 
     var body: some View {
-        // Only expenses, income and transfers open the entry page. Rows of a loan payment, a buy or sale, a payment to or from a
-        // person, a card payment or a balance correction are not editable there (`EntryRowData.editable`): tapping does nothing,
-        // as Android sends each of those to its own sheet, which iOS doesn't have yet.
-        if entry.editable, let open = onOpen {
+        // Expenses, income, transfers and card payments open the entry page (`EntryRowData.editable`) and a payment to or from a person
+        // opens its own sheet (`personPayment`). Rows of a loan payment, a buy or sale or a balance correction do nothing when tapped:
+        // Android sends each of those to its own sheet, which iOS doesn't have yet.
+        if entry.editable || entry.personPayment, let open = onOpen {
             Button(action: { open(entry) }) { content }
                 .buttonStyle(.plain)
         } else {

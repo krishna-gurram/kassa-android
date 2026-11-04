@@ -12,6 +12,8 @@ import app.kassa.money.domain.AccountsOverview
 import app.kassa.money.domain.Balances
 import app.kassa.money.domain.BalanceCorrection
 import app.kassa.money.domain.CardCycle
+import app.kassa.money.domain.CardPageRules
+import app.kassa.money.domain.CardPayment
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
@@ -27,13 +29,17 @@ import app.kassa.money.domain.LoanEntryIndex
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
+import app.kassa.money.domain.PersonHistory
+import app.kassa.money.domain.PersonPayment
 import app.kassa.money.domain.Period
 import app.kassa.money.domain.QueryWindows
 import app.kassa.money.domain.Spending
 import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
+import app.kassa.money.domain.closeProblem as ruleCloseProblem
 import app.kassa.money.domain.dateOfMillis
+import app.kassa.money.domain.effectOn
 import app.kassa.money.domain.isAfter
 import app.kassa.money.domain.isBefore
 import app.kassa.money.domain.localDateOfEpochDay
@@ -145,10 +151,12 @@ data class EntryRowData(
     /** True for amounts that are not spending or income (transfers, buys, person payments, corrections): secondary colour. */
     val amountMuted: Boolean,
     /**
-     * Whether the entry page may open this row (`EntryRules.isEditable`): an expense, income or transfer that isn't a loan payment,
-     * a split, a person's payment or a card payment. Other rows do nothing when tapped yet.
+     * Whether the entry page may open this row (`EntryRules.isEditable`): an expense, income or transfer (a card payment is one) that
+     * isn't a loan payment, a split or a person's payment. Other rows do nothing when tapped yet.
      */
     val editable: Boolean,
+    /** A payment to or from a person: it opens the person payment sheet (edit or delete), not the entry page. */
+    val personPayment: Boolean,
 )
 
 /** One day of Activity: newest first, with what was spent that day (empty when nothing was, except while hidden). */
@@ -315,6 +323,158 @@ data class CategoryPageData(
     val totalText: String,
     val entryCount: Int,
     val days: List<DayData>,
+)
+
+// ---------- Account, card and person pages (iOS stage F) ----------
+
+/** Under an account's name on its page: what the big figure is. */
+enum class BalanceKind { Balance, OutstandingBalance, TotalValue, TotalBalance }
+
+/**
+ * One account's page (any kind but a card with statement days, which has [CardPageData]): the balance at the end of the budget month
+ * shown, the month's money in and out, and its entries by day. [closeProblem] is why it can't be closed yet ("" when it can).
+ */
+data class AccountPageData(
+    val found: Boolean,
+    val id: Long,
+    val name: String,
+    val last4: String,
+    /** An `AccountType` name. */
+    val type: String,
+    val balanceKind: BalanceKind,
+    val balanceText: String,
+    val balanceTone: Tone,
+    val inText: String,
+    val outText: String,
+    val year: Int,
+    val month: Int,
+    val isCurrentMonth: Boolean,
+    val hasEarlier: Boolean,
+    /** An open card with statement days has its own page ([CardPageData]). */
+    val hasCardPage: Boolean,
+    /** Epoch day the account matures (fixed deposit), 0 for none. */
+    val maturityDay: Int,
+    /** Epoch day it was closed, 0 while open. */
+    val closedDay: Int,
+    /** Why Close account is refused ("Pay off or move the balance first."), empty when the balance is settled. Read only when the person taps Close, as on Android. */
+    val closeProblem: String,
+    val entryCount: Int,
+    val days: List<DayData>,
+)
+
+/** What the line under Balance payable says; [CardPageData.statusDays] is the count DaysLate and DueInDays name. */
+enum class CardStatus { DueOn, PaidExtra, PaidInFull, NothingDue, DaysLate, DueToday, DueTomorrow, DueInDays }
+
+/** What sits under the statement figures when the last statement is shown. */
+enum class CardLeft { None, LeftToPay, PaidExtra, PaidInFull }
+
+/** A card with statement days: Balance payable, Total balance, Outstanding, and the statement navigator with its entries. */
+data class CardPageData(
+    val found: Boolean,
+    val id: Long,
+    val name: String,
+    val last4: String,
+    /** Balance payable without a minus (a credit shows its size, green). */
+    val payableText: String,
+    val payableTone: Tone,
+    val status: CardStatus,
+    val statusDays: Int,
+    /** "Paid <x> extra": the size, only for PaidExtra. */
+    val statusAmountText: String,
+    val statusTone: Tone,
+    /** Epoch day of the due date, and the tone of its tile. */
+    val dueDay: Int,
+    val dueTone: Tone,
+    val totalText: String,
+    val totalTone: Tone,
+    val outstandingText: String,
+    /** What the pay button names ("Pay $120.00"), and whether anything is payable (else the button says Record a payment). */
+    val payText: String,
+    val hasPayable: Boolean,
+    /** Whether the card is open, so Pay card is offered. */
+    val canPay: Boolean,
+    /** Statements back from the current stretch (0 is charges since the last statement). */
+    val back: Int,
+    val canBack: Boolean,
+    val canForward: Boolean,
+    val fromDay: Int,
+    /** For a statement, the day it closed (its entries run up to the day before); for the current stretch, today. */
+    val toDay: Int,
+    val lastCloseDay: Int,
+    val nextCloseDay: Int,
+    val chargesText: String,
+    /** "" when no payment came in. */
+    val paymentsText: String,
+    val left: CardLeft,
+    val leftText: String,
+    val closedDay: Int,
+    val closeProblem: String,
+    val entryCount: Int,
+    val days: List<DayData>,
+)
+
+/** One option of the pay-card sheet: [choice] is a `CardPayment.Choice` name, [cents] the amount (0 for OTHER). */
+data class CardPayOptionData(
+    val choice: String,
+    val cents: Long,
+    val amountText: String,
+    /** Epoch day of the due date, for PAYABLE. */
+    val dueDay: Int,
+    /** "Balance payable plus <x> outstanding": the outstanding part, for TOTAL when both exist; empty otherwise. */
+    val outstandingText: String,
+)
+
+/** What the pay-card sheet opens with. */
+data class CardPayData(
+    val found: Boolean,
+    val cardId: Long,
+    val name: String,
+    val options: List<CardPayOptionData>,
+    val defaultChoice: String,
+    /** The card's own open "pay from" account, 0 for none: the only account ever preselected. */
+    val defaultPayFromId: Long,
+)
+
+/** One line of a person's history. [noteKind]: TYPED (the note is the person's own), SPLIT, PAID_YOU or YOU_PAID (Swift words them). */
+data class PersonLineData(
+    val epochMillis: Long,
+    val day: Int,
+    val note: String,
+    val noteKind: String,
+    val amountText: String,
+    val amountTone: Tone,
+    val payment: Boolean,
+    /** The payment's entry, 0 for a split or a starting balance. */
+    val paymentId: Long,
+)
+
+/** A person's page: what is owed and since when, and the history. */
+data class PersonPageData(
+    val found: Boolean,
+    val id: Long,
+    val name: String,
+    val archived: Boolean,
+    val balanceText: String,
+    val balanceTone: Tone,
+    val side: PersonSide,
+    /** Epoch day the open balance started; 0 when settled or while hidden. */
+    val sinceDay: Int,
+    /** What a new payment starts on: a `TxKind` name and the amount in cents (0 when settled). */
+    val defaultKind: String,
+    val suggestedCents: Long,
+    val lines: List<PersonLineData>,
+)
+
+/** A payment as the person payment sheet edits it: flat, 0 means none, [kind] is a `TxKind` name. */
+data class PersonPaymentEditData(
+    val id: Long,
+    val personId: Long,
+    val personName: String,
+    val kind: String,
+    val amount: Long,
+    val accountId: Long,
+    val epochMillis: Long,
+    val note: String,
 )
 
 /** The ledger of one restored backup, worked out for the iOS screens. Build one per refresh; see the file comment. */
@@ -584,6 +744,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             amountTone = tone,
             amountMuted = muted,
             editable = isEditable(t, to),
+            personPayment = (t.kind == TxKind.PERSON_IN || t.kind == TxKind.PERSON_OUT) && !loanIndex.isLoanEntry(t.id),
         )
     }
 
@@ -920,6 +1081,267 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
      */
     fun payFromPick(query: String): AccountPickData {
         val options = AccountPicking.payFromOptions(accounts)
+        val groups = AccountPicking.groups(options, AccountKindFilter.ALL, query.trim()).map { g ->
+            AccountChoiceGroupData(g.section.name, g.accounts.map(::accountChoiceOf))
+        }
+        return AccountPickData(listOf(AccountKindFilter.ALL.name), groups, emptyList(), options.isEmpty())
+    }
+
+    // ---------- Account, card and person pages ----------
+
+    /** What an account is worth to close it: its balance plus, for an investment account, its holdings. */
+    private fun worth(a: Account): Long = (balances[a.id] ?: 0L) + holdingsValue(a)
+
+    /** Why account [accountId] can't be closed yet ("Pay off or move the balance first."), or empty text when it can (`closeProblem`). */
+    fun closeProblem(accountId: Long): String {
+        val a = accountById[accountId] ?: return ""
+        return ruleCloseProblem(worth(a)) ?: ""
+    }
+
+    private fun hasCardPage(a: Account): Boolean = a.type.hasStatement && a.isActive && a.statementDay != null
+
+    private fun snapshotOf(a: Account, todayEpochDay: Int, zone: TimeZone): CardSnapshot =
+        CardCycle.snapshot(a, transactions, localDateOfEpochDay(todayEpochDay), zone, balance = balances[a.id] ?: 0L)
+
+    private fun dayGroups(list: List<Transaction>, zone: TimeZone): List<DayData> {
+        val days = ArrayList<DayData>()
+        val grouped = list.groupBy { dateOfMillis(it.epochMillis, zone) }
+        for ((day, entries) in grouped) days.add(DayData(day.toEpochDay().toInt(), "", entries.map { entryRow(it) }))
+        return days
+    }
+
+    /**
+     * One account's page for the budget month [monthsBack] before the current one (as Insights counts months): the balance at the
+     * end of that month ("what is owed", no minus, for a debt; cash plus holdings for an investment), money in and out, and the
+     * entries on the account (as stored: balances, cards and loans read the real entries). Close and Reopen state ride along.
+     */
+    fun accountPage(accountId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String, monthsBack: Int): AccountPageData = shown(hidden) {
+        val a = accountById[accountId]
+        if (a == null) {
+            AccountPageData(false, accountId, "", "", "", BalanceKind.Balance, "", Tone.Ink, "", "", 0, 0, true, false, false, 0, 0, "", 0, emptyList())
+        } else {
+            val zone = zoneOf(timeZoneId)
+            val period = insightsPeriod(localDateOfEpochDay(todayEpochDay), monthsBack)
+            val mine = transactions.filter { it.accountId == a.id || it.toAccountId == a.id }
+            val rows = mine.filter { dateOfMillis(it.epochMillis, zone) in period }
+            val end = worth(a) - mine.filter { dateOfMillis(it.epochMillis, zone).isAfter(period.endInclusive) }.sumOf { it.effectOn(a.id) }
+            val moneyIn = rows.sumOf { maxOf(0L, it.effectOn(a.id)) }
+            val moneyOut = rows.sumOf { maxOf(0L, -it.effectOn(a.id)) }
+            val debt = a.type.isDebt
+            val kind = when {
+                a.type == AccountType.INVESTMENT -> BalanceKind.TotalValue
+                a.type == AccountType.CREDIT_CARD -> BalanceKind.TotalBalance
+                debt -> BalanceKind.OutstandingBalance
+                else -> BalanceKind.Balance
+            }
+            AccountPageData(
+                found = true,
+                id = a.id,
+                name = a.name,
+                last4 = a.last4 ?: "",
+                type = a.type.name,
+                balanceKind = kind,
+                balanceText = if (debt) cardMoney(-end) else Money.format(end),
+                balanceTone = if (debt) cardTint(-end) else balanceTone(a.type, end),
+                inText = Money.format(moneyIn),
+                outText = Money.format(moneyOut),
+                year = period.yearMonth.year,
+                month = period.yearMonth.month,
+                isCurrentMonth = monthsBack <= 0,
+                hasEarlier = hasEarlier(period.start, zone),
+                hasCardPage = hasCardPage(a),
+                maturityDay = a.maturityDay ?: 0,
+                closedDay = a.closedDay ?: 0,
+                closeProblem = ruleCloseProblem(worth(a)) ?: "",
+                entryCount = rows.size,
+                days = dayGroups(rows, zone),
+            )
+        }
+    }
+
+    private fun emptyCardPage(id: Long) = CardPageData(
+        false, id, "", "", "", Tone.Ink, CardStatus.DueOn, 0, "", Tone.Ink, 0, Tone.Ink, "", Tone.Ink, "", "", false, false,
+        0, false, false, 0, 0, 0, 0, "", "", CardLeft.None, "", 0, "", 0, emptyList(),
+    )
+
+    private fun statusOf(s: CardPageRules.Status): CardStatus = when (s) {
+        CardPageRules.Status.DUE_ON -> CardStatus.DueOn
+        CardPageRules.Status.PAID_EXTRA -> CardStatus.PaidExtra
+        CardPageRules.Status.PAID_IN_FULL -> CardStatus.PaidInFull
+        CardPageRules.Status.NOTHING_DUE -> CardStatus.NothingDue
+        CardPageRules.Status.DAYS_LATE -> CardStatus.DaysLate
+        CardPageRules.Status.DUE_TODAY -> CardStatus.DueToday
+        CardPageRules.Status.DUE_TOMORROW -> CardStatus.DueTomorrow
+        CardPageRules.Status.DUE_IN_DAYS -> CardStatus.DueInDays
+    }
+
+    /**
+     * A card's page as of [todayEpochDay]: Balance payable, Total balance and Outstanding from [CardCycle.snapshot] (the wording of
+     * Money Manager: payable is the unpaid last statement, outstanding the charges since the statement date, total both), the
+     * due line from [CardPageRules.status], and the statement [back] (0 is the charges since the last statement date) with its
+     * entries. While hidden the due line says only when it is due and no colour is given. Empty (not found) for anything that is not an
+     * open card with statement days.
+     */
+    fun cardPage(cardId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String, back: Int): CardPageData = shown(hidden) {
+        val a = accountById[cardId]
+        if (a == null || !hasCardPage(a)) {
+            emptyCardPage(cardId)
+        } else {
+            val zone = zoneOf(timeZoneId)
+            val today = localDateOfEpochDay(todayEpochDay)
+            val s = snapshotOf(a, todayEpochDay, zone)
+            val w = CardPageRules.window(s, a.statementDay ?: 1, back.coerceAtLeast(0), today)
+            val oldest = transactions.filter { it.accountId == a.id || it.toAccountId == a.id }
+                .minOfOrNull { it.epochMillis }?.let { dateOfMillis(it, zone) }
+            val list = CardPageRules.entriesIn(a.id, transactions, w, zone)
+            val credits = CardPageRules.credits(a.id, list)
+            val line = CardPageRules.status(s, today, Money.isHidden)
+            val tone = CardPageRules.dueTone(s, today)
+            val dueTone = if (Money.isHidden) Tone.Ink else when (tone) {
+                CardPageRules.DueTone.ATTENTION -> Tone.Orange
+                CardPageRules.DueTone.POSITIVE -> Tone.Green
+                CardPageRules.DueTone.NEUTRAL -> Tone.Ink
+            }
+            val payableTone = if (Money.isHidden) Tone.Ink else if (s.balancePayable < 0) Tone.Green else if (s.balancePayable > 0) Tone.Orange else Tone.Ink
+            var left = CardLeft.None
+            var leftText = ""
+            if (w.back == 1 && !Money.isHidden) {
+                if (s.payable > 0) {
+                    left = CardLeft.LeftToPay
+                    leftText = Money.format(s.payable)
+                } else if (s.balancePayable < 0) {
+                    left = CardLeft.PaidExtra
+                    leftText = Money.format(-s.balancePayable)
+                } else {
+                    left = CardLeft.PaidInFull
+                }
+            }
+            CardPageData(
+                found = true,
+                id = a.id,
+                name = a.name,
+                last4 = a.last4 ?: "",
+                payableText = Money.format(abs(s.balancePayable)),
+                payableTone = payableTone,
+                status = statusOf(line.status),
+                statusDays = line.days.toInt(),
+                statusAmountText = if (line.status == CardPageRules.Status.PAID_EXTRA) Money.format(-s.balancePayable) else "",
+                statusTone = dueTone,
+                dueDay = s.due.toEpochDay().toInt(),
+                dueTone = dueTone,
+                totalText = cardMoney(s.totalBalance),
+                totalTone = cardTint(s.totalBalance),
+                outstandingText = Money.format(s.outstanding),
+                payText = Money.format(s.payable),
+                hasPayable = s.payable > 0,
+                canPay = true,
+                back = w.back,
+                canBack = CardPageRules.canGoBack(oldest, w),
+                canForward = w.back > 0,
+                fromDay = w.from.toEpochDay().toInt(),
+                toDay = w.to.toEpochDay().toInt(),
+                lastCloseDay = s.lastClose.toEpochDay().toInt(),
+                nextCloseDay = s.nextClose.toEpochDay().toInt(),
+                chargesText = Money.format(CardPageRules.charges(a.id, list)),
+                paymentsText = if (credits > 0) Money.format(credits) else "",
+                left = left,
+                leftText = leftText,
+                closedDay = a.closedDay ?: 0,
+                closeProblem = ruleCloseProblem(worth(a)) ?: "",
+                entryCount = list.size,
+                days = dayGroups(list, zone),
+            )
+        }
+    }
+
+    /**
+     * What the pay-card sheet opens with: the amounts it offers (`CardPayment.options`), the one it starts on, and the card's own
+     * "pay from" account when still open (the only account ever preselected). Not found for anything but an open card with statement days.
+     */
+    fun cardPayData(cardId: Long, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): CardPayData = shown(hidden) {
+        val a = accountById[cardId]
+        if (a == null || !hasCardPage(a)) {
+            CardPayData(false, cardId, "", emptyList(), CardPayment.Choice.OTHER.name, 0)
+        } else {
+            val s = snapshotOf(a, todayEpochDay, zoneOf(timeZoneId))
+            val options = CardPayment.options(s).map { o ->
+                CardPayOptionData(
+                    choice = o.choice.name,
+                    cents = o.amount,
+                    amountText = if (o.choice == CardPayment.Choice.OTHER) "" else Money.format(o.amount),
+                    dueDay = if (o.choice == CardPayment.Choice.PAYABLE) s.due.toEpochDay().toInt() else 0,
+                    outstandingText = if (o.choice == CardPayment.Choice.TOTAL && s.outstanding > 0 && s.payable > 0) Money.format(s.outstanding) else "",
+                )
+            }
+            CardPayData(true, a.id, a.name, options, CardPayment.defaultChoice(s).name, CardPayment.defaultPayFrom(a, accounts) ?: 0L)
+        }
+    }
+
+    /** A person's page: the balance (no minus; the side says who owes whom, never while hidden), since when, and the history, newest first. */
+    fun personPage(personId: Long, hidden: Boolean, timeZoneId: String): PersonPageData = shown(hidden) {
+        val p = parts.people.firstOrNull { it.id == personId }
+        if (p == null) {
+            PersonPageData(false, personId, "", false, "", Tone.Ink, PersonSide.Hidden, 0, TxKind.PERSON_IN.name, 0, emptyList())
+        } else {
+            val zone = zoneOf(timeZoneId)
+            val balance = personBalance(p.id, parts.loanEntries, transactions)
+            val history = PersonHistory.lines(p.id, parts.loanEntries, transactions)
+            val since = if (balance != 0L && !Money.isHidden) PersonHistory.openSince(history) else null
+            val side = when {
+                Money.isHidden -> PersonSide.Hidden
+                balance > 0 -> PersonSide.OwesYou
+                balance < 0 -> PersonSide.YouOwe
+                else -> PersonSide.Settled
+            }
+            val lines = history.map { l ->
+                val noteKind = when {
+                    l.note.isNotBlank() -> "TYPED"
+                    !l.payment -> "SPLIT"
+                    l.kind == TxKind.PERSON_IN -> "PAID_YOU"
+                    else -> "YOU_PAID"
+                }
+                PersonLineData(
+                    epochMillis = l.epochMillis,
+                    day = dateOfMillis(l.epochMillis, zone).toEpochDay().toInt(),
+                    note = l.note,
+                    noteKind = noteKind,
+                    amountText = if (l.payment) Money.format(abs(l.amount)) else Money.format(l.amount, showPlus = true),
+                    amountTone = if (l.payment) Tone.Ink else favour(l.amount),
+                    payment = l.payment,
+                    paymentId = if (l.payment) l.transactionId ?: 0L else 0L,
+                )
+            }
+            PersonPageData(
+                found = true,
+                id = p.id,
+                name = p.name,
+                archived = p.archived,
+                balanceText = Money.format(abs(balance)),
+                balanceTone = favour(balance),
+                side = side,
+                sinceDay = since?.let { dateOfMillis(it, zone).toEpochDay().toInt() } ?: 0,
+                defaultKind = PersonPayment.defaultKind(balance).name,
+                suggestedCents = PersonPayment.suggestedAmount(balance),
+                lines = lines,
+            )
+        }
+    }
+
+    /** The payment [id] as the person payment sheet edits it, or null when it isn't a payment to or from a person (or belongs to a loan payment). */
+    fun personPaymentEdit(id: Long): PersonPaymentEditData? {
+        val t = transactions.firstOrNull { it.id == id } ?: return null
+        val personId = t.personId ?: return null
+        if (!PersonPayment.isPaymentKind(t.kind) || loanIndex.isLoanEntry(t.id)) return null
+        val name = parts.people.firstOrNull { it.id == personId }?.name ?: ""
+        return PersonPaymentEditData(t.id, personId, name, t.kind.name, t.amount, t.accountId ?: 0L, t.epochMillis, t.note)
+    }
+
+    /**
+     * The picker of the person payment sheet: open checking, savings, cash, prepaid and card accounts (`PersonPayment.sources`), plus
+     * [keepAccountId] (an edited payment's account) even when closed since; grouped like [accountPick], no Recent row, nothing preselected.
+     */
+    fun personPaymentPick(query: String, keepAccountId: Long): AccountPickData {
+        val options = PersonPayment.sources(accounts, if (keepAccountId > 0) keepAccountId else null)
         val groups = AccountPicking.groups(options, AccountKindFilter.ALL, query.trim()).map { g ->
             AccountChoiceGroupData(g.section.name, g.accounts.map(::accountChoiceOf))
         }
