@@ -295,6 +295,24 @@ class LedgerViewTest {
     }
 
     @Test
+    fun aCategoryFromThisWeekOpensTheMonthTheWeekStartsIn() {
+        KassaCore.installDefaults()
+        // Friday 2 January 2026 (epoch day 20455): a week starting Monday 29 December began in the month before.
+        val early = LedgerView(BackupData(createdAt = 0, monthStartDay = 1), null)
+        assertEquals(1, early.overview(false, 20_455, noZone(), 2).weekCategoryBack)
+        // A week that starts inside the month opens this month.
+        assertEquals(0, early.overview(false, 20_459, noZone(), 2).weekCategoryBack)
+        // With a month that starts on the 15th, the same week still belongs to the period that began on 15 December.
+        val mid = LedgerView(BackupData(createdAt = 0, monthStartDay = 15), null)
+        assertEquals(0, mid.overview(false, 20_455, noZone(), 2).weekCategoryBack)
+        // Today 16 January with the 15th start: a week from Monday 12 January began in the period before.
+        assertEquals(1, mid.overview(false, 20_469, noZone(), 2).weekCategoryBack)
+        // It is the number the spending page of this week gives its categories.
+        val page = early.spendingPage(false, 20_455, noZone(), 2, false, false, 0)
+        assertEquals(page.categoryBack, early.overview(false, 20_455, noZone(), 2).weekCategoryBack)
+    }
+
+    @Test
     fun overviewWeekEqualsTheSpendingPageOfThisWeek() {
         KassaCore.installDefaults()
         val v = LedgerView(rich(), null)
