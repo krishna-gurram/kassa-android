@@ -227,7 +227,7 @@ struct AppShell: View {
                 onAllAccounts: { tab = .accounts },
                 notices: model.notices?.items ?? [], upcoming: model.upcoming,
                 onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts },
-                onOpenCategory: { id in model.openCategory(id) },
+                onOpenCategory: { id, back in model.openCategory(id, monthsBack: back) },
                 onOpenSpending: { income, month in model.openRead(ReadRoute.spending(month: month, income: income, back: 0)) }
             )
         } else {

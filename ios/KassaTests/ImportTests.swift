@@ -414,4 +414,66 @@ final class ImportTests: XCTestCase {
         XCTAssertEqual(model.importer.phase, ImportPhase.idle)
         XCTAssertNil(model.pendingOpenURL)
     }
+
+    // MARK: Inbox copies
+
+    /// A copy of [file] in a folder named Inbox, as iOS makes for a file opened from Files.
+    private func inboxCopy(of file: URL, in folderName: String = "Inbox") throws -> URL {
+        let folder = directory.appendingPathComponent(folderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let copy = folder.appendingPathComponent(file.lastPathComponent)
+        try FileManager.default.copyItem(at: file, to: copy)
+        return copy
+    }
+
+    func testAnInboxCopyGoesWhenItsImportFails() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        let copy = try inboxCopy(of: keep(try ImportFixtures.text("just some words", "words.txt")))
+        model.receiveFile(copy)
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.failed })
+        XCTAssertTrue(waitFor { !FileManager.default.fileExists(atPath: copy.path) })
+        XCTAssertNil(model.openedInboxURL)
+    }
+
+    func testAnInboxCopyStaysWhileTheImportIsOpenAndGoesWhenItIsCancelled() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        let copy = try inboxCopy(of: keep(try ImportFixtures.moneyManager()))
+        model.receiveFile(copy)
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.review })
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copy.path))
+        model.importer.reset()
+        XCTAssertTrue(waitFor { !FileManager.default.fileExists(atPath: copy.path) })
+    }
+
+    func testAFileOutsideTheInboxIsNeverRemoved() throws {
+        let model = makeModel()
+        model.start()
+        XCTAssertTrue(waitFor { model.isFirstRun })
+        let file = keep(try ImportFixtures.text("just some words", "words.txt"))
+        model.receiveFile(file)
+        XCTAssertTrue(waitFor { model.importer.phase == ImportPhase.failed })
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertNil(model.openedInboxURL)
+    }
+
+    func testTheLaunchSweepKeepsThePendingFileAndRemovesTheRest() throws {
+        let model = makeModel()
+        let pending = try inboxCopy(of: keep(try ImportFixtures.text("one", "pending.kassa")))
+        let old = try inboxCopy(of: keep(try ImportFixtures.text("two", "old.mmbak")))
+        let shared = try inboxCopy(of: keep(try ImportFixtures.text("three", "shared.sql")), in: "app.kassa.money-Inbox")
+        let elsewhere = keep(try ImportFixtures.text("four", "elsewhere.kassa"))
+        model.pendingOpenURL = pending
+        let folders: [URL] = [pending.deletingLastPathComponent(), shared.deletingLastPathComponent()]
+        model.sweepInbox(folders: folders)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pending.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shared.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: elsewhere.path))
+    }
 }
