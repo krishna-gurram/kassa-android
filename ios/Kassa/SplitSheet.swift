@@ -15,7 +15,7 @@ struct SplitPickerSheet: View {
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Button("split.close") { model.closeSplitSheet() }
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 48)
             }
             Text("personPage.pickExpense")
                 .font(.footnote)

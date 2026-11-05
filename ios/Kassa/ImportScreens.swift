@@ -282,7 +282,7 @@ struct ImportQuestionContent: View {
             }
             .foregroundColor(Palette.ink)
             .padding(.horizontal, 14)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .background(Capsule().fill(Palette.chip))
         }
     }

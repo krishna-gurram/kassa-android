@@ -358,7 +358,7 @@ struct PricesSheet: View {
                 TextField("invest.price", text: priceBinding(index))
                     .keyboardType(.decimalPad)
             }
-            .frame(width: 170)
+            .frame(minWidth: 170)
         }
     }
 

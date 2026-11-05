@@ -40,6 +40,7 @@ import app.kassa.money.KassaApplication
 import app.kassa.money.data.db.DatabaseOpen
 import app.kassa.money.data.jobs.DailyJobs
 import app.kassa.money.data.jobs.DueNotifier
+import app.kassa.money.domain.AppLockRules
 import app.kassa.money.domain.DueKind
 import app.kassa.money.ui.start.CantOpenScreen
 import app.kassa.money.ui.start.StartingScreen
@@ -198,7 +199,7 @@ class MainActivity : FragmentActivity() {
         // Back on screen: a date or time zone that changed meanwhile is read again, so "today" is never yesterday's.
         app.clock.refresh()
         // Lock again after a minute away.
-        if (app.settings.lockEnabled.value && hiddenAt > 0 && System.currentTimeMillis() - hiddenAt > 60_000) locked.value = true
+        locked.value = AppLockRules.lockedAfterAway(locked.value, app.settings.lockEnabled.value, hiddenAt, System.currentTimeMillis())
     }
 
     private companion object {

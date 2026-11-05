@@ -48,8 +48,25 @@ final class LedgerStore {
 
     /// The store the app uses: Application Support/Kassa, with the key in the Keychain.
     static func openDefault() throws -> LedgerStore {
+        return try LedgerStore(directory: try defaultDirectory(), keyStore: KeychainKeyStore())
+    }
+
+    private static func defaultDirectory() throws -> URL {
         let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        return try LedgerStore(directory: support.appendingPathComponent("Kassa", isDirectory: true), keyStore: KeychainKeyStore())
+        return support.appendingPathComponent("Kassa", isDirectory: true)
+    }
+
+    /// Erases the database folder (the file and its journals) and the key, so the next open starts empty with a new key. Used only
+    /// by the can't-open screen, after the person confirmed (Android's `eraseAndStartOver`). Nothing happens when nothing is there.
+    static func erase(directory: URL, keyStore: KeyStore) throws {
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+        try keyStore.delete()
+    }
+
+    static func eraseDefault() throws {
+        try erase(directory: try defaultDirectory(), keyStore: KeychainKeyStore())
     }
 
     // MARK: Opening

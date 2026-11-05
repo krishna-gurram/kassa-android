@@ -68,7 +68,7 @@ struct MonthPickerSheet: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(enabled ? Palette.ink : Palette.ink2.opacity(0.4))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: 48, minHeight: 48)
         }
         .disabled(!enabled)
     }

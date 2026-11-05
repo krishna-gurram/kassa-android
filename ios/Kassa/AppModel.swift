@@ -152,6 +152,8 @@ final class AppModel: ObservableObject {
     /// The system's notification centre (or a stand-in in tests): `AppModel+Due.swift` schedules through it.
     let noticeCenter: NoticeCenter
     private let openStore: () throws -> LedgerStore
+    /// Erases the unreadable database and its key (the can't-open screen); a stand-in in tests.
+    let eraseStore: () throws -> Void
     private var started = false
     var store: LedgerStore?      // queue only
     var view: LedgerView?        // queue only
@@ -162,8 +164,9 @@ final class AppModel: ObservableObject {
 
     init(
         defaults: UserDefaults = UserDefaults.standard, openStore: @escaping () throws -> LedgerStore = { try LedgerStore.openDefault() },
-        noticeCenter: NoticeCenter = SystemNoticeCenter()
+        noticeCenter: NoticeCenter = SystemNoticeCenter(), eraseStore: @escaping () throws -> Void = { try LedgerStore.eraseDefault() }
     ) {
+        self.eraseStore = eraseStore
         self.defaults = defaults
         self.noticeCenter = noticeCenter
         self.openStore = openStore
@@ -245,6 +248,28 @@ final class AppModel: ObservableObject {
         started = true
         phase = .opening
         open(inputs())
+    }
+
+    /// The can't-open screen's "Restore from a backup" and "Start over", after the person confirmed: the unreadable database and its key
+    /// are erased, what the phone remembers by account id is forgotten, and the app opens again, empty, on the first-run screen (where
+    /// a backup can be chosen). If the erase itself fails the can't-open screen comes back with a sentence.
+    func eraseAndRestart() {
+        phase = .opening
+        defaults.set(false, forKey: AppModel.startedFreshKey)
+        DueSettings(defaults: defaults).forgetAccountReferences()
+        let given = inputs()
+        queue.async {
+            self.store = nil
+            self.view = nil
+            do {
+                try self.eraseStore()
+            } catch {
+                let text = String(localized: "start.eraseFailed")
+                self.publish { self.phase = .failed(text) }
+                return
+            }
+            self.open(given)
+        }
     }
 
     private func open(_ given: Inputs) {

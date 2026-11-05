@@ -42,6 +42,8 @@ targets:
       properties:
         CFBundleDisplayName: Kassa
         UILaunchScreen: {}
+        # App lock asks for Face ID (or Touch ID, or the passcode) through LocalAuthentication (Kassa/AppLock.swift).
+        NSFaceIDUsageDescription: Kassa uses Face ID to unlock your data when App lock is on.
         # The .kassa backup file: an exported type for the extension "kassa", so the file picker offers it (Kassa/KassaTypes.swift).
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: app.kassa.money.backup

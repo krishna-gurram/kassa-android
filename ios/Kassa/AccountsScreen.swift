@@ -198,7 +198,7 @@ struct GroupHeader: View {
                         .lineLimit(1)
                 }
             }
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

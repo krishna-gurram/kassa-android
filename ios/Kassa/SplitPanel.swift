@@ -242,14 +242,14 @@ struct ShareKeypad: View {
             SheetBar(title: String(format: String(localized: "split.theirShare"), name), onBack: { draft.cancelShare() })
             if draft.shareTyped.isEmpty {
                 Text(currentText)
-                    .font(.system(size: 36, weight: .bold))
+                    .scaledNumeral(36)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .foregroundColor(Palette.ink2)
             } else {
                 Text(draft.symbol + EntryBridge.shared.display(typed: draft.shareTyped))
-                    .font(.system(size: 36, weight: .bold))
+                    .scaledNumeral(36)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
