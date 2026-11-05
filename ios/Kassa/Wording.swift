@@ -31,6 +31,8 @@ enum Wording {
         case "OTHER_DEBTS": return text("accounts.group.otherDebts")
         case "PEOPLE": return text("accounts.group.people")
         case "CLOSED": return String(format: String(localized: "accounts.group.closed"), Int(group.rows.count))
+        case "ARCHIVED": return String(format: String(localized: "accounts.group.archived"), Int(group.rows.count))
+        case "ARCHIVED_PEOPLE": return String(format: String(localized: "accounts.group.archivedPeople"), Int(group.rows.count))
         default: return group.title
         }
     }

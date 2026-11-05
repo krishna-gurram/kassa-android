@@ -23,6 +23,7 @@ import app.kassa.money.domain.Category
 import app.kassa.money.domain.CategoryIcon
 import app.kassa.money.domain.CategoryPicking
 import app.kassa.money.domain.CountedSpending
+import app.kassa.money.domain.EditRules
 import app.kassa.money.domain.EntryField
 import app.kassa.money.domain.EntryRules
 import app.kassa.money.domain.CurrencyStyle
@@ -38,6 +39,7 @@ import app.kassa.money.domain.InvestRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
+import app.kassa.money.domain.Person
 import app.kassa.money.domain.PersonHistory
 import app.kassa.money.domain.PersonPayment
 import app.kassa.money.domain.Period
@@ -556,6 +558,10 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         }
         groups.add(peopleGroup(receivable - payable))
         if (overview.closed.isNotEmpty()) groups.add(closedGroup(overview.closed))
+        val archivedAccounts = accounts.filter { it.archived }.sortedWith(Names.order { it.name })
+        if (archivedAccounts.isNotEmpty()) groups.add(archivedGroup(archivedAccounts))
+        val archivedPeople = parts.people.filter { it.archived }.sortedWith(Names.order { it.name })
+        if (archivedPeople.isNotEmpty()) groups.add(archivedPeopleGroup(archivedPeople))
 
         val net = overview.netWorth
         AccountsData(
@@ -662,6 +668,21 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             )
         }
         return AccountsGroupData(CLOSED, "Closed", false, "", Tone.Ink, rows)
+    }
+
+    /** Archived accounts: a name and nothing else (an archived account is out of every figure), so it can be opened and restored. */
+    private fun archivedGroup(archived: List<Account>): AccountsGroupData {
+        val rows = archived.map { a ->
+            AccountRowData(a.id, a.name, a.last4 ?: "", "", Tone.Ink, RowNote.Plain, "", DueKind.Nothing, 0, Tone.Ink, PersonSide.Hidden)
+        }
+        return AccountsGroupData(ARCHIVED, "Archived", false, "", Tone.Ink, rows)
+    }
+
+    private fun archivedPeopleGroup(archived: List<Person>): AccountsGroupData {
+        val rows = archived.map { p ->
+            AccountRowData(p.id, p.name, "", "", Tone.Ink, RowNote.Plain, "", DueKind.Nothing, 0, Tone.Ink, PersonSide.Hidden)
+        }
+        return AccountsGroupData(ARCHIVED_PEOPLE, "Archived people", false, "", Tone.Ink, rows)
     }
 
     // ---------- Activity ----------
@@ -1149,6 +1170,59 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         val a = accountById[accountId] ?: return ""
         return ruleCloseProblem(worth(a)) ?: ""
     }
+
+    // ---------- Editing accounts, cards and people (batch Q) ----------
+
+    /** The Edit account form for [accountId] as it opens: what is stored, the balance as the person sees it, the kinds it may change to. */
+    fun accountEdit(accountId: Long): AccountEditData {
+        val a = accountById[accountId]
+            ?: return AccountEditData(false, AccountInput("CHECKING", "", "", "", "", "", "", 0L, 0), false, false, emptyList())
+        return AccountEditData(
+            true, EditParts.input(a, balances[a.id] ?: 0L), a.isClosed, a.archived, EditRules.typeChoices(a.type).map { it.name },
+        )
+    }
+
+    /** Every other account's name (this one may keep its own), archived and closed ones too. */
+    fun otherAccountNames(accountId: Long): List<String> = accounts.filter { it.id != accountId }.map { it.name }
+
+    /** Every other person's name, archived ones too. */
+    fun otherPersonNames(personId: Long): List<String> = parts.people.filter { it.id != personId }.map { it.name }
+
+    /**
+     * The first problem of an edited account (the `AccountField` name, "PAY_FROM" or "BALANCE", and the sentence), in the ledger's
+     * currency and never masked; empty when it can be saved. A closed account refuses a new balance.
+     */
+    fun accountEditProblems(accountId: Long, input: AccountInput): List<FieldProblemData> = shown(false) {
+        val a = accountById[accountId] ?: return@shown listOf(FieldProblemData("", EditRules.ACCOUNT_GONE))
+        EditParts.problems(a, balances[a.id] ?: 0L, input, otherAccountNames(accountId))
+    }
+
+    /** One cell of the edited `accounts` row (BackupRows column order); null when the account is gone or the column isn't the form's. */
+    fun editedAccountCell(accountId: Long, input: AccountInput, column: Int): String? = shown(false) {
+        val a = accountById[accountId] ?: return@shown null
+        val saved = EditParts.edited(a, balances[a.id] ?: 0L, input) ?: return@shown null
+        EditParts.cell(saved, BackupRows.columns("accounts").getOrNull(column))
+    }
+
+    /** The Edit person form for [personId]; [hidden] masks the size of what is open in the sentence that says why archiving waits. */
+    fun personEdit(personId: Long, hidden: Boolean): PersonEditData = shown(hidden) {
+        val p = parts.people.firstOrNull { it.id == personId }
+            ?: return@shown PersonEditData(false, "", true, "", false, false, "")
+        val balance = personBalance(p.id, parts.loanEntries, transactions)
+        val form = EditRules.personForm(p.name, startingBalanceOf(p.id))
+        PersonEditData(
+            true, form.name, form.theyOwe, form.amount, p.archived, EditRules.archiveBlocked(balance),
+            Money.format(EditRules.archiveBlockedSize(balance)),
+        )
+    }
+
+    /** What was owed when the person was added: their lines not tied to an entry (positive: they owe you). */
+    fun startingBalanceOf(personId: Long): Long =
+        parts.loanEntries.filter { it.personId == personId && it.transactionId == null }.sumOf { it.amount }
+
+    /** True when the person has money open, so archiving waits (restoring never does). */
+    fun personArchiveBlocked(personId: Long): Boolean =
+        EditRules.archiveBlocked(personBalance(personId, parts.loanEntries, transactions))
 
     private fun hasCardPage(a: Account): Boolean = a.type.hasStatement && a.isActive && a.statementDay != null
 
@@ -1826,6 +1900,9 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         /** At most this many tiles on Overview, as Android's `MAX_PINS`. */
         const val MAX_PINS = 8
         const val CLOSED = "CLOSED"
+        /** Archived accounts and archived people: hidden from every figure, listed (folded) so they can be restored. */
+        const val ARCHIVED = "ARCHIVED"
+        const val ARCHIVED_PEOPLE = "ARCHIVED_PEOPLE"
         /** How many schedule rows the loan page shows before "Show full schedule", as Android's `NEXT_ROWS`. */
         const val LOAN_NEXT_ROWS = 6
     }

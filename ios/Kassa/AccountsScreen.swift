@@ -31,8 +31,8 @@ struct AccountsContent: View {
     var onAdd: (() -> Void)? = nil
     var onOpenRow: ((AccountRowData, Bool) -> Void)? = nil
 
-    /// Folded groups, by key. Closed starts folded.
-    @State private var folded: Set<String> = ["CLOSED"]
+    /// Folded groups, by key. Closed and the archived groups start folded.
+    @State private var folded: Set<String> = ["CLOSED", "ARCHIVED", "ARCHIVED_PEOPLE"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -89,7 +89,7 @@ struct AccountsContent: View {
         }
         ForEach(group.rows, id: \.id) { row in
             Hairline()
-            rowButton(row, isPerson: group.key == "PEOPLE")
+            rowButton(row, isPerson: group.key == "PEOPLE" || group.key == "ARCHIVED_PEOPLE")
         }
     }
 
