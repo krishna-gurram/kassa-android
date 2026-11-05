@@ -90,6 +90,7 @@ Kassa is headed to the Play Store, so code is written for strangers' phones, not
   the US number style until iOS reads the phone's language). Keep it thin: rules belong in `domain/`.
 - `ios/`: SwiftUI app. `project.yml` is an XcodeGen spec (the `.xcodeproj` is generated, never committed); a pre-build script runs
   the Gradle link task for the SDK. CI job `ios-app` (macos-15) generates, builds and runs `KassaTests`; it is not in publish's needs.
+  Files opened from Files or the share sheet land in the app's Inbox (`Documents/Inbox`, `tmp/<bundle id>-Inbox`); `InboxCleanup` (:shared, JVM test) decides which paths may go (only files directly in an Inbox folder) and `AppModel+OpenFile.swift` removes them: the copy once its import or restore has finished, been cancelled or failed, and the rest once at launch except the pending or current file. Overview's "This week" categories open the month the week starts in (`OverviewData.weekCategoryBack`, as the spending page's `categoryBack`).
   `shared/.../backup` (package `app.kassa.money.backup`) reads and writes the JSON inside a `.kassa` file (`BackupJson`, `BackupData`, hand-written `JsonText`); `BackupBridge` is its Swift face, and `ios/Kassa/BackupFile.swift` is the envelope (header, password, gzip).
   Android keeps its own streaming writer/reader; the golden files in `app/src/test/resources/backup-golden` are what both must open.
   A change to the file format updates `docs/BACKUP_FORMAT.md`, the generator (`tools/make_golden_backups.py`) and all three readers (Android, `BackupJson`, `BackupFile.swift`).

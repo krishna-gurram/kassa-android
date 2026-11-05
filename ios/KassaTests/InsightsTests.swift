@@ -66,6 +66,7 @@ final class InsightsTests: XCTestCase {
             let page = view.spendingPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC", firstWeekday: first, month: false, income: false, back: 0)
             XCTAssertEqual(overview.weekSpending.totalText, page.totalText)
             XCTAssertEqual(overview.weekStartDay, page.fromDay)
+            XCTAssertEqual(overview.weekCategoryBack, page.categoryBack)
             let income = view.spendingPage(hidden: false, todayEpochDay: today, timeZoneId: "UTC", firstWeekday: first, month: false, income: true, back: 0)
             XCTAssertEqual(overview.weekIncome.totalText, income.totalText)
         }

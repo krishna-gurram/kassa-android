@@ -174,7 +174,7 @@ jobs:
 
   # Compiles the shared rules (domain and importer) for iOS on a Mac, so code the iOS app cannot use is caught here.
   ios-shared:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4

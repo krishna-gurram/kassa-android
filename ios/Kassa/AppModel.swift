@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 import UIKit
 import KassaShared
 
@@ -131,6 +132,10 @@ final class AppModel: ObservableObject {
     lazy var importer: ImportModel = ImportModel(app: self)
     /// A file handed to the app (Files, "Open in Kassa") before it was ready for it; read once it is (`AppModel+OpenFile.swift`).
     var pendingOpenURL: URL?
+    /// The Inbox copy of a file being imported or restored; removed when that ends (`AppModel+OpenFile.swift`).
+    var openedInboxURL: URL?
+    var inboxWatch: [AnyCancellable] = []
+    var inboxSwept = false
     /// Counts the files that need the Settings tab (its password and replace questions live there); the tab bar watches it.
     @Published var settingsRequest: Int = 0
     /// A plain sentence about something that worked in Settings ("Restored."), or nil.
