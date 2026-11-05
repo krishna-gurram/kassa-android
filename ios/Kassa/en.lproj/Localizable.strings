@@ -88,6 +88,28 @@
 "start.cantOpen" = "Kassa couldn't open its data on this phone.";
 "start.keyMissing" = "Its key is missing from this phone, so the data can't be read.";
 "start.tryAgain" = "Try again";
+"start.restoreFromBackup" = "Restore from a backup";
+"start.startOver" = "Start over";
+"start.nothingErased" = "Nothing is erased until you confirm.";
+"start.eraseRestoreTitle" = "Erase unreadable data and restore?";
+"start.eraseRestoreBody" = "Kassa will erase the data on this phone that it can't read, then ask you to choose your backup file. This can't be undone.";
+"start.eraseContinue" = "Erase and continue";
+"start.startOverTitle" = "Start over?";
+"start.startOverBody" = "This erases all Kassa data on this phone and can't be undone. Kassa will then start over.";
+"start.eraseStartOver" = "Erase and start over";
+"start.eraseFailed" = "Kassa couldn't erase its data. Try again.";
+"start.cancel" = "Cancel";
+
+/* App lock */
+"lock.setScreenLock" = "Set a screen lock on this phone first.";
+"lock.unavailable" = "App lock isn't available on this phone right now. Try again in a moment.";
+"lock.reason" = "Unlock Kassa";
+"lock.locked" = "Kassa is locked";
+"lock.unlock" = "Unlock";
+"lock.coverName" = "Kassa";
+"lock.turnedOffTitle" = "App lock was turned off";
+"lock.turnedOffBody" = "App lock was turned off because this phone has no screen lock. Set one, then turn App lock on again in Settings.";
+"lock.ok" = "OK";
 
 /* Write path: refusals and failures */
 "write.failed" = "Couldn't save. Try again.";
@@ -231,6 +253,8 @@
 /* Settings */
 "settings.hideBalances" = "Hide balances";
 "settings.hideBalancesHint" = "Shows •••• instead of every amount, on every screen.";
+"settings.lock" = "App lock";
+"settings.lockHint" = "Face ID, Touch ID or your passcode.";
 "settings.currency" = "Currency";
 "settings.currency.confirmTitle" = "Show amounts in %@?";
 "settings.currency.confirmBody" = "Every amount already in Kassa keeps its number and shows as %@. Nothing is converted.";

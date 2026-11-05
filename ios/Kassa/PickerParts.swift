@@ -135,7 +135,7 @@ struct FilterChip: View {
                 .lineLimit(1)
                 .foregroundColor(selected ? Palette.ground : Palette.ink)
                 .padding(.horizontal, 14)
-                .frame(minHeight: 44)
+                .frame(minHeight: 48)
                 .background(Capsule().fill(selected ? Palette.ink : Palette.chip))
         }
         .buttonStyle(.plain)
@@ -160,13 +160,13 @@ struct PickerSearch: View {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(Palette.ink2)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("a11y.clearSearch"))
             }
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 44)
+        .frame(minHeight: 48)
         .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
     }
 }

@@ -4,6 +4,7 @@ import KassaShared
 /// The app's first screen: opening, the first-run choice, the tabs, or the can't-open message.
 struct RootView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var lock: AppLockModel
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -15,12 +16,43 @@ struct RootView: View {
                 if ready { model.drainPendingFile() }
             }
             .onChange(of: scenePhase) { newPhase in
-                // Coming back to the app: the day may have changed.
+                if newPhase == .background { lock.didEnterBackground() }
+                // Coming back to the app: the day may have changed, and a minute away locks.
                 if newPhase == .active {
+                    lock.didBecomeActive()
                     model.refreshFigures()
                     model.refreshNotifications()
                 }
+                updateCover(newPhase)
             }
+            .onChange(of: lock.locked) { _ in updateCover(scenePhase) }
+            .onChange(of: lock.enabled) { _ in updateCover(scenePhase) }
+            .onChange(of: model.hideAmounts) { _ in updateCover(scenePhase) }
+            .onAppear {
+                updateCover(scenePhase)
+                // A cold start with App lock on asks at once (the scene may already be active, so no change fires).
+                if scenePhase == .active { lock.unlockIfNeeded() }
+            }
+            .alert(Text("lock.turnedOffTitle"), isPresented: noticeBinding) {
+                Button("lock.ok") { lock.noticeShown() }
+            } message: {
+                Text("lock.turnedOffBody")
+            }
+    }
+
+    private var noticeBinding: Binding<Bool> {
+        return Binding<Bool>(get: { lock.turnedOffNotice }, set: { shown in if !shown { lock.noticeShown() } })
+    }
+
+    /// Shows or hides the window over everything: the neutral screen while the app is not active (App lock or Hide balances on), the
+    /// lock screen while locked. Sheets are under it too, which a view in this tree could not manage.
+    private func updateCover(_ phase: ScenePhase) {
+        let neutral: Bool = LockBridge.shared.privacyCover(lockOn: lock.enabled, hideAmounts: model.hideAmounts, appActive: phase == .active)
+        if neutral || lock.lockShown {
+            CoverWindow.shared.show(CoverRoot(lock: lock, neutral: neutral))
+        } else {
+            CoverWindow.shared.hide()
+        }
     }
 
     @ViewBuilder
@@ -33,9 +65,9 @@ struct RootView: View {
         case .firstRun:
             FirstRunScreen(model: model)
         case .ready:
-            AppShell(model: model)
+            AppShell(model: model, lock: lock)
         case .failed(let message):
-            FailedScreen(message: message, onRetry: { model.retry() })
+            FailedScreen(message: message, onRetry: { model.retry() }, onErase: { model.eraseAndRestart() })
         }
     }
 }
@@ -53,29 +85,59 @@ struct ImportCover: ViewModifier {
     }
 }
 
-/// The database could not be opened. Android also offers restoring a backup or starting over here; that comes to iOS later.
+/// The database could not be opened. Try again, or (after asking) erase what can't be read and go on to the first-run screen, which
+/// restores a backup or starts empty, as on Android.
 struct FailedScreen: View {
     let message: String
     let onRetry: () -> Void
+    let onErase: () -> Void
+
+    @State private var confirmRestore = false
+    @State private var confirmStartOver = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("start.cantOpenTitle")
-                .font(.title2.weight(.bold))
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(.body)
-                .foregroundColor(Palette.ink2)
-                .multilineTextAlignment(.center)
-            Spacer()
-            Button("start.tryAgain", action: onRetry)
-                .buttonStyle(InkButtonStyle(filled: true))
+        ScrollView {
+            VStack(spacing: 14) {
+                Text("start.cantOpenTitle")
+                    .font(.title2.weight(.bold))
+                    .multilineTextAlignment(.center)
+                Text(message)
+                    .font(.body)
+                    .foregroundColor(Palette.ink2)
+                    .multilineTextAlignment(.center)
+                Button("start.tryAgain", action: onRetry)
+                    .buttonStyle(InkButtonStyle(filled: true))
+                    .padding(.top, 8)
+                Button("start.restoreFromBackup") { confirmRestore = true }
+                    .buttonStyle(InkButtonStyle(filled: false))
+                Button(action: { confirmStartOver = true }) {
+                    Text("start.startOver")
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(Palette.orange)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                Text("start.nothingErased")
+                    .font(.footnote)
+                    .foregroundColor(Palette.ink2)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
         }
-        .padding(24)
-        .frame(maxWidth: 480)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.ground.ignoresSafeArea())
+        .alert(Text("start.eraseRestoreTitle"), isPresented: $confirmRestore) {
+            Button("start.eraseContinue", role: .destructive, action: onErase)
+            Button("start.cancel", role: .cancel) {}
+        } message: {
+            Text("start.eraseRestoreBody")
+        }
+        .alert(Text("start.startOverTitle"), isPresented: $confirmStartOver) {
+            Button("start.eraseStartOver", role: .destructive, action: onErase)
+            Button("start.cancel", role: .cancel) {}
+        } message: {
+            Text("start.startOverBody")
+        }
     }
 }
 
@@ -91,6 +153,7 @@ enum ShellTab: Hashable {
 /// bar on every tab; it opens the entry page over the whole screen, so it is never shown over a page.
 struct AppShell: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var lock: AppLockModel
 
     // Kassa opens on Overview, as Android does by default (its "Home screen" setting will pick another tab later).
     @State private var tab: ShellTab = .overview
@@ -112,7 +175,7 @@ struct AppShell: View {
             withAdd(accountsTab)
                 .tabItem { Label("tab.accounts", systemImage: "building.columns") }
                 .tag(ShellTab.accounts)
-            withAdd(SettingsScreen(model: model))
+            withAdd(SettingsScreen(model: model, lock: lock))
                 .tabItem { Label("tab.settings", systemImage: "gearshape") }
                 .tag(ShellTab.settings)
         }

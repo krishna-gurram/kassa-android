@@ -97,7 +97,7 @@ struct OverviewContent: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .foregroundColor(Palette.figure(tone))
-                    .frame(minHeight: 44, alignment: .leading)
+                    .frame(minHeight: 48, alignment: .leading)
             }
             .buttonStyle(.plain)
             if flow.top.isEmpty {
@@ -121,7 +121,7 @@ struct OverviewContent: View {
                 Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
             }
             .foregroundColor(Palette.ink2)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
         .accessibilityLabel(Text("overview.choosePeriod"))
@@ -132,7 +132,7 @@ struct OverviewContent: View {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(selected ? Palette.ink : Palette.ink2)
-                .frame(minHeight: 44)
+                .frame(minHeight: 48)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -166,7 +166,7 @@ struct OverviewContent: View {
                 Text("overview.allAccounts")
                     .font(.footnote.weight(.semibold))
                     .foregroundColor(Palette.ink2)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 48)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

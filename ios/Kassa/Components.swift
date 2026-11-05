@@ -30,7 +30,7 @@ struct EyeButton: View {
             Image(systemName: hidden ? "eye.slash" : "eye")
                 .font(.system(size: 20))
                 .foregroundColor(Palette.ink2)
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: 48, minHeight: 48)
         }
         .accessibilityLabel(hidden ? Text("a11y.showBalances") : Text("a11y.hideBalances"))
         .accessibilityIdentifier("hideBalances")
@@ -79,5 +79,34 @@ struct ComingSoonScreen: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Palette.ground.ignoresSafeArea())
+    }
+}
+
+/// A big numeral (the entry amount, a payment, a share) whose size follows the Dynamic Type setting up to 130%, like Android's
+/// `scaledSp`: the box around a numeral can't grow, so it scales a little and then stays. `.system(size:)` alone ignores the setting.
+struct ScaledNumeral: ViewModifier {
+    let size: CGFloat
+    let weight: Font.Weight
+
+    /// 100 points at the current setting: the ratio to 100 is how much larger text is now.
+    @ScaledMetric(relativeTo: .largeTitle) private var hundred: CGFloat = 100
+
+    /// The most a numeral grows.
+    static let cap: CGFloat = 1.3
+
+    /// The multiplier for a raw ratio: never below 1, never above the cap.
+    static func factor(_ ratio: CGFloat) -> CGFloat {
+        return min(max(ratio, 1), cap)
+    }
+
+    func body(content: Content) -> some View {
+        let grown: CGFloat = size * ScaledNumeral.factor(hundred / 100)
+        return content.font(.system(size: grown, weight: weight))
+    }
+}
+
+extension View {
+    func scaledNumeral(_ size: CGFloat, weight: Font.Weight = .bold) -> some View {
+        return modifier(ScaledNumeral(size: size, weight: weight))
     }
 }
