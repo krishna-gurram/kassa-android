@@ -100,13 +100,13 @@ struct LoanDetailsSheet: View {
                 CategoryChooser(
                     ledger: model.picks, title: Wording.loanCostCategory(data.interestWord), selectedId: fields.interestCategoryId,
                     defaultText: data.interestDefaultName,
-                    onPick: { id in fields.interestCategoryId = id; stage = .form }, onBack: { stage = .form }
+                    onPick: { id in fields.interestCategoryId = id; stage = .form }, onBack: { stage = .form }, onAdd: model.subcategoryAdder
                 )
             case .principalCategory:
                 CategoryChooser(
                     ledger: model.picks, title: String(localized: "loanPay.principalCategory"), selectedId: fields.principalCategoryId,
                     defaultText: String(format: String(localized: "loanPay.sameAsInterest"), principalDefault),
-                    onPick: { id in fields.principalCategoryId = id; stage = .form }, onBack: { stage = .form }
+                    onPick: { id in fields.principalCategoryId = id; stage = .form }, onBack: { stage = .form }, onAdd: model.subcategoryAdder
                 )
             }
         }

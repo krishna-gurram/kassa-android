@@ -41,6 +41,8 @@ struct CategoryChooser: View {
     let defaultText: String
     let onPick: (Int64) -> Void
     let onBack: () -> Void
+    /// The subcategory list's "+ New" (adds a subcategory under a category and answers with it); nil leaves "+ New" out.
+    var onAdd: ((Int64, String, @escaping (WriteOutcome) -> Void) -> Void)? = nil
 
     @State private var query = ""
     @State private var top: CategoryChoiceData?
@@ -139,6 +141,12 @@ struct CategoryChooser: View {
                             .foregroundColor(Palette.ink)
                             .lineLimit(2)
                     }
+                }
+                if let add = onAdd {
+                    NewSubcategoryTile(
+                        ledger: ledger, parentId: parent.id, parentName: parent.name, onAdd: add,
+                        onAdded: { id in onPick(id) }
+                    )
                 }
             }
         }

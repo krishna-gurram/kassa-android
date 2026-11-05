@@ -20,7 +20,10 @@ import app.kassa.money.domain.CardPageRules
 import app.kassa.money.domain.CardPayment
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CategoryColors
 import app.kassa.money.domain.CategoryIcon
+import app.kassa.money.domain.CategoryKind
+import app.kassa.money.domain.CategoryRules
 import app.kassa.money.domain.CategoryPicking
 import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.EditRules
@@ -56,6 +59,7 @@ import app.kassa.money.domain.isAfter
 import app.kassa.money.domain.isBefore
 import app.kassa.money.domain.localDateOfEpochDay
 import app.kassa.money.domain.personBalance
+import app.kassa.money.domain.subcategory
 import app.kassa.money.domain.toEpochDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -1057,6 +1061,110 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
 
     /** One category for the page's tile (its parent's name set when it is a subcategory), or null. */
     fun categoryChoice(id: Long): CategoryChoiceData? = categoryById[id]?.let { categoryChoiceOf(it, true) }
+
+    // ---------- Categories and subcategories (batch Q) ----------
+
+    private fun listRow(c: Category): CategoryListRowData {
+        val subs = parts.categories.count { it.parentId == c.id && !it.hidden }
+        return CategoryListRowData(categoryChoiceOf(c, false), subs, c.kind == CategoryKind.EXPENSE && !c.countsTowardDaily)
+    }
+
+    /** Settings > Categories for [kind] (a `CategoryKind` name): in use first, A to Z, then the archived ones. */
+    fun categoryList(kind: String): CategoryListData {
+        val k = categoryKindOf(kind) ?: return CategoryListData(emptyList(), emptyList())
+        val (active, archived) = CategoryRules.listing(parts.categories, k)
+        return CategoryListData(active.map(::listRow), archived.map(::listRow))
+    }
+
+    private fun editData(c: Category, isNew: Boolean): CategoryEditData {
+        val all = parts.categories
+        val isTop = c.parentId == null
+        val used = if (isTop) CategoryColors.usedBy(all, c.kind, c.id) else emptyMap()
+        val colors = CategoryColors.palette.map { color ->
+            ColorChoiceData(color, used[color].orEmpty().sortedWith(Names.order<String> { it }).joinToString(", "))
+        }
+        val subs = if (isTop && !isNew) {
+            val (active, archived) = CategoryRules.subs(all, c.id)
+            (active + archived).map { SubcategoryRowData(it.id, it.name, it.hidden) }
+        } else emptyList()
+        val merge = if (isNew) emptyList() else CategoryRules.mergeTargets(all, c).map { CategoryTargetData(it.id, it.name) }
+        val move = if (isNew || isTop) emptyList() else CategoryRules.moveTargets(all, c).map { CategoryTargetData(it.id, it.name) }
+        return CategoryEditData(true, CategoryInput.of(c), isNew, isTop, colors, subs, merge, move)
+    }
+
+    /** The editor for the stored category [categoryId] (top-level or a subcategory). */
+    fun categoryEdit(categoryId: Long): CategoryEditData {
+        val c = categoryById[categoryId]
+            ?: return CategoryEditData(false, CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false), true, true, emptyList(), emptyList(), emptyList(), emptyList())
+        return editData(c, false)
+    }
+
+    /** The editor for a new top-level category of [kind]: blank, with the first colour nobody of its kind uses while one is free. */
+    fun categoryNew(kind: String): CategoryEditData {
+        val k = categoryKindOf(kind) ?: CategoryKind.EXPENSE
+        return editData(CategoryRules.blank(parts.categories, k).copy(icon = CategoryIcon.DEFAULT), true)
+    }
+
+    /** The first problem of saving [input] (a sentence), or empty text when it can be saved. */
+    fun categoryProblem(input: CategoryInput): String {
+        val c = input.category() ?: return CategoryRules.GONE
+        return CategoryRules.problem(parts.categories, c) ?: ""
+    }
+
+    /** The problem of adding a subcategory named [name] under [parentId], or empty text. */
+    fun subcategoryProblem(parentId: Long, name: String): String {
+        val parent = categoryById[parentId] ?: return CategoryRules.GONE
+        return CategoryRules.nameProblem(parts.categories, parent.kind, parent.id, 0, name) ?: ""
+    }
+
+    /** A new subcategory called [name] under [parentId]: same kind, icon, colour and daily setting as its parent, cleaned name. */
+    fun subcategoryInput(parentId: Long, name: String): CategoryInput {
+        val parent = categoryById[parentId] ?: return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(parent.subcategory(InputRules.clean(name)))
+    }
+
+    /** The stored category [categoryId] with a new [name] and archived state, everything else as stored (rename, archive and restore). */
+    fun categoryInputWith(categoryId: Long, name: String, hidden: Boolean): CategoryInput {
+        val c = categoryById[categoryId] ?: return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(c.copy(name = InputRules.clean(name), hidden = hidden))
+    }
+
+    /** The stored subcategory [subId] moved under the top-level category [toTopId], wearing its colour. */
+    fun movedSubcategoryInput(subId: Long, toTopId: Long): CategoryInput {
+        val sub = categoryById[subId]
+        val top = categoryById[toTopId]
+        if (sub == null || top == null) return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(CategoryRules.moved(sub, top))
+    }
+
+    /** The subcategories (ids as decimal text) that must take [input]'s colour when a top-level category is saved with it. */
+    fun recolorIds(input: CategoryInput): List<String> {
+        val c = input.category() ?: return emptyList()
+        return CategoryRules.recolored(parts.categories, c).map { it.id.toString() }
+    }
+
+    /** One cell of the `categories` row for [input] (BackupRows column order); null for the id, the external id and what isn't the editor's. [sortOrder] numbers a new one. */
+    fun categoryCell(input: CategoryInput, column: Int, sortOrder: Int): String? {
+        val c = input.category() ?: return null
+        val stored = categoryById[c.id]
+        return when (BackupRows.columns("categories").getOrNull(column)) {
+            "name" -> InputRules.clean(c.name)
+            "kind" -> c.kind.name
+            "parentId" -> c.parentId?.toString()
+            "icon" -> c.icon.encode()
+            "color" -> c.color.toString()
+            "countsTowardDaily" -> if (c.countsTowardDaily) "1" else "0"
+            "hidden" -> if (c.hidden) "1" else "0"
+            "sortOrder" -> (stored?.sortOrder ?: sortOrder).toString()
+            else -> null
+        }
+    }
+
+    /** Why [fromId] can't be merged into [intoId] (every entry moves, then it is archived), or empty text. */
+    fun mergeProblem(fromId: Long, intoId: Long): String = CategoryRules.mergeProblem(parts.categories, fromId, intoId) ?: ""
+
+    /** The name of category [id], or empty text. */
+    fun categoryName(id: Long): String = categoryById[id]?.name ?: ""
 
     private fun accountChoiceOf(a: Account) = AccountChoiceData(a.id, a.name, a.last4 ?: "", a.type.name, a.isClosed)
 
