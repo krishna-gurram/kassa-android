@@ -287,6 +287,8 @@ data class OverviewData(
     /** The same two flows from [weekStartDay] through today (Overview's "This week"). */
     val weekSpending: OverviewFlowData,
     val weekIncome: OverviewFlowData,
+    /** How many budget months back the month holding [weekStartDay] is: the month a category opens on from "This week" (0 when it starts in this period). */
+    val weekCategoryBack: Int,
     val pins: List<PinRowData>,
 )
 
@@ -811,6 +813,8 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             weekStartDay = weekStart.toEpochDay().toInt(),
             weekSpending = overviewFlow(inWeek, TxKind.EXPENSE, false),
             weekIncome = overviewFlow(inWeek, TxKind.INCOME, true),
+            weekCategoryBack = ((period.yearMonth.year - Period.containing(weekStart, monthStartDay).yearMonth.year) * 12 +
+                (period.yearMonth.month - Period.containing(weekStart, monthStartDay).yearMonth.month)).coerceAtLeast(0),
             pins = overviewPins(todayEpochDay, zone),
         )
     }

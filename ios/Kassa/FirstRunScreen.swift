@@ -168,7 +168,7 @@ struct StarterCategoriesStep: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(Palette.ink)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("a11y.back"))
                 Spacer()

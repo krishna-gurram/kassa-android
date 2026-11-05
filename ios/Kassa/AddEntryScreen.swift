@@ -122,7 +122,7 @@ struct AddEntryScreen: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Palette.ink)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: 48, minHeight: 48)
             }
             .accessibilityLabel(Text("a11y.back"))
             Text(title)
@@ -133,7 +133,7 @@ struct AddEntryScreen: View {
                 Button("entry.delete") { confirmDelete = true }
                     .font(.body.weight(.semibold))
                     .foregroundColor(Palette.orange)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 48)
                     .padding(.trailing, 8)
             }
         }
@@ -251,7 +251,7 @@ struct AddEntryForm: View {
                     .font(.title2.weight(.semibold))
                     .foregroundColor(Palette.ink2)
                 Text(draft.amountShown)
-                    .font(.system(size: 44, weight: .bold))
+                    .scaledNumeral(44)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -552,7 +552,7 @@ struct SubcategoryPanel: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(Palette.ink)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("a11y.back"))
                 Text(parent.name)

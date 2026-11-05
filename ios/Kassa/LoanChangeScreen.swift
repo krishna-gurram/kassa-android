@@ -286,7 +286,7 @@ struct LoanChangeContent: View {
                 Text("loanChange.useSuggested").font(.footnote.weight(.semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
         }
     }
 }

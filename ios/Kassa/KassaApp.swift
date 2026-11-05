@@ -5,6 +5,8 @@ import KassaShared
 struct KassaApp: App {
 
     @StateObject private var model = AppModel()
+    /// App lock lives with the app, not a scene, so a scene closing and reopening keeps it locked.
+    @StateObject private var lock = AppLockModel()
 
     /// A unit-test run hosts the app; the screens stay out of it so tests own the database and the shared rules' globals.
     private static let isTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -19,7 +21,7 @@ struct KassaApp: App {
             if KassaApp.isTesting {
                 Color.clear
             } else {
-                RootView(model: model)
+                RootView(model: model, lock: lock)
             }
         }
     }

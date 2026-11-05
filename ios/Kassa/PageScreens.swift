@@ -16,7 +16,7 @@ struct PageTop: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Palette.ink)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: 48, minHeight: 48)
             }
             .accessibilityLabel(Text("a11y.back"))
             Text(title)
@@ -318,7 +318,7 @@ struct StatementSwitcher: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(enabled ? Palette.ink : Palette.ink2.opacity(0.4))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: 48, minHeight: 48)
         }
         .disabled(!enabled)
         .accessibilityLabel(Text(description))

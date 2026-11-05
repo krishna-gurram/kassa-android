@@ -372,7 +372,7 @@ struct KindList: View {
             HStack {
                 Text("account.addTitle").font(.headline)
                 Spacer()
-                Button("account.cancel", action: onClose).frame(minHeight: 44)
+                Button("account.cancel", action: onClose).frame(minHeight: 48)
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -421,7 +421,7 @@ struct SheetBar: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Palette.ink)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: 48, minHeight: 48)
             }
             .accessibilityLabel(Text("a11y.back"))
             Text(title).font(.headline).lineLimit(1)

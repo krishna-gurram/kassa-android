@@ -73,7 +73,7 @@ struct AmountEntry: View {
                     .font(.title2.weight(.semibold))
                     .foregroundColor(Palette.ink2)
                 Text(EntryBridge.shared.display(typed: typed))
-                    .font(.system(size: 40, weight: .bold))
+                    .scaledNumeral(40)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -341,7 +341,7 @@ struct PersonPaymentSheet: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(Palette.ink)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("a11y.back"))
                 Text(title).font(.headline).lineLimit(1)
@@ -350,7 +350,7 @@ struct PersonPaymentSheet: View {
                     Button("personPayment.delete") { confirmDelete = true }
                         .font(.body.weight(.semibold))
                         .foregroundColor(Palette.orange)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 48)
                         .padding(.trailing, 8)
                 }
             }

@@ -8,6 +8,7 @@ import KassaShared
 /// `SettingsContent`, which only reads values.
 struct SettingsScreen: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var lock: AppLockModel
 
     @State private var choosingRestore = false
     @State private var choosingImport = false
@@ -22,6 +23,8 @@ struct SettingsScreen: View {
                     hidden: model.hideAmounts, currencyName: model.currencyName, working: model.working,
                     message: model.restoreMessage, notice: model.notice, linked: true,
                     onSetHidden: { shown in model.setHidden(shown) },
+                    showsLock: true, lockOn: lock.enabled, lockMessage: lock.message,
+                    onSetLock: { on in lock.setEnabled(on) },
                     onBackUp: { askingBackupPassword = true },
                     onRestore: { choosingRestore = true },
                     onImport: { choosingImport = true },
@@ -148,6 +151,11 @@ struct SettingsContent: View {
     let notice: String?
     let linked: Bool
     let onSetHidden: (Bool) -> Void
+    /// App lock (`AppLockModel`): the row shows only where the screen has the model (a screenshot has none).
+    var showsLock: Bool = false
+    var lockOn: Bool = false
+    var lockMessage: String? = nil
+    var onSetLock: (Bool) -> Void = { _ in }
     let onBackUp: () -> Void
     let onRestore: () -> Void
     /// Settings > Import from another app (batch K); a screen without it (an older call site) does nothing.
@@ -169,6 +177,7 @@ struct SettingsContent: View {
                 .padding(.top, 8)
             hideRow
             Hairline()
+            lockRows
             linkRow(title: "settings.currency", detail: currencyName, destination: currencyDestination)
             Hairline()
             linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
@@ -200,6 +209,30 @@ struct SettingsContent: View {
     }
 
     // MARK: Rows
+
+    @ViewBuilder
+    private var lockRows: some View {
+        if showsLock {
+            lockRow
+            Hairline()
+        }
+    }
+
+    private var lockRow: some View {
+        let binding = Binding<Bool>(get: { lockOn }, set: { value in onSetLock(value) })
+        return VStack(alignment: .leading, spacing: 2) {
+            Toggle(isOn: binding) {
+                Text("settings.lock")
+                    .font(.body)
+            }
+            .frame(minHeight: 48)
+            .accessibilityIdentifier("settingsAppLock")
+            Text(lockMessage ?? String(localized: "settings.lockHint"))
+                .font(.footnote)
+                .foregroundColor(lockMessage == nil ? Palette.ink2 : Palette.orange)
+        }
+        .padding(.vertical, 8)
+    }
 
     private var hideRow: some View {
         let binding = Binding<Bool>(get: { hidden }, set: { value in onSetHidden(value) })

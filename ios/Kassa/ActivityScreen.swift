@@ -135,7 +135,7 @@ struct SearchField: View {
                 Button(action: { text.wrappedValue = "" }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(Palette.ink2)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("a11y.clearSearch"))
             }
@@ -211,7 +211,7 @@ struct MonthSwitcher: View {
                     .foregroundColor(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 48)
             }
             .accessibilityHint(Text("a11y.chooseMonth"))
         } else {
@@ -227,7 +227,7 @@ struct MonthSwitcher: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(enabled ? Palette.ink : Palette.ink2.opacity(0.4))
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: 48, minHeight: 48)
         }
         .disabled(!enabled)
         .accessibilityLabel(Text(description))
@@ -307,7 +307,7 @@ struct DaySection: View {
             }
             .padding(.top, 18)
             .padding(.bottom, 6)
-            .frame(minHeight: 44, alignment: .bottom)
+            .frame(minHeight: 48, alignment: .bottom)
             .accessibilityElement(children: .combine)
         }
     }

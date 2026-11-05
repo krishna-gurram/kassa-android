@@ -231,7 +231,7 @@ struct CorrectionSheet: View {
             Spacer(minLength: 8)
             Text(data.balanceInKassaText).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundColor(Palette.ink)
         }
-        .frame(minHeight: 44)
+        .frame(minHeight: 48)
         .accessibilityElement(children: .combine)
     }
 
@@ -243,7 +243,7 @@ struct CorrectionSheet: View {
                 Spacer(minLength: 8)
                 Text(preview.differenceText).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundColor(Palette.ink)
             }
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .accessibilityElement(children: .combine)
         }
         if !preview.problem.isEmpty && !typed.isEmpty {

@@ -121,7 +121,7 @@ struct NoticesContent: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Palette.ink)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: 48, minHeight: 48)
             }
             .accessibilityLabel(Text("a11y.back"))
             Text("due.title")
@@ -134,7 +134,7 @@ struct NoticesContent: View {
                     Text("due.clearAll")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(Palette.ink)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 48)
                 }
             }
         }
@@ -174,7 +174,7 @@ struct NoticeCard: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Palette.ink2)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 48, minHeight: 48)
                 }
                 .accessibilityLabel(Text("due.clear"))
             }

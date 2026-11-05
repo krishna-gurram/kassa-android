@@ -16,7 +16,7 @@ struct OverviewScreen: View {
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
     /// Batch J: a top category opens Insights' category page; the total opens the spending (or income) page: income first, then month.
-    var onOpenCategory: (Int64) -> Void = { _ in }
+    var onOpenCategory: (Int64, Int) -> Void = { _, _ in }
     var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
 
     var body: some View {
@@ -44,7 +44,7 @@ struct OverviewContent: View {
     var upcoming: [UpcomingData] = []
     var onOpenNotices: () -> Void = {}
     var onOpenCard: (Int64) -> Void = { _ in }
-    var onOpenCategory: (Int64) -> Void = { _ in }
+    var onOpenCategory: (Int64, Int) -> Void = { _, _ in }
     var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
 
     /// Which flow the hero shows. Spending first, as on Android.
@@ -69,6 +69,12 @@ struct OverviewContent: View {
     private var flow: OverviewFlowData {
         if showWeek { return showIncome ? data.weekIncome : data.weekSpending }
         return showIncome ? data.income : data.spending
+    }
+
+    /// How many months back a category opens on: this period from the month view, the month the week starts in from "This week"
+    /// (the rule is :shared's `weekCategoryBack`, as the spending page's).
+    private var categoryBack: Int {
+        return showWeek ? Int(data.weekCategoryBack) : 0
     }
 
     private var monthTitle: String {
@@ -97,7 +103,7 @@ struct OverviewContent: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .foregroundColor(Palette.figure(tone))
-                    .frame(minHeight: 44, alignment: .leading)
+                    .frame(minHeight: 48, alignment: .leading)
             }
             .buttonStyle(.plain)
             if flow.top.isEmpty {
@@ -121,7 +127,7 @@ struct OverviewContent: View {
                 Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
             }
             .foregroundColor(Palette.ink2)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
         .accessibilityLabel(Text("overview.choosePeriod"))
@@ -132,7 +138,7 @@ struct OverviewContent: View {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(selected ? Palette.ink : Palette.ink2)
-                .frame(minHeight: 44)
+                .frame(minHeight: 48)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -147,7 +153,7 @@ struct OverviewContent: View {
             if showIncome {
                 TopCategoryRow(item: item)
             } else {
-                Button(action: { onOpenCategory(item.id) }) { TopCategoryRow(item: item) }
+                Button(action: { onOpenCategory(item.id, categoryBack) }) { TopCategoryRow(item: item) }
                     .buttonStyle(.plain)
             }
         }
@@ -166,7 +172,7 @@ struct OverviewContent: View {
                 Text("overview.allAccounts")
                     .font(.footnote.weight(.semibold))
                     .foregroundColor(Palette.ink2)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 48)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
