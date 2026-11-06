@@ -177,7 +177,8 @@ class ImportSession internal constructor(
     fun goOn() {
         val i = interview ?: return
         if (!i.canGoOn()) return
-        if (i.next()) plan = i.plan(cashew!!, CashewImporter(zone))
+        val reader = cashew ?: return
+        if (i.next()) plan = i.plan(reader, CashewImporter(zone))
     }
 
     /** Back one question; true when that leaves the first one (the caller returns to picking a file). */

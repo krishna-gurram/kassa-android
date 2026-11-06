@@ -380,6 +380,7 @@ struct EntryRowView: View {
             if !entry.tag.isEmpty {
                 Text(entry.tag)
                     .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Palette.chip))
