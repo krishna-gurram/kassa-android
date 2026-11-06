@@ -142,6 +142,11 @@ final class AppModel: ObservableObject {
     @Published var notice: String?
     /// A backup made and waiting to be saved with the file exporter (`AppModel+Settings.swift`), or nil.
     @Published var pendingExport: BackupExport?
+    /// Settings > Automatic backups (`AppModel+AutoBackup.swift`): what the page shows, whether a backup is running, and a request to open the
+    /// page (the "Backup needs attention" notification was tapped).
+    @Published var autoBackupInfo = AutoBackupInfo()
+    @Published var autoBackupRunning = false
+    @Published var backupPageRequested = false
     /// The one line about a backup read from Settings ("12 entries, 3 accounts, 8 categories"), shown in the "Replace everything?"
     /// question; nil when no such question is open.
     @Published var asksReplace: String?

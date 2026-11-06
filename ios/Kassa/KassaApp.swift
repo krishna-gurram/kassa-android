@@ -24,5 +24,9 @@ struct KassaApp: App {
                 RootView(model: model, lock: lock)
             }
         }
+        // Best effort only: iOS decides if and when this runs. The sure daily check is when the app becomes active (RootView).
+        .backgroundTask(.appRefresh(AutoBackupSchedule.identifier)) {
+            await AutoBackupSchedule.runInBackground()
+        }
     }
 }

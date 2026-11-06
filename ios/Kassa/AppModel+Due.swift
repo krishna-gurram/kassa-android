@@ -235,6 +235,9 @@ extension AppModel {
                 case "BILL":
                     self.requestedTab = .overview
                     if bill.found { self.billSheet = BillSheetRequest(data: bill) }
+                case "BACKUP":
+                    self.settingsRequest += 1
+                    self.backupPageRequested = true
                 case "REMINDER":
                     self.requestedTab = .overview
                     self.openAdd()
