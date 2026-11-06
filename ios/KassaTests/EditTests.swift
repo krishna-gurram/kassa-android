@@ -54,10 +54,19 @@ final class EditTests: XCTestCase {
 
     private func rowText(_ name: String) throws -> String? {
         let data = try ledger().accounts(hidden: false, todayEpochDay: day, timeZoneId: "UTC")
-        for group in data.groups {
+        for group in data.groups where group.key != "ARCHIVED" {
             for row in group.rows where row.name == name { return row.amountText }
         }
         return nil
+    }
+
+    private func archivedNames() throws -> [String] {
+        let data = try ledger().accounts(hidden: false, todayEpochDay: day, timeZoneId: "UTC")
+        var names: [String] = []
+        for group in data.groups where group.key == "ARCHIVED" {
+            for row in group.rows { names.append(row.name) }
+        }
+        return names
     }
 
     private func groupKeys() throws -> [String] {
@@ -132,6 +141,7 @@ final class EditTests: XCTestCase {
         try store.setAccountArchived(id: main, archived: true)
         XCTAssertNil(try rowText("Main"))
         XCTAssertTrue(try groupKeys().contains("ARCHIVED"))
+        XCTAssertEqual(try archivedNames(), ["Main"])
         let open: AccountEditData = try ledger().accountEdit(accountId: main)
         XCTAssertTrue(open.archived)
         try store.setAccountArchived(id: main, archived: false)
