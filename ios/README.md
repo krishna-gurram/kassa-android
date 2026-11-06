@@ -10,15 +10,14 @@ Stage B (first real screens, read-only): the app opens the encrypted store, buil
 and Activity are real, the rest say "Coming soon". An empty database shows the first-run screen: "Choose backup file" (file picker for
 the `.kassa` type declared in `project.yml`, a password prompt for protected files) or "Start fresh". The eye hides every amount.
 Figures, colours (`Tone`) and money text come from the shared Kotlin rules, so they equal Android's; Swift only lays out and words
-them (`Wording.swift`, `Localizable.strings`, `Dates.swift` for the phone's date patterns). Not yet on iOS: Overview, Insights,
-Settings, search and filters in Activity, archived accounts, restoring over existing data.
+them (`Wording.swift`, `Localizable.strings`, `Dates.swift` for the phone's date patterns). That list is out of date: Overview, Insights, Settings, search and filters in Activity, archived accounts and restoring over existing data
+arrived in the stages below.
 
 Stage C (write path): first run picks a currency (the phone's region currency when Kassa lists it, otherwise the list opens before
 Start fresh or a backup without one) and the starter categories; Accounts has Add account (type first: cash and bank, cards, other,
-people; fixed deposits are Android-only for now); every tab has a floating Add button that opens the entry page
+people; a fixed deposit offers its optional maturity day, batch M); every tab has a floating Add button that opens the entry page
 (expense, income, transfer; number pad, category and account pickers, date row, note), and tapping an expense, income or transfer
-row in Activity edits or deletes it. Other rows (loan payments, buys and sales, person payments, card payments, corrections) do nothing
-yet. An unfinished new entry is kept per scene (`@SceneStorage`). All rules are :domain's (`EntryRules`, `AccountForm`, `PersonForm`,
+row in Activity edits or deletes it. Loan payments, buys and sales, person payments and corrections open their own sheets (stages F to H). An unfinished new entry is kept per scene (`@SceneStorage`); no other form keeps what is typed. All rules are :domain's (`EntryRules`, `AccountForm`, `PersonForm`,
 `StarterCategories`, `AmountPad`, `CategoryPicking`), reached through `WriteBridge.kt` and `LedgerView`; `LedgerStore+Write.swift` runs each
 change in one transaction; Swift only lays out.
 
@@ -61,12 +60,12 @@ the shared category chooser (`LoanPickers.swift`) for interest, principal and es
 only runs the SQL). Opening a payment edits or deletes the whole payment, and any Activity row that belongs to one opens it (`EntryRowData.loanPaymentId`). Change terms
 (`LoanChangeScreen.swift`) previews with `LoanEngine.rateChange` and saves one `loan_term_changes` row; Edit details (`LoanDetailsSheet.swift`, `LoanDetailsPlanner`) includes the
 count-as-spending switch, which `CountedSpending` already carries into every spending figure. Tests: `LoanPaymentTests` (Swift), `LoanPaymentsTest` (JVM, demo backup);
-the CI screenshots add `loan-payment-*`, `loan-change-*` and `loan-details-*`. Due notifications are still to come.
+the CI screenshots add `loan-payment-*`, `loan-change-*` and `loan-details-*`. Due notifications came in stage I.
 
 ## CI
 
 The `ios-app` job (macos-15) installs XcodeGen, runs `xcodegen generate` in `ios/`, then `xcodebuild test` on an iPhone 16
-simulator. `ScreenshotTests` draws the Accounts, Activity, Overview, Insights, Settings, card page, pay-card, loan page, Add loan and correction screens (light and dark) to `ci-output/shots`, which a step uploads to
+simulator. `ScreenshotTests` draws the Accounts, Activity, Overview, Insights, Settings, card page, pay-card, Order accounts, loan, investment, due, import and read pages (light and dark) to `ci-output/shots`, which a step uploads to
 a draft release `ios-shots-<run>-<attempt>`; it never fails the build. A pre-build script phase in the Kassa target runs `./gradlew :shared:link<Debug|Release>Framework<Target>`
 for the SDK being built. Logs go to `ci-output/ios-app.log`; on failure they are uploaded to a draft release
 `diag-ios-app-<run>-<attempt>`.
@@ -122,7 +121,7 @@ transaction (a refused or failed save changes nothing). Over budget is orange in
 word. Everything is :domain / :shared (`ReadViews`, `ReadPages.kt`, `LedgerView.patterns/weekView/spendingPage/insightDetail/dayPage/storePage/budgetsPage/
 budgetEdit/budgetPlan/activityFiltered/activitySearch`), JVM-tested against the demo backup (`ReadPagesTest`, `BudgetRulesTest`, `MonthPickingTest`). Swift tests:
 `ReadPagesTests`; CI screenshots add `insights-patterns-*`, `insights-week-*`, `spending-page-*`, `budgets-*`, `activity-search-*`, `activity-filter-*`.
-Not on iOS: an Overview week toggle. Nothing in batch J was compiled on the machine that wrote it
+The Overview week toggle came in batch M. Nothing in batch J was compiled on the machine that wrote it
 (no Swift toolchain there; the Kotlin ran under a small kotlinc harness); CI is the first compile of the Swift.
 
 Batch K (import from other apps, functional first): Settings > Import from another app, and Choose backup file on first run when the file is a
@@ -140,6 +139,18 @@ data (Settings) it asks "Replace everything?" first. Failures are `Failures.impo
 synthetic Money Manager and Cashew SQLite files at run time (nothing from a person's data) and checks scan, questions, plan, save, balances against the
 source, rollback through `afterInsertHook`, the temporary copy and the model's first-run and Settings flows; `InteropTests` writes the demo backup as iOS
 would (see docs/BACKUP_FORMAT.md for what that does and does not prove). CI screenshots add `import-found-*`, `import-accounts-*`, `import-review-*`,
-`import-done-*` and the file `demo-from-ios.kassa`. JVM: `SqlSourcesTest` (:importer) and `ImportBridgeTest` (:shared). Not on iOS: reading the phone's
-number style for amounts in the import (the US style is installed), a share-sheet or "Open in" entry for `.mmbak` files. Nothing in batch K was compiled
+`import-done-*` and the file `demo-from-ios.kassa`. JVM: `SqlSourcesTest` (:importer) and `ImportBridgeTest` (:shared). The phone's number style (batch M) now applies to the import too. Opening a file from Files or the share sheet came in batch M. Nothing in batch K was compiled
 or run on the machine that wrote it (no Swift toolchain, and Gradle could not download kotlinx-datetime or JUnit); CI is the first compile.
+
+Batches L to S (summarised in CLAUDE.md, iOS section): splits on the entry page, App lock and privacy cover, editing accounts, cards and people,
+the category editor, automatic backups to a chosen folder, Accounts order and Arrange, pinned Overview tiles, theme, open-on tab, budget month,
+Account to person.
+
+## Still missing on iOS
+
+- It has never run on a real device: only CI's simulator, and the Swift was written without a local toolchain (CI is the first compile).
+- No iPad or unfolded layouts: every screen is the phone layout, capped in width, with no size classes and no two-pane list-detail.
+- Overview's top categories are rows, not tiles sized by share.
+- Typed input survives scene recreation only for a new entry (`@SceneStorage`); the other forms lose it.
+- The category editor has no budget fields and no groups picker.
+- iOS cannot run a daily job: backups and a new card statement's notice wait for the app to be opened (a background refresh is a bonus only).

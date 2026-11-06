@@ -60,6 +60,8 @@ final class ScreenshotTests: XCTestCase {
                 data: activity, hidden: false, today: today, lazy: false, onToggleHidden: {}, onShift: { _ in }
             )
             save(activityView, scheme: scheme, to: target.appendingPathComponent("activity-\(suffix).png"))
+            let orderView = OrderSheet(sort: "NAME", onPick: { _ in }, onArrange: {}, onReset: {}, onClose: {})
+            save(orderView, scheme: scheme, to: target.appendingPathComponent("order-accounts-\(suffix).png"))
         }
     }
 

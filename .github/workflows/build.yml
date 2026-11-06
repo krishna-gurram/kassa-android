@@ -226,7 +226,7 @@ jobs:
           xcrun simctl list devices available 2>&1 | tee ci-output/ios-app.log
           mkdir -p ci-output/shots
           cd ios
-          # The screenshot test draws the Accounts and Activity screens into this folder (it reads KASSA_SHOTS_DIR).
+          # The screenshot test draws the main screens into this folder (it reads KASSA_SHOTS_DIR).
           TEST_RUNNER_KASSA_SHOTS_DIR="$GITHUB_WORKSPACE/ci-output/shots" \
           xcodebuild test -project Kassa.xcodeproj -scheme Kassa \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
@@ -239,7 +239,7 @@ jobs:
         run: |
           ls -l ci-output/shots 2>/dev/null || true
           gh release create "ios-shots-${{ github.run_id }}-${{ github.run_attempt }}" ci-output/shots/* \
-            --draft --title "iOS screenshots ${{ github.run_number }}" --notes "Accounts and Activity screens drawn by the iOS tests." || true
+            --draft --title "iOS screenshots ${{ github.run_number }}" --notes "Screens drawn by the iOS tests." || true
 
       - name: Save diagnostics
         if: failure()
