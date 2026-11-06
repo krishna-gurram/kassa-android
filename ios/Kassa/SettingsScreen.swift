@@ -36,6 +36,14 @@ struct SettingsScreen: View {
                     budgetsDestination: AnyView(BudgetsPage(model: model)),
                     categoriesDestination: AnyView(CategoriesPage(model: model)),
                     notificationsDestination: AnyView(NotificationSettingsPage(model: model)),
+                    theme: model.theme, onSetTheme: { name in model.setTheme(name) },
+                    openOnTitle: OpenOnPage.title(model.homeTab), openOnDestination: AnyView(OpenOnPage(model: model)),
+                    pinsDetail: String(format: String(localized: "settings.pins.value"), model.pinChoices.filter { $0.picked }.count),
+                    pinsDestination: AnyView(PinAccountsPage(model: model)),
+                    budgetMonthDetail: String(format: String(localized: "settings.budgetMonth.value"), model.monthStartDay),
+                    budgetMonthDestination: AnyView(BudgetMonthPage(model: model)),
+                    showsPerson: !model.convertibles.isEmpty, personDestination: AnyView(AccountToPersonPage(model: model)),
+                    versionText: AppVersion.text,
                     autoBackupDestination: AnyView(AutoBackupPage(model: model)),
                     autoBackupDetail: autoBackupDetail
                 )
@@ -194,6 +202,19 @@ struct SettingsContent: View {
     /// Settings > Categories (batch Q).
     var categoriesDestination: AnyView = AnyView(EmptyView())
     var notificationsDestination: AnyView = AnyView(EmptyView())
+    /// Batch R: Appearance (theme), Home screen (the tab Kassa opens on, the Overview tiles), Budget month, Account to person (only when
+    /// an account can be converted) and the version line. A screen without them (a screenshot) leaves them out.
+    var theme: String? = nil
+    var onSetTheme: (String) -> Void = { _ in }
+    var openOnTitle: LocalizedStringKey = "tab.overview"
+    var openOnDestination: AnyView? = nil
+    var pinsDetail: String = ""
+    var pinsDestination: AnyView? = nil
+    var budgetMonthDetail: String = ""
+    var budgetMonthDestination: AnyView? = nil
+    var showsPerson: Bool = false
+    var personDestination: AnyView = AnyView(EmptyView())
+    var versionText: String = ""
     /// Settings > Automatic backups (batch S): the folder backups go to by themselves; the detail reads On or Off.
     var autoBackupDestination: AnyView = AnyView(EmptyView())
     var autoBackupDetail: String = ""
@@ -206,14 +227,17 @@ struct SettingsContent: View {
             hideRow
             Hairline()
             lockRows
+            appearanceRows
             linkRow(title: "settings.currency", detail: currencyName, destination: currencyDestination)
             Hairline()
+            homeRows
             linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
             Hairline()
             linkRow(title: "settings.bills", detail: "", destination: billsDestination)
             Hairline()
             linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
             Hairline()
+            budgetMonthRow
             linkRow(title: "settings.categories", detail: "", destination: categoriesDestination)
             Hairline()
             sectionLabel("settings.backup.header")
@@ -225,10 +249,12 @@ struct SettingsContent: View {
             Hairline()
             actionRow(title: "settings.import", symbol: "tray.and.arrow.down", action: onImport)
             Hairline()
+            personRow
             backupStatus
             sectionLabel("settings.about")
             linkRow(title: "settings.notices", detail: "", destination: noticesDestination)
             Hairline()
+            versionRow
             Text("settings.footer")
                 .font(.footnote)
                 .foregroundColor(Palette.ink2)
@@ -262,6 +288,92 @@ struct SettingsContent: View {
                 .foregroundColor(lockMessage == nil ? Palette.ink2 : Palette.orange)
         }
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var appearanceRows: some View {
+        if let current = theme {
+            sectionLabel("settings.appearance")
+            themeRow(current)
+            Hairline()
+        }
+    }
+
+    private func themeRow(_ current: String) -> some View {
+        let binding = Binding<String>(get: { current }, set: { value in onSetTheme(value) })
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("settings.theme")
+                .font(.body)
+            Picker("settings.theme", selection: binding) {
+                Text("settings.theme.system").tag("SYSTEM")
+                Text("settings.theme.light").tag("LIGHT")
+                Text("settings.theme.dark").tag("DARK")
+            }
+            .pickerStyle(.segmented)
+            .padding(.vertical, 8)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var homeRows: some View {
+        if let open = openOnDestination, let pins = pinsDestination {
+            sectionLabel("settings.home")
+            openOnRow(open)
+            Hairline()
+            linkRow(title: "settings.pins.title", detail: pinsDetail, destination: pins)
+            Hairline()
+        }
+    }
+
+    @ViewBuilder
+    private func openOnRow(_ destination: AnyView) -> some View {
+        if linked {
+            NavigationLink(destination: destination) {
+                HStack(spacing: 8) {
+                    Text("settings.openOn")
+                        .font(.body)
+                        .foregroundColor(Palette.ink)
+                    Spacer(minLength: 8)
+                    Text(openOnTitle)
+                        .font(.body)
+                        .foregroundColor(Palette.ink2)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundColor(Palette.ink2)
+                }
+                .frame(minHeight: 48)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var budgetMonthRow: some View {
+        if let destination = budgetMonthDestination {
+            linkRow(title: "settings.budgetMonth", detail: budgetMonthDetail, destination: destination)
+            Hairline()
+        }
+    }
+
+    @ViewBuilder
+    private var personRow: some View {
+        if showsPerson {
+            linkRow(title: "settings.person.title", detail: "", destination: personDestination)
+            Hairline()
+        }
+    }
+
+    @ViewBuilder
+    private var versionRow: some View {
+        if !versionText.isEmpty {
+            Text(String(format: String(localized: "settings.version"), versionText))
+                .font(.footnote)
+                .foregroundColor(Palette.ink2)
+                .frame(minHeight: 48, alignment: .leading)
+        }
     }
 
     private var hideRow: some View {

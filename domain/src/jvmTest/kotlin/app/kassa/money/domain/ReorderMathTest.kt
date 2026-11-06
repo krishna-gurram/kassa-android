@@ -1,4 +1,4 @@
-package app.kassa.money.ui.common
+package app.kassa.money.domain
 
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -99,5 +99,16 @@ class ReorderMathTest {
         assertEquals(10f, ReorderMath.edgeScroll(800f, 950f, 0f, 1000f, 100f, 20f))
         assertEquals(20f, ReorderMath.edgeScroll(900f, 1100f, 0f, 1000f, 100f, 20f))
         assertEquals(0f, ReorderMath.edgeScroll(0f, 10f, 0f, 1000f, 0f, 20f))
+    }
+
+    @Test
+    fun aDropBeforeASlotLandsOneEarlierWhenItMovesDown() {
+        // "Before slot 3" for item 0 of four is the end of the list; before its own slot or the next one changes nothing.
+        assertEquals(2, ReorderMath.landing(0, 3))
+        assertEquals(0, ReorderMath.landing(0, 0))
+        assertEquals(0, ReorderMath.landing(0, 1))
+        assertEquals(0, ReorderMath.landing(3, 0))
+        assertEquals(2, ReorderMath.landing(3, 2))
+        assertEquals(listOf("b", "c", "a"), ReorderMath.move(listOf("a", "b", "c"), 0, ReorderMath.landing(0, 3)))
     }
 }

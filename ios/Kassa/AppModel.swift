@@ -67,6 +67,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var shownMonth: Int
     @Published private(set) var today: Int
     @Published private(set) var hideAmounts: Bool
+    /// Batch R (`AppModel+Prefs.swift`): the theme (SYSTEM, LIGHT or DARK), the tab Kassa opens on, Accounts' Arrange mode, the
+    /// message with Undo after a reset of the order, the Overview tiles that can be pinned, the accounts Settings can turn into people
+    /// and the day budget months start on.
+    @Published var theme: String
+    @Published var homeTab: String
+    @Published var arranging = false
+    @Published var orderMessage: OrderMessage?
+    @Published private(set) var pinChoices: [PinChoiceData] = []
+    @Published private(set) var convertibles: [ConvertibleAccountData] = []
+    @Published private(set) var monthStartDay: Int = 1
     /// The sentence to show after a restore failed (or a wrong password), or nil.
     @Published var restoreMessage: String?
     @Published var working = false
@@ -176,6 +186,8 @@ final class AppModel: ObservableObject {
         self.noticeCenter = noticeCenter
         self.openStore = openStore
         self.hideAmounts = defaults.bool(forKey: AppModel.hideKey)
+        self.theme = PhonePrefs(defaults: defaults).theme
+        self.homeTab = PhonePrefs(defaults: defaults).homeTab
         self.chosenCurrency = AppModel.regionCurrency()
         let now = KassaDates.todayEpochDay()
         let current = KassaDates.yearMonth(epochDay: now)
@@ -356,6 +368,7 @@ final class AppModel: ObservableObject {
     func load(_ opened: LedgerStore, _ given: Inputs) throws {
         let data = try opened.export()
         let made = LedgerView(data: data, fallbackCurrency: AppModel.phoneCurrency())
+        applyPhonePrefs(made)
         view = made
         publish { self.picks = made }
         compute(made, given)
@@ -368,6 +381,7 @@ final class AppModel: ObservableObject {
 
     /// Works the screens' figures out of [made] and publishes them. Queue only.
     private func compute(_ made: LedgerView, _ given: Inputs) {
+        applyPhonePrefs(made)
         let day = Int32(given.today)
         let a = made.accounts(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone)
         let o = made.overview(hidden: given.hidden, todayEpochDay: day, timeZoneId: given.zone, firstWeekday: Int32(given.firstWeekday))
@@ -387,7 +401,13 @@ final class AppModel: ObservableObject {
             timeZoneId: given.zone
         )
         let read: ReadFigures = computeRead(made, given)
+        let pinList: [PinChoiceData] = made.pinChoices()
+        let convertList: [ConvertibleAccountData] = made.convertibleAccounts(hidden: given.hidden)
+        let monthStart = Int(made.budgetMonthStart())
         publish {
+            self.pinChoices = pinList
+            self.convertibles = convertList
+            self.monthStartDay = monthStart
             self.patterns = read.patterns
             self.week = read.week
             self.readPage = read.page

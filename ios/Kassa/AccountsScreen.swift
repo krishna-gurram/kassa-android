@@ -12,15 +12,26 @@ struct AccountsScreen: View {
     var onAdd: (() -> Void)? = nil
     /// A tap on a row: the row and whether it is a person. Nil draws rows that do nothing.
     var onOpenRow: ((AccountRowData, Bool) -> Void)? = nil
+    /// Order, Collapse all and the saved folds (batch R). Nil leaves them out.
+    var order: AccountsOrderHooks? = nil
 
     var body: some View {
         ScrollView {
-            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd, onOpenRow: onOpenRow)
+            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd, onOpenRow: onOpenRow, order: order)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
         }
         .background(Palette.ground.ignoresSafeArea())
     }
+}
+
+/// What Accounts > Order needs from the app: the saved folds and what the Order sheet's buttons do.
+struct AccountsOrderHooks {
+    let savedFolded: [String]
+    let onFolded: ([String]) -> Void
+    let onPick: (String) -> Void
+    let onArrange: () -> Void
+    let onReset: () -> Void
 }
 
 /// The screen without its scroll view, so a screenshot can draw it.
@@ -30,14 +41,17 @@ struct AccountsContent: View {
     let onToggleHidden: () -> Void
     var onAdd: (() -> Void)? = nil
     var onOpenRow: ((AccountRowData, Bool) -> Void)? = nil
+    var order: AccountsOrderHooks? = nil
 
-    /// Folded groups, by key. Closed and the archived groups start folded.
-    @State private var folded: Set<String> = ["CLOSED", "ARCHIVED", "ARCHIVED_PEOPLE"]
+    /// Folded groups, by key. Closed and the archived groups start folded; with `order` the saved folds replace this on appearing.
+    @State private var folded: Set<String> = Set(PhonePrefs.defaultFolded)
+    @State private var ordering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TabTop(title: "accounts.title", hidden: hidden, onToggle: onToggleHidden)
             NetWorthHero(data: data)
+            orderBar
             ForEach(data.groups, id: \.key) { group in
                 groupView(group)
             }
@@ -54,6 +68,79 @@ struct AccountsContent: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
+        .onAppear {
+            if let hooks = order { folded = Set(hooks.savedFolded) }
+        }
+        .onChange(of: folded) { value in
+            order?.onFolded(Array(value))
+        }
+        .sheet(isPresented: $ordering) {
+            OrderSheet(
+                sort: data.sort,
+                onPick: { name in ordering = false; order?.onPick(name) },
+                onArrange: { ordering = false; order?.onArrange() },
+                onReset: { ordering = false; order?.onReset() },
+                onClose: { ordering = false }
+            )
+        }
+    }
+
+    // MARK: Order
+
+    private var allFolded: Bool {
+        for group in data.groups where !folded.contains(group.key) { return false }
+        return true
+    }
+
+    private var foldAllKey: LocalizedStringKey {
+        return allFolded ? "accounts.expandAll" : "accounts.collapseAll"
+    }
+
+    private func toggleAll() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if allFolded {
+                folded = []
+            } else {
+                folded = Set(data.groups.map { $0.key })
+            }
+        }
+    }
+
+    /// "Order  A to Z" with a chevron, and Collapse all at the end of the line.
+    @ViewBuilder
+    private var orderBar: some View {
+        if order != nil && !data.arrangeKeys.isEmpty {
+            HStack(spacing: 8) {
+                Button(action: { ordering = true }) {
+                    HStack(spacing: 6) {
+                        Text("accounts.order")
+                            .font(.footnote)
+                            .foregroundColor(Palette.ink2)
+                        Text(OrderWording.sortKey(data.sort))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(Palette.ink)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(Palette.ink2)
+                    }
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("accounts.changeOrder"))
+                Spacer(minLength: 8)
+                Button(action: toggleAll) {
+                    Text(foldAllKey)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(Palette.ink2)
+                        .lineLimit(1)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func toggle(_ key: String) {

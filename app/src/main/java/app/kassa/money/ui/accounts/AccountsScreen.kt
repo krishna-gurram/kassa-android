@@ -63,7 +63,7 @@ import app.kassa.money.ui.cards.cardTint
 import app.kassa.money.ui.common.AutoScroll
 import app.kassa.money.ui.common.Gap
 import app.kassa.money.ui.common.LocalMessages
-import app.kassa.money.ui.common.ReorderMath
+import app.kassa.money.domain.ReorderMath
 import app.kassa.money.ui.common.TabTop
 import app.kassa.money.ui.common.balanceColor
 import app.kassa.money.ui.common.favourColor
