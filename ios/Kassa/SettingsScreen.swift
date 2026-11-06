@@ -15,6 +15,8 @@ struct SettingsScreen: View {
     @State private var askingBackupPassword = false
     @State private var backupPassword = ""
     @State private var restorePassword = ""
+    /// Settings > Automatic backups is showing (also set when the "Backup needs attention" notification is tapped).
+    @State private var autoBackupOpen = false
 
     var body: some View {
         NavigationStack {
@@ -41,13 +43,23 @@ struct SettingsScreen: View {
                     budgetMonthDetail: String(format: String(localized: "settings.budgetMonth.value"), model.monthStartDay),
                     budgetMonthDestination: AnyView(BudgetMonthPage(model: model)),
                     showsPerson: !model.convertibles.isEmpty, personDestination: AnyView(AccountToPersonPage(model: model)),
-                    versionText: AppVersion.text
+                    versionText: AppVersion.text,
+                    autoBackupDestination: AnyView(AutoBackupPage(model: model)),
+                    autoBackupDetail: autoBackupDetail
                 )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
             .background(Palette.ground.ignoresSafeArea())
+            .navigationDestination(isPresented: $autoBackupOpen) {
+                AutoBackupPage(model: model)
+            }
             .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                model.refreshAutoBackupInfo()
+                openBackupPageIfAsked()
+            }
+            .onChange(of: model.backupPageRequested) { _ in openBackupPageIfAsked() }
         }
         .background(exporterHost)
         .background(importerHost)
@@ -55,6 +67,19 @@ struct SettingsScreen: View {
         .background(backupPasswordHost)
         .background(restorePasswordHost)
         .background(replaceHost)
+    }
+
+    private var autoBackupDetail: String {
+        if model.autoBackupInfo.folderName == nil { return String(localized: "autoBackup.off") }
+        return String(localized: "autoBackup.on")
+    }
+
+    /// A tap on "Backup needs attention" asks for the automatic backups page once.
+    private func openBackupPageIfAsked() {
+        if model.backupPageRequested {
+            model.backupPageRequested = false
+            autoBackupOpen = true
+        }
     }
 
     // MARK: System sheets, each on its own view so one never replaces another
@@ -190,6 +215,9 @@ struct SettingsContent: View {
     var showsPerson: Bool = false
     var personDestination: AnyView = AnyView(EmptyView())
     var versionText: String = ""
+    /// Settings > Automatic backups (batch S): the folder backups go to by themselves; the detail reads On or Off.
+    var autoBackupDestination: AnyView = AnyView(EmptyView())
+    var autoBackupDetail: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -214,6 +242,8 @@ struct SettingsContent: View {
             Hairline()
             sectionLabel("settings.backup.header")
             actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)
+            Hairline()
+            linkRow(title: "settings.autoBackup", detail: autoBackupDetail, destination: autoBackupDestination)
             Hairline()
             actionRow(title: "settings.restore.button", symbol: "square.and.arrow.down", action: onRestore)
             Hairline()
