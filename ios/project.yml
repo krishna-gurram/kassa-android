@@ -82,6 +82,12 @@ targets:
             LSItemContentTypes:
               - app.kassa.money.mmbak
               - app.kassa.money.sql
+        # Automatic backups: a best-effort background refresh (Kassa/AppModel+AutoBackup.swift). iOS decides if and when it runs; the sure
+        # daily check is when the app becomes active.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.kassa.money.autobackup
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

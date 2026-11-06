@@ -12,16 +12,27 @@ struct RootView: View {
             .modifier(ImportCover(model: model, importer: model.importer))
             .onAppear { model.start() }
             .onOpenURL { url in model.receiveFile(url) }
+            .onChange(of: model.isReady) { ready in
+                if ready {
+                    model.refreshAutoBackupInfo()
+                    model.autoBackupIfDue()
+                }
+            }
             .onChange(of: model.canTakeFiles) { ready in
                 if ready { model.drainPendingFile() }
             }
             .onChange(of: scenePhase) { newPhase in
-                if newPhase == .background { lock.didEnterBackground() }
+                if newPhase == .background {
+                    lock.didEnterBackground()
+                    model.scheduleAutoBackupRefresh()
+                }
                 // Coming back to the app: the day may have changed, and a minute away locks.
                 if newPhase == .active {
                     lock.didBecomeActive()
                     model.refreshFigures()
                     model.refreshNotifications()
+                    model.refreshAutoBackupInfo()
+                    model.autoBackupIfDue()
                 }
                 updateCover(newPhase)
             }
