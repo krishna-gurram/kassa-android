@@ -3,6 +3,10 @@ package app.kassa.money.shared
 import app.kassa.money.backup.BackupData
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountArrangement
+import app.kassa.money.domain.AccountOrdering
+import app.kassa.money.domain.AccountSort
+import app.kassa.money.domain.AccountToPerson
+import app.kassa.money.domain.PinRules
 import app.kassa.money.domain.AccountLine
 import app.kassa.money.domain.AccountKindFilter
 import app.kassa.money.domain.AccountPicking
@@ -138,6 +142,14 @@ data class AccountsData(
     val payableText: String,
     /** The kinds of account the person has, then People (always), then Closed (only when something is closed). */
     val groups: List<AccountsGroupData>,
+    /** The sort in force, an `AccountSort` name: NAME, BALANCE, DUE or CUSTOM (Your order). */
+    val sort: String = "NAME",
+    /**
+     * What the tab shows now as an `AccountArrangement.encode()` text (groups, then each group's account ids), the starting point
+     * of arranging; empty when there are no account groups. [arrangeKeys] are those groups, in shown order.
+     */
+    val order: String = "",
+    val arrangeKeys: List<String> = emptyList(),
 )
 
 /** What an Activity row is, for its icon, wording and layout. A loan principal that counts as spending is an [Expense]. */
@@ -271,6 +283,20 @@ data class PinRowData(
     /** Epoch day of the card's due date; 0 when [dueKind] is Nothing. */
     val dueDay: Int,
 )
+
+/** One thing that can be pinned on Overview: an open account, or [isPeople] (then [name] is empty; Swift words "People"). */
+data class PinChoiceData(
+    /** The `PinRules` key: "acct:<id>" or "people". */
+    val key: String,
+    val isPeople: Boolean,
+    val name: String,
+    val picked: Boolean,
+    /** False when the tile is off and eight are already on, so ticking it is refused. */
+    val enabled: Boolean,
+)
+
+/** An account Settings > Account to person offers: [amountText] is the size (no sign), [side] says whose money it is. */
+data class ConvertibleAccountData(val id: Long, val name: String, val amountText: String, val side: PersonSide)
 
 /**
  * The Overview tab: the month (or custom-start period) that holds today, spending and income to date with their top three
@@ -527,8 +553,22 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
      */
     private val arrangement: AccountArrangement? = AccountArrangement.decode(data.accountArrangement)
 
+    /**
+     * The phone's own choices, which a backup does not carry; set before asking for figures (queue only on iOS). [accountSort] is the
+     * stored `AccountSort` name ("" when none: a backup's arrangement then shows as Your order). [pinnedKeys] is `PinRules.encode`
+     * text, or null while the person never picked (the first eight).
+     */
+    var accountSort: String = ""
+    var pinnedKeys: String? = null
+
+    private fun sortNow(): AccountSort = AccountOrdering.effective(accountSort, arrangement)
+    private fun arrangementNow(): AccountArrangement? = AccountOrdering.arrangementFor(sortNow(), arrangement)
+
     /** The day each period starts on (1 to 28), as Android's `Ledger.period` reads it. */
     internal val monthStartDay: Int = data.monthStartDay.coerceIn(1, 28)
+
+    /** The day budget months start on (1 to 28), for Settings > Budget month. */
+    fun budgetMonthStart(): Int = monthStartDay
 
     /** The currency code this ledger shows ("USD"). */
     fun currencyCode(): String = currency.code
@@ -552,7 +592,18 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         val owed = openPeople().map { p -> personBalance(p.id, parts.loanEntries, transactions) }
         val receivable = owed.filter { it > 0 }.sum()
         val payable = -owed.filter { it < 0 }.sum()
-        val overview = AccountsOverview.of(accounts, valueOf, receivable, payable, Names.order { it.account.name }, arrangement)
+        val sort = sortNow()
+        val dueDay: (Account) -> Int? = { a ->
+            when {
+                a.type.hasStatement -> cards[a.id]?.takeIf { it.payable > 0 }?.due?.toEpochDay()?.toInt()
+                a.type == AccountType.LOAN -> parts.loanTerms[a.id]?.nextPaymentDay
+                else -> null
+            }
+        }
+        val overview = AccountsOverview.of(
+            accounts, valueOf, receivable, payable, AccountOrdering.comparator(sort, dueDay), AccountOrdering.arrangementFor(sort, arrangement),
+        )
+        val shownOrder = AccountOrdering.shown(overview)
 
         val groups = ArrayList<AccountsGroupData>()
         for (g in overview.groups) {
@@ -578,6 +629,9 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             receivableText = Money.format(receivable),
             payableText = Money.format(payable),
             groups = groups,
+            sort = sort.name,
+            order = if (shownOrder.groups.isEmpty()) "" else shownOrder.encode(),
+            arrangeKeys = shownOrder.groups,
         )
     }
 
@@ -834,20 +888,47 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         return TopCategoryData(c.id, c.name, icon.first, icon.second, c.color, Money.format(amount))
     }
 
-    private fun overviewPins(todayEpochDay: Int, zone: TimeZone): List<PinRowData> {
+    /** Every account open on the tab in the order Overview follows (the arrangement when Your order is on, else A to Z). */
+    private fun pinOrdered(): List<Account> {
         val open = accounts.filter { it.isActive }
-        val arranged = arrangement
-        val ordered: List<Account> = if (arranged == null) {
-            open.sortedWith(Names.order { a: Account -> a.name })
-        } else {
-            arranged.flatten(
-                open,
-                { a: Account -> AccountSection.of(a.type).name },
-                { a: Account -> AccountSection.of(a.type).title },
-                { a: Account -> a.id },
-                { a: Account -> a.name },
-            )
+        val arranged = arrangementNow()
+        if (arranged == null) return open.sortedWith(Names.order { a: Account -> a.name })
+        return arranged.flatten(
+            open,
+            { a: Account -> AccountSection.of(a.type).name },
+            { a: Account -> AccountSection.of(a.type).title },
+            { a: Account -> a.id },
+            { a: Account -> a.name },
+        )
+    }
+
+    /** Every tile that can be pinned, as `PinRules` keys: open accounts in Accounts order, then People when anyone is listed. */
+    private fun pinChoiceKeys(): List<String> {
+        val keys = pinOrdered().map { a -> PinRules.key(a.id) }
+        return if (openPeople().isEmpty()) keys else keys + PinRules.PEOPLE_KEY
+    }
+
+    /** Settings > Home screen > Accounts on Overview: every choice, whether it is on, and whether a tick would be refused (eight are on). */
+    fun pinChoices(): List<PinChoiceData> {
+        val keys = pinChoiceKeys()
+        val on = PinRules.shown(keys, PinRules.decode(pinnedKeys)).toSet()
+        val byId = accountById
+        return keys.map { key ->
+            val name = if (key == PinRules.PEOPLE_KEY) "" else byId[key.removePrefix("acct:").toLongOrNull() ?: 0L]?.name ?: ""
+            val picked = key in on
+            PinChoiceData(key, key == PinRules.PEOPLE_KEY, name, picked, picked || on.size < PinRules.MAX_TILES)
         }
+    }
+
+    /** The `PinRules.encode` text after ticking or unticking [key] (the shown picks when nothing was ever picked). */
+    fun pinToggled(key: String): String = PinRules.encode(PinRules.toggled(pinChoiceKeys(), PinRules.decode(pinnedKeys), key).toList().sorted())
+
+    /** How many tiles Overview shows (Settings row detail). */
+    fun pinCount(): Int = PinRules.shown(pinChoiceKeys(), PinRules.decode(pinnedKeys)).size
+
+    private fun overviewPins(todayEpochDay: Int, zone: TimeZone): List<PinRowData> {
+        val keys = PinRules.shown(pinChoiceKeys(), PinRules.decode(pinnedKeys)).toSet()
+        val ordered: List<Account> = pinOrdered().filter { a -> PinRules.key(a.id) in keys }
         val cards = cardSnapshots(todayEpochDay, zone)
         val rows = ArrayList<PinRowData>()
         for (a in ordered) {
@@ -867,7 +948,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             rows.add(PinRowData(false, a.id, a.name, a.last4 ?: "", text, tone, due, dueText, dueDay))
         }
         val people = openPeople()
-        if (people.isNotEmpty()) {
+        if (people.isNotEmpty() && PinRules.PEOPLE_KEY in keys) {
             val owed = people.map { p -> personBalance(p.id, parts.loanEntries, transactions) }
             val theyOwe = owed.filter { it > 0 }.sum()
             val youOwe = -owed.filter { it < 0 }.sum()
@@ -1335,6 +1416,32 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     /** True when the person has money open, so archiving waits (restoring never does). */
     fun personArchiveBlocked(personId: Long): Boolean =
         EditRules.archiveBlocked(personBalance(personId, parts.loanEntries, transactions))
+
+    // ---------- Account to person (Settings > Data) ----------
+
+    /** The open plain accounts that can become a person, A to Z, each with its balance's size and whose money it is. */
+    fun convertibleAccounts(hidden: Boolean): List<ConvertibleAccountData> = shown(hidden) {
+        accounts.filter { AccountToPerson.isConvertible(it) }.sortedWith(Names.order { a: Account -> a.name }).map { a ->
+            val balance = balances[a.id] ?: 0L
+            val side = when {
+                Money.isHidden -> PersonSide.Hidden
+                balance > 0 -> PersonSide.OwesYou
+                balance < 0 -> PersonSide.YouOwe
+                else -> PersonSide.Settled
+            }
+            ConvertibleAccountData(a.id, a.name, Money.format(abs(balance)), side)
+        }
+    }
+
+    /** The account's balance, which the new person carries (positive: they owe you). */
+    fun convertBalance(accountId: Long): Long = balances[accountId] ?: 0L
+
+    /** Why [accountId] can't become a person named [name], or null when it can. */
+    fun convertProblem(accountId: Long, name: String): String? {
+        val a = accountById[accountId]
+        if (a == null || !AccountToPerson.isConvertible(a)) return "That account can't become a person."
+        return AccountToPerson.nameProblem(name, parts.people.map { it.name })
+    }
 
     private fun hasCardPage(a: Account): Boolean = a.type.hasStatement && a.isActive && a.statementDay != null
 

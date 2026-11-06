@@ -1,4 +1,4 @@
-package app.kassa.money.ui.common
+package app.kassa.money.domain
 
 /**
  * The index maths behind drag-to-reorder lists, plain Kotlin so it has fast JVM tests. A list is a column of items with
@@ -55,6 +55,12 @@ object ReorderMath {
         if (from !in list.indices || to !in list.indices || from == to) return list
         return list.toMutableList().also { it.add(to, it.removeAt(from)) }
     }
+
+    /**
+     * Where an item taken from [from] ends up when a list reports a drop "before slot [destination]", counted before the item
+     * is taken out (how SwiftUI's `onMove` says it): later slots are one less once the item has left its own.
+     */
+    fun landing(from: Int, destination: Int): Int = if (destination > from) destination - 1 else destination
 
     /**
      * Puts [reordered] (the members of [within], in their new order) back into the slots [within] took in [all]; the

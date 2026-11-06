@@ -155,11 +155,17 @@ struct AppShell: View {
     @ObservedObject var model: AppModel
     @ObservedObject var lock: AppLockModel
 
-    // Kassa opens on Overview, as Android does by default (its "Home screen" setting will pick another tab later).
-    @State private var tab: ShellTab = .overview
+    // Kassa opens on the tab Settings > Open Kassa on names (Overview until the person picks another).
+    @State private var tab: ShellTab
     @State private var addingAccount = false
     /// The scene's kept copy of an unfinished new entry, so folding or a scene recreation never loses what was typed.
     @SceneStorage("kassa.entryDraft") private var keptDraft = ""
+
+    init(model: AppModel, lock: AppLockModel) {
+        self.model = model
+        self.lock = lock
+        _tab = State(initialValue: PhonePrefs.shellTab(model.homeTab))
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -334,16 +340,41 @@ struct AppShell: View {
     private var accountsTab: some View {
         if let target = model.openPage {
             PageHost(model: model, target: target)
+        } else if let data = model.accounts, model.arranging {
+            ArrangeAccountsScreen(
+                data: data, onSave: { text in model.saveArrangement(text) }, onDone: { model.stopArranging() }
+            )
         } else if let data = model.accounts {
             AccountsScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                 onAdd: { addingAccount = true },
                 onOpenRow: { row, isPerson in
                     if isPerson { model.openPersonPage(row.id) } else { model.openAccountPage(row.id) }
-                }
+                },
+                order: orderHooks
             )
+            .overlay(alignment: .bottom) { orderMessageBar }
         } else {
             ProgressView()
+        }
+    }
+
+    private var orderHooks: AccountsOrderHooks {
+        return AccountsOrderHooks(
+            savedFolded: model.phone.folded,
+            onFolded: { keys in model.saveFolded(keys) },
+            onPick: { name in model.chooseSort(name) },
+            onArrange: { model.startArranging() },
+            onReset: { model.resetOrder() }
+        )
+    }
+
+    @ViewBuilder
+    private var orderMessageBar: some View {
+        if let message = model.orderMessage {
+            OrderMessageBar(
+                message: message, onUndo: { model.undoOrder() }, onGone: { id in model.dismissOrderMessage(id) }
+            )
         }
     }
 

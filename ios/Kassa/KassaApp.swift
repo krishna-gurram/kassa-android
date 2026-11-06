@@ -16,12 +16,20 @@ struct KassaApp: App {
         if !KassaApp.isTesting { NotificationRouter.shared.install() }
     }
 
+    /// The theme Settings chose: nil follows the phone.
+    static func scheme(_ theme: String) -> ColorScheme? {
+        if theme == "LIGHT" { return .light }
+        if theme == "DARK" { return .dark }
+        return nil
+    }
+
     var body: some Scene {
         WindowGroup {
             if KassaApp.isTesting {
                 Color.clear
             } else {
                 RootView(model: model, lock: lock)
+                    .preferredColorScheme(KassaApp.scheme(model.theme))
             }
         }
     }

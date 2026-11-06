@@ -142,6 +142,7 @@ struct DueSettings {
         defaults.removeObject(forKey: DueSettings.clearedKey)
         defaults.removeObject(forKey: DueSettings.postedKey)
         defaults.removeObject(forKey: DueSettings.planKey)
+        PhonePrefs.forgetAccountReferences(defaults)
     }
 
     // MARK: Time of day
