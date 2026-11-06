@@ -76,7 +76,7 @@ struct BillSheet: View {
             case .category:
                 CategoryChooser(
                     ledger: model.picks, title: String(localized: "bills.category"), selectedId: fields.categoryId, defaultText: "",
-                    onPick: { id in fields.categoryId = id; stage = .form }, onBack: { stage = .form }
+                    onPick: { id in fields.categoryId = id; stage = .form }, onBack: { stage = .form }, onAdd: model.subcategoryAdder
                 )
             }
         }

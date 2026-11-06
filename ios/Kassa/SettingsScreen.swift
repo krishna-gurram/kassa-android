@@ -32,6 +32,7 @@ struct SettingsScreen: View {
                     noticesDestination: AnyView(NoticesPage()),
                     billsDestination: AnyView(BillsPage(model: model)),
                     budgetsDestination: AnyView(BudgetsPage(model: model)),
+                    categoriesDestination: AnyView(CategoriesPage(model: model)),
                     notificationsDestination: AnyView(NotificationSettingsPage(model: model))
                 )
                 .frame(maxWidth: 720)
@@ -165,6 +166,8 @@ struct SettingsContent: View {
     var billsDestination: AnyView = AnyView(EmptyView())
     /// Settings > Budgets (batch J).
     var budgetsDestination: AnyView = AnyView(EmptyView())
+    /// Settings > Categories (batch Q).
+    var categoriesDestination: AnyView = AnyView(EmptyView())
     var notificationsDestination: AnyView = AnyView(EmptyView())
 
     var body: some View {
@@ -182,6 +185,8 @@ struct SettingsContent: View {
             linkRow(title: "settings.bills", detail: "", destination: billsDestination)
             Hairline()
             linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
+            Hairline()
+            linkRow(title: "settings.categories", detail: "", destination: categoriesDestination)
             Hairline()
             sectionLabel("settings.backup.header")
             actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)

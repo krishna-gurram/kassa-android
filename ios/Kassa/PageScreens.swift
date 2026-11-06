@@ -7,6 +7,8 @@ struct PageTop: View {
     let hidden: Bool
     let onToggle: () -> Void
     let onBack: () -> Void
+    /// "Edit" of an account, card or person page; nil leaves it out.
+    var onEdit: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -22,6 +24,14 @@ struct PageTop: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Spacer(minLength: 8)
+            if let edit = onEdit {
+                Button(action: edit) {
+                    Text("edit.button")
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(Palette.ink)
+                        .frame(minWidth: 48, minHeight: 48)
+                }
+            }
             EyeButton(hidden: hidden, onToggle: onToggle)
         }
         .padding(.top, 4)
@@ -190,6 +200,8 @@ struct AccountPageContent: View {
     /// "Add terms" of a loan that has none, and "Correct balance" (any account; a card's own page has no button yet).
     var onAddTerms: (() -> Void)? = nil
     var onCorrect: (() -> Void)? = nil
+    /// "Edit": rename, details, balance, kind (batch Q).
+    var onEdit: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -198,7 +210,7 @@ struct AccountPageContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
+            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             MonthSwitcher(
                 label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
                 canForward: !data.isCurrentMonth, canBack: data.hasEarlier, onShift: onShift
@@ -329,6 +341,8 @@ struct CardPageContent: View {
     var onOpen: ((EntryRowData) -> Void)? = nil
     /// "Correct balance": the card shows what is owed, typed as what the issuer shows.
     var onCorrect: (() -> Void)? = nil
+    /// "Edit": name, statement day, due day, limit, pay from, balance (batch Q).
+    var onEdit: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -347,7 +361,7 @@ struct CardPageContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
+            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             hero
             correction
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
@@ -434,6 +448,8 @@ struct PersonPageContent: View {
     let onOpenPayment: (Int64) -> Void
     /// "Split a transaction": pick an expense to split with this person.
     var onSplit: () -> Void = {}
+    /// "Edit": rename, what was owed when added, archive (batch Q).
+    var onEdit: (() -> Void)? = nil
 
     private var title: String {
         if data.archived { return String(format: String(localized: "personPage.archivedName"), data.name) }
@@ -447,7 +463,7 @@ struct PersonPageContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
+            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             hero
             historyList
         }
@@ -535,9 +551,24 @@ struct PageHost: View {
     @ObservedObject var model: AppModel
     let target: PageTarget
 
+    /// The Edit sheet (account, card or person) is open.
+    @State private var editing = false
+
     var body: some View {
         content
             .background(Palette.ground.ignoresSafeArea())
+            .sheet(isPresented: $editing) {
+                editSheet
+            }
+    }
+
+    @ViewBuilder
+    private var editSheet: some View {
+        if target.isPerson {
+            EditPersonSheet(model: model, personId: target.id, onClose: { editing = false })
+        } else {
+            EditAccountSheet(model: model, accountId: target.id, onClose: { editing = false })
+        }
     }
 
     private func scrolled<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -583,7 +614,8 @@ struct PageHost: View {
                         data: person, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
                         onBack: { model.closePage() }, onRecord: { model.openNewPersonPayment(person) },
                         onOpenPayment: { id in model.openEntry(id: id) },
-                        onSplit: { model.openSplitSheet(person) }
+                        onSplit: { model.openSplitSheet(person) },
+                        onEdit: { editing = true }
                     )
                 }
             } else {
@@ -629,7 +661,8 @@ struct PageHost: View {
                         onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
                         onOpen: { row in model.openEntry(id: row.id) },
                         onAddTerms: { model.openAddTerms(accountId: target.id, name: account.name) },
-                        onCorrect: { model.openCorrection(accountId: target.id) }
+                        onCorrect: { model.openCorrection(accountId: target.id) },
+                        onEdit: { editing = true }
                     )
                 }
             }
@@ -652,7 +685,8 @@ struct PageHost: View {
                     onUpdatePrices: { model.openPrices(accountId: target.id) },
                     onTrade: { model.openTrade(accountId: target.id) },
                     onAnswer: { transferId in model.openAllocate(transferId: transferId) },
-                    onClear: { transferId, finished in model.settleTransfer(id: transferId, done: finished) }
+                    onClear: { transferId, finished in model.settleTransfer(id: transferId, done: finished) },
+                    onEdit: { editing = true }
                 )
             }
         } else {
@@ -670,7 +704,8 @@ struct PageHost: View {
                     onShift: { direction in model.shiftPage(direction) },
                     onSetClosed: { closed, finished in model.setAccountClosed(id: target.id, closed: closed, done: finished) },
                     onOpen: { row in model.openEntry(id: row.id) },
-                    onCorrect: { model.openCorrection(accountId: target.id) }
+                    onCorrect: { model.openCorrection(accountId: target.id) },
+                    onEdit: { editing = true }
                 )
             }
         } else {

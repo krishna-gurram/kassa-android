@@ -19,6 +19,8 @@ struct InvestPageContent: View {
     var onTrade: () -> Void = {}
     var onAnswer: (Int64) -> Void = { _ in }
     var onClear: (Int64, @escaping (WriteOutcome) -> Void) -> Void = { _, _ in }
+    /// "Edit": name, last four digits and cash balance (batch Q).
+    var onEdit: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -27,7 +29,7 @@ struct InvestPageContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
+            PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             hero
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
             waitingSection

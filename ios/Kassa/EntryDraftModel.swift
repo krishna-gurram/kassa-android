@@ -18,7 +18,8 @@ enum EntryPanel: String {
 /// guesses one from a category or merchant).
 final class EntryDraftModel: ObservableObject {
 
-    let view: LedgerView
+    /// The ledger the pickers read; replaced (`refresh`) when a write changes it while the page is open (a new subcategory).
+    @Published private(set) var view: LedgerView
     let editing: EntryEditData?
     let today: Int
     let zone: String
@@ -115,6 +116,11 @@ final class EntryDraftModel: ObservableObject {
 
     /// True once anything differs from how the page opened; leaving then asks first.
     var isDirty: Bool { encoded != initial || opensSplit }
+
+    /// The ledger was read again (a subcategory was added from the picker): the pickers read the new one.
+    func refresh(view next: LedgerView) {
+        view = next
+    }
 
     // MARK: Typing
 

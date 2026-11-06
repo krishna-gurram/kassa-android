@@ -38,8 +38,12 @@ struct EntryPageHost: View {
             onClose: {
                 keptDraft = ""
                 model.closeEntryPage()
-            }
+            },
+            onAddSubcategory: model.subcategoryAdder
         )
+        .onReceive(model.$picks) { next in
+            if let fresh = next { draft.refresh(view: fresh) }
+        }
         .onChange(of: draft.encoded) { text in
             // Only an unfinished new entry is kept, and only while there is something in it.
             if request.editing == nil { keptDraft = draft.isDirty ? text : "" }
@@ -57,6 +61,8 @@ struct AddEntryScreen: View {
     let onSave: (EntryInput, @escaping (WriteOutcome) -> Void) -> Void
     let onDelete: (Int64, @escaping (WriteOutcome) -> Void) -> Void
     let onClose: () -> Void
+    /// The subcategory picker's "+ New": adds a subcategory under a category and answers with the new one's id.
+    var onAddSubcategory: (Int64, String, @escaping (WriteOutcome) -> Void) -> Void = { _, _, _ in }
 
     @FocusState private var noteFocused: Bool
     @State private var confirmDiscard = false
@@ -188,7 +194,7 @@ struct AddEntryScreen: View {
         case .category:
             CategoryPanel(draft: draft)
         case .subcategory:
-            SubcategoryPanel(draft: draft)
+            SubcategoryPanel(draft: draft, onAdd: onAddSubcategory)
         case .account, .to:
             AccountPanel(draft: draft)
         case .date:
@@ -517,10 +523,10 @@ struct CategoryPanel: View {
     }
 }
 
-/// A category's subcategories: "No subcategory" first. "+ New" (adding a subcategory without leaving) comes with the category
-/// screens; until then a subcategory is made on Android or in a backup.
+/// A category's subcategories: "No subcategory" first, and "+ New" to add one without leaving (it is picked at once).
 struct SubcategoryPanel: View {
     @ObservedObject var draft: EntryDraftModel
+    let onAdd: (Int64, String, @escaping (WriteOutcome) -> Void) -> Void
 
     /// The top-level category whose subcategories are shown: the picked one, or the parent of the picked subcategory.
     private var top: CategoryChoiceData? {
@@ -572,6 +578,10 @@ struct SubcategoryPanel: View {
                                 .lineLimit(2)
                         }
                     }
+                    NewSubcategoryTile(
+                        ledger: draft.view, parentId: parent.id, parentName: parent.name, onAdd: onAdd,
+                        onAdded: { id in draft.pickSubcategory(id) }
+                    )
                 }
             }
         }

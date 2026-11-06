@@ -20,9 +20,13 @@ import app.kassa.money.domain.CardPageRules
 import app.kassa.money.domain.CardPayment
 import app.kassa.money.domain.CardSnapshot
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CategoryColors
 import app.kassa.money.domain.CategoryIcon
+import app.kassa.money.domain.CategoryKind
+import app.kassa.money.domain.CategoryRules
 import app.kassa.money.domain.CategoryPicking
 import app.kassa.money.domain.CountedSpending
+import app.kassa.money.domain.EditRules
 import app.kassa.money.domain.EntryField
 import app.kassa.money.domain.EntryRules
 import app.kassa.money.domain.CurrencyStyle
@@ -38,6 +42,7 @@ import app.kassa.money.domain.InvestRules
 import app.kassa.money.domain.Money
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
+import app.kassa.money.domain.Person
 import app.kassa.money.domain.PersonHistory
 import app.kassa.money.domain.PersonPayment
 import app.kassa.money.domain.Period
@@ -54,6 +59,7 @@ import app.kassa.money.domain.isAfter
 import app.kassa.money.domain.isBefore
 import app.kassa.money.domain.localDateOfEpochDay
 import app.kassa.money.domain.personBalance
+import app.kassa.money.domain.subcategory
 import app.kassa.money.domain.toEpochDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -558,6 +564,10 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         }
         groups.add(peopleGroup(receivable - payable))
         if (overview.closed.isNotEmpty()) groups.add(closedGroup(overview.closed))
+        val archivedAccounts = accounts.filter { it.archived }.sortedWith(Names.order { it.name })
+        if (archivedAccounts.isNotEmpty()) groups.add(archivedGroup(archivedAccounts))
+        val archivedPeople = parts.people.filter { it.archived }.sortedWith(Names.order { it.name })
+        if (archivedPeople.isNotEmpty()) groups.add(archivedPeopleGroup(archivedPeople))
 
         val net = overview.netWorth
         AccountsData(
@@ -664,6 +674,21 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
             )
         }
         return AccountsGroupData(CLOSED, "Closed", false, "", Tone.Ink, rows)
+    }
+
+    /** Archived accounts: a name and nothing else (an archived account is out of every figure), so it can be opened and restored. */
+    private fun archivedGroup(archived: List<Account>): AccountsGroupData {
+        val rows = archived.map { a ->
+            AccountRowData(a.id, a.name, a.last4 ?: "", "", Tone.Ink, RowNote.Plain, "", DueKind.Nothing, 0, Tone.Ink, PersonSide.Hidden)
+        }
+        return AccountsGroupData(ARCHIVED, "Archived", false, "", Tone.Ink, rows)
+    }
+
+    private fun archivedPeopleGroup(archived: List<Person>): AccountsGroupData {
+        val rows = archived.map { p ->
+            AccountRowData(p.id, p.name, "", "", Tone.Ink, RowNote.Plain, "", DueKind.Nothing, 0, Tone.Ink, PersonSide.Hidden)
+        }
+        return AccountsGroupData(ARCHIVED_PEOPLE, "Archived people", false, "", Tone.Ink, rows)
     }
 
     // ---------- Activity ----------
@@ -1041,6 +1066,110 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     /** One category for the page's tile (its parent's name set when it is a subcategory), or null. */
     fun categoryChoice(id: Long): CategoryChoiceData? = categoryById[id]?.let { categoryChoiceOf(it, true) }
 
+    // ---------- Categories and subcategories (batch Q) ----------
+
+    private fun listRow(c: Category): CategoryListRowData {
+        val subs = parts.categories.count { it.parentId == c.id && !it.hidden }
+        return CategoryListRowData(categoryChoiceOf(c, false), subs, c.kind == CategoryKind.EXPENSE && !c.countsTowardDaily)
+    }
+
+    /** Settings > Categories for [kind] (a `CategoryKind` name): in use first, A to Z, then the archived ones. */
+    fun categoryList(kind: String): CategoryListData {
+        val k = categoryKindOf(kind) ?: return CategoryListData(emptyList(), emptyList())
+        val (active, archived) = CategoryRules.listing(parts.categories, k)
+        return CategoryListData(active.map(::listRow), archived.map(::listRow))
+    }
+
+    private fun editData(c: Category, isNew: Boolean): CategoryEditData {
+        val all = parts.categories
+        val isTop = c.parentId == null
+        val used = if (isTop) CategoryColors.usedBy(all, c.kind, c.id) else emptyMap()
+        val colors = CategoryColors.palette.map { color ->
+            ColorChoiceData(color, used[color].orEmpty().sortedWith(Names.order<String> { it }).joinToString(", "))
+        }
+        val subs = if (isTop && !isNew) {
+            val (active, archived) = CategoryRules.subs(all, c.id)
+            (active + archived).map { SubcategoryRowData(it.id, it.name, it.hidden) }
+        } else emptyList()
+        val merge = if (isNew) emptyList() else CategoryRules.mergeTargets(all, c).map { CategoryTargetData(it.id, it.name) }
+        val move = if (isNew || isTop) emptyList() else CategoryRules.moveTargets(all, c).map { CategoryTargetData(it.id, it.name) }
+        return CategoryEditData(true, CategoryInput.of(c), isNew, isTop, colors, subs, merge, move)
+    }
+
+    /** The editor for the stored category [categoryId] (top-level or a subcategory). */
+    fun categoryEdit(categoryId: Long): CategoryEditData {
+        val c = categoryById[categoryId]
+            ?: return CategoryEditData(false, CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false), true, true, emptyList(), emptyList(), emptyList(), emptyList())
+        return editData(c, false)
+    }
+
+    /** The editor for a new top-level category of [kind]: blank, with the first colour nobody of its kind uses while one is free. */
+    fun categoryNew(kind: String): CategoryEditData {
+        val k = categoryKindOf(kind) ?: CategoryKind.EXPENSE
+        return editData(CategoryRules.blank(parts.categories, k).copy(icon = CategoryIcon.DEFAULT), true)
+    }
+
+    /** The first problem of saving [input] (a sentence), or empty text when it can be saved. */
+    fun categoryProblem(input: CategoryInput): String {
+        val c = input.category() ?: return CategoryRules.GONE
+        return CategoryRules.problem(parts.categories, c) ?: ""
+    }
+
+    /** The problem of adding a subcategory named [name] under [parentId], or empty text. */
+    fun subcategoryProblem(parentId: Long, name: String): String {
+        val parent = categoryById[parentId] ?: return CategoryRules.GONE
+        return CategoryRules.nameProblem(parts.categories, parent.kind, parent.id, 0, name) ?: ""
+    }
+
+    /** A new subcategory called [name] under [parentId]: same kind, icon, colour and daily setting as its parent, cleaned name. */
+    fun subcategoryInput(parentId: Long, name: String): CategoryInput {
+        val parent = categoryById[parentId] ?: return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(parent.subcategory(InputRules.clean(name)))
+    }
+
+    /** The stored category [categoryId] with a new [name] and archived state, everything else as stored (rename, archive and restore). */
+    fun categoryInputWith(categoryId: Long, name: String, hidden: Boolean): CategoryInput {
+        val c = categoryById[categoryId] ?: return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(c.copy(name = InputRules.clean(name), hidden = hidden))
+    }
+
+    /** The stored subcategory [subId] moved under the top-level category [toTopId], wearing its colour. */
+    fun movedSubcategoryInput(subId: Long, toTopId: Long): CategoryInput {
+        val sub = categoryById[subId]
+        val top = categoryById[toTopId]
+        if (sub == null || top == null) return CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false)
+        return CategoryInput.of(CategoryRules.moved(sub, top))
+    }
+
+    /** The subcategories (ids as decimal text) that must take [input]'s colour when a top-level category is saved with it. */
+    fun recolorIds(input: CategoryInput): List<String> {
+        val c = input.category() ?: return emptyList()
+        return CategoryRules.recolored(parts.categories, c).map { it.id.toString() }
+    }
+
+    /** One cell of the `categories` row for [input] (BackupRows column order); null for the id, the external id and what isn't the editor's. [sortOrder] numbers a new one. */
+    fun categoryCell(input: CategoryInput, column: Int, sortOrder: Int): String? {
+        val c = input.category() ?: return null
+        val stored = categoryById[c.id]
+        return when (BackupRows.columns("categories").getOrNull(column)) {
+            "name" -> InputRules.clean(c.name)
+            "kind" -> c.kind.name
+            "parentId" -> c.parentId?.toString()
+            "icon" -> c.icon.encode()
+            "color" -> c.color.toString()
+            "countsTowardDaily" -> if (c.countsTowardDaily) "1" else "0"
+            "hidden" -> if (c.hidden) "1" else "0"
+            "sortOrder" -> (stored?.sortOrder ?: sortOrder).toString()
+            else -> null
+        }
+    }
+
+    /** Why [fromId] can't be merged into [intoId] (every entry moves, then it is archived), or empty text. */
+    fun mergeProblem(fromId: Long, intoId: Long): String = CategoryRules.mergeProblem(parts.categories, fromId, intoId) ?: ""
+
+    /** The name of category [id], or empty text. */
+    fun categoryName(id: Long): String = categoryById[id]?.name ?: ""
+
     private fun accountChoiceOf(a: Account) = AccountChoiceData(a.id, a.name, a.last4 ?: "", a.type.name, a.isClosed)
 
     /** One account for the page's tile, or null. A closed account is still described (an old entry may sit on it). */
@@ -1153,6 +1282,59 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         val a = accountById[accountId] ?: return ""
         return ruleCloseProblem(worth(a)) ?: ""
     }
+
+    // ---------- Editing accounts, cards and people (batch Q) ----------
+
+    /** The Edit account form for [accountId] as it opens: what is stored, the balance as the person sees it, the kinds it may change to. */
+    fun accountEdit(accountId: Long): AccountEditData {
+        val a = accountById[accountId]
+            ?: return AccountEditData(false, AccountInput("CHECKING", "", "", "", "", "", "", 0L, 0), false, false, emptyList())
+        return AccountEditData(
+            true, EditParts.input(a, balances[a.id] ?: 0L), a.isClosed, a.archived, EditRules.typeChoices(a.type).map { it.name },
+        )
+    }
+
+    /** Every other account's name (this one may keep its own), archived and closed ones too. */
+    fun otherAccountNames(accountId: Long): List<String> = accounts.filter { it.id != accountId }.map { it.name }
+
+    /** Every other person's name, archived ones too. */
+    fun otherPersonNames(personId: Long): List<String> = parts.people.filter { it.id != personId }.map { it.name }
+
+    /**
+     * The first problem of an edited account (the `AccountField` name, "PAY_FROM" or "BALANCE", and the sentence), in the ledger's
+     * currency and never masked; empty when it can be saved. A closed account refuses a new balance.
+     */
+    fun accountEditProblems(accountId: Long, input: AccountInput): List<FieldProblemData> = shown(false) {
+        val a = accountById[accountId] ?: return@shown listOf(FieldProblemData("", EditRules.ACCOUNT_GONE))
+        EditParts.problems(a, balances[a.id] ?: 0L, input, otherAccountNames(accountId))
+    }
+
+    /** One cell of the edited `accounts` row (BackupRows column order); null when the account is gone or the column isn't the form's. */
+    fun editedAccountCell(accountId: Long, input: AccountInput, column: Int): String? = shown(false) {
+        val a = accountById[accountId] ?: return@shown null
+        val saved = EditParts.edited(a, balances[a.id] ?: 0L, input) ?: return@shown null
+        EditParts.cell(saved, BackupRows.columns("accounts").getOrNull(column))
+    }
+
+    /** The Edit person form for [personId]; [hidden] masks the size of what is open in the sentence that says why archiving waits. */
+    fun personEdit(personId: Long, hidden: Boolean): PersonEditData = shown(hidden) {
+        val p = parts.people.firstOrNull { it.id == personId }
+            ?: return@shown PersonEditData(false, "", true, "", false, false, "")
+        val balance = personBalance(p.id, parts.loanEntries, transactions)
+        val form = EditRules.personForm(p.name, startingBalanceOf(p.id))
+        PersonEditData(
+            true, form.name, form.theyOwe, form.amount, p.archived, EditRules.archiveBlocked(balance),
+            Money.format(EditRules.archiveBlockedSize(balance)),
+        )
+    }
+
+    /** What was owed when the person was added: their lines not tied to an entry (positive: they owe you). */
+    fun startingBalanceOf(personId: Long): Long =
+        parts.loanEntries.filter { it.personId == personId && it.transactionId == null }.sumOf { it.amount }
+
+    /** True when the person has money open, so archiving waits (restoring never does). */
+    fun personArchiveBlocked(personId: Long): Boolean =
+        EditRules.archiveBlocked(personBalance(personId, parts.loanEntries, transactions))
 
     private fun hasCardPage(a: Account): Boolean = a.type.hasStatement && a.isActive && a.statementDay != null
 
@@ -1830,6 +2012,9 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         /** At most this many tiles on Overview, as Android's `MAX_PINS`. */
         const val MAX_PINS = 8
         const val CLOSED = "CLOSED"
+        /** Archived accounts and archived people: hidden from every figure, listed (folded) so they can be restored. */
+        const val ARCHIVED = "ARCHIVED"
+        const val ARCHIVED_PEOPLE = "ARCHIVED_PEOPLE"
         /** How many schedule rows the loan page shows before "Show full schedule", as Android's `NEXT_ROWS`. */
         const val LOAN_NEXT_ROWS = 6
     }
