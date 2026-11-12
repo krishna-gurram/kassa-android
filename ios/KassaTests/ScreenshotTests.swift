@@ -381,6 +381,15 @@ final class ScreenshotTests: XCTestCase {
             let pickingPage = AddEntryScreen(draft: picking, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
             save(pickingPage, scheme: scheme, to: target.appendingPathComponent("add-category-\(suffix).png"))
 
+            for panel in [EntryPanel.account, EntryPanel.date] {
+                let other = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
+                for key in ["4", "2", ".", "5", "0"] { other.press(key) }
+                if let category = categories.first { other.pick(category: category) }
+                other.show(panel)
+                let otherPage = AddEntryScreen(draft: other, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+                save(otherPage, scheme: scheme, to: target.appendingPathComponent("add-\(panel.rawValue)-\(suffix).png"))
+            }
+
             let sheet = AddAccountSheet(model: model, onClose: {})
             save(sheet, scheme: scheme, to: target.appendingPathComponent("add-account-\(suffix).png"))
         }

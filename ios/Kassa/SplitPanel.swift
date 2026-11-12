@@ -19,55 +19,56 @@ struct PersonIconView: View {
     }
 }
 
-/// The Split row of the entry page: who shares the expense and your share of it. It opens the split panel. Only the words are here;
-/// every figure comes from the split's `SplitViewData` (:domain's `SplitRules`).
+/// The Split row of the entry page: "Split" on the left, who shares it on the right ("Just you", "With Alex and Sam") with a chevron.
+/// It opens the split panel. Only the words are here; every figure comes from the split's `SplitViewData` (:domain's `SplitRules`).
 struct SplitRow: View {
     @ObservedObject var draft: EntryDraftModel
 
     private var who: String {
         if !draft.isShared { return String(localized: "split.justYou") }
-        var names: [String] = [String(localized: "split.you")]
+        var names: [String] = []
         for line in draft.splitView.lines where line.personId > 0 {
             names.append(draft.view.personName(id: line.personId))
         }
-        return names.joined(separator: ", ")
+        let joined: String = ListFormatter.localizedString(byJoining: names)
+        return String(format: String(localized: "entry.splitWith"), joined)
     }
 
     var body: some View {
         let shown: SplitViewData = draft.splitView
-        let on = draft.panel == .split
         return Button(action: { draft.show(.split) }) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Text("split.title")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
-                    .frame(minWidth: 44, alignment: .leading)
-                VStack(alignment: .leading, spacing: 1) {
+                    .font(Font.kassa(17, .semibold, relativeTo: .body))
+                    .foregroundColor(Palette.ink)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 1) {
                     Text(who)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(Palette.ink)
+                        .font(Font.kassa(15, .regular, relativeTo: .subheadline))
+                        .foregroundColor(Palette.ink2)
                         .lineLimit(1)
                     if shown.shared {
                         Text(String(format: String(localized: "split.yourShare"), shown.myShareText))
-                            .font(.caption)
+                            .font(Font.kassa(12, .regular, relativeTo: .caption))
                             .foregroundColor(shown.myShareNegative ? Palette.orange : Palette.ink2)
                             .lineLimit(1)
                     }
                 }
-                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Palette.ink3)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip.opacity(0.6)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(on ? Palette.ink : Palette.line, lineWidth: on ? 2 : 0.5))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 }
 
-/// The bottom panel of a split: who shares it, who paid, equal or exact shares, and each person's share. People are added in
-/// Accounts, so only people who exist are offered. An exact share is typed on the number pad.
+/// The body of the split panel: Equal or Exact, who shares it (you, then the people who exist, each with a checkbox and their share),
+/// who paid, and the problem if the shares don't fit. People are added in Accounts, so only people who exist are offered. An exact share
+/// is typed on the number pad.
 struct SplitPanel: View {
     @ObservedObject var draft: EntryDraftModel
 
@@ -79,20 +80,43 @@ struct SplitPanel: View {
         }
     }
 
+    private var modeBinding: Binding<Int> {
+        return Binding<Int>(
+            get: { draft.split.exact ? 1 : 0 },
+            set: { index in
+                if index == 1 { draft.useExactShares() } else { draft.useEqualShares() }
+            }
+        )
+    }
+
+    private func line(for personId: Int64, in shown: SplitViewData) -> SplitLineData? {
+        for candidate in shown.lines where candidate.personId == personId {
+            return candidate
+        }
+        return nil
+    }
+
     private var choices: some View {
         let shown: SplitViewData = draft.splitView
         let people: [SplitPersonData] = draft.splitPeople
         return VStack(spacing: 8) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    GroupLabel(text: String(localized: "split.with"))
+                VStack(alignment: .leading, spacing: 0) {
+                    if shown.shared {
+                        SegmentedPill(options: ["entry.split.equal", "entry.split.exactShort"], selection: modeBinding)
+                            .padding(.top, 4)
+                    }
+                    GroupLabel(text: String(localized: "entry.split.whoShares"))
+                    Hairline()
+                    youRow(shown)
                     if people.isEmpty {
                         Text("split.addPeople")
-                            .font(.footnote)
+                            .font(Font.kassa(13, .regular, relativeTo: .footnote))
                             .foregroundColor(Palette.ink2)
+                            .padding(.vertical, 8)
                     }
                     ForEach(people) { person in
-                        personRow(person)
+                        personRow(person, shown: shown)
                     }
                     if shown.shared {
                         sharedSection(shown)
@@ -104,55 +128,118 @@ struct SplitPanel: View {
         }
     }
 
-    private func personRow(_ person: SplitPersonData) -> some View {
-        let picked = draft.isSelected(person.id)
-        return Button(action: { draft.toggleSplit(person.id) }) {
-            HStack(spacing: 10) {
-                PersonIconView(size: 32)
-                Text(person.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if picked {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Palette.ink)
-                }
+    private func avatar(_ name: String) -> some View {
+        return Text(String(name.prefix(1)).uppercased())
+            .font(Font.kassa(17, .semibold))
+            .foregroundColor(Palette.ink2)
+            .frame(width: 40, height: 40)
+            .background(Circle().fill(Palette.chip))
+            .accessibilityHidden(true)
+    }
+
+    private func checkbox(_ on: Bool) -> some View {
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Palette.ink : Color.clear)
+            RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(on ? Palette.ink : Palette.line, lineWidth: 1.5)
+            if on {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Palette.onInk)
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip.opacity(0.6)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(picked ? Palette.ink : Color.clear, lineWidth: 2))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(person.name))
-        .accessibilityAddTraits(picked ? [.isButton, .isSelected] : [.isButton])
+        .frame(width: 26, height: 26)
+        .accessibilityHidden(true)
+    }
+
+    private func amountLabel(_ line: SplitLineData) -> some View {
+        return Text(line.amountText)
+            .font(Font.kassa(17, .medium, relativeTo: .body).monospacedDigit())
+            .foregroundColor(line.negative ? Palette.orange : Palette.ink)
+            .lineLimit(1)
+    }
+
+    /// You always share an expense you split, so the row has a ticked box that does nothing.
+    private func youRow(_ shown: SplitViewData) -> some View {
+        let mine: SplitLineData? = line(for: 0, in: shown)
+        return VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                avatar(String(localized: "split.you"))
+                Text("split.you")
+                    .font(Font.kassa(17, .medium, relativeTo: .body))
+                    .foregroundColor(Palette.ink)
+                Spacer(minLength: 8)
+                if shown.shared, let found = mine {
+                    amountLabel(found)
+                }
+                checkbox(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            Hairline()
+        }
+    }
+
+    private func personRow(_ person: SplitPersonData, shown: SplitViewData) -> some View {
+        let picked = draft.isSelected(person.id)
+        let mine: SplitLineData? = line(for: person.id, in: shown)
+        return VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button(action: { draft.toggleSplit(person.id) }) {
+                    HStack(spacing: 12) {
+                        avatar(person.name)
+                        Text(person.name)
+                            .font(Font.kassa(17, .medium, relativeTo: .body))
+                            .foregroundColor(Palette.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(person.name))
+                .accessibilityAddTraits(picked ? [.isButton, .isSelected] : [.isButton])
+                if picked, let found = mine {
+                    shareAmount(found)
+                }
+                checkbox(picked)
+            }
+            Hairline()
+        }
+    }
+
+    /// A person's share: plain figure; in exact mode it is tapped to type an amount.
+    @ViewBuilder
+    private func shareAmount(_ line: SplitLineData) -> some View {
+        if draft.split.exact && line.personId > 0 {
+            Button(action: { draft.startShare(line.personId) }) {
+                amountLabel(line)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Palette.line, lineWidth: 1))
+                    .frame(minHeight: 48)
+            }
+            .buttonStyle(.plain)
+        } else {
+            amountLabel(line)
+        }
     }
 
     @ViewBuilder
     private func sharedSection(_ shown: SplitViewData) -> some View {
-        GroupLabel(text: String(localized: "split.paidBy"))
+        GroupLabel(text: String(localized: "entry.split.whoPaid"))
         payerChips(shown)
-        GroupLabel(text: String(localized: "split.shares"))
-        HStack(spacing: 8) {
-            FilterChip(title: String(localized: "split.equally"), selected: !draft.split.exact, action: { draft.useEqualShares() })
-            FilterChip(title: String(localized: "split.exact"), selected: draft.split.exact, action: { draft.useExactShares() })
-            Spacer(minLength: 0)
-        }
-        ForEach(Array(shown.lines.enumerated()), id: \.offset) { entry in
-            shareLine(entry.element)
-        }
         if !shown.problem.isEmpty {
             Text(shown.problem)
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.orange)
+                .padding(.top, 4)
         }
         Text(owesText(shown))
-            .font(.footnote)
+            .font(Font.kassa(13, .regular, relativeTo: .footnote))
             .foregroundColor(Palette.ink2)
-            .padding(.top, 2)
+            .padding(.top, 4)
     }
 
     private func payerChips(_ shown: SplitViewData) -> some View {
@@ -182,42 +269,6 @@ struct SplitPanel: View {
             return String(format: String(localized: "split.youOwe"), name, shown.payerOwedText)
         }
         return String(localized: "split.eachOwes")
-    }
-
-    /// One share: the name, its percent of the total and the amount. Exact shares of other people are tapped to type an amount.
-    private func shareLine(_ line: SplitLineData) -> some View {
-        let name = line.personId > 0 ? draft.view.personName(id: line.personId) : String(localized: "split.you")
-        let editable = draft.split.exact && line.personId > 0
-        let content = HStack(spacing: 8) {
-            Text(name)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Palette.ink)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Text(line.percentText)
-                .font(.caption)
-                .foregroundColor(Palette.ink2)
-            Text(line.amountText)
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .foregroundColor(line.negative ? Palette.orange : Palette.ink)
-        }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 48)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Palette.ground))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(editable ? Palette.line : Color.clear, lineWidth: 1))
-        return shareButton(content, line: line, editable: editable)
-    }
-
-    @ViewBuilder
-    private func shareButton<Content: View>(_ content: Content, line: SplitLineData, editable: Bool) -> some View {
-        if editable {
-            Button(action: { draft.startShare(line.personId) }) { content }
-                .buttonStyle(.plain)
-        } else {
-            content
-        }
     }
 }
 

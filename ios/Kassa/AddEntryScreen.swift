@@ -51,10 +51,11 @@ struct EntryPageHost: View {
     }
 }
 
-/// The add and edit page: the kind switch, the amount, the tiles, the date row and the note on top, and one panel at the bottom
-/// (the number pad, the category or account picker, the calendar). Picking moves on to the next empty input, so a new entry is a few
-/// taps. The one ink button is under the pad. There is no eye here: typed amounts are never masked. Leaving with unsaved changes asks
-/// first; deleting asks first.
+/// The add and edit page. The start screen is the kind pill, the amount, the Category / Paid with / Date tiles, the note, the Split
+/// row and the number pad; the top bar has back and one ink Save pill (grey until the entry is complete; tapped early it opens the
+/// next empty input). Choosing opens a panel (category, subcategory, account, date, split) that replaces the body under a compact
+/// amount line, with its title and Done. Picking moves on to the next empty input, so a new entry is a few taps. There is no eye
+/// here: typed amounts are never masked. Leaving with unsaved changes asks first; deleting asks first.
 struct AddEntryScreen: View {
     @ObservedObject var draft: EntryDraftModel
     let amountText: String
@@ -72,16 +73,10 @@ struct AddEntryScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            AddEntryForm(draft: draft, noteFocused: $noteFocused)
-                .padding(.horizontal, 16)
-            if !noteFocused {
-                panelView
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-                    .frame(maxHeight: .infinity)
+            if draft.panel == .amount {
+                startScreen
             } else {
-                Spacer(minLength: 0)
+                panelScreen
             }
         }
         .frame(maxWidth: 640)
@@ -116,28 +111,78 @@ struct AddEntryScreen: View {
         return String(format: String(localized: "entry.delete.body"), shown, amountText)
     }
 
+    /// Whether the entry has everything it needs (the Save pill is ink); the checks themselves are :domain's.
+    private var complete: Bool {
+        return draft.missingPanel == nil && draft.cents > 0
+    }
+
     private var topBar: some View {
         HStack(spacing: 4) {
-            Button(action: leave) {
+            Button(action: back) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Palette.ink)
                     .frame(minWidth: 48, minHeight: 48)
             }
             .accessibilityLabel(Text("a11y.back"))
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
+            if draft.editing != nil {
+                Text(title)
+                    .font(Font.kassa(17, .semibold, relativeTo: .headline))
+                    .foregroundColor(Palette.ink)
+                    .lineLimit(1)
+            }
             Spacer(minLength: 8)
             if draft.editing != nil {
                 Button("entry.delete") { confirmDelete = true }
-                    .font(.body.weight(.semibold))
+                    .font(Font.kassa(16, .semibold))
                     .foregroundColor(Palette.orange)
                     .frame(minHeight: 48)
-                    .padding(.trailing, 8)
+                    .padding(.horizontal, 8)
             }
+            savePill
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8)
+        .padding(.trailing, 20)
+    }
+
+    private var savePill: some View {
+        return Button(action: primary) {
+            Text("entry.save")
+                .font(Font.kassa(16, .semibold))
+                .foregroundColor(complete ? Palette.onInk : Palette.ink3)
+                .padding(.horizontal, 22)
+                .frame(minWidth: 76, minHeight: 44)
+                .background(Capsule().fill(complete ? Palette.ink : Palette.chip))
+                .frame(minHeight: 48)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .accessibilityHint(complete ? Text("") : Text("a11y.saveIncomplete"))
+        .accessibilityIdentifier("entrySave")
+    }
+
+    /// Save writes the entry; before it is complete the pill opens the next empty input instead.
+    private func primary() {
+        if let next = draft.missingPanel {
+            noteFocused = false
+            draft.show(next)
+        } else {
+            save()
+        }
+    }
+
+    /// Back leaves a panel for the one before it (a subcategory goes back to the categories); from the start screen it leaves the page.
+    private func back() {
+        if draft.sharePerson > 0 {
+            draft.cancelShare()
+        } else if draft.panel == .subcategory {
+            draft.show(.category)
+        } else if draft.panel != .amount {
+            draft.show(.amount)
+        } else {
+            leave()
+        }
     }
 
     private func leave() {
@@ -184,13 +229,67 @@ struct AddEntryScreen: View {
         }
     }
 
-    // MARK: Panel
+    // MARK: Start screen and panels
+
+    private var startScreen: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                AddEntryForm(draft: draft, noteFocused: $noteFocused)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+            }
+            if !noteFocused {
+                NumberPad(decimalMark: draft.decimalMark, onKey: { draft.press($0) })
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
+        }
+    }
+
+    private var panelScreen: some View {
+        VStack(spacing: 0) {
+            AmountLine(draft: draft, size: 40)
+                .padding(.horizontal, 20)
+            if draft.sharePerson == 0 {
+                PanelHeader(title: panelTitle, onDone: { draft.show(.amount) })
+                    .padding(.horizontal, 20)
+            }
+            panelView
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var panelTitle: String {
+        switch draft.panel {
+        case .category:
+            return String(localized: "entry.category")
+        case .subcategory:
+            if let chosen = draft.view.categoryChoice(id: draft.categoryId) {
+                return chosen.parentName.isEmpty ? chosen.name : chosen.parentName
+            }
+            return String(localized: "entry.category")
+        case .account:
+            if draft.kind == "TRANSFER" { return String(localized: "entry.from") }
+            if draft.kind == "INCOME" { return String(localized: "entry.into") }
+            return String(localized: "entry.paidWith")
+        case .to:
+            return String(localized: "entry.to")
+        case .date:
+            return String(localized: "entry.date")
+        case .split:
+            return String(localized: "split.title")
+        case .amount:
+            return String(localized: "entry.amount")
+        }
+    }
 
     @ViewBuilder
     private var panelView: some View {
         switch draft.panel {
         case .amount:
-            AmountPanel(draft: draft, busy: busy, onSave: save)
+            EmptyView()
         case .category:
             CategoryPanel(draft: draft)
         case .subcategory:
@@ -205,59 +304,80 @@ struct AddEntryScreen: View {
     }
 }
 
-// MARK: - The form
-
-/// The top half of the page: kind, amount, the tiles, the date row, the note, and the problem if there is one.
-struct AddEntryForm: View {
-    @ObservedObject var draft: EntryDraftModel
-    var noteFocused: FocusState<Bool>.Binding
+/// A panel's title (22 pt bold) with Done on the right, over the panel's body.
+struct PanelHeader: View {
+    let title: String
+    let onDone: () -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            kindSwitch
-            amountHero
-            tiles
-            DateRow(draft: draft)
-            noteField
-            if draft.offersSplit {
-                SplitRow(draft: draft)
+        HStack(spacing: 8) {
+            Text(title)
+                .font(Font.kassa(22, .bold, relativeTo: .title2))
+                .foregroundColor(Palette.ink)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button(action: onDone) {
+                Text("entry.done")
+                    .font(Font.kassa(16, .semibold))
+                    .foregroundColor(Palette.ink)
+                    .frame(minWidth: 48, minHeight: 48)
             }
-            if let problem = draft.error {
-                Text(problem)
-                    .font(.footnote)
-                    .foregroundColor(Palette.orange)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            .buttonStyle(.plain)
         }
+        .padding(.top, 8)
     }
+}
 
-    private var kindSwitch: some View {
-        Picker(selection: kindBinding, label: Text("entry.kind")) {
-            Text("entry.kind.expense").tag("EXPENSE")
-            Text("entry.kind.income").tag("INCOME")
-            Text("entry.kind.transfer").tag("TRANSFER")
+// MARK: - The amount
+
+/// "AMOUNT" over the typed amount; the cents are muted, and the whole thing is muted while nothing is typed. [size] is 56 on the start
+/// screen and smaller over a panel. Tapping it goes back to the number pad.
+struct AmountLine: View {
+    @ObservedObject var draft: EntryDraftModel
+    let size: CGFloat
+
+    private var whole: String {
+        if draft.typed.isEmpty { return draft.symbol + "0" }
+        let shown: String = draft.amountShown
+        if let range = shown.range(of: draft.decimalMark, options: .backwards) {
+            return draft.symbol + String(shown[shown.startIndex..<range.lowerBound])
         }
-        .pickerStyle(.segmented)
+        return draft.symbol + shown
     }
 
-    private var kindBinding: Binding<String> {
-        return Binding<String>(get: { draft.kind }, set: { draft.switchKind(to: $0) })
+    private var cents: String {
+        if draft.typed.isEmpty { return draft.decimalMark + "00" }
+        let shown: String = draft.amountShown
+        if let range = shown.range(of: draft.decimalMark, options: .backwards) {
+            return String(shown[range.lowerBound..<shown.endIndex])
+        }
+        return ""
     }
 
-    private var amountHero: some View {
+    private var wholeColor: Color {
+        if draft.typed.isEmpty { return Palette.ink3 }
+        return draft.kind == "INCOME" ? Palette.green : Palette.ink
+    }
+
+    private var numerals: Text {
+        return Text(whole).foregroundColor(wholeColor) + Text(cents).foregroundColor(Palette.ink3)
+    }
+
+    var body: some View {
         Button(action: { draft.show(.amount) }) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(draft.symbol)
-                    .font(.title2.weight(.semibold))
+            VStack(alignment: .leading, spacing: 0) {
+                Text("entry.amount")
+                    .kassa(.label)
                     .foregroundColor(Palette.ink2)
-                Text(draft.amountShown)
-                    .scaledNumeral(44)
-                    .monospacedDigit()
+                numerals
+                    .scaledNumeral(size)
+                    .tracking(size > 48 ? -2 : -1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundColor(draft.typed.isEmpty ? Palette.ink2 : (draft.kind == "INCOME" ? Palette.green : Palette.ink))
             }
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -265,24 +385,60 @@ struct AddEntryForm: View {
         .accessibilityLabel(Text("entry.amount"))
         .accessibilityValue(Text(draft.symbol + draft.amountShown))
     }
+}
+
+// MARK: - The form
+
+/// The top of the start screen: kind, amount, the tiles, the note, the Split row, and the problem if there is one.
+struct AddEntryForm: View {
+    @ObservedObject var draft: EntryDraftModel
+    var noteFocused: FocusState<Bool>.Binding
+
+    private let kinds: [String] = ["EXPENSE", "INCOME", "TRANSFER"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SegmentedPill(options: ["entry.kind.expense", "entry.kind.income", "entry.kind.transfer"], selection: kindBinding)
+            AmountLine(draft: draft, size: 56)
+                .padding(.top, 4)
+            tiles
+            noteField
+            if draft.offersSplit {
+                SplitRow(draft: draft)
+            }
+            if let problem = draft.error {
+                Text(problem)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                    .foregroundColor(Palette.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var kindBinding: Binding<Int> {
+        return Binding<Int>(
+            get: { kinds.firstIndex(of: draft.kind) ?? 0 },
+            set: { index in draft.switchKind(to: kinds[index]) }
+        )
+    }
 
     @ViewBuilder
     private var tiles: some View {
         if draft.kind == "TRANSFER" {
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 accountTile(label: "entry.from", id: draft.accountId, panel: .account)
-                Image(systemName: "arrow.right")
-                    .foregroundColor(Palette.ink2)
                 accountTile(label: "entry.to", id: draft.toAccountId, panel: .to)
             }
+            dateTile
         } else {
-            HStack(spacing: 8) {
-                categoryTile
+            categoryTile
+            HStack(spacing: 12) {
                 if draft.someoneElsePaid {
                     payerTile
                 } else {
                     accountTile(label: draft.kind == "INCOME" ? "entry.into" : "entry.paidWith", id: draft.accountId, panel: .account)
                 }
+                dateTile
             }
         }
     }
@@ -291,45 +447,46 @@ struct AddEntryForm: View {
         let choice: CategoryChoiceData? = draft.categoryId > 0 ? draft.view.categoryChoice(id: draft.categoryId) : nil
         let value: String = choice.map { $0.parentName.isEmpty ? $0.name : $0.parentName + " \u{203A} " + $0.name } ?? ""
         let on = draft.panel == .category || draft.panel == .subcategory
-        return EntryTile(label: "entry.category", value: value, selected: on, action: { draft.show(.category) }) {
-            if let chosen = choice {
-                CategoryIconView(choice: chosen, size: 32)
-            } else {
-                EmptyTileIcon()
-            }
-        }
+        return EntryTile(label: "entry.category", value: value, selected: on, action: { draft.show(.category) })
     }
 
     /// Someone else paid: the tile that would name your account names them instead, and opens the split.
     private var payerTile: some View {
         let name: String = draft.view.personName(id: draft.split.paidBy)
         let value: String = name.isEmpty ? String(localized: "split.someone") : name
-        return EntryTile(label: "split.paidBy", value: value, selected: draft.panel == .split, action: { draft.show(.split) }) {
-            PersonIconView(size: 32)
-        }
+        return EntryTile(label: "split.paidBy", value: value, selected: draft.panel == .split, action: { draft.show(.split) })
     }
 
     private func accountTile(label: LocalizedStringKey, id: Int64, panel: EntryPanel) -> some View {
         let choice: AccountChoiceData? = id > 0 ? draft.view.accountChoice(id: id) : nil
         let value: String = choice?.name ?? ""
-        let on = draft.panel == panel
-        return EntryTile(label: label, value: value, selected: on, action: { draft.show(panel) }) {
-            if let chosen = choice {
-                AccountIconView(type: chosen.type, size: 32)
-            } else {
-                EmptyTileIcon()
-            }
+        return EntryTile(label: label, value: value, selected: draft.panel == panel, action: { draft.show(panel) })
+    }
+
+    private var dateTile: some View {
+        let value: String
+        if draft.epochDay == draft.today {
+            value = String(localized: "entry.today")
+        } else if draft.epochDay == draft.today - 1 {
+            value = String(localized: "entry.yesterday")
+        } else {
+            value = KassaDates.shortDate(epochDay: draft.epochDay)
         }
+        return EntryTile(label: "entry.date", value: value, selected: draft.panel == .date, action: { draft.show(.date) })
     }
 
     private var noteField: some View {
         let hint: LocalizedStringKey = draft.kind == "TRANSFER" ? "entry.addNote" : "entry.merchantOrNote"
-        return TextField(hint, text: noteBinding)
-            .focused(noteFocused)
-            .submitLabel(.done)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 48)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
+        return VStack(spacing: 0) {
+            TextField(hint, text: noteBinding)
+                .font(Font.kassa(17, .regular))
+                .focused(noteFocused)
+                .submitLabel(.done)
+                .frame(minHeight: 48)
+                .padding(.horizontal, 4)
+            Hairline()
+        }
+        .padding(.top, 4)
     }
 
     private var noteBinding: Binding<String> {
@@ -337,7 +494,8 @@ struct AddEntryForm: View {
     }
 }
 
-/// A tile of the form: a small label over the chosen value (a hint while none is chosen), an icon, 56 pt tall; opens its picker.
+/// A tile of the form: a small label over the chosen value ("Choose" while none), a chevron; raised, hairline border, 16 pt radius,
+/// at least 56 pt tall. Opens its picker. Callers that still pass an [icon] get it at the left.
 struct EntryTile<Icon: View>: View {
     let label: LocalizedStringKey
     let value: String
@@ -357,25 +515,38 @@ struct EntryTile<Icon: View>: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 icon
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.caption)
+                        .font(Font.kassa(13, .regular, relativeTo: .footnote))
                         .foregroundColor(Palette.ink2)
                         .lineLimit(1)
                     Text(value.isEmpty ? String(localized: "entry.choose") : value)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(value.isEmpty ? Palette.ink2 : Palette.ink)
+                        .font(Font.kassa(17, .semibold, relativeTo: .body))
+                        .foregroundColor(value.isEmpty ? Palette.ink3 : Palette.ink)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Palette.ink3)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip.opacity(0.6)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Palette.ink : Palette.line, lineWidth: selected ? 2 : 0.5))
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Palette.raised))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(selected ? Palette.ink : Palette.line, lineWidth: selected ? 2 : 1)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+extension EntryTile where Icon == EmptyView {
+    init(label: LocalizedStringKey, value: String, selected: Bool, action: @escaping () -> Void) {
+        self.init(label: label, value: value, selected: selected, action: action, icon: { EmptyView() })
     }
 }
 
@@ -385,7 +556,7 @@ struct EmptyTileIcon: View {
         ZStack {
             Circle().fill(Palette.chip)
             Text("?")
-                .font(.subheadline.weight(.semibold))
+                .font(Font.kassa(15, .semibold))
                 .foregroundColor(Palette.ink2)
         }
         .frame(width: 32, height: 32)
@@ -393,73 +564,32 @@ struct EmptyTileIcon: View {
     }
 }
 
-/// An account kind's symbol on a round chip.
+/// An account kind's symbol on a round badge, tinted by kind (checking blue, savings teal, cards pink, cash sage, the rest grey).
 struct AccountIconView: View {
     let type: String
     let size: CGFloat
 
+    private var tint: TintPair {
+        if type == "CHECKING" { return Palette.blue }
+        if type == "SAVINGS" { return Palette.teal }
+        if type == "CREDIT_CARD" { return Palette.pink }
+        if type == "CASH" { return Palette.sage }
+        return Palette.neutral
+    }
+
     var body: some View {
         ZStack {
-            Circle().fill(Palette.chip)
+            Circle().fill(tint.bg)
             Image(systemName: IconSymbols.account(type))
                 .font(.system(size: size * 0.46, weight: .medium))
-                .foregroundColor(Palette.ink2)
+                .foregroundColor(tint.fg)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 }
 
-/// Today, Yesterday, Other day: the first two set the day; the third opens the calendar in the panel below and shows the day picked.
-struct DateRow: View {
-    @ObservedObject var draft: EntryDraftModel
-
-    private var isToday: Bool { draft.epochDay == draft.today }
-    private var isYesterday: Bool { draft.epochDay == draft.today - 1 }
-    private var otherLabel: String {
-        if isToday || isYesterday { return String(localized: "entry.otherDay") }
-        return KassaDates.shortDate(epochDay: draft.epochDay)
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            FilterChip(title: String(localized: "entry.today"), selected: isToday, action: { draft.chooseDay(draft.today) })
-            FilterChip(title: String(localized: "entry.yesterday"), selected: isYesterday, action: { draft.chooseDay(draft.today - 1) })
-            FilterChip(title: otherLabel, selected: !isToday && !isYesterday, action: { draft.show(.date) })
-            Spacer(minLength: 0)
-        }
-    }
-}
-
 // MARK: - Panels
-
-/// The number pad, with the one ink button under it.
-struct AmountPanel: View {
-    @ObservedObject var draft: EntryDraftModel
-    let busy: Bool
-    let onSave: () -> Void
-
-    var body: some View {
-        VStack(spacing: 10) {
-            NumberPad(decimalMark: draft.decimalMark, onKey: { draft.press($0) })
-            Button(action: primary) {
-                Text(LocalizedStringKey(draft.buttonKey))
-            }
-            .buttonStyle(InkButtonStyle(filled: true))
-            .disabled(busy)
-            Spacer(minLength: 0)
-        }
-    }
-
-    /// Next opens the next empty input; Add and Save write it.
-    private func primary() {
-        if let next = draft.missingPanel {
-            draft.show(next)
-        } else {
-            onSave()
-        }
-    }
-}
 
 /// Today's categories as an icon grid (A to Z), or what matches the search. A top-level category with subcategories opens them.
 struct CategoryPanel: View {
@@ -475,7 +605,7 @@ struct CategoryPanel: View {
             ScrollView {
                 if choices.isEmpty {
                     Text(searching ? String(format: String(localized: "entry.noCategoryMatches"), draft.query) : String(localized: "entry.noCategories"))
-                        .font(.footnote)
+                        .font(Font.kassa(13, .regular, relativeTo: .footnote))
                         .foregroundColor(Palette.ink2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(4)
@@ -483,6 +613,7 @@ struct CategoryPanel: View {
                     TileGrid(items: choices, columns: searching ? 2 : 3) { choice in
                         tile(choice, searching: searching)
                     }
+                    .padding(.top, 8)
                 }
             }
         }
@@ -492,38 +623,35 @@ struct CategoryPanel: View {
     private func tile(_ choice: CategoryChoiceData, searching: Bool) -> some View {
         let picked = draft.categoryId == choice.id
         let label = choice.parentName.isEmpty ? choice.name : choice.parentName + " \u{203A} " + choice.name
-        PickTile(selected: picked, label: label, action: { draft.pick(category: choice) }) {
-            if searching {
+        if searching {
+            PickTile(selected: picked, label: label, action: { draft.pick(category: choice) }) {
                 HStack(spacing: 8) {
-                    CategoryIconView(choice: choice, size: 28)
+                    CategoryIconView(choice: choice, size: 32)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(choice.name)
-                            .font(.subheadline.weight(.semibold))
+                            .font(Font.kassa(15, .medium, relativeTo: .subheadline))
                             .foregroundColor(Palette.ink)
                             .lineLimit(1)
                         if !choice.parentName.isEmpty {
                             Text(choice.parentName)
-                                .font(.caption2)
+                                .font(Font.kassa(12, .regular, relativeTo: .caption))
                                 .foregroundColor(Palette.ink2)
                                 .lineLimit(1)
                         }
                     }
                     Spacer(minLength: 0)
                 }
-            } else {
-                VStack(spacing: 4) {
-                    CategoryIconView(choice: choice, size: 34)
-                    Text(choice.name)
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Palette.ink)
-                        .lineLimit(1)
-                }
+            }
+        } else {
+            IconPickTile(selected: picked, label: label, name: choice.name, action: { draft.pick(category: choice) }) {
+                CategoryIconView(choice: choice, size: 40)
             }
         }
     }
 }
 
-/// A category's subcategories: "No subcategory" first, and "+ New" to add one without leaving (it is picked at once).
+/// A category's subcategories as a plain list: "No subcategory" first, then each, and "+ New subcategory" to add one without leaving
+/// (it is picked at once).
 struct SubcategoryPanel: View {
     @ObservedObject var draft: EntryDraftModel
     let onAdd: (Int64, String, @escaping (WriteOutcome) -> Void) -> Void
@@ -546,43 +674,20 @@ struct SubcategoryPanel: View {
 
     private func content(_ parent: CategoryChoiceData) -> some View {
         let subs: [CategoryChoiceData] = draft.view.subcategoryChoices(topId: parent.id)
-        return VStack(spacing: 8) {
-            HStack(spacing: 4) {
-                Button(action: { draft.show(.category) }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(Palette.ink)
-                        .frame(minWidth: 48, minHeight: 48)
+        return ScrollView {
+            VStack(spacing: 0) {
+                Hairline()
+                ChoiceRow(
+                    title: String(localized: "entry.noSubcategory"), selected: draft.categoryId == parent.id, muted: true,
+                    action: { draft.pickSubcategory(parent.id) }
+                )
+                ForEach(subs) { sub in
+                    ChoiceRow(title: sub.name, selected: draft.categoryId == sub.id, action: { draft.pickSubcategory(sub.id) })
                 }
-                .accessibilityLabel(Text("a11y.back"))
-                Text(parent.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            ScrollView {
-                VStack(spacing: 6) {
-                    PickTile(
-                        selected: draft.categoryId == parent.id, label: String(localized: "entry.noSubcategory"),
-                        action: { draft.pickSubcategory(parent.id) }
-                    ) {
-                        Text("entry.noSubcategory")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(Palette.ink2)
-                    }
-                    TileGrid(items: subs, columns: 2) { sub in
-                        PickTile(selected: draft.categoryId == sub.id, label: sub.name, action: { draft.pickSubcategory(sub.id) }) {
-                            Text(sub.name)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(Palette.ink)
-                                .lineLimit(2)
-                        }
-                    }
-                    NewSubcategoryTile(
-                        ledger: draft.view, parentId: parent.id, parentName: parent.name, onAdd: onAdd,
-                        onAdded: { id in draft.pickSubcategory(id) }
-                    )
-                }
+                NewSubcategoryTile(
+                    ledger: draft.view, parentId: parent.id, parentName: parent.name, onAdd: onAdd,
+                    onAdded: { id in draft.pickSubcategory(id) }
+                )
             }
         }
     }
@@ -615,7 +720,7 @@ struct AccountPickerBody: View {
     let onPick: (Int64) -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             PickerSearch(placeholder: "entry.searchAccounts", text: $query)
             if pick.filters.count > 2 {
                 chips
@@ -624,7 +729,7 @@ struct AccountPickerBody: View {
                 VStack(spacing: 6) {
                     if pick.groups.isEmpty {
                         Text(pick.noneOpen ? String(localized: "entry.addAccountFirst") : String(format: String(localized: "entry.noAccountMatches"), query))
-                            .font(.footnote)
+                            .font(Font.kassa(13, .regular, relativeTo: .footnote))
                             .foregroundColor(Palette.ink2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(4)
@@ -660,44 +765,36 @@ struct AccountPickerBody: View {
 
     private func tile(_ account: AccountChoiceData) -> some View {
         let label = account.last4.isEmpty ? account.name : String(format: String(localized: "entry.accountEnding"), account.name, account.last4)
-        return PickTile(selected: selectedId == account.id, label: label, action: { onPick(account.id) }) {
-            VStack(spacing: 4) {
-                AccountIconView(type: account.type, size: 32)
-                Text(account.name)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Palette.ink)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                if !account.last4.isEmpty {
-                    Text("\u{00B7}\u{00B7}" + account.last4)
-                        .font(.caption2)
-                        .foregroundColor(Palette.ink2)
-                }
-            }
+        let detail: String = account.last4.isEmpty ? "" : "\u{00B7}\u{00B7}" + account.last4
+        return IconPickTile(
+            selected: selectedId == account.id, label: label, name: account.name, detail: detail, action: { onPick(account.id) }
+        ) {
+            AccountIconView(type: account.type, size: 40)
         }
     }
 }
 
-/// The calendar for "Other day": graphical, the day picked is the entry's day.
+/// The date panel: Today, Yesterday and Other day chips over the month calendar (days after today are not offered).
 struct DatePanel: View {
     @ObservedObject var draft: EntryDraftModel
 
-    var body: some View {
-        VStack(spacing: 8) {
-            DatePicker(selection: dateBinding, displayedComponents: .date) {
-                Text("entry.date")
-            }
-            .datePickerStyle(.graphical)
-            .environment(\.timeZone, KassaDates.utc)
-            .environment(\.calendar, KassaDates.gregorian)
-            Spacer(minLength: 0)
-        }
+    private var isToday: Bool { draft.epochDay == draft.today }
+    private var isYesterday: Bool { draft.epochDay == draft.today - 1 }
+    private var otherLabel: String {
+        if isToday || isYesterday { return String(localized: "entry.otherDay") }
+        return KassaDates.shortDate(epochDay: draft.epochDay)
     }
 
-    private var dateBinding: Binding<Date> {
-        return Binding<Date>(
-            get: { KassaDates.date(epochDay: draft.epochDay) },
-            set: { draft.chooseDay(KassaDates.epochDay(of: $0)) }
-        )
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                FilterChip(title: String(localized: "entry.today"), selected: isToday, action: { draft.chooseDay(draft.today) })
+                FilterChip(title: String(localized: "entry.yesterday"), selected: isYesterday, action: { draft.chooseDay(draft.today - 1) })
+                FilterChip(title: otherLabel, selected: !isToday && !isYesterday, action: { draft.chooseDay(draft.epochDay) })
+                Spacer(minLength: 0)
+            }
+            EntryCalendar(selected: draft.epochDay, today: draft.today, onPick: { draft.chooseDay($0) })
+            Spacer(minLength: 0)
+        }
     }
 }
