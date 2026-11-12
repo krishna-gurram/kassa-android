@@ -149,16 +149,17 @@ struct HeroTab: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title)
-                    .font(Font.kassa(18, .semibold, relativeTo: .headline))
-                    .foregroundColor(selected ? Palette.ink : inkColor)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                Rectangle()
-                    .fill(selected ? Palette.ink : Color.clear)
-                    .frame(height: 2)
-            }
+            Text(title)
+                .font(Font.kassa(18, .semibold, relativeTo: .headline))
+                .foregroundColor(selected ? Palette.ink : inkColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.bottom, 4)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(selected ? Palette.ink : Color.clear)
+                        .frame(height: 2)
+                }
             .frame(minHeight: 48)
             .contentShape(Rectangle())
         }

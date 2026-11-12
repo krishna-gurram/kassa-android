@@ -93,11 +93,16 @@ struct OverviewContent: View {
         let tone: Tone = flow.tone
         let inkColor: Color = hidden ? Palette.heroGreyInk : Palette.heroInk(tone)
         return TonalHero(tone: tone, hidden: hidden) {
-            HStack(alignment: .top, spacing: 10) {
-                HeroTab(title: "overview.spending", selected: !showIncome, inkColor: inkColor, action: { showIncome = false })
-                HeroTab(title: "overview.income", selected: showIncome, inkColor: inkColor, action: { showIncome = true })
-                Spacer(minLength: 8)
-                periodButton
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    heroTabs
+                    Spacer(minLength: 8)
+                    periodButton
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 16) { heroTabs }
+                    periodButton
+                }
             }
             Button(action: { onOpenSpending(showIncome, !showWeek) }) {
                 AmountText(text: flow.totalText, hidden: hidden, size: 52, color: Palette.ink, centsColor: hidden ? Palette.ink : Palette.heroInk(tone))
@@ -117,13 +122,23 @@ struct OverviewContent: View {
         }
     }
 
+    @ViewBuilder
+    private var heroTabs: some View {
+        HeroTab(title: "overview.spending", selected: !showIncome, inkColor: heroInk, action: { showIncome = false })
+        HeroTab(title: "overview.income", selected: showIncome, inkColor: heroInk, action: { showIncome = true })
+    }
+
+    private var heroInk: Color {
+        return hidden ? Palette.heroGreyInk : Palette.heroInk(flow.tone)
+    }
+
     private var periodButton: some View {
         return Button(action: { choosingPeriod = true }) {
             HStack(spacing: 6) {
                 Text(periodTitle)
                     .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
             }
