@@ -13,6 +13,7 @@ struct TabTop: View {
                 .kassa(.title)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             EyeButton(hidden: hidden, onToggle: onToggle)
