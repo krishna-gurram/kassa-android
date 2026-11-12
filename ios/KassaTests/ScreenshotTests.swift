@@ -426,8 +426,6 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// One screen at 390 x 844 pt, scale 2. Anything that goes wrong is printed, never thrown.
-    @MainActor
     /// Overview with the Coach card, the Coach page, the weekly check-in and Coach settings of the demo backup (shown, and hidden for the
     /// page), light and dark. The first of a few days that has a ready check-in is drawn.
     @MainActor
@@ -467,6 +465,8 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// One screen at 390 x 844 pt, scale 2. Anything that goes wrong is printed, never thrown.
+    @MainActor
     private func save<V: View>(_ content: V, scheme: ColorScheme, to file: URL) {
         let framed = content
             .frame(width: 390, height: 844, alignment: .top)
