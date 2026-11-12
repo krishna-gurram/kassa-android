@@ -93,7 +93,7 @@ struct OverviewContent: View {
         let tone: Tone = flow.tone
         let inkColor: Color = hidden ? Palette.heroGreyInk : Palette.heroInk(tone)
         return TonalHero(tone: tone, hidden: hidden) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
                 HeroTab(title: "overview.spending", selected: !showIncome, inkColor: inkColor, action: { showIncome = false })
                 HeroTab(title: "overview.income", selected: showIncome, inkColor: inkColor, action: { showIncome = true })
                 Spacer(minLength: 8)
@@ -123,12 +123,12 @@ struct OverviewContent: View {
                 Text(periodTitle)
                     .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .minimumScaleFactor(0.7)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundColor(Palette.ink)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .frame(minHeight: 48)
             .background(Capsule().fill(Palette.raised.opacity(0.6)))
             .contentShape(Capsule())

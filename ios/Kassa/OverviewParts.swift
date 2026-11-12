@@ -154,6 +154,7 @@ struct HeroTab: View {
                     .font(Font.kassa(18, .semibold, relativeTo: .headline))
                     .foregroundColor(selected ? Palette.ink : inkColor)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Rectangle()
                     .fill(selected ? Palette.ink : Color.clear)
                     .frame(height: 2)
@@ -162,6 +163,7 @@ struct HeroTab: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .layoutPriority(2)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
