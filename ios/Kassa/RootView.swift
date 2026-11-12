@@ -178,7 +178,8 @@ struct AppShell: View {
         _tab = State(initialValue: PhonePrefs.shellTab(model.homeTab))
     }
 
-    var body: some View {
+    /// The five tabs. The native bar is hidden (`KassaTabBar` below replaces it), so each tab keeps its own state as before.
+    private var tabs: some View {
         TabView(selection: $tab) {
             withAdd(overviewTab)
                 .tabItem { Label("tab.overview", systemImage: "house") }
@@ -196,6 +197,22 @@ struct AppShell: View {
                 .tabItem { Label("tab.settings", systemImage: "gearshape") }
                 .tag(ShellTab.settings)
         }
+    }
+
+    static let barItems: [TabBarItem] = [
+        TabBarItem(tab: .overview, title: "tab.overview", symbol: "house", identifier: "tab.overview"),
+        TabBarItem(tab: .activity, title: "tab.activity", symbol: "list.bullet", identifier: "tab.activity"),
+        TabBarItem(tab: .insights, title: "tab.insights", symbol: "chart.pie", identifier: "tab.insights"),
+        TabBarItem(tab: .accounts, title: "tab.accounts", symbol: "building.columns", identifier: "tab.accounts"),
+        TabBarItem(tab: .settings, title: "tab.settings", symbol: "gearshape", identifier: "tab.settings"),
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            tabs
+            KassaTabBar(items: AppShell.barItems, selection: tab, onSelect: { picked in tab = picked })
+        }
+        .background(Palette.ground.ignoresSafeArea())
         .accentColor(Palette.ink)
         .onChange(of: model.settingsRequest) { _ in tab = .settings }
         .overlay {
@@ -282,19 +299,13 @@ struct AppShell: View {
     }
 
     private func withAdd<Content: View>(_ content: Content) -> some View {
-        content.overlay(alignment: .bottomTrailing) {
-            Button(action: { model.openAdd(draft: keptDraft) }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Palette.ground)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Palette.ink))
-                    .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 3)
+        content
+            .toolbar(.hidden, for: .tabBar)
+            .overlay(alignment: .bottomTrailing) {
+                AddFab(action: { model.openAdd(draft: keptDraft) })
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 16)
             }
-            .accessibilityLabel(Text("a11y.add"))
-            .padding(.trailing, 16)
-            .padding(.bottom, 16)
-        }
     }
 
     @ViewBuilder

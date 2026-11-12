@@ -12,6 +12,8 @@ struct KassaApp: App {
     private static let isTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     init() {
+        KassaFont.registerIfNeeded()
+        KassaFont.installAppearance()
         PhoneRules.install()
         if !KassaApp.isTesting { NotificationRouter.shared.install() }
     }
@@ -29,6 +31,7 @@ struct KassaApp: App {
                 Color.clear
             } else {
                 RootView(model: model, lock: lock)
+                    .font(Font.kassa(17))
                     .preferredColorScheme(KassaApp.scheme(model.theme))
             }
         }
