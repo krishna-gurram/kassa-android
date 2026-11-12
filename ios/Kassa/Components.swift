@@ -10,9 +10,10 @@ struct TabTop: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.largeTitle.weight(.bold))
+                .kassa(.title)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             EyeButton(hidden: hidden, onToggle: onToggle)
         }
@@ -20,7 +21,7 @@ struct TabTop: View {
     }
 }
 
-/// Hide or show every amount. At least 44 pt, and says what tapping does.
+/// Hide or show every amount. 48 pt, and says what tapping does.
 struct EyeButton: View {
     let hidden: Bool
     let onToggle: () -> Void
@@ -28,8 +29,8 @@ struct EyeButton: View {
     var body: some View {
         Button(action: onToggle) {
             Image(systemName: hidden ? "eye.slash" : "eye")
-                .font(.system(size: 20))
-                .foregroundColor(Palette.ink2)
+                .font(.system(size: 22))
+                .foregroundColor(Palette.ink)
                 .frame(minWidth: 48, minHeight: 48)
         }
         .accessibilityLabel(hidden ? Text("a11y.showBalances") : Text("a11y.hideBalances"))
@@ -42,20 +43,20 @@ struct Hairline: View {
     var body: some View {
         Rectangle()
             .fill(Palette.line)
-            .frame(height: 0.5)
+            .frame(height: 1)
     }
 }
 
-/// Primary actions are ink on the ground; the secondary one is a quiet chip.
+/// Primary actions are an ink pill (56 pt tall) with onInk text; the secondary one is a quiet chip pill.
 struct InkButtonStyle: ButtonStyle {
     let filled: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
-            .foregroundColor(filled ? Palette.ground : Palette.ink)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(RoundedRectangle(cornerRadius: 14).fill(filled ? Palette.ink : Palette.chip))
+            .font(Font.kassa(16, .semibold))
+            .foregroundColor(filled ? Palette.onInk : Palette.ink)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(Capsule().fill(filled ? Palette.ink : Palette.chip))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -67,7 +68,7 @@ struct ComingSoonScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.largeTitle.weight(.bold))
+                .kassa(.title)
                 .padding(.top, 8)
             Spacer()
             Text("comingSoon")
@@ -101,7 +102,7 @@ struct ScaledNumeral: ViewModifier {
 
     func body(content: Content) -> some View {
         let grown: CGFloat = size * ScaledNumeral.factor(hundred / 100)
-        return content.font(.system(size: grown, weight: weight))
+        return content.font(Font.kassaFixed(grown, weight).monospacedDigit())
     }
 }
 

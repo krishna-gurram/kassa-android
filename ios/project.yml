@@ -31,17 +31,24 @@ targets:
     platform: iOS
     sources:
       - path: Kassa
-      # The licence texts Settings > Third-party notices shows (the same files Android bundles): SQLCipher's BSD-style notice and Apache 2.0.
+      # The licence texts Settings > Third-party notices shows (the same files Android bundles): SQLCipher's BSD-style notice, Apache 2.0 and the SIL OFL 1.1 of the Hanken Grotesk font (Kassa/Fonts).
       - path: ../app/src/main/assets/licences
         includes:
           - sqlcipher.txt
           - apache-2.0.txt
+          - ofl-1.1.txt
         buildPhase: resources
     info:
       path: Kassa/Info.plist
       properties:
         CFBundleDisplayName: Kassa
         UILaunchScreen: {}
+        # Hanken Grotesk (the same four static weights Android bundles), in Kassa/Fonts; Kassa/Theme.swift names them.
+        UIAppFonts:
+          - HankenGrotesk-Regular.ttf
+          - HankenGrotesk-Medium.ttf
+          - HankenGrotesk-SemiBold.ttf
+          - HankenGrotesk-Bold.ttf
         # App lock asks for Face ID (or Touch ID, or the passcode) through LocalAuthentication (Kassa/AppLock.swift).
         NSFaceIDUsageDescription: Kassa uses Face ID to unlock your data when App lock is on.
         # The .kassa backup file: an exported type for the extension "kassa", so the file picker offers it (Kassa/KassaTypes.swift).
