@@ -366,22 +366,31 @@ final class ScreenshotTests: XCTestCase {
         for scheme in [ColorScheme.light, ColorScheme.dark] {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
             let empty = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
-            let emptyPage = AddEntryScreen(draft: empty, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            let emptyPage = AddEntryScreen(draft: empty, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {}).environment(\.flatScroll, true)
             save(emptyPage, scheme: scheme, to: target.appendingPathComponent("add-empty-\(suffix).png"))
 
             let filled = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
             for key in ["1", "2", ".", "5", "0"] { filled.press(key) }
             if let category = categories.first { filled.pick(category: category) }
             if let account = picked.first { filled.pick(account: account.id) }
-            let filledPage = AddEntryScreen(draft: filled, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            let filledPage = AddEntryScreen(draft: filled, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {}).environment(\.flatScroll, true)
             save(filledPage, scheme: scheme, to: target.appendingPathComponent("add-filled-\(suffix).png"))
 
             let picking = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
             picking.show(.category)
-            let pickingPage = AddEntryScreen(draft: picking, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {})
+            let pickingPage = AddEntryScreen(draft: picking, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {}).environment(\.flatScroll, true)
             save(pickingPage, scheme: scheme, to: target.appendingPathComponent("add-category-\(suffix).png"))
 
-            let sheet = AddAccountSheet(model: model, onClose: {})
+            for panel in (view.hasSplitPeople() ? [EntryPanel.account, EntryPanel.date, EntryPanel.split] : [EntryPanel.account, EntryPanel.date]) {
+                let other = EntryDraftModel(view: view, editing: nil, draft: "", today: today, zone: zone)
+                for key in ["4", "2", ".", "5", "0"] { other.press(key) }
+                if let category = categories.first { other.pick(category: category) }
+                other.show(panel)
+                let otherPage = AddEntryScreen(draft: other, amountText: "", onSave: { _, _ in }, onDelete: { _, _ in }, onClose: {}).environment(\.flatScroll, true)
+                save(otherPage, scheme: scheme, to: target.appendingPathComponent("add-panel-\(panel.rawValue)-\(suffix).png"))
+            }
+
+            let sheet = AddAccountSheet(model: model, onClose: {}).environment(\.flatScroll, true)
             save(sheet, scheme: scheme, to: target.appendingPathComponent("add-account-\(suffix).png"))
         }
     }

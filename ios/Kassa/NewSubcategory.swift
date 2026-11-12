@@ -20,11 +20,7 @@ struct NewSubcategoryTile: View {
         if open {
             field
         } else {
-            PickTile(selected: false, label: String(localized: "cats.plusNew"), action: { open = true }) {
-                Text("cats.plusNew")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
-            }
+            ChoiceRow(title: String(localized: "entry.newSubcategory"), selected: false, symbol: "plus", action: { open = true })
         }
     }
 
@@ -42,23 +38,26 @@ struct NewSubcategoryTile: View {
                     .textInputAutocapitalization(.sentences)
                     .submitLabel(.done)
                     .onSubmit { add() }
-                    .padding(.horizontal, 12)
+                    .font(Font.kassa(16, .regular))
+                    .padding(.horizontal, 16)
                     .frame(minHeight: 48)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
+                    .background(Capsule().fill(Palette.chip))
                 Button("cats.add") { add() }
-                    .font(.body.weight(.semibold))
+                    .font(Font.kassa(16, .semibold))
                     .foregroundColor(Palette.ink)
                     .frame(minWidth: 48, minHeight: 48)
                     .disabled(busy)
                 Button("cats.cancel") { text = ""; problem = nil; open = false }
+                    .font(Font.kassa(16, .regular))
                     .foregroundColor(Palette.ink2)
                     .frame(minHeight: 48)
             }
             if let message = problem {
-                Text(message).font(.footnote).foregroundColor(Palette.orange).lineLimit(2)
+                Text(message).font(Font.kassa(13, .regular, relativeTo: .footnote)).foregroundColor(Palette.orange).lineLimit(2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
     }
 
     private func add() {

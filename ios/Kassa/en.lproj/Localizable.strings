@@ -1048,6 +1048,15 @@
 "autoBackup.alertTitle" = "Backup needs attention";
 "autoBackup.alertBody" = "Kassa couldn't save your last few automatic backups. Open Kassa to see why.";
 
+/* design d3 */
+"entry.done" = "Done";
+"entry.splitWith" = "With %@";
+"entry.split.whoShares" = "Who shares it";
+"entry.split.whoPaid" = "Who paid";
+"entry.split.equal" = "Equal";
+"entry.split.exactShort" = "Exact";
+"entry.newSubcategory" = "+ New subcategory";
+"a11y.saveIncomplete" = "Not complete yet. Opens the next empty field.";
 /* design d1 */
 "d1.waiting.one" = "1 payment waiting";
 "d1.waiting.other" = "%ld payments waiting";
