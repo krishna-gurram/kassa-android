@@ -36,6 +36,14 @@ struct ReadHost: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
+        if let route = model.readStack.last, route.isCoach {
+            CoachHost(model: model, route: route)
+        } else {
+            pageScroll
+        }
+    }
+
+    private var pageScroll: some View {
         ScrollView {
             if let page = model.readPage, page.route == model.readStack.last {
                 ReadPageContent(

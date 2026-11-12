@@ -43,6 +43,7 @@ final class ScreenshotTests: XCTestCase {
             try drawDuePages(target)
             try drawReadPages(target)
             try drawImportPages(target)
+            try drawCoachPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -427,6 +428,45 @@ final class ScreenshotTests: XCTestCase {
 
     /// One screen at 390 x 844 pt, scale 2. Anything that goes wrong is printed, never thrown.
     @MainActor
+    /// Overview with the Coach card, the Coach page, the weekly check-in and Coach settings of the demo backup (shown, and hidden for the
+    /// page), light and dark. The first of a few days that has a ready check-in is drawn.
+    @MainActor
+    private func drawCoachPages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let view = try DemoFixture.view(directory: directory.appendingPathComponent("demo-coach", isDirectory: true), keys: MemoryKeyStore())
+        var day: Int32 = DemoFixture.lastOfOctober
+        let candidates: [Int32] = [expected.today, DemoFixture.lastOfOctober, DemoFixture.lastOfOctober - 7, DemoFixture.lastOfOctober - 14]
+        for candidate in candidates {
+            let probe = view.coach(hidden: false, todayEpochDay: candidate, timeZoneId: "UTC", firstWeekday: 2)
+            if CoachWording.teaser(probe, weeklyOn: true) != nil {
+                day = candidate
+                break
+            }
+        }
+        let shown = view.coach(hidden: false, todayEpochDay: day, timeZoneId: "UTC", firstWeekday: 2)
+        let masked = view.coach(hidden: true, todayEpochDay: day, timeZoneId: "UTC", firstWeekday: 2)
+        let overview = view.overview(hidden: false, todayEpochDay: day, timeZoneId: "UTC", firstWeekday: 2)
+        let line: String? = CoachWording.teaser(shown, weeklyOn: true)
+        let text = CoachWording.checkIn(shown.checkIn, dismissedWeek: 0)
+        let hiddenText = CoachWording.checkIn(masked.checkIn, dismissedWeek: 0)
+        print("KASSA coach shot day \(day): safe \(shown.safe.state), check-in \(shown.checkIn.state), teaser \(line ?? "none")")
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let home = OverviewContent(data: overview, hidden: false, onToggleHidden: {}, onAllAccounts: {}, coachLine: line)
+            save(home, scheme: scheme, to: target.appendingPathComponent("coach-overview-\(suffix).png"))
+            let page = CoachContent(data: shown, hidden: false, showCards: true, weeklyOn: true, onBack: {}, onToggleHidden: {})
+            save(page, scheme: scheme, to: target.appendingPathComponent("coach-page-\(suffix).png"))
+            let hiddenPage = CoachContent(data: masked, hidden: true, showCards: true, weeklyOn: true, onBack: {}, onToggleHidden: {})
+            save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("coach-page-hidden-\(suffix).png"))
+            let checkIn = CheckInContent(text: text, hidden: false, onBack: {}, onToggleHidden: {})
+            save(checkIn, scheme: scheme, to: target.appendingPathComponent("coach-checkin-\(suffix).png"))
+            let hiddenCheckIn = CheckInContent(text: hiddenText, hidden: true, onBack: {}, onToggleHidden: {})
+            save(hiddenCheckIn, scheme: scheme, to: target.appendingPathComponent("coach-checkin-hidden-\(suffix).png"))
+            let settings = CoachSettingsContent(weekly: .constant(true), cards: .constant(true), facts: shown.facts)
+            save(settings, scheme: scheme, to: target.appendingPathComponent("coach-settings-\(suffix).png"))
+        }
+    }
+
     private func save<V: View>(_ content: V, scheme: ColorScheme, to file: URL) {
         let framed = content
             .frame(width: 390, height: 844, alignment: .top)

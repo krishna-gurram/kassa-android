@@ -444,6 +444,7 @@ person's share (`categoryAmount`), so balance corrections, transfers and person 
   checkIn, facts for "what a question sends") and `LedgerView.coachAskPayload(...)` (the text that would be sent; never drawn on screen). Amounts
   are `Money.format` text. **While Hide balances is on** every amount is the mask, percents and tenths are -1, the safe state is `HIDDEN`, and pace
   rows, subscription rows, win, watch-out and decision are empty (a flag or a "rose" would give a state away); screens show a hidden note.
+- iOS UI: `ios/Kassa/CoachRules.swift` (`CoachPrefs`, `CoachWording`), `CoachScreens.swift` (Overview card, Coach page, check-in, settings) and `AppModel+Coach.swift`; `ios/KassaTests/CoachTests.swift`.
 
 ## Style
 Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (on the entry and bill pages it is the button under the pad, which reads Next until everything is set, then Add or Save; their top bar has no Save and no eye); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.

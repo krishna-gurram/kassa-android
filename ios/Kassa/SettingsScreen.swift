@@ -45,7 +45,8 @@ struct SettingsScreen: View {
                     showsPerson: !model.convertibles.isEmpty, personDestination: AnyView(AccountToPersonPage(model: model)),
                     versionText: AppVersion.text,
                     autoBackupDestination: AnyView(AutoBackupPage(model: model)),
-                    autoBackupDetail: autoBackupDetail
+                    autoBackupDetail: autoBackupDetail,
+                    coachDestination: AnyView(CoachSettingsPage(model: model))
                 )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
@@ -218,6 +219,8 @@ struct SettingsContent: View {
     /// Settings > Automatic backups (batch S): the folder backups go to by themselves; the detail reads On or Off.
     var autoBackupDestination: AnyView = AnyView(EmptyView())
     var autoBackupDetail: String = ""
+    /// Settings > Coach settings; a screen without it (a screenshot) leaves the section out.
+    var coachDestination: AnyView? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -235,6 +238,7 @@ struct SettingsContent: View {
             linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
             linkRow(title: "settings.bills", detail: "", destination: billsDestination)
             linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
+            coachGroup
             group("settings.section.data")
             actionRow(title: "settings.backup.now", action: onBackUp)
             linkRow(title: "settings.autoBackup", detail: autoBackupDetail, destination: autoBackupDestination)
@@ -263,6 +267,14 @@ struct SettingsContent: View {
             Hairline()
         }
         .padding(.top, 18)
+    }
+
+    @ViewBuilder
+    private var coachGroup: some View {
+        if let destination = coachDestination {
+            group("settings.section.coach")
+            linkRow(title: "settings.coach", detail: "", destination: destination)
+        }
     }
 
     @ViewBuilder

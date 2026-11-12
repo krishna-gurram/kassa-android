@@ -52,6 +52,11 @@ final class AppModel: ObservableObject {
     @Published private(set) var readPage: ReadPage?
     @Published private(set) var budgets: BudgetsData?
     @Published private(set) var searchResult: SearchData?
+    /// Coach (`AppModel+Coach.swift`): its figures, the two switches and the week whose decision was set aside ("Not now").
+    @Published private(set) var coach: CoachData?
+    @Published var coachWeekly: Bool
+    @Published var coachCards: Bool
+    @Published var coachDismissed: Int
     /// Insights shows its week view instead of its month.
     @Published var insightsWeek = false
     /// Activity's Spending or Income filter (ALL, EXPENSE or INCOME) and its search text ("" is no search).
@@ -188,6 +193,9 @@ final class AppModel: ObservableObject {
         self.hideAmounts = defaults.bool(forKey: AppModel.hideKey)
         self.theme = PhonePrefs(defaults: defaults).theme
         self.homeTab = PhonePrefs(defaults: defaults).homeTab
+        self.coachWeekly = CoachPrefs(defaults: defaults).weeklyCheckIn
+        self.coachCards = CoachPrefs(defaults: defaults).insightCards
+        self.coachDismissed = CoachPrefs(defaults: defaults).dismissedWeek
         self.chosenCurrency = AppModel.regionCurrency()
         let now = KassaDates.todayEpochDay()
         let current = KassaDates.yearMonth(epochDay: now)
@@ -401,6 +409,7 @@ final class AppModel: ObservableObject {
             timeZoneId: given.zone
         )
         let read: ReadFigures = computeRead(made, given)
+        let coachData: CoachData = computeCoach(made, given)
         let pinList: [PinChoiceData] = made.pinChoices()
         let convertList: [ConvertibleAccountData] = made.convertibleAccounts(hidden: given.hidden)
         let monthStart = Int(made.budgetMonthStart())
@@ -413,6 +422,7 @@ final class AppModel: ObservableObject {
             self.readPage = read.page
             self.budgets = read.budgets
             self.searchResult = read.search
+            self.coach = coachData
             self.accounts = a
             self.overview = o
             self.insights = i

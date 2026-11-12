@@ -319,7 +319,9 @@ struct AppShell: View {
                 notices: model.notices?.items ?? [], upcoming: model.upcoming,
                 onOpenNotices: { model.openNotices() }, onOpenCard: { id in model.openAccountPage(id); tab = .accounts },
                 onOpenCategory: { id, back in model.openCategory(id, monthsBack: back) },
-                onOpenSpending: { income, month in model.openRead(ReadRoute.spending(month: month, income: income, back: 0)) }
+                onOpenSpending: { income, month in model.openRead(ReadRoute.spending(month: month, income: income, back: 0)) },
+                coachLine: CoachWording.teaser(model.coach, weeklyOn: model.coachWeekly),
+                onOpenCoach: { model.openCoach() }
             )
         } else {
             ProgressView()
