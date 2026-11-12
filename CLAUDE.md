@@ -407,6 +407,44 @@ permission is asked once, with an explanation, after the first card with a due d
 A due notification is `VISIBILITY_PRIVATE` with a public version that says only "Payment due" (no amount, no account or bill
 name, no count), so nothing reaches a locked screen; its private text omits the amount while Hide balances is on.
 
+## Coach (rules)
+Layer 1 of Coach: plain arithmetic on the person's own entries, worked out on the phone. Pure functions in `domain/Coach*.kt` (JVM tests
+`Coach*Test`, fixture `CoachFx`), no UI yet. Input is `CoachInput` (accounts, balances, entries, categories, budgets, bills, loan terms,
+today, zone, the budget month's start day, the phone's first weekday); every rule returns a data class of numbers and kind codes and the screens
+word them (no English sentences in :domain). Spending is always `CountedSpending` with an explicit EXPENSE or INCOME filter at the
+person's share (`categoryAmount`), so balance corrections, transfers and person payments never count. Everything is bounded and deterministic
+(ties break by id or key); money is `Long` cents, division is `CoachMath` (half up, up or down), never `Double`.
+- `CoachCore.kt`: `CoachInput`, `CoachMath`, `CoachLedger` (counted entries by day and top-level category; liquid money = open checking,
+  savings, cash and prepaid; "known payments" = every entry of a loan payment, entries matching an active bill, and fixed monthly, 3-monthly and
+  yearly repeats (`CoachLedger.recurringIds`), which "usual" figures leave out because they are subtracted or added as they are instead).
+- `SafeToSpend` (`CoachSafeToSpend.kt`): liquid money minus bills, card balances payable, loan payments and expected recurring charges due
+  before the next payday, minus the usual daily spending (previous 3 full budget months, else this month so far, else none) times the days
+  left. Payday is the biggest weekly, two-weekly or monthly income `Repeats` finds, strictly after today and within 62 days, else the first day of
+  the next budget month. Never negative: `shortBy` instead; `usedPercent` is 0 to 100; `parts` lets the UI say "after rent, the card payment and
+  usual groceries".
+- `SpendingPace`, `SubscriptionChange` (`CoachPace.kt`): per top-level category, spent so far against the same day of the previous budget month
+  and the budget; projection = spent / days gone x days in the month, half up, with known payments already paid added as they are; flags
+  `aboveLast`, `overBudget`, `paceOverBudget` (projections only from day 7). Monthly fixed repeats that rose in their latest charge, the new
+  total and the rise; a loan's own payments are never a subscription.
+- `EmergencyFund` (`CoachFund.kt`): liquid money over the average monthly counted spending of the last 3 whole budget months (a month counts
+  only when the first entry is on or before its first day), in tenths of a month (Int, rounded down); weekly saving to reach the next half
+  month in 4 weeks, nothing suggested from 6 months.
+- `WeeklyCheckIn` (`CoachCheckIn.kt`): week from the phone's first weekday; spent this week against the usual week (average of up to 4 whole
+  earlier weeks), day to day spending only. ONE win (biggest saving under its budget's pace or under its own usual week, never a category the
+  month flags), ONE watch-out (furthest-past pace, else the biggest subscription rise), ONE decision (a weekly limit for the watch-out category:
+  its usual week rounded down to a whole unit, from at least 2 weeks). Fewer than 14 days of entries is `NOT_ENOUGH_DATA`. A decision is a
+  suggestion only: Coach never writes a budget, an entry or any setting.
+- `CoachFacts` (`CoachFacts.kt`) and `Coach.report(input)`: the exact payload an opt-in "ask" would send, an ordered list of `Fact(key, value,
+  unit)` with system-stable keys (`KEYS`: `safe_to_spend`, `spending_month`, `upcoming_due_total`, `liquid_balance_months`, ...) and `serialize`
+  (`key: 482.00` lines, no currency, no locale). **Privacy rule: only totals leave the phone, and only when the person asks.** Never a merchant,
+  note, account, category or person name, an id or a date; category figures are not sent (their names are the person's words), only sums across
+  categories. `CoachFactsTest` builds a ledger full of marker words and large ids and fails if any reaches the payload. A new fact needs a key in
+  `KEYS`, a total (never text) and that test staying green.
+- `shared/.../CoachBridge.kt`: `LedgerView.coach(hidden, todayEpochDay, timeZoneId, firstWeekday)` (`CoachData`: safe, pace, subscriptions, fund,
+  checkIn, facts for "what a question sends") and `LedgerView.coachAskPayload(...)` (the text that would be sent; never drawn on screen). Amounts
+  are `Money.format` text. **While Hide balances is on** every amount is the mask, percents and tenths are -1, the safe state is `HIDDEN`, and pace
+  rows, subscription rows, win, watch-out and decision are empty (a flag or a "rose" would give a state away); screens show a hidden note.
+
 ## Style
 Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (on the entry and bill pages it is the button under the pad, which reads Next until everything is set, then Add or Save; their top bar has no Save and no eye); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.
 Money has one color rule (`favourColor`, `balanceColor` in `ui/common/Components.kt`): **green** when it's in your favour
