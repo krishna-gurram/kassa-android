@@ -41,7 +41,7 @@ private struct SettingsPageFrame<Content: View>: View {
 
 private func footnote(_ key: LocalizedStringKey) -> some View {
     return Text(key)
-        .font(.footnote)
+        .font(Font.kassa(13, .regular, relativeTo: .footnote))
         .foregroundColor(Palette.ink2)
         .padding(.vertical, 8)
 }
@@ -72,16 +72,16 @@ struct OpenOnPage: View {
         return Button(action: { model.setHomeTab(name) }) {
             HStack(spacing: 8) {
                 Text(OpenOnPage.title(name))
-                    .font(.body)
+                    .font(Font.kassa(17))
                     .foregroundColor(Palette.ink)
                 Spacer(minLength: 8)
                 if selected {
                     Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
+                        .font(Font.kassa(17, .semibold))
                         .foregroundColor(Palette.ink)
                 }
             }
-            .frame(minHeight: 48)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -104,17 +104,17 @@ struct PinAccountsPage: View {
         return SettingsPageFrame(title: "settings.pins.title") {
             HStack {
                 Text(String(format: String(localized: "settings.pins.hint"), limit))
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                 Spacer(minLength: 8)
                 Text(String(format: String(localized: "settings.pins.count"), picked, limit))
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink)
             }
             .padding(.vertical, 8)
             if choices.isEmpty {
                 Text("settings.pins.empty")
-                    .font(.body)
+                    .font(Font.kassa(17))
                     .foregroundColor(Palette.ink2)
                     .padding(.vertical, 12)
             }
@@ -137,7 +137,7 @@ struct PinAccountsPage: View {
                     .font(.title3)
                     .foregroundColor(choice.enabled ? Palette.ink : Palette.ink2)
                 Text(title)
-                    .font(.body)
+                    .font(Font.kassa(17))
                     .foregroundColor(choice.enabled ? Palette.ink : Palette.ink2)
                     .lineLimit(1)
                 Spacer(minLength: 8)
@@ -147,7 +147,7 @@ struct PinAccountsPage: View {
                         .foregroundColor(Palette.ink2)
                 }
             }
-            .frame(minHeight: 48)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -187,15 +187,15 @@ struct BudgetMonthPage: View {
             HStack(spacing: 8) {
                 TextField("settings.budgetMonth.other", text: $typed)
                     .keyboardType(.numberPad)
-                    .frame(minHeight: 48)
+                    .frame(minHeight: 52)
                     .onChange(of: typed) { value in
                         typed = FieldBridge.shared.typedDigits(raw: value, max: 2)
                     }
                 Button(action: set) {
                     Text("settings.set")
-                        .font(.body.weight(.semibold))
+                        .font(Font.kassa(17, .semibold))
                         .foregroundColor(valid ? Palette.ink : Palette.ink2)
-                        .frame(minWidth: 48, minHeight: 48)
+                        .frame(minWidth: 48, minHeight: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -234,7 +234,7 @@ struct AccountToPersonPage: View {
             footnote("settings.person.intro")
             if model.convertibles.isEmpty {
                 Text("settings.person.none")
-                    .font(.body)
+                    .font(Font.kassa(17))
                     .foregroundColor(Palette.ink2)
                     .padding(.vertical, 12)
             }
@@ -246,10 +246,10 @@ struct AccountToPersonPage: View {
                 Hairline()
             }
             if let text = failure {
-                Text(text).font(.footnote).foregroundColor(Palette.orange).padding(.top, 8)
+                Text(text).font(Font.kassa(13, .regular, relativeTo: .footnote)).foregroundColor(Palette.orange).padding(.top, 8)
             }
             if let text = done {
-                Text(text).font(.footnote).foregroundColor(Palette.ink2).padding(.top, 8)
+                Text(text).font(Font.kassa(13, .regular, relativeTo: .footnote)).foregroundColor(Palette.ink2).padding(.top, 8)
             }
         }
         .alert(confirmTitle, isPresented: confirmBinding) {
@@ -276,23 +276,23 @@ struct AccountToPersonPage: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(account.name)
-                        .font(.body)
+                        .font(Font.kassa(17))
                         .foregroundColor(Palette.ink)
                         .lineLimit(2)
                     if !line.isEmpty {
                         Text(line)
-                            .font(.footnote)
+                            .font(Font.kassa(13, .regular, relativeTo: .footnote))
                             .foregroundColor(Palette.ink2)
                     }
                 }
                 Spacer(minLength: 8)
                 Text(account.amountText)
-                    .font(.body.weight(.semibold))
+                    .font(Font.kassa(17, .semibold))
                     .monospacedDigit()
                     .lineLimit(1)
             }
             .padding(.vertical, 8)
-            .frame(minHeight: 48, alignment: .top)
+            .frame(minHeight: 52, alignment: .top)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -304,15 +304,15 @@ struct AccountToPersonPage: View {
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 TextField("settings.person.name", text: $typed)
-                    .frame(minHeight: 48)
+                    .frame(minHeight: 52)
                     .onChange(of: typed) { value in
                         typed = FieldBridge.shared.typedName(raw: value)
                     }
                 Button(action: { confirming = account }) {
                     Text("settings.person.convert")
-                        .font(.body.weight(.semibold))
+                        .font(Font.kassa(17, .semibold))
                         .foregroundColor(found == nil ? Palette.ink : Palette.ink2)
-                        .frame(minHeight: 48)
+                        .frame(minHeight: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -320,7 +320,7 @@ struct AccountToPersonPage: View {
             }
             if let text = found {
                 Text(text)
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.orange)
             }
         }

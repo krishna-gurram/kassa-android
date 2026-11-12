@@ -321,7 +321,7 @@ final class SettingsTests: XCTestCase {
     }
 
     func testThirdPartyNoticesAreBundled() {
-        XCTAssertEqual(Licences.all.map { $0.file }, ["apache-2.0", "sqlcipher", "ofl-1.1"])
+        XCTAssertEqual(Licences.all.map { $0.file }, ["apache-2.0", "sqlcipher", "ofl-figtree"])
         let sqlcipher = Licences.all[1]
         let text = Licences.text(for: sqlcipher)
         XCTAssertTrue(text.contains("ZETETIC LLC"))

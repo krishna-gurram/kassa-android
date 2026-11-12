@@ -1057,3 +1057,11 @@
 "entry.split.exactShort" = "Exact";
 "entry.newSubcategory" = "+ New subcategory";
 "a11y.saveIncomplete" = "Not complete yet. Opens the next empty field.";
+/* design d4 */
+"settings.section.preferences" = "Preferences";
+"settings.section.money" = "Money";
+"settings.section.data" = "Data";
+/* design d2 */
+"insights.thisWeek" = "This week";
+"insights.allCount" = "All %ld";
+"insights.showLess" = "Show less";
