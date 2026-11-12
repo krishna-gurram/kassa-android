@@ -71,8 +71,10 @@ struct KassaScroll<Content: View>: View {
     }
 
     var body: some View {
-        if flat {
+        if flat && axes == .vertical {
             content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if flat {
+            content.frame(maxWidth: .infinity, alignment: .leading)
         } else {
             ScrollView(axes, showsIndicators: false) {
                 content
