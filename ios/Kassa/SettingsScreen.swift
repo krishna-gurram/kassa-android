@@ -473,6 +473,8 @@ struct SettingsContent: View {
         Text("settings.backup.note")
             .font(Font.kassa(13, .regular, relativeTo: .footnote))
             .foregroundColor(Palette.ink2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 8)
     }
 }
 
