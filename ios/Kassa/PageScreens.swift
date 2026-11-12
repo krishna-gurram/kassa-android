@@ -141,11 +141,14 @@ struct HeroAmount: View {
     let text: String
     let tone: Tone
     let hidden: Bool
+    /// A grey hero whatever the tone (the loan page): plain ink with lighter cents.
+    var grey: Bool = false
 
     var body: some View {
         AmountText(
             text: text, hidden: hidden, size: 52,
-            color: PageStyle.figureColor(tone, hidden: hidden), centsColor: PageStyle.centsColor(tone, hidden: hidden)
+            color: grey ? Palette.ink : PageStyle.figureColor(tone, hidden: hidden),
+            centsColor: grey ? (hidden ? Palette.ink : Palette.ink3) : PageStyle.centsColor(tone, hidden: hidden)
         )
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .padding(.top, 4)
@@ -611,8 +614,10 @@ struct PersonPageContent: View {
 
     @ViewBuilder
     private var historyList: some View {
-        SectionLabel(title: "personPage.history")
-        Hairline()
+        VStack(spacing: 0) {
+            SectionLabel(title: "personPage.history")
+            Hairline()
+        }
         if data.lines.isEmpty {
             Text("personPage.nothingYet")
                 .font(Font.kassa(15, .regular, relativeTo: .body))

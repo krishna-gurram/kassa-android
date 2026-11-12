@@ -119,7 +119,7 @@ final class ScreenshotTests: XCTestCase {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
             let page = CardPageContent(
                 data: shown, hidden: false, today: today, onToggleHidden: {}, onBack: {}, onPay: {}, onShift: { _ in },
-                onSetClosed: { _, _ in }
+                onSetClosed: { _, _ in }, onCorrect: {}
             )
             save(page, scheme: scheme, to: target.appendingPathComponent("card-\(suffix).png"))
             let hiddenPage = CardPageContent(

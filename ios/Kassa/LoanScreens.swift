@@ -138,15 +138,15 @@ struct LoanPageContent: View {
     // MARK: Hero
 
     private var hero: some View {
-        TonalHero(tone: data.heroTone, hidden: hidden) {
-            HeroLabel(text: "loan.outstanding", tone: data.heroTone, hidden: hidden)
-            HeroAmount(text: data.balanceText, tone: data.balanceTone, hidden: hidden)
+        TonalHero(tone: data.heroTone, hidden: true) {
+            HeroLabel(text: "loan.outstanding", tone: data.heroTone, hidden: true)
+            HeroAmount(text: data.balanceText, tone: data.balanceTone, hidden: hidden, grey: true)
             if data.hasProgress {
                 LoanProgressBar(permille: Int(data.permille))
                     .padding(.top, 6)
                 Text(String(format: String(localized: "d6.loan.paidOf"), Int(data.percent), data.originalText))
                     .font(Font.kassa(14, .regular, relativeTo: .footnote))
-                    .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(data.heroTone))
+                    .foregroundColor(Palette.heroGreyInk)
                     .padding(.top, 6)
             }
         }
@@ -217,8 +217,10 @@ struct LoanPageContent: View {
     @ViewBuilder
     private var scheduleSection: some View {
         if !data.rows.isEmpty {
-            SectionLabel(title: "loan.schedule", link: scheduleLink, onLink: { onShowAll(!showAll) })
-            Hairline()
+            VStack(spacing: 0) {
+                SectionLabel(title: "loan.schedule", link: scheduleLink, onLink: { onShowAll(!showAll) })
+                Hairline()
+            }
             VStack(spacing: 0) {
                 ForEach(data.rows, id: \.day) { row in
                     scheduleRow(row)
