@@ -16,7 +16,7 @@ enum Licences {
     static let all: [LicenceEntry] = [
         LicenceEntry(name: "Kotlin, kotlinx.coroutines and kotlinx-datetime (KassaShared)", licence: "Apache 2.0", file: "apache-2.0"),
         LicenceEntry(name: "SQLCipher", licence: "BSD-style", file: "sqlcipher"),
-        LicenceEntry(name: "Hanken Grotesk font", licence: "SIL OFL 1.1", file: "ofl-1.1"),
+        LicenceEntry(name: "Figtree font", licence: "SIL OFL 1.1", file: "ofl-figtree"),
     ]
 
     /// The full text of [entry]'s licence, or "" when the file is missing from the bundle.

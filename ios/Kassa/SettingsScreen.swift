@@ -220,51 +220,50 @@ struct SettingsContent: View {
     var autoBackupDetail: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("tab.settings")
-                .font(.largeTitle.weight(.bold))
-                .padding(.top, 8)
-            hideRow
-            Hairline()
-            lockRows
-            appearanceRows
+        VStack(alignment: .leading, spacing: 0) {
+            TabTop(title: "tab.settings", hidden: hidden, onToggle: { onSetHidden(!hidden) })
+            group("settings.section.preferences")
             linkRow(title: "settings.currency", detail: currencyName, destination: currencyDestination)
-            Hairline()
-            homeRows
-            linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
-            Hairline()
-            linkRow(title: "settings.bills", detail: "", destination: billsDestination)
-            Hairline()
-            linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
-            Hairline()
+            themeRows
+            openOnRow
+            pinsRow
             budgetMonthRow
+            hideRow
+            lockRows
+            group("settings.section.money")
             linkRow(title: "settings.categories", detail: "", destination: categoriesDestination)
-            Hairline()
-            sectionLabel("settings.backup.header")
-            actionRow(title: "settings.backup.now", symbol: "square.and.arrow.up", action: onBackUp)
-            Hairline()
+            linkRow(title: "settings.budgets", detail: "", destination: budgetsDestination)
+            linkRow(title: "settings.bills", detail: "", destination: billsDestination)
+            linkRow(title: "settings.notifications", detail: "", destination: notificationsDestination)
+            group("settings.section.data")
+            actionRow(title: "settings.backup.now", action: onBackUp)
             linkRow(title: "settings.autoBackup", detail: autoBackupDetail, destination: autoBackupDestination)
-            Hairline()
-            actionRow(title: "settings.restore.button", symbol: "square.and.arrow.down", action: onRestore)
-            Hairline()
-            actionRow(title: "settings.import", symbol: "tray.and.arrow.down", action: onImport)
-            Hairline()
+            actionRow(title: "settings.restore.button", action: onRestore)
+            actionRow(title: "settings.import", action: onImport)
             personRow
             backupStatus
-            sectionLabel("settings.about")
+            group("settings.about")
             linkRow(title: "settings.notices", detail: "", destination: noticesDestination)
-            Hairline()
             versionRow
             Text("settings.footer")
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
-                .padding(.top, 8)
+                .padding(.top, 12)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.bottom, 96)
     }
 
     // MARK: Rows
+
+    /// A section: its uppercase label and the hairline the first row sits under.
+    private func group(_ title: LocalizedStringKey) -> some View {
+        return VStack(alignment: .leading, spacing: 4) {
+            SectionLabel(title: title)
+            Hairline()
+        }
+        .padding(.top, 18)
+    }
 
     @ViewBuilder
     private var lockRows: some View {
@@ -279,74 +278,77 @@ struct SettingsContent: View {
         return VStack(alignment: .leading, spacing: 2) {
             Toggle(isOn: binding) {
                 Text("settings.lock")
-                    .font(.body)
+                    .font(Font.kassa(17))
             }
-            .frame(minHeight: 48)
+            .frame(minHeight: 52)
             .accessibilityIdentifier("settingsAppLock")
             Text(lockMessage ?? String(localized: "settings.lockHint"))
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(lockMessage == nil ? Palette.ink2 : Palette.orange)
+                .padding(.bottom, 8)
         }
-        .padding(.vertical, 8)
     }
 
     @ViewBuilder
-    private var appearanceRows: some View {
+    private var themeRows: some View {
         if let current = theme {
-            sectionLabel("settings.appearance")
             themeRow(current)
             Hairline()
         }
     }
 
+    private func themeTitle(_ name: String) -> LocalizedStringKey {
+        if name == "LIGHT" { return "settings.theme.light" }
+        if name == "DARK" { return "settings.theme.dark" }
+        return "settings.theme.system"
+    }
+
     private func themeRow(_ current: String) -> some View {
         let binding = Binding<String>(get: { current }, set: { value in onSetTheme(value) })
-        return VStack(alignment: .leading, spacing: 4) {
-            Text("settings.theme")
-                .font(.body)
+        return Menu {
             Picker("settings.theme", selection: binding) {
                 Text("settings.theme.system").tag("SYSTEM")
                 Text("settings.theme.light").tag("LIGHT")
                 Text("settings.theme.dark").tag("DARK")
             }
-            .pickerStyle(.segmented)
-            .padding(.vertical, 8)
-        }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private var homeRows: some View {
-        if let open = openOnDestination, let pins = pinsDestination {
-            sectionLabel("settings.home")
-            openOnRow(open)
-            Hairline()
-            linkRow(title: "settings.pins.title", detail: pinsDetail, destination: pins)
-            Hairline()
-        }
-    }
-
-    @ViewBuilder
-    private func openOnRow(_ destination: AnyView) -> some View {
-        if linked {
-            NavigationLink(destination: destination) {
-                HStack(spacing: 8) {
-                    Text("settings.openOn")
-                        .font(.body)
-                        .foregroundColor(Palette.ink)
-                    Spacer(minLength: 8)
-                    Text(openOnTitle)
-                        .font(.body)
-                        .foregroundColor(Palette.ink2)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote)
-                        .foregroundColor(Palette.ink2)
-                }
-                .frame(minHeight: 48)
-                .contentShape(Rectangle())
+        } label: {
+            HStack(spacing: 8) {
+                Text("settings.theme")
+                    .font(Font.kassa(17))
+                    .foregroundColor(Palette.ink)
+                Spacer(minLength: 8)
+                Text(themeTitle(current))
+                    .font(Font.kassa(15))
+                    .foregroundColor(Palette.ink2)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundColor(Palette.ink2)
             }
-            .buttonStyle(.plain)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+    }
+
+    @ViewBuilder
+    private var openOnRow: some View {
+        if let destination = openOnDestination {
+            if linked {
+                NavigationLink(destination: destination) {
+                    rowLabelKey(title: "settings.openOn", detail: openOnTitle, chevron: true)
+                }
+                .buttonStyle(.plain)
+            } else {
+                rowLabelKey(title: "settings.openOn", detail: openOnTitle, chevron: true)
+            }
+            Hairline()
+        }
+    }
+
+    @ViewBuilder
+    private var pinsRow: some View {
+        if let destination = pinsDestination {
+            linkRow(title: "settings.pins.title", detail: pinsDetail, destination: destination)
         }
     }
 
@@ -354,7 +356,6 @@ struct SettingsContent: View {
     private var budgetMonthRow: some View {
         if let destination = budgetMonthDestination {
             linkRow(title: "settings.budgetMonth", detail: budgetMonthDetail, destination: destination)
-            Hairline()
         }
     }
 
@@ -362,7 +363,6 @@ struct SettingsContent: View {
     private var personRow: some View {
         if showsPerson {
             linkRow(title: "settings.person.title", detail: "", destination: personDestination)
-            Hairline()
         }
     }
 
@@ -370,9 +370,9 @@ struct SettingsContent: View {
     private var versionRow: some View {
         if !versionText.isEmpty {
             Text(String(format: String(localized: "settings.version"), versionText))
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
-                .frame(minHeight: 48, alignment: .leading)
+                .frame(minHeight: 52, alignment: .leading)
         }
     }
 
@@ -381,33 +381,36 @@ struct SettingsContent: View {
         return VStack(alignment: .leading, spacing: 2) {
             Toggle(isOn: binding) {
                 Text("settings.hideBalances")
-                    .font(.body)
+                    .font(Font.kassa(17))
             }
+            .frame(minHeight: 52)
             .accessibilityIdentifier("settingsHideBalances")
             Text("settings.hideBalancesHint")
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
+                .padding(.bottom, 8)
+            Hairline()
         }
-        .padding(.vertical, 8)
-    }
-
-    private func sectionLabel(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundColor(Palette.ink2)
-            .padding(.top, 18)
     }
 
     private func rowLabel(title: LocalizedStringKey, detail: String, chevron: Bool) -> some View {
-        HStack(spacing: 8) {
+        return rowLabel(title: title, detail: Text(detail), chevron: chevron, empty: detail.isEmpty)
+    }
+
+    private func rowLabelKey(title: LocalizedStringKey, detail: LocalizedStringKey, chevron: Bool) -> some View {
+        return rowLabel(title: title, detail: Text(detail), chevron: chevron, empty: false)
+    }
+
+    private func rowLabel(title: LocalizedStringKey, detail: Text, chevron: Bool, empty: Bool) -> some View {
+        return HStack(spacing: 8) {
             Text(title)
-                .font(.body)
+                .font(Font.kassa(17))
                 .foregroundColor(Palette.ink)
+                .multilineTextAlignment(.leading)
             Spacer(minLength: 8)
-            if !detail.isEmpty {
-                Text(detail)
-                    .font(.body)
+            if !empty {
+                detail
+                    .font(Font.kassa(15))
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
             }
@@ -417,10 +420,11 @@ struct SettingsContent: View {
                     .foregroundColor(Palette.ink2)
             }
         }
-        .frame(minHeight: 48)
+        .frame(minHeight: 52)
         .contentShape(Rectangle())
     }
 
+    /// A tappable row that opens a page, with the hairline under it.
     @ViewBuilder
     private func linkRow(title: LocalizedStringKey, detail: String, destination: AnyView) -> some View {
         if linked {
@@ -431,24 +435,18 @@ struct SettingsContent: View {
         } else {
             rowLabel(title: title, detail: detail, chevron: true)
         }
+        Hairline()
     }
 
-    private func actionRow(title: LocalizedStringKey, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .foregroundColor(Palette.ink2)
-                    .frame(width: 24)
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(Palette.ink)
-                Spacer(minLength: 8)
+    private func actionRow(title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        return VStack(spacing: 0) {
+            Button(action: action) {
+                rowLabel(title: title, detail: "", chevron: true)
             }
-            .frame(minHeight: 48)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .disabled(working)
+            Hairline()
         }
-        .buttonStyle(.plain)
-        .disabled(working)
     }
 
     @ViewBuilder
@@ -457,23 +455,23 @@ struct SettingsContent: View {
             HStack(spacing: 8) {
                 ProgressView()
                 Text("settings.backup.working")
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
             }
             .padding(.vertical, 4)
         }
         if let text = message {
             Text(text)
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.orange)
         }
         if let text = notice {
             Text(text)
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
         }
         Text("settings.backup.note")
-            .font(.footnote)
+            .font(Font.kassa(13, .regular, relativeTo: .footnote))
             .foregroundColor(Palette.ink2)
     }
 }
