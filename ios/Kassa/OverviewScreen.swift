@@ -51,18 +51,20 @@ struct OverviewContent: View {
     @State private var showIncome = false
     /// Month first, as on Android: it is what budgets are measured in. The menu in the hero picks this week.
     @State private var showWeek = false
+    @State private var choosingPeriod = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             TabTop(title: "tab.overview", hidden: hidden, onToggle: onToggleHidden)
-            NoticesBar(items: notices, onOpen: onOpenNotices)
+            if !notices.isEmpty {
+                WaitingPill(count: notices.count, onOpen: onOpenNotices)
+            }
             hero
-            topRows
-            UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard)
+            UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard, onSeeAll: notices.isEmpty ? nil : onOpenNotices)
             accountsHeader
             pinRows
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.bottom, 96)
     }
 
@@ -82,79 +84,81 @@ struct OverviewContent: View {
     }
 
     private var periodTitle: String {
-        return showWeek ? String(localized: "overview.thisWeek") : monthTitle
+        return showWeek ? String(localized: "overview.thisWeek") : KassaDates.monthName(year: Int(data.year), month: Int(data.month))
     }
 
     // MARK: Hero
 
     private var hero: some View {
         let tone: Tone = flow.tone
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 14) {
-                flowTab("overview.spending", selected: !showIncome, income: false)
-                flowTab("overview.income", selected: showIncome, income: true)
+        let inkColor: Color = hidden ? Palette.heroGreyInk : Palette.heroInk(tone)
+        return TonalHero(tone: tone, hidden: hidden) {
+            HStack(alignment: .top, spacing: 14) {
+                HeroTab(title: "overview.spending", selected: !showIncome, inkColor: inkColor, action: { showIncome = false })
+                HeroTab(title: "overview.income", selected: showIncome, inkColor: inkColor, action: { showIncome = true })
                 Spacer(minLength: 8)
-                periodMenu
+                periodButton
             }
             Button(action: { onOpenSpending(showIncome, !showWeek) }) {
-                Text(flow.totalText)
-                    .font(.largeTitle.weight(.semibold))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    .foregroundColor(Palette.figure(tone))
-                    .frame(minHeight: 48, alignment: .leading)
+                AmountText(text: flow.totalText, hidden: hidden, size: 52, color: Palette.ink, centsColor: hidden ? Palette.ink : Palette.heroInk(tone))
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .padding(.top, 4)
             if flow.top.isEmpty {
                 Text(showIncome ? "overview.noIncome" : "overview.noSpending")
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                    .foregroundColor(inkColor)
+            } else {
+                CategoryBar(colors: flow.top.map { CategoryTint.color($0) })
+                    .padding(.top, 6)
+                legend
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20).fill(Palette.heroTint(tone)))
     }
 
-    private var periodMenu: some View {
-        return Menu {
-            Button(action: { showWeek = false }) { Text(monthTitle) }
-            Button(action: { showWeek = true }) { Text("overview.thisWeek") }
-        } label: {
-            HStack(spacing: 4) {
-                Text(periodTitle).font(.footnote.weight(.semibold)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+    private var periodButton: some View {
+        return Button(action: { choosingPeriod = true }) {
+            HStack(spacing: 6) {
+                Text(periodTitle)
+                    .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundColor(Palette.ink2)
+            .foregroundColor(Palette.ink)
+            .padding(.horizontal, 12)
             .frame(minHeight: 48)
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel(Text("overview.choosePeriod"))
-    }
-
-    private func flowTab(_ title: LocalizedStringKey, selected: Bool, income: Bool) -> some View {
-        Button(action: { showIncome = income }) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(selected ? Palette.ink : Palette.ink2)
-                .frame(minHeight: 48)
-                .contentShape(Rectangle())
+            .background(Capsule().fill(Palette.raised.opacity(0.6)))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityLabel(Text("overview.choosePeriod"))
+        .confirmationDialog(Text("overview.choosePeriod"), isPresented: $choosingPeriod, titleVisibility: .visible) {
+            Button(monthTitle) { showWeek = false }
+            Button("overview.thisWeek") { showWeek = true }
+        }
     }
 
     // MARK: Top categories
 
+    /// The legend under the bar: a dot and name for each top category, on one line when they fit and stacked when they don't.
+    private var legend: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) { legendItems }
+            VStack(alignment: .leading, spacing: 0) { legendItems }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     @ViewBuilder
-    private var topRows: some View {
+    private var legendItems: some View {
         ForEach(flow.top, id: \.id) { item in
             if showIncome {
-                TopCategoryRow(item: item)
+                LegendItem(item: item, onTap: nil)
             } else {
-                Button(action: { onOpenCategory(item.id, categoryBack) }) { TopCategoryRow(item: item) }
-                    .buttonStyle(.plain)
+                LegendItem(item: item, onTap: { onOpenCategory(item.id, categoryBack) })
             }
         }
     }
@@ -162,36 +166,38 @@ struct OverviewContent: View {
     // MARK: Accounts
 
     private var accountsHeader: some View {
-        HStack {
-            Text("overview.accounts")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .foregroundColor(Palette.ink2)
-            Spacer(minLength: 8)
-            Button(action: onAllAccounts) {
-                Text("overview.allAccounts")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
-                    .frame(minHeight: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+        return SectionLabel(title: "overview.accounts", link: "overview.allAccounts", onLink: onAllAccounts)
+    }
+
+    private var pinPairs: [[PinRowData]] {
+        var out: [[PinRowData]] = []
+        var index: Int = 0
+        while index < data.pins.count {
+            var pair: [PinRowData] = [data.pins[index]]
+            if index + 1 < data.pins.count { pair.append(data.pins[index + 1]) }
+            out.append(pair)
+            index += 2
         }
-        .padding(.top, 14)
-        .overlay(alignment: .bottom) { Hairline() }
+        return out
     }
 
     @ViewBuilder
     private var pinRows: some View {
         if data.pins.isEmpty {
             Text("overview.noAccounts")
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
                 .padding(.vertical, 12)
         } else {
-            ForEach(Array(data.pins.enumerated()), id: \.offset) { entry in
-                PinRowView(pin: entry.element)
-                Hairline()
+            ForEach(0..<pinPairs.count, id: \.self) { row in
+                HStack(alignment: .top, spacing: 32) {
+                    AccountCell(pin: pinPairs[row][0], hidden: hidden, onTap: onAllAccounts)
+                    if pinPairs[row].count > 1 {
+                        AccountCell(pin: pinPairs[row][1], hidden: hidden, onTap: onAllAccounts)
+                    } else {
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
             }
         }
     }

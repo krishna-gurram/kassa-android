@@ -48,9 +48,9 @@ struct AccountsContent: View {
     @State private var ordering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             TabTop(title: "accounts.title", hidden: hidden, onToggle: onToggleHidden)
-            NetWorthHero(data: data)
+            NetWorthHero(data: data, hidden: hidden)
             orderBar
             ForEach(data.groups, id: \.key) { group in
                 groupView(group)
@@ -66,8 +66,8 @@ struct AccountsContent: View {
                 .padding(.top, 8)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 24)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 96)
         .onAppear {
             if let hooks = order { folded = Set(hooks.savedFolded) }
         }
@@ -114,14 +114,14 @@ struct AccountsContent: View {
                 Button(action: { ordering = true }) {
                     HStack(spacing: 6) {
                         Text("accounts.order")
-                            .font(.footnote)
+                            .font(Font.kassa(15, .regular, relativeTo: .subheadline))
                             .foregroundColor(Palette.ink2)
                         Text(OrderWording.sortKey(data.sort))
-                            .font(.subheadline.weight(.semibold))
+                            .font(Font.kassa(15, .bold, relativeTo: .subheadline))
                             .foregroundColor(Palette.ink)
                             .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Palette.ink2)
                     }
                     .frame(minHeight: 48)
@@ -132,7 +132,7 @@ struct AccountsContent: View {
                 Spacer(minLength: 8)
                 Button(action: toggleAll) {
                     Text(foldAllKey)
-                        .font(.subheadline.weight(.semibold))
+                        .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
                         .foregroundColor(Palette.ink2)
                         .lineLimit(1)
                         .frame(minHeight: 48)
@@ -161,12 +161,12 @@ struct AccountsContent: View {
                 title: Wording.groupTitle(group), total: group.totalText, tone: group.totalTone, open: isOpen,
                 onToggle: { toggle(group.key) }
             )
+            Hairline()
             if isOpen {
                 groupBody(group)
-            } else {
-                Hairline()
             }
         }
+        .padding(.top, 10)
     }
 
     @ViewBuilder
@@ -175,8 +175,8 @@ struct AccountsContent: View {
             peopleSummary(group)
         }
         ForEach(group.rows, id: \.id) { row in
-            Hairline()
             rowButton(row, isPerson: group.key == "PEOPLE" || group.key == "ARCHIVED_PEOPLE")
+            Hairline()
         }
     }
 
@@ -192,7 +192,6 @@ struct AccountsContent: View {
 
     @ViewBuilder
     private func peopleSummary(_ group: AccountsGroupData) -> some View {
-        Hairline()
         if group.rows.isEmpty {
             Text("accounts.noPeople")
                 .font(.footnote)
@@ -205,7 +204,7 @@ struct AccountsContent: View {
                 Text(String(format: String(localized: "accounts.payable"), data.payableText))
                 Spacer(minLength: 0)
             }
-            .font(.footnote)
+            .font(Font.kassa(13, .regular, relativeTo: .footnote))
             .foregroundColor(Palette.ink2)
             .lineLimit(1)
             .padding(.vertical, 8)
@@ -216,46 +215,46 @@ struct AccountsContent: View {
 /// The Net worth hero: green, orange below zero, grey while amounts are hidden (the tone arrives as Ink then).
 struct NetWorthHero: View {
     let data: AccountsData
+    var hidden: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("accounts.netWorth")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .foregroundColor(Palette.ink2)
-            Text(data.netWorthText)
-                .font(.largeTitle.weight(.semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .foregroundColor(data.netWorthTone.name == "Orange" ? Palette.orange : Palette.ink)
-            Hairline()
-            HStack(alignment: .top) {
-                foot("accounts.assets", data.assetsText)
-                Spacer(minLength: 12)
-                foot("accounts.liabilities", data.liabilitiesText)
+        let tone: Tone = data.netWorthTone
+        let negative: Bool = tone.name == "Orange"
+        return TonalHero(tone: tone, hidden: hidden) {
+            HeroLabel(text: "accounts.netWorth", tone: tone, hidden: hidden)
+            AmountText(
+                text: data.netWorthText, hidden: hidden, size: 52,
+                color: negative ? Palette.orange : Palette.ink,
+                centsColor: hidden ? Palette.ink : (negative ? Palette.orange : Palette.heroInk(tone))
+            )
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .padding(.top, 4)
+            HStack(alignment: .top, spacing: 36) {
+                foot("accounts.assets", data.assetsText, tone)
+                foot("accounts.liabilities", data.liabilitiesText, tone)
+                Spacer(minLength: 0)
             }
+            .padding(.top, 14)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20).fill(Palette.heroTint(data.netWorthTone)))
         .accessibilityElement(children: .combine)
     }
 
-    private func foot(_ label: LocalizedStringKey, _ value: String) -> some View {
+    private func foot(_ label: LocalizedStringKey, _ value: String, _ tone: Tone) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.caption)
-                .foregroundColor(Palette.ink2)
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
+                .kassa(.label)
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(tone))
                 .lineLimit(1)
+            Text(value)
+                .font(Font.kassa(20, .semibold, relativeTo: .title3).monospacedDigit())
+                .foregroundColor(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
     }
 }
 
-/// A group's header: a chevron, the uppercase name and the total, at least 44 pt tall, folding or opening the group.
+/// A group's header: the uppercase name with a fold arrow and the total, at least 48 pt tall, folding or opening the group.
 struct GroupHeader: View {
     let title: String
     let total: String
@@ -266,22 +265,19 @@ struct GroupHeader: View {
     var body: some View {
         Button(action: onToggle) {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
-                    .rotationEffect(.degrees(open ? 90 : 0))
-                    .frame(width: 22)
                 Text(title)
-                    .font(.caption.weight(.semibold))
-                    .textCase(.uppercase)
+                    .kassa(.label)
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Palette.ink2)
+                    .rotationEffect(.degrees(open ? 90 : 0))
                 Spacer(minLength: 8)
                 if !total.isEmpty {
                     Text(total)
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundColor(Palette.figure(tone))
+                        .font(Font.kassa(15, .semibold, relativeTo: .subheadline).monospacedDigit())
+                        .foregroundColor(Palette.figure(tone, muted: true))
                         .lineLimit(1)
                 }
             }
@@ -298,9 +294,9 @@ struct AccountRowView: View {
     let row: AccountRowData
 
     private var nameLine: Text {
-        let name = Text(row.name).font(.body)
+        let name = Text(row.name).font(Font.kassa(17, .semibold, relativeTo: .body))
         if row.last4.isEmpty { return name }
-        let tail = Text(" \u{2022}\u{2022}" + row.last4).font(.footnote).foregroundColor(Palette.ink2)
+        let tail = Text(" \u{2022}\u{2022}" + row.last4).font(Font.kassa(13, .regular, relativeTo: .footnote)).foregroundColor(Palette.ink2)
         return name + tail
     }
 
@@ -311,7 +307,7 @@ struct AccountRowView: View {
                     .lineLimit(2)
                 if let note = Wording.note(row) {
                     Text(note)
-                        .font(.footnote)
+                        .font(Font.kassa(14, .regular, relativeTo: .footnote))
                         .foregroundColor(Palette.ink2)
                         .lineLimit(1)
                 }
@@ -320,21 +316,27 @@ struct AccountRowView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 if !row.amountText.isEmpty {
                     Text(row.amountText)
-                        .font(.body.weight(.semibold))
+                        .font(Font.kassa(20, .semibold, relativeTo: .title3))
                         .monospacedDigit()
                         .foregroundColor(Palette.figure(row.amountTone))
                         .lineLimit(1)
                 }
                 if let line = Wording.secondLine(row) {
                     Text(line)
-                        .font(.footnote)
+                        .font(Font.kassa(14, .regular, relativeTo: .footnote))
                         .foregroundColor(Palette.figure(row.dueTone, muted: true))
                         .lineLimit(1)
                 }
             }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Palette.ink3)
+                .frame(minHeight: 24)
+                .padding(.top, 4)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, 10)
-        .frame(minHeight: 56, alignment: .top)
+        .padding(.vertical, 12)
+        .frame(minHeight: 64, alignment: .top)
         .accessibilityElement(children: .combine)
     }
 }

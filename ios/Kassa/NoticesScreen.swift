@@ -286,38 +286,31 @@ struct NoticesBar: View {
     }
 }
 
-/// Overview's Upcoming: the next three card payments and bills (the next 30 days; a card also while overdue).
+/// Overview's Upcoming: the next three card payments and bills (the next 30 days; a card also while overdue), each with a round badge.
 struct UpcomingSection: View {
     let rows: [UpcomingData]
     let hidden: Bool
     let onOpenCard: (Int64) -> Void
+    /// Opens the Notifications page; nil leaves the "See all" link out.
+    var onSeeAll: (() -> Void)? = nil
 
     private let shownRows = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("due.upcoming")
-                    .font(.caption.weight(.semibold))
-                    .textCase(.uppercase)
-                    .foregroundColor(Palette.ink2)
-                Spacer(minLength: 8)
-                Text("due.upcoming.next30")
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
+            if let seeAll = onSeeAll {
+                SectionLabel(title: "due.upcoming", link: "d1.seeAll", onLink: seeAll)
+            } else {
+                SectionLabel(title: "due.upcoming")
             }
-            .padding(.top, 14)
-            .padding(.bottom, 6)
-            .overlay(alignment: .bottom) { Hairline() }
             if rows.isEmpty {
                 Text("due.upcoming.empty")
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                     .padding(.vertical, 12)
             }
             ForEach(Array(rows.prefix(shownRows).enumerated()), id: \.offset) { entry in
                 row(entry.element)
-                Hairline()
             }
         }
     }
@@ -332,32 +325,35 @@ struct UpcomingSection: View {
         }
     }
 
+    private func badge(_ item: UpcomingData) -> Badge {
+        if item.kind == "CARD" { return Badge(symbol: "creditcard", tint: Palette.teal) }
+        if item.kind == "LOAN" { return Badge(symbol: "banknote", tint: Palette.blue) }
+        return Badge(symbol: "doc.text", tint: Palette.pink)
+    }
+
     private func rowBody(_ item: UpcomingData) -> some View {
         let owed: Bool = item.kind == "CARD" && !hidden
-        return HStack(spacing: 8) {
+        return HStack(spacing: 14) {
+            badge(item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
-                    .font(.body.weight(.semibold))
+                    .font(Font.kassa(17, .semibold, relativeTo: .body))
+                    .foregroundColor(Palette.ink)
                     .lineLimit(1)
                 Text(DueWording.upcomingLine(item))
-                    .font(.footnote)
+                    .font(Font.kassa(14, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             Text(item.amountText)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
+                .font(Font.kassa(18, .semibold, relativeTo: .body).monospacedDigit())
                 .foregroundColor(owed ? Palette.orange : Palette.ink)
                 .lineLimit(1)
-            if item.kind == "CARD" {
-                Image(systemName: "chevron.right")
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
-            }
+                .minimumScaleFactor(0.7)
         }
-        .padding(.vertical, 6)
-        .frame(minHeight: 48)
+        .padding(.vertical, 8)
+        .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
 }
