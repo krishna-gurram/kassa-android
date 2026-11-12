@@ -84,7 +84,7 @@ struct OverviewContent: View {
     }
 
     private var periodTitle: String {
-        return showWeek ? String(localized: "overview.thisWeek") : monthTitle
+        return showWeek ? String(localized: "overview.thisWeek") : KassaDates.monthName(year: Int(data.year), month: Int(data.month))
     }
 
     // MARK: Hero
@@ -93,7 +93,7 @@ struct OverviewContent: View {
         let tone: Tone = flow.tone
         let inkColor: Color = hidden ? Palette.heroGreyInk : Palette.heroInk(tone)
         return TonalHero(tone: tone, hidden: hidden) {
-            HStack(alignment: .top, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
                 HeroTab(title: "overview.spending", selected: !showIncome, inkColor: inkColor, action: { showIncome = false })
                 HeroTab(title: "overview.income", selected: showIncome, inkColor: inkColor, action: { showIncome = true })
                 Spacer(minLength: 8)
@@ -121,13 +121,14 @@ struct OverviewContent: View {
         return Button(action: { choosingPeriod = true }) {
             HStack(spacing: 6) {
                 Text(periodTitle)
-                    .font(Font.kassa(16, .semibold, relativeTo: .subheadline))
+                    .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundColor(Palette.ink)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .frame(minHeight: 48)
             .background(Capsule().fill(Palette.raised.opacity(0.6)))
             .contentShape(Capsule())
@@ -166,7 +167,6 @@ struct OverviewContent: View {
 
     private var accountsHeader: some View {
         return SectionLabel(title: "overview.accounts", link: "overview.allAccounts", onLink: onAllAccounts)
-            .padding(.top, 10)
     }
 
     private var pinPairs: [[PinRowData]] {

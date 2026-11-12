@@ -68,7 +68,7 @@ struct CategoryBar: View {
 /// The colour a top category draws in (its own, or a neutral grey without a category).
 enum CategoryTint {
     static func color(_ item: TopCategoryData) -> Color {
-        if item.color == 0 { return Palette.ink3 }
+        if (UInt32(bitPattern: item.color) & 0xFFFFFF) == 0 { return Palette.ink3 }
         return Color(argb: item.color)
     }
 
