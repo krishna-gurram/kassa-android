@@ -233,7 +233,7 @@ struct AddEntryScreen: View {
 
     private var startScreen: some View {
         VStack(spacing: 0) {
-            ScrollView {
+            KassaScroll {
                 AddEntryForm(draft: draft, noteFocused: $noteFocused)
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
@@ -602,7 +602,7 @@ struct CategoryPanel: View {
         let searching = !draft.query.trimmingCharacters(in: .whitespaces).isEmpty
         VStack(spacing: 8) {
             PickerSearch(placeholder: "entry.searchCategories", text: $draft.query)
-            ScrollView {
+            KassaScroll {
                 if choices.isEmpty {
                     Text(searching ? String(format: String(localized: "entry.noCategoryMatches"), draft.query) : String(localized: "entry.noCategories"))
                         .font(Font.kassa(13, .regular, relativeTo: .footnote))
@@ -674,7 +674,7 @@ struct SubcategoryPanel: View {
 
     private func content(_ parent: CategoryChoiceData) -> some View {
         let subs: [CategoryChoiceData] = draft.view.subcategoryChoices(topId: parent.id)
-        return ScrollView {
+        return KassaScroll {
             VStack(spacing: 0) {
                 Hairline()
                 ChoiceRow(
@@ -725,7 +725,7 @@ struct AccountPickerBody: View {
             if pick.filters.count > 2 {
                 chips
             }
-            ScrollView {
+            KassaScroll {
                 VStack(spacing: 6) {
                     if pick.groups.isEmpty {
                         Text(pick.noneOpen ? String(localized: "entry.addAccountFirst") : String(format: String(localized: "entry.noAccountMatches"), query))
@@ -748,7 +748,7 @@ struct AccountPickerBody: View {
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        KassaScroll(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(pick.filters, id: \.self) { name in
                     FilterChip(title: Wording.filterTitle(name), selected: filter == name, action: { filter = name })

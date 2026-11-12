@@ -132,7 +132,7 @@ struct EntryCalendar: View {
     @ViewBuilder
     private func cell(_ day: Int) -> some View {
         if day == 0 {
-            Color.clear.frame(maxWidth: .infinity, minHeight: 48)
+            Color.clear.frame(maxWidth: .infinity).frame(height: 48)
         } else {
             dayButton(day)
         }

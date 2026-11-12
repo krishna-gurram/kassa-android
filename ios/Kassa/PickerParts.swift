@@ -47,6 +47,40 @@ struct NumberPad: View {
     }
 }
 
+private struct FlatScrollKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    /// Set by the screenshot tests: `ImageRenderer` can't draw a ScrollView's content, so [KassaScroll] lays its content out flat.
+    var flatScroll: Bool {
+        get { return self[FlatScrollKey.self] }
+        set { self[FlatScrollKey.self] = newValue }
+    }
+}
+
+/// A ScrollView (vertical unless [axes] says otherwise) that the screenshot tests can flatten (see `flatScroll`).
+struct KassaScroll<Content: View>: View {
+    @Environment(\.flatScroll) private var flat
+    let axes: Axis.Set
+    let content: Content
+
+    init(_ axes: Axis.Set = .vertical, @ViewBuilder content: () -> Content) {
+        self.axes = axes
+        self.content = content()
+    }
+
+    var body: some View {
+        if flat {
+            content
+        } else {
+            ScrollView(axes, showsIndicators: false) {
+                content
+            }
+        }
+    }
+}
+
 /// A grid made of plain stacks (not lazy ones, so a screenshot can draw it): [columns] tiles a row, the last row padded.
 struct TileGrid<Item: Identifiable, Tile: View>: View {
     let items: [Item]

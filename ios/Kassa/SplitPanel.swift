@@ -100,7 +100,7 @@ struct SplitPanel: View {
         let shown: SplitViewData = draft.splitView
         let people: [SplitPersonData] = draft.splitPeople
         return VStack(spacing: 8) {
-            ScrollView {
+            KassaScroll {
                 VStack(alignment: .leading, spacing: 0) {
                     if shown.shared {
                         SegmentedPill(options: ["entry.split.equal", "entry.split.exactShort"], selection: modeBinding)
@@ -243,7 +243,7 @@ struct SplitPanel: View {
     }
 
     private func payerChips(_ shown: SplitViewData) -> some View {
-        return ScrollView(.horizontal, showsIndicators: false) {
+        return KassaScroll(.horizontal) {
             HStack(spacing: 8) {
                 FilterChip(title: String(localized: "split.you"), selected: draft.split.paidBy == 0, action: { draft.setPayer(0) })
                 ForEach(Array(shown.lines.enumerated()), id: \.offset) { entry in
