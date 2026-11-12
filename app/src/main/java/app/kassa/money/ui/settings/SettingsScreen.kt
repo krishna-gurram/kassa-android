@@ -80,6 +80,13 @@ interface SettingsActions {
     fun backupPageOpened()
     /** Opens the page for choosing Overview's account tiles. */
     fun openPins()
+    /** Opens Coach's page. */
+    fun openCoach()
+    /** Coach's report, for "What a question sends". */
+    val coach: kotlinx.coroutines.flow.StateFlow<app.kassa.money.domain.CoachReport?>
+    /** A budget editor asked for by the weekly check-in ("Set the limit"); Settings opens it and calls [budgetRequestOpened]. */
+    val budgetRequest: app.kassa.money.ui.BudgetRequest?
+    fun budgetRequestOpened()
     /** Debug builds only: replaces everything with the made-up household in [app.kassa.money.domain.Demo]. */
     fun loadDemo()
 }
@@ -92,7 +99,10 @@ private sealed interface SettingsPage {
     data class Categories(val kind: CategoryKind) : SettingsPage {
         override val amounts: Boolean get() = true
     }
-    data class EditCategory(val category: Category, val back: SettingsPage) : SettingsPage
+    /** [prefillBudget] starts the editor's monthly budget field (from the weekly check-in); null keeps the saved budget. */
+    data class EditCategory(val category: Category, val back: SettingsPage, val prefillBudget: Long? = null) : SettingsPage
+    data object Coach : SettingsPage
+    data object CoachSends : SettingsPage { override val amounts = true }
     data object PersonAccounts : SettingsPage { override val amounts = true }
     data object Bills : SettingsPage { override val amounts = true }
     data object Notifications : SettingsPage
@@ -112,6 +122,8 @@ private fun SettingsPage.titleText(): String = when (this) {
     SettingsPage.Main -> stringResource(R.string.settings_title)
     is SettingsPage.Categories -> stringResource(if (kind == CategoryKind.EXPENSE) R.string.settings_page_expense_categories else R.string.settings_page_income_categories)
     is SettingsPage.EditCategory -> stringResource(if (category.id == 0L) R.string.settings_page_new_category else R.string.settings_page_edit_category)
+    SettingsPage.Coach -> stringResource(R.string.coach_settings_title)
+    SettingsPage.CoachSends -> stringResource(R.string.coach_sends_title)
     SettingsPage.PersonAccounts -> stringResource(R.string.settings_page_account_to_person)
     SettingsPage.Bills -> stringResource(R.string.settings_page_bills)
     SettingsPage.Notifications -> stringResource(R.string.settings_page_notifications)
@@ -133,9 +145,18 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
     LaunchedEffect(actions.wantsBackupPage) {
         if (actions.wantsBackupPage) { page = SettingsPage.Backup; actions.backupPageOpened() }
     }
+    // Asked for by the weekly check-in: the budget editor for that category, started with the suggested monthly amount.
+    val request = actions.budgetRequest
+    LaunchedEffect(request) {
+        if (request != null) {
+            ledger.categoryById[request.categoryId]?.let { page = SettingsPage.EditCategory(it, SettingsPage.Categories(CategoryKind.EXPENSE), request.monthlyCents) }
+            actions.budgetRequestOpened()
+        }
+    }
     val back: () -> Unit = {
         page = when (val p = page) {
             is SettingsPage.EditCategory -> p.back
+            is SettingsPage.CoachSends -> SettingsPage.Coach
             is SettingsPage.LicenceDetail -> SettingsPage.Licences
             else -> SettingsPage.Main
         }
@@ -156,6 +177,7 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
                 CategoryEditor(
                     ledger = ledger,
                     original = p.category,
+                    budgetPrefill = p.prefillBudget,
                     onSave = { edit -> saveCategoryEdit(edit, actions, ledger); page = p.back },
                     onAddSub = { parent, name -> actions.saveCategory(parent.subcategory(name), null) },
                     onSaveSub = { sub, quiet -> actions.saveCategory(sub, null, quiet) },
@@ -163,6 +185,8 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
                     onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
                 )
             }
+            SettingsPage.Coach -> CoachSettingsPage(actions, openSends = { page = SettingsPage.CoachSends })
+            SettingsPage.CoachSends -> CoachSendsPage(actions)
             SettingsPage.PersonAccounts -> AccountsToPeople(ledger, actions)
             SettingsPage.Bills -> BillsPage(ledger, actions)
             SettingsPage.Notifications -> NotificationSettingsPage(actions)
@@ -206,6 +230,9 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     NavRow(stringResource(R.string.settings_page_expense_categories), "${topLevel(CategoryKind.EXPENSE)}") { open(SettingsPage.Categories(CategoryKind.EXPENSE)) }
     NavRow(stringResource(R.string.settings_page_income_categories), "${topLevel(CategoryKind.INCOME)}") { open(SettingsPage.Categories(CategoryKind.INCOME)) }
     NavRow(stringResource(R.string.settings_page_budget_month), stringResource(R.string.settings_budget_month_value, ledger.monthStartDay)) { open(SettingsPage.BudgetMonth) }
+
+    val coachOn by settings.coachCheckIn.collectAsState()
+    NavRow(stringResource(R.string.coach_settings_title), stringResource(if (coachOn) R.string.coach_on else R.string.coach_off)) { open(SettingsPage.Coach) }
 
     SectionHeader(stringResource(R.string.settings_section_bills))
     NavRow(stringResource(R.string.settings_page_bills), "${ledger.bills.size}") { open(SettingsPage.Bills) }

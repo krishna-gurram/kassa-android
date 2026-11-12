@@ -25,6 +25,7 @@ import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CoachReport
 import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.Holding
@@ -42,6 +43,7 @@ import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
 import app.kassa.money.domain.millisAt
+import app.kassa.money.ui.coach.coachReport
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.today.Notice
 import kotlinx.coroutines.CancellationException
@@ -56,6 +58,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -95,9 +99,12 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** What repeats, found in the last [QueryWindows.HISTORY_DAYS] days: long enough for a yearly charge to show up twice. */
-    private val repeats = clock.flatMapLatest { d ->
+    private val history = clock.flatMapLatest { d ->
         kassa.entries.between(QueryWindows.historyFrom(d.today, d.zone), Long.MAX_VALUE)
-            .map { Repeats.find(it, d.today, d.zone) }.flowOn(Dispatchers.Default)
+    }.shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    private val repeats = clock.flatMapLatest { d ->
+        history.map { Repeats.find(it, d.today, d.zone) }.flowOn(Dispatchers.Default)
     }
 
     val ledger: StateFlow<Ledger?> = combine(
@@ -115,6 +122,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
             inv.trades.associateBy { it.transactionId }, rep.filterNot { it.key in loanNotes }, cleared, inv.loans, monthStart, day.today, day.zone,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Everything Coach says, worked out on the phone from the ledger and the same two years of entries the repeats read. Computed only while a
+     * screen shows it (Overview's card, the Coach pages, Settings > Coach); null until the ledger is there. Never written anywhere.
+     */
+    val coach: StateFlow<CoachReport?> = combine(ledger.filterNotNull(), history) { l, h -> coachReport(l, h) }
+        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages

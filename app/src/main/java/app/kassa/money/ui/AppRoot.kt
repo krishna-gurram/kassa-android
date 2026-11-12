@@ -85,7 +85,7 @@ fun AppRoot(
     val vm: LedgerViewModel = viewModel()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val app = remember(vm, nav) { AppController(vm, nav, scope, context) }
+    val app = remember(vm, nav) { AppController(vm, nav, scope, context, LocalSettings.current) }
     val ledger by vm.ledger.collectAsState()
     var fresh by rememberSaveable { mutableStateOf(startedFresh) }
     // First run: "Start fresh" opens the setup (starter categories and a first account).

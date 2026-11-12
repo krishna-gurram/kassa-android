@@ -111,6 +111,8 @@ fun upcoming(ledger: Ledger, days: Long): List<Upcoming> {
 fun TodayScreen(
     ledger: Ledger,
     contentPadding: PaddingValues,
+    coach: app.kassa.money.domain.CoachReport?,
+    onCoach: () -> Unit,
     onOpenCard: (Long) -> Unit,
     onSpending: (month: Boolean, income: Boolean) -> Unit,
     onOpenCategory: (Long) -> Unit,
@@ -139,6 +141,17 @@ fun TodayScreen(
                 FlowSection(ledger, income, { income = it }, month, { month = it }, roomy, onOpen = { onSpending(month, income) }, onOpenCategory = onOpenCategory)
             }
         }
+        // "Your week in 3 points" sits under the spending hero when the check-in has something; the page then fits with one Upcoming row less, if need be.
+        val settings = app.kassa.money.ui.LocalSettings.current
+        val checkInOn by settings.coachCheckIn.collectAsState()
+        val dismissedWeek by settings.coachDismissedWeek.collectAsState()
+        val hidden = Money.isHidden
+        val teaser = remember(coach, checkInOn, dismissedWeek, hidden) {
+            coach?.let { app.kassa.money.ui.coach.CoachModel.teaser(app.kassa.money.ui.coach.CoachModel.view(it, hidden), checkInOn, dismissedWeek) }
+        }
+        val coachCard: @Composable () -> Unit = {
+            if (teaser != null) app.kassa.money.ui.coach.CoachTeaserCard(teaser, ledger, onCoach, Modifier.padding(top = 8.dp))
+        }
         val most = if (wide) 5 else 3
         val worth: @Composable () -> Unit = { AccountTiles(ledger, onOpenAccount, onPeople = onAccounts, onAll = onAccounts, onPin = onPinAccounts, unfolded = wide) }
 
@@ -161,13 +174,13 @@ fun TodayScreen(
                     // Both columns start level at the top; spare room stays empty at the bottom (a fixed gap, nothing stretches).
                     Row(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            spending(); coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier)
+                            spending(); coachCard(); coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier)
                         }
                         Column(Modifier.weight(1f)) { worth() }
                     }
                 } else {
                     Column(Modifier.widthIn(max = 640.dp).then(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Column { banner(); spending() }
+                        Column { banner(); spending(); coachCard() }
                         coming(if (mode == Fit.FIT) Modifier.weight(1f, fill = false) else Modifier); worth()
                     }
                 }
