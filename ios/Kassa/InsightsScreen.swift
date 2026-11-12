@@ -36,6 +36,11 @@ struct InsightsContent: View {
     let onOpenCategory: (Int64) -> Void
     var read: InsightsRead? = nil
 
+    /// By category shows the biggest few until "All N" is tapped.
+    @State private var showAll: Bool = false
+
+    private static let collapsedCount: Int = 5
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TabTop(title: "tab.insights", hidden: hidden, onToggle: onToggleHidden)
@@ -84,60 +89,60 @@ struct InsightsContent: View {
     }
 
     private func periodPicker(_ extra: InsightsRead) -> some View {
-        let binding = Binding<Bool>(get: { extra.showWeek }, set: { week in extra.onSetWeek(week) })
-        return Picker("", selection: binding) {
-            Text("insights.month").tag(false)
-            Text("insights.week").tag(true)
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("insightsPeriod")
+        let binding = Binding<Int>(get: { extra.showWeek ? 1 : 0 }, set: { index in extra.onSetWeek(index == 1) })
+        let options: [LocalizedStringKey] = ["insights.month", "insights.thisWeek"]
+        return SegmentedPill(options: options, selection: binding)
+            .accessibilityIdentifier("insightsPeriod")
     }
 
     // MARK: Hero
 
     private var hero: some View {
         let month = KassaDates.monthYear(year: Int(data.year), month: Int(data.month))
-        return VStack(alignment: .leading, spacing: 8) {
+        return SpendHero(hidden: hidden) {
             Text(String(format: String(localized: "insights.spentIn"), month))
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(Palette.ink2)
+                .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroGreenInk)
                 .lineLimit(1)
             Text(data.totalText)
-                .font(.largeTitle.weight(.semibold))
-                .monospacedDigit()
+                .scaledNumeral(44)
+                .foregroundColor(Palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-                .foregroundColor(Palette.figure(data.tone))
             if data.hasCompare {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(String(format: String(localized: "insights.upTo"), KassaDates.shortDate(epochDay: Int(data.compareDay))))
-                        .font(.footnote)
-                        .foregroundColor(Palette.ink2)
+                        .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                        .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroGreenInk)
                         .lineLimit(1)
                     Text(data.compareText)
-                        .font(.footnote.weight(.semibold))
-                        .monospacedDigit()
+                        .font(Font.kassa(14, .semibold, relativeTo: .subheadline).monospacedDigit())
+                        .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroGreenInk)
                         .lineLimit(1)
                 }
                 .accessibilityElement(children: .combine)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20).fill(Palette.heroTint(data.tone)))
     }
 
     // MARK: By category
 
+    private var allLink: LocalizedStringKey? {
+        if data.lines.count <= InsightsContent.collapsedCount { return nil }
+        if showAll { return "insights.showLess" }
+        return LocalizedStringKey(String(format: String(localized: "insights.allCount"), data.lines.count))
+    }
+
     private var sectionHeader: some View {
-        Text("insights.byCategory")
-            .font(.caption.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundColor(Palette.ink2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
+        return SectionLabel(title: "insights.byCategory", link: allLink, onLink: { showAll = !showAll })
+            .padding(.top, 6)
             .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    private var shownLines: [InsightLineData] {
+        let all: [InsightLineData] = data.lines
+        if showAll || all.count <= InsightsContent.collapsedCount { return all }
+        return Array(all.prefix(InsightsContent.collapsedCount))
     }
 
     @ViewBuilder
@@ -146,12 +151,12 @@ struct InsightsContent: View {
             // While hidden the empty month says nothing: a sentence here would show that the hidden total is zero.
             if !hidden {
                 Text("insights.noSpending")
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                     .padding(.vertical, 12)
             }
         } else {
-            ForEach(data.lines, id: \.id) { line in
+            ForEach(shownLines, id: \.id) { line in
                 Button(action: { onOpenCategory(line.id) }) {
                     InsightLineView(line: line)
                 }
@@ -159,6 +164,28 @@ struct InsightsContent: View {
                 Hairline()
             }
         }
+    }
+}
+
+/// The tonal block at the top of Insights: green, grey while amounts are hidden so the tint never gives a figure away.
+struct SpendHero<Content: View>: View {
+    let hidden: Bool
+    let content: Content
+
+    init(hidden: Bool, @ViewBuilder content: () -> Content) {
+        self.hidden = hidden
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            content
+        }
+        .padding(.top, 18)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(hidden ? Palette.heroGrey : Palette.heroGreen))
     }
 }
 
@@ -177,7 +204,8 @@ struct InsightsRead {
     var onOpenEntry: ((EntryRowData) -> Void)? = nil
 }
 
-/// The icon, name and amount of a category line, its share, and a bar against the largest line. No share or bar while hidden.
+/// A category line as in the design: name and amount, a coloured bar under them (orange when over budget), and a small line for the
+/// share and the budget. No share or bar while hidden.
 struct InsightLineView: View {
     let line: InsightLineData
 
@@ -185,55 +213,49 @@ struct InsightLineView: View {
         return line.name.isEmpty ? String(localized: "entry.uncategorized") : line.name
     }
 
-    private var choice: CategoryChoiceData {
-        return CategoryChoiceData(
-            id: line.id, name: name, parentName: "", iconKind: line.iconKind, iconValue: line.iconValue,
-            color: line.color, hasSubcategories: false
-        )
-    }
-
     private var share: String? {
         if line.percent < 0 { return nil }
         return String(format: String(localized: "insights.percent"), Int(line.percent))
     }
 
+    private var subLine: String {
+        var parts: [String] = []
+        if let text = share { parts.append(text) }
+        if !line.refText.isEmpty {
+            parts.append(String(format: String(localized: "insights.ofBudget"), line.refText))
+        }
+        return parts.joined(separator: " \u{B7} ")
+    }
+
     private var barColor: Color {
+        if line.over { return Palette.orange }
         return line.id == 0 ? Palette.ink2 : Color(argb: line.color)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                CategoryIconView(choice: choice, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.body)
+                        .font(Font.kassa(17, .semibold, relativeTo: .body))
+                        .foregroundColor(Palette.ink)
                         .lineLimit(1)
-                    if !line.refText.isEmpty {
-                        Text(String(format: String(localized: "insights.ofBudget"), line.refText))
-                            .font(.footnote)
-                            .foregroundColor(Palette.ink2)
+                    if !subLine.isEmpty {
+                        Text(subLine)
+                            .font(Font.kassa(12, .regular, relativeTo: .caption))
+                            .foregroundColor(Palette.ink3)
                             .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 8)
-                if let text = share {
-                    Text(text)
-                        .font(.footnote)
-                        .monospacedDigit()
-                        .foregroundColor(Palette.ink2)
-                        .lineLimit(1)
-                }
                 Text(line.amountText)
-                    .font(.body.weight(.semibold))
-                    .monospacedDigit()
+                    .font(Font.kassa(17, .bold, relativeTo: .body).monospacedDigit())
                     .foregroundColor(line.over ? Palette.orange : Palette.ink)
                     .lineLimit(1)
             }
             bar
-                .padding(.leading, 44)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .frame(minHeight: 56)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -242,12 +264,12 @@ struct InsightLineView: View {
     private var bar: some View {
         let fraction = Double(line.barPermille) / 1000.0
         return Capsule()
-            .fill(Palette.chip)
-            .frame(height: 6)
+            .fill(Palette.track)
+            .frame(height: 8)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     Capsule()
-                        .fill(line.over ? Palette.orange : barColor)
+                        .fill(barColor)
                         .frame(width: proxy.size.width * CGFloat(fraction))
                 }
             }
@@ -326,7 +348,7 @@ struct InsightsCategoryContent: View {
             }
             .accessibilityLabel(Text("a11y.back"))
             Text(name)
-                .font(.title2.weight(.bold))
+                .font(Font.kassa(24, .bold, relativeTo: .title2))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Spacer(minLength: 8)
@@ -338,25 +360,25 @@ struct InsightsCategoryContent: View {
     private var hero: some View {
         return VStack(alignment: .leading, spacing: 8) {
             Text(String(format: String(localized: "insights.spentIn"), month))
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(Palette.ink2)
+                .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                .foregroundColor(Palette.heroGreyInk)
                 .lineLimit(1)
             Text(data.totalText)
-                .font(.largeTitle.weight(.semibold))
-                .monospacedDigit()
+                .scaledNumeral(44)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
-        .padding(16)
+        .padding(.top, 18)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20).fill(Palette.chip))
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Palette.heroGrey))
     }
 
     private var entriesHeader: some View {
         HStack {
             Text("insights.entries")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
+                .kassa(.label)
                 .foregroundColor(Palette.ink2)
             Spacer(minLength: 8)
             Text(String(Int(data.entryCount)))
