@@ -90,7 +90,7 @@ struct ActivityContent: View {
     private var dayList: some View {
         if data.days.isEmpty {
             Text("activity.noneThisMonth")
-                .font(.body)
+                .font(Font.kassa(15))
                 .foregroundColor(Palette.ink2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 32)
@@ -126,8 +126,10 @@ struct SearchField: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundColor(Palette.ink2)
+            Image(systemName: "magnifyingglass").foregroundColor(Palette.ink3)
             TextField("activity.searchHint", text: text)
+                .font(Font.kassa(16))
+                .foregroundColor(Palette.ink)
                 .autocorrectionDisabled(true)
                 .textInputAutocapitalization(.never)
                 .accessibilityIdentifier("activitySearch")
@@ -140,9 +142,9 @@ struct SearchField: View {
                 .accessibilityLabel(Text("a11y.clearSearch"))
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .frame(minHeight: 48)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Palette.chip))
+        .background(Capsule().fill(Palette.chip))
     }
 }
 
@@ -156,19 +158,19 @@ struct SearchResults: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(String(format: String(localized: "activity.hits"), Int(data.count)))
-                    .font(.footnote.weight(.semibold))
+                    .font(Font.kassa(13, .semibold, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                 Spacer(minLength: 8)
                 if data.hasSpent {
-                    Text(data.spentText).font(.footnote.weight(.semibold)).monospacedDigit().lineLimit(1)
+                    Text(data.spentText).font(Font.kassa(13, .semibold, relativeTo: .footnote).monospacedDigit()).lineLimit(1)
                 }
             }
             .padding(.vertical, 6)
             if data.months.isEmpty {
-                Text("activity.noMatch").font(.body).foregroundColor(Palette.ink2).padding(.vertical, 24)
+                Text("activity.noMatch").font(Font.kassa(15)).foregroundColor(Palette.ink2).padding(.vertical, 24)
             }
             ForEach(data.months, id: \.id) { month in
-                ReadHeader(title: LocalizedStringKey(KassaDates.monthYear(year: Int(month.year), month: Int(month.month))))
+                SectionLabel(title: LocalizedStringKey(KassaDates.monthYear(year: Int(month.year), month: Int(month.month))))
                 ForEach(month.entries, id: \.entry.id) { row in
                     EntryRowView(entry: row.entry, showDivider: true, onOpen: onOpen)
                 }
@@ -207,7 +209,7 @@ struct MonthSwitcher: View {
         if let open = onLabel {
             Button(action: open) {
                 Text(label)
-                    .font(.headline)
+                    .font(Font.kassa(17, .semibold, relativeTo: .headline))
                     .foregroundColor(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -216,7 +218,8 @@ struct MonthSwitcher: View {
             .accessibilityHint(Text("a11y.chooseMonth"))
         } else {
             Text(label)
-                .font(.headline)
+                .font(Font.kassa(17, .semibold, relativeTo: .headline))
+                .foregroundColor(Palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -234,22 +237,21 @@ struct MonthSwitcher: View {
     }
 }
 
-/// A total: a small label over a figure.
+/// A total: a small uppercase label over a figure.
 struct TotalTile: View {
     let label: LocalizedStringKey
     let value: String
     let color: Color
-    /// The filter that is on: the tile is drawn raised.
+    /// The filter that is on: the tile is drawn on a chip.
     var selected: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.caption.weight(.semibold))
+                .kassa(.label)
                 .foregroundColor(Palette.ink2)
             Text(value)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
+                .font(Font.kassa(22, .bold, relativeTo: .title2).monospacedDigit())
                 .foregroundColor(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -257,7 +259,7 @@ struct TotalTile: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Palette.chip : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(selected ? Palette.chip : Color.clear))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -295,14 +297,13 @@ struct DaySection: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(Wording.dayLabel(epochDay: Int(day.epochDay), today: today))
-                    .font(.caption.weight(.semibold))
-                    .textCase(.uppercase)
+                    .kassa(.label)
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Text(day.spentText)
-                    .font(.footnote.weight(.semibold))
-                    .monospacedDigit()
+                    .font(Font.kassa(13, .semibold, relativeTo: .footnote).monospacedDigit())
+                    .foregroundColor(Palette.ink2)
                     .lineLimit(1)
             }
             .padding(.top, 18)
@@ -342,15 +343,13 @@ struct EntryRowView: View {
         let base = Wording.entry(entry)
         let words = EntryWords(title: base.title, subtitle: base.subtitle, note: noteOverride ?? base.note)
         return VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
                 EntryBadge(entry: entry)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(words.title)
-                        .font(.body)
-                        .lineLimit(1)
+                    titleLine(words)
                     if !words.subtitle.isEmpty {
                         Text(words.subtitle)
-                            .font(.footnote)
+                            .font(Font.kassa(13, .regular, relativeTo: .footnote))
                             .foregroundColor(Palette.ink2)
                             .lineLimit(1)
                     }
@@ -358,15 +357,19 @@ struct EntryRowView: View {
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(entry.amountText)
-                        .font(.body.weight(.semibold))
-                        .monospacedDigit()
+                        .font(Font.kassa(16, .bold, relativeTo: .body).monospacedDigit())
                         .foregroundColor(Palette.figure(entry.amountTone, muted: entry.amountMuted))
                         .lineLimit(1)
-                    amountNote(words)
+                    if !words.note.isEmpty {
+                        Text(words.note)
+                            .font(Font.kassa(12, .regular, relativeTo: .caption))
+                            .foregroundColor(Palette.ink2)
+                            .lineLimit(1)
+                    }
                 }
             }
-            .padding(.vertical, 8)
-            .frame(minHeight: 56)
+            .padding(.vertical, 10)
+            .frame(minHeight: 64)
             if showDivider {
                 Hairline()
             }
@@ -374,22 +377,14 @@ struct EntryRowView: View {
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
-    private func amountNote(_ words: EntryWords) -> some View {
-        HStack(spacing: 4) {
+    private func titleLine(_ words: EntryWords) -> some View {
+        return HStack(spacing: 8) {
+            Text(words.title)
+                .font(Font.kassa(16, .semibold, relativeTo: .body))
+                .foregroundColor(Palette.ink)
+                .lineLimit(1)
             if !entry.tag.isEmpty {
-                Text(entry.tag)
-                    .font(.caption2.weight(.semibold))
-                    .lineLimit(1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Palette.chip))
-            }
-            if !words.note.isEmpty {
-                Text(words.note)
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
-                    .lineLimit(1)
+                Tag(LocalizedStringKey(entry.tag))
             }
         }
     }
@@ -411,14 +406,14 @@ struct EntryBadge: View {
             Circle().fill(fill)
             if hasCategory {
                 Text(entry.badgeText)
-                    .font(.system(size: 18))
+                    .font(.system(size: 19))
             } else {
                 Image(systemName: Wording.symbol(entry.kind))
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundColor(Palette.ink2)
             }
         }
-        .frame(width: 36, height: 36)
+        .frame(width: 40, height: 40)
         .accessibilityHidden(true)
     }
 }

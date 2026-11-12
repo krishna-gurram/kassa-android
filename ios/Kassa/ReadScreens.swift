@@ -137,8 +137,8 @@ struct ShareBar: View {
     var body: some View {
         let fraction = min(1.0, Double(permille) / 1000.0)
         return Capsule()
-            .fill(Palette.chip)
-            .frame(height: 6)
+            .fill(Palette.track)
+            .frame(height: 8)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     Capsule()
@@ -177,38 +177,51 @@ struct ReadHeader: View {
 
 // MARK: Patterns
 
-/// The six Patterns tiles of Insights, two to a row. Each opens its page.
+/// The Patterns of Insights as rows: the name, its value and a chevron. Each opens its page.
 struct PatternsSection: View {
     let tiles: [PatternTileData]
     let onOpen: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ReadHeader(title: "insights.patterns")
-            // Two to a row in plain stacks (a screenshot cannot draw lazy grids).
-            ForEach(rowStarts, id: \.self) { start in
-                HStack(spacing: 8) {
-                    tileButton(start)
-                    tileButton(start + 1)
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(title: "insights.patterns")
+                .overlay(alignment: .bottom) { Hairline() }
+            ForEach(0..<tiles.count, id: \.self) { index in
+                row(tiles[index])
+                Hairline()
+            }
+        }
+    }
+
+    private func row(_ tile: PatternTileData) -> some View {
+        return Button(action: { onOpen(ReadWording.detailKind(forTile: tile.kind)) }) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ReadWording.tileTitle(tile.kind))
+                        .font(Font.kassa(17, .semibold, relativeTo: .body))
+                        .foregroundColor(Palette.ink)
+                        .lineLimit(1)
+                    Text(ReadWording.tileSub(tile))
+                        .font(Font.kassa(12, .regular, relativeTo: .caption))
+                        .foregroundColor(tile.attention ? Palette.orange : Palette.ink3)
+                        .lineLimit(1)
                 }
+                Spacer(minLength: 8)
+                Text(ReadWording.tileValue(tile))
+                    .font(Font.kassa(16, .regular, relativeTo: .body).monospacedDigit())
+                    .foregroundColor(Palette.ink2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Palette.ink3)
             }
+            .padding(.vertical, 8)
+            .frame(minHeight: 56)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
         }
-    }
-
-    private var rowStarts: [Int] {
-        return Array(stride(from: 0, to: tiles.count, by: 2))
-    }
-
-    @ViewBuilder
-    private func tileButton(_ index: Int) -> some View {
-        if index < tiles.count {
-            Button(action: { onOpen(ReadWording.detailKind(forTile: tiles[index].kind)) }) {
-                PatternTileView(tile: tiles[index])
-            }
-            .buttonStyle(.plain)
-        } else {
-            Color.clear.frame(maxWidth: .infinity)
-        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -281,31 +294,29 @@ struct WeekContent: View {
     }
 
     private var hero: some View {
-        Button(action: onOpenSpending) {
-            VStack(alignment: .leading, spacing: 8) {
+        let ink: Color = hidden ? Palette.heroGreyInk : Palette.heroGreenInk
+        return Button(action: onOpenSpending) {
+            SpendHero(hidden: hidden) {
                 Text(String(format: String(localized: "insights.weekOf"), KassaDates.shortDate(epochDay: Int(data.startDay))))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
+                    .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                    .foregroundColor(ink)
                     .lineLimit(1)
                 Text(data.totalText)
-                    .font(.largeTitle.weight(.semibold))
-                    .monospacedDigit()
+                    .scaledNumeral(44)
+                    .foregroundColor(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(String(format: String(localized: "insights.sameStretch"), ReadWording.weekdayName(Int(data.compareWeekday))))
-                        .font(.footnote)
-                        .foregroundColor(Palette.ink2)
+                        .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                        .foregroundColor(ink)
                         .lineLimit(1)
                     Text(data.compareText)
-                        .font(.footnote.weight(.semibold))
-                        .monospacedDigit()
+                        .font(Font.kassa(14, .semibold, relativeTo: .subheadline).monospacedDigit())
+                        .foregroundColor(ink)
                         .lineLimit(1)
                 }
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 20).fill(Palette.chip))
         }
         .buttonStyle(.plain)
     }
@@ -434,25 +445,28 @@ struct CatLineRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                CategoryIconView(choice: choice, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.body).lineLimit(1)
+                    Text(name)
+                        .font(Font.kassa(17, .semibold, relativeTo: .body))
+                        .foregroundColor(Palette.ink)
+                        .lineLimit(1)
                     let reference = ReadWording.refText(line)
                     if !reference.isEmpty {
-                        Text(reference).font(.footnote).foregroundColor(Palette.ink2).lineLimit(1)
+                        Text(reference)
+                            .font(Font.kassa(12, .regular, relativeTo: .caption))
+                            .foregroundColor(Palette.ink3)
+                            .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 8)
                 Text(line.amountText)
-                    .font(.body.weight(.semibold))
-                    .monospacedDigit()
+                    .font(Font.kassa(17, .bold, relativeTo: .body).monospacedDigit())
                     .foregroundColor(line.over ? Palette.orange : Palette.ink)
                     .lineLimit(1)
             }
             ShareBar(permille: Int(line.barPermille), color: barColor, over: line.over)
-                .padding(.leading, 44)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .frame(minHeight: 56)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
