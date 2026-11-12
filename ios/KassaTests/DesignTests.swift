@@ -80,12 +80,12 @@ final class DesignTests: XCTestCase {
     func testFontLoadsAndFollowsWeights() {
         KassaFont.registerIfNeeded()
         XCTAssertTrue(KassaFont.available)
-        XCTAssertEqual(KassaFont.name(.bold), "HankenGrotesk-Bold")
-        XCTAssertEqual(KassaFont.name(.semibold), "HankenGrotesk-SemiBold")
-        XCTAssertEqual(KassaFont.name(.medium), "HankenGrotesk-Medium")
-        XCTAssertEqual(KassaFont.name(.regular), "HankenGrotesk-Regular")
+        XCTAssertEqual(KassaFont.name(.bold), "Figtree-Bold")
+        XCTAssertEqual(KassaFont.name(.semibold), "Figtree-SemiBold")
+        XCTAssertEqual(KassaFont.name(.medium), "Figtree-Medium")
+        XCTAssertEqual(KassaFont.name(.regular), "Figtree-Regular")
         let font: UIFont = KassaFont.ui(15, .bold)
-        XCTAssertEqual(font.fontName, "HankenGrotesk-Bold")
+        XCTAssertEqual(font.fontName, "Figtree-Bold")
         _ = Font.kassa(15, .semibold, relativeTo: .body)
         _ = Font.kassaFixed(56, .bold)
     }

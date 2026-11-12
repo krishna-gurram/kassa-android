@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 import CoreText
 
-/// The app's typeface: Hanken Grotesk (SIL OFL 1.1), the same four static weights Android bundles (`res/font/hanken_*.ttf`), listed in
+/// The app's typeface: Figtree (SIL OFL 1.1), four static weights built from the Google Fonts variable file, listed in
 /// `UIAppFonts` in project.yml. If the font can't be loaded, everything falls back to the system font at the same sizes.
 enum KassaFont {
-    static let regularName = "HankenGrotesk-Regular"
-    static let mediumName = "HankenGrotesk-Medium"
-    static let semiboldName = "HankenGrotesk-SemiBold"
-    static let boldName = "HankenGrotesk-Bold"
+    static let regularName = "Figtree-Regular"
+    static let mediumName = "Figtree-Medium"
+    static let semiboldName = "Figtree-SemiBold"
+    static let boldName = "Figtree-Bold"
 
     private static let files: [String] = [regularName, mediumName, semiboldName, boldName]
 
@@ -82,7 +82,7 @@ enum KassaFont {
 }
 
 extension Font {
-    /// The app font at [size] points, scaling with Dynamic Type as [style] does. Falls back to the system font if Hanken is missing.
+    /// The app font at [size] points, scaling with Dynamic Type as [style] does. Falls back to the system font if Figtree is missing.
     static func kassa(_ size: CGFloat, _ weight: Font.Weight = .regular, relativeTo style: Font.TextStyle = .body) -> Font {
         if KassaFont.available {
             return Font.custom(KassaFont.name(weight), size: size, relativeTo: style)
