@@ -1052,3 +1052,11 @@
 "d1.waiting.one" = "1 payment waiting";
 "d1.waiting.other" = "%ld payments waiting";
 "d1.seeAll" = "See all";
+/* design d4 */
+"settings.section.preferences" = "Preferences";
+"settings.section.money" = "Money";
+"settings.section.data" = "Data";
+/* design d2 */
+"insights.thisWeek" = "This week";
+"insights.allCount" = "All %ld";
+"insights.showLess" = "Show less";
