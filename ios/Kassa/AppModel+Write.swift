@@ -23,6 +23,8 @@ struct EntryPageRequest: Identifiable {
     var split: SplitState? = nil
     /// Opened from a person's "Split a transaction": the split panel is showing.
     var openSplit = false
+    /// A new entry that starts on this account (an account page's Add entry); 0 for none.
+    var presetAccountId: Int64 = 0
 }
 
 /// The write path of `AppModel`: one transaction on the one queue, then the figures again, then the answer on the main thread.
@@ -109,6 +111,11 @@ extension AppModel {
     /// Opens the entry page on a new entry, or on [draft], the unfinished one a scene kept (see `EntryDraftModel.encoded`).
     func openAdd(draft: String = "") {
         entryPage = EntryPageRequest(editing: nil, amountText: "", draft: draft)
+    }
+
+    /// Opens the entry page on a new entry that starts on account [accountId] (the account page's Add entry).
+    func openAdd(accountId: Int64) {
+        entryPage = EntryPageRequest(editing: nil, amountText: "", draft: "", presetAccountId: accountId)
     }
 
     /// Opens what edits entry [id]: the entry page for an expense, income, transfer or card payment, the person payment sheet for a payment

@@ -1,7 +1,7 @@
 import SwiftUI
 import KassaShared
 
-/// The top of a page: a back button, the title and the eye (Hide balances).
+/// The top of a page: a back arrow at the left, the title centred, and the eye (Hide balances) and "Edit" at the right.
 struct PageTop: View {
     let title: String
     let hidden: Bool
@@ -11,30 +11,40 @@ struct PageTop: View {
     var onEdit: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 4) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Palette.ink)
-                    .frame(minWidth: 48, minHeight: 48)
-            }
-            .accessibilityLabel(Text("a11y.back"))
+        ZStack {
             Text(title)
-                .font(.title2.weight(.bold))
+                .font(Font.kassa(19, .bold, relativeTo: .headline))
+                .foregroundColor(Palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-            Spacer(minLength: 8)
-            if let edit = onEdit {
-                Button(action: edit) {
-                    Text("edit.button")
-                        .font(.body.weight(.semibold))
+                .padding(.horizontal, onEdit == nil ? 56 : 104)
+                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 4) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(Palette.ink)
                         .frame(minWidth: 48, minHeight: 48)
                 }
+                .accessibilityLabel(Text("a11y.back"))
+                Spacer(minLength: 8)
+                editButton
+                EyeButton(hidden: hidden, onToggle: onToggle)
             }
-            EyeButton(hidden: hidden, onToggle: onToggle)
         }
         .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private var editButton: some View {
+        if let edit = onEdit {
+            Button(action: edit) {
+                Text("edit.button")
+                    .font(Font.kassa(16, .semibold))
+                    .foregroundColor(Palette.ink)
+                    .frame(minWidth: 48, minHeight: 48)
+            }
+        }
     }
 }
 
@@ -108,6 +118,78 @@ struct HeroFigure: View {
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .foregroundColor(color)
+    }
+}
+
+/// How the heroes of the card, loan, account and person pages colour their figures: the hero's own ink (brown on orange, green on
+/// green), plain ink on grey, and plain ink while amounts are hidden. The tone itself always comes from :domain.
+enum PageStyle {
+    static func figureColor(_ tone: Tone, hidden: Bool) -> Color {
+        if hidden || tone.name == "Ink" { return Palette.ink }
+        return Palette.heroInk(tone)
+    }
+
+    static func centsColor(_ tone: Tone, hidden: Bool) -> Color {
+        if hidden { return Palette.ink }
+        if tone.name == "Ink" { return Palette.ink3 }
+        return Palette.heroInk(tone).opacity(0.7)
+    }
+}
+
+/// The big figure of a page's hero, with lighter cents.
+struct HeroAmount: View {
+    let text: String
+    let tone: Tone
+    let hidden: Bool
+
+    var body: some View {
+        AmountText(
+            text: text, hidden: hidden, size: 52,
+            color: PageStyle.figureColor(tone, hidden: hidden), centsColor: PageStyle.centsColor(tone, hidden: hidden)
+        )
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .padding(.top, 4)
+    }
+}
+
+/// A small uppercase label over a figure along the foot of a hero.
+struct HeroFootItem: View {
+    let label: LocalizedStringKey
+    let value: String
+    let tone: Tone
+    let hidden: Bool
+    var color: Color = Palette.ink
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .kassa(.label)
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(tone))
+                .lineLimit(1)
+            Text(value)
+                .font(Font.kassa(20, .semibold, relativeTo: .title3).monospacedDigit())
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One pill of a page's action row: ink when it is the primary action, a quiet chip otherwise. 56 pt tall.
+struct PagePill: View {
+    let title: LocalizedStringKey
+    let filled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, filled ? 8 : 24)
+        }
+        .buttonStyle(InkButtonStyle(filled: filled))
     }
 }
 
@@ -185,7 +267,8 @@ struct ClosingSection: View {
 // MARK: - Account
 
 /// A plain account's page (bank, cash, prepaid, investment, loan, other, and a card without statement days): the balance at the end of
-/// the month shown, money in and out, Close or Reopen, and the month's entries by day with Activity's rows. A loan without terms shows this with "Add terms" (a loan with terms has `LoanPageContent`); an investment
+/// the month shown with money in and out along the foot of a hero, Add entry and Correct, Close or Reopen, and the month's entries by
+/// day with Activity's rows. A loan without terms shows this with "Add terms" (a loan with terms has `LoanPageContent`); an investment
 /// shows only this for now. Without its scroll view, so a screenshot can draw it.
 struct AccountPageContent: View {
     let data: AccountPageData
@@ -202,6 +285,8 @@ struct AccountPageContent: View {
     var onCorrect: (() -> Void)? = nil
     /// "Edit": rename, details, balance, kind (batch Q).
     var onEdit: (() -> Void)? = nil
+    /// "Add entry": a new entry that starts on this account.
+    var onAddEntry: (() -> Void)? = nil
 
     private var title: String {
         if data.last4.isEmpty { return data.name }
@@ -216,7 +301,7 @@ struct AccountPageContent: View {
                 canForward: !data.isCurrentMonth, canBack: data.hasEarlier, onShift: onShift
             )
             hero
-            termsAndCorrection
+            actions
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
             entries
         }
@@ -225,43 +310,76 @@ struct AccountPageContent: View {
     }
 
     private var hero: some View {
-        PageHero(tint: Palette.chip) {
-            HeroCaption(text: Wording.accountBalanceTitle(data))
-            HeroFigure(text: data.balanceText, color: Palette.figure(data.balanceTone))
-            HStack(spacing: 8) {
-                FigureBox(label: "accountPage.in", value: data.inText, color: hidden ? Palette.ink : Palette.green)
-                FigureBox(label: "accountPage.out", value: data.outText, color: Palette.ink)
+        TonalHero(tone: data.balanceTone, hidden: hidden) {
+            HeroLabel(text: LocalizedStringKey(Wording.accountBalanceTitle(data)), tone: data.balanceTone, hidden: hidden)
+            HeroAmount(text: data.balanceText, tone: data.balanceTone, hidden: hidden)
+            HStack(alignment: .top, spacing: 36) {
+                HeroFootItem(
+                    label: "accountPage.in", value: data.inText, tone: data.balanceTone, hidden: hidden,
+                    color: hidden ? Palette.ink : Palette.green
+                )
+                HeroFootItem(label: "accountPage.out", value: data.outText, tone: data.balanceTone, hidden: hidden)
+                Spacer(minLength: 0)
             }
-            if data.type == "CREDIT_CARD" && data.closedDay == 0 && !data.hasCardPage {
-                Text("accountPage.cardNeedsDays")
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
-            }
-            if data.maturityDay > 0 {
-                Text(String(format: String(localized: "accounts.maturesOn"), KassaDates.shortDateYear(epochDay: Int(data.maturityDay))))
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
-            }
+            .padding(.top, 14)
+            notes
         }
     }
 
     @ViewBuilder
-    private var termsAndCorrection: some View {
-        if data.type == "LOAN", let addTerms = onAddTerms {
+    private var notes: some View {
+        if data.type == "CREDIT_CARD" && data.closedDay == 0 && !data.hasCardPage {
+            Text("accountPage.cardNeedsDays")
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(data.balanceTone))
+                .padding(.top, 10)
+        }
+        if data.maturityDay > 0 {
+            Text(String(format: String(localized: "accounts.maturesOn"), KassaDates.shortDateYear(epochDay: Int(data.maturityDay))))
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(data.balanceTone))
+                .padding(.top, 10)
+        }
+    }
+
+    private var noTerms: Bool {
+        return data.type == "LOAN" && onAddTerms != nil
+    }
+
+    private var hasPrimary: Bool {
+        if noTerms { return true }
+        return data.closedDay == 0 && onAddEntry != nil
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if noTerms {
             Text("loan.noTerms")
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.ink2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button(action: addTerms) {
-                Text("loan.addTerms")
-            }
-            .buttonStyle(InkButtonStyle(filled: true))
         }
+        HStack(spacing: 12) {
+            primaryPill
+            correctPill
+        }
+    }
+
+    @ViewBuilder
+    private var primaryPill: some View {
+        if noTerms, let addTerms = onAddTerms {
+            PagePill(title: "loan.addTerms", filled: true, action: addTerms)
+        } else if data.closedDay == 0, let add = onAddEntry {
+            PagePill(title: "d6.addEntry", filled: true, action: add)
+        }
+    }
+
+    @ViewBuilder
+    private var correctPill: some View {
         if let correct = onCorrect {
-            Button(action: correct) {
-                Text("correction.open")
-            }
-            .buttonStyle(InkButtonStyle(filled: false))
+            PagePill(title: "d6.correct", filled: false, action: correct)
+                .fixedSize(horizontal: hasPrimary, vertical: false)
+                .accessibilityLabel(Text("correction.open"))
         }
     }
 
@@ -269,7 +387,7 @@ struct AccountPageContent: View {
     private var entries: some View {
         if data.entryCount == 0 {
             Text("accountPage.nothingThisMonth")
-                .font(.body)
+                .font(Font.kassa(15, .regular, relativeTo: .body))
                 .foregroundColor(Palette.ink2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)
@@ -299,11 +417,11 @@ struct StatementSwitcher: View {
             Spacer(minLength: 8)
             VStack(spacing: 2) {
                 Text(title)
-                    .font(.headline)
+                    .font(Font.kassa(17, .semibold, relativeTo: .headline))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text(subtitle)
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -325,9 +443,9 @@ struct StatementSwitcher: View {
     }
 }
 
-/// A card with statement days: Balance payable (what is due, and when), Total balance and Outstanding, Pay card, then statement by
-/// statement the card's entries with Activity's rows. The figures, words and colours come from `LedgerView.cardPage`. Without its
-/// scroll view, so a screenshot can draw it.
+/// A card with statement days: an orange hero with Balance payable (what is due, and when) and Outstanding and Total balance along its
+/// foot, Pay card beside Correct, then statement by statement the card's entries with Activity's rows. The figures, words and
+/// colours come from `LedgerView.cardPage`. Without its scroll view, so a screenshot can draw it.
 struct CardPageContent: View {
     let data: CardPageData
     let hidden: Bool
@@ -349,21 +467,16 @@ struct CardPageContent: View {
         return data.name + " \u{2022}\u{2022}" + data.last4
     }
 
-    private var tint: Color {
-        if hidden { return Palette.chip }
-        return data.hasPayable ? Palette.orange.opacity(0.16) : Palette.green.opacity(0.16)
-    }
-
-    private var payTitle: String {
-        if data.hasPayable { return String(format: String(localized: "cardPage.pay"), data.payText) }
-        return String(localized: "cardPage.recordPayment")
+    private var payKey: LocalizedStringKey {
+        if data.hasPayable { return LocalizedStringKey("d6.card.payCard") }
+        return LocalizedStringKey("cardPage.recordPayment")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             hero
-            correction
+            actions
             ClosingSection(name: data.name, closedDay: Int(data.closedDay), closeProblem: data.closeProblem, onSetClosed: onSetClosed)
             statements
         }
@@ -372,28 +485,35 @@ struct CardPageContent: View {
     }
 
     private var hero: some View {
-        PageHero(tint: tint) {
-            HeroCaption(text: String(localized: "cardPage.balancePayable"))
-            HeroFigure(text: data.payableText, color: Palette.figure(data.payableTone))
+        TonalHero(tone: data.payableTone, hidden: hidden) {
+            HeroLabel(text: "cardPage.balancePayable", tone: data.payableTone, hidden: hidden)
+            HeroAmount(text: data.payableText, tone: data.payableTone, hidden: hidden)
             Text(Wording.cardStatus(data))
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Palette.figure(data.statusTone, muted: true))
-            HStack(spacing: 8) {
-                FigureBox(label: "cardPage.totalBalance", value: data.totalText, color: Palette.figure(data.totalTone))
-                FigureBox(label: "cardPage.outstanding", value: data.outstandingText, color: Palette.ink)
+                .font(Font.kassa(16, .semibold, relativeTo: .subheadline))
+                .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(data.payableTone))
+            HStack(alignment: .top, spacing: 36) {
+                HeroFootItem(label: "cardPage.outstanding", value: data.outstandingText, tone: data.payableTone, hidden: hidden)
+                HeroFootItem(
+                    label: "cardPage.totalBalance", value: data.totalText, tone: data.payableTone, hidden: hidden,
+                    color: Palette.figure(data.totalTone)
+                )
+                Spacer(minLength: 0)
             }
-            if data.canPay {
-                Button(action: onPay) { Text(payTitle) }
-                    .buttonStyle(InkButtonStyle(filled: true))
-            }
+            .padding(.top, 14)
         }
     }
 
     @ViewBuilder
-    private var correction: some View {
-        if let correct = onCorrect {
-            Button(action: correct) { Text("correction.open") }
-                .buttonStyle(InkButtonStyle(filled: false))
+    private var actions: some View {
+        HStack(spacing: 12) {
+            if data.canPay {
+                PagePill(title: payKey, filled: true, action: onPay)
+            }
+            if let correct = onCorrect {
+                PagePill(title: "d6.correct", filled: false, action: correct)
+                    .fixedSize(horizontal: data.canPay, vertical: false)
+                    .accessibilityLabel(Text("correction.open"))
+            }
         }
     }
 
@@ -416,11 +536,11 @@ struct CardPageContent: View {
             }
             Spacer(minLength: 0)
         }
-        .font(.footnote)
+        .font(Font.kassa(13, .regular, relativeTo: .footnote).monospacedDigit())
         .lineLimit(1)
         if data.entryCount == 0 {
             Text(data.back == 0 ? LocalizedStringKey("cardPage.noChargesSince") : LocalizedStringKey("cardPage.nothingOnStatement"))
-                .font(.body)
+                .font(Font.kassa(15, .regular, relativeTo: .body))
                 .foregroundColor(Palette.ink2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 12)
@@ -436,8 +556,9 @@ struct CardPageContent: View {
 
 // MARK: - Person
 
-/// A person's page: who owes whom and how much (and since when), Record a payment, and the history (splits, the starting balance and
-/// payments, newest first). A payment opens its sheet to edit or delete. Without its scroll view, so a screenshot can draw it.
+/// A person's page: a hero with who owes whom and how much (and since when), Record a payment beside Split, and the history (splits,
+/// the starting balance and payments, newest first). A payment opens its sheet to edit or delete. Without its scroll view, so a
+/// screenshot can draw it.
 struct PersonPageContent: View {
     let data: PersonPageData
     let hidden: Bool
@@ -456,15 +577,11 @@ struct PersonPageContent: View {
         return data.name
     }
 
-    private var tint: Color {
-        if hidden { return Palette.chip }
-        return data.side.name == "YouOwe" ? Palette.orange.opacity(0.16) : Palette.green.opacity(0.16)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack, onEdit: onEdit)
             hero
+            actions
             historyList
         }
         .padding(.horizontal, 16)
@@ -472,32 +589,33 @@ struct PersonPageContent: View {
     }
 
     private var hero: some View {
-        PageHero(tint: tint) {
-            HeroCaption(text: Wording.personBalanceTitle(data))
-            HeroFigure(text: data.balanceText, color: Palette.figure(data.balanceTone))
+        TonalHero(tone: data.balanceTone, hidden: hidden) {
+            HeroLabel(text: LocalizedStringKey(Wording.personBalanceTitle(data)), tone: data.balanceTone, hidden: hidden)
+            HeroAmount(text: data.balanceText, tone: data.balanceTone, hidden: hidden)
             if data.sinceDay > 0 {
                 Text(String(format: String(localized: "personPage.since"), KassaDates.shortDate(epochDay: Int(data.sinceDay))))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Palette.ink2)
+                    .font(Font.kassa(16, .semibold, relativeTo: .subheadline))
+                    .foregroundColor(hidden ? Palette.heroGreyInk : Palette.heroInk(data.balanceTone))
             }
-            Button(action: onRecord) { Text("personPage.recordPayment") }
-                .buttonStyle(InkButtonStyle(filled: true))
-            Button(action: onSplit) { Text("personPage.splitATransaction") }
-                .buttonStyle(InkButtonStyle(filled: false))
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 12) {
+            PagePill(title: "personPage.recordPayment", filled: true, action: onRecord)
+            PagePill(title: "personPage.split", filled: false, action: onSplit)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel(Text("personPage.splitATransaction"))
         }
     }
 
     @ViewBuilder
     private var historyList: some View {
-        Text("personPage.history")
-            .font(.caption.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundColor(Palette.ink2)
-            .padding(.top, 8)
+        SectionLabel(title: "personPage.history")
         Hairline()
         if data.lines.isEmpty {
             Text("personPage.nothingYet")
-                .font(.body)
+                .font(Font.kassa(15, .regular, relativeTo: .body))
                 .foregroundColor(Palette.ink2)
                 .padding(.vertical, 12)
         } else {
@@ -524,16 +642,15 @@ struct PersonPageContent: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Wording.personLineNote(line, name: data.name))
-                    .font(.body)
+                    .font(Font.kassa(16, .semibold, relativeTo: .body))
                     .lineLimit(1)
                 Text(KassaDates.shortDateYear(epochDay: Int(line.day)))
-                    .font(.footnote)
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(Palette.ink2)
             }
             Spacer(minLength: 8)
             Text(line.amountText)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
+                .font(Font.kassa(16, .bold, relativeTo: .body).monospacedDigit())
                 .lineLimit(1)
                 .foregroundColor(Palette.figure(line.amountTone))
         }
@@ -662,7 +779,8 @@ struct PageHost: View {
                         onOpen: { row in model.openEntry(id: row.id) },
                         onAddTerms: { model.openAddTerms(accountId: target.id, name: account.name) },
                         onCorrect: { model.openCorrection(accountId: target.id) },
-                        onEdit: { editing = true }
+                        onEdit: { editing = true },
+                        onAddEntry: { model.openAdd(accountId: target.id) }
                     )
                 }
             }

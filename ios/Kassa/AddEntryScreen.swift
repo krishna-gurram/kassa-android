@@ -18,7 +18,8 @@ struct EntryPageHost: View {
         _keptDraft = keptDraft
         let made = EntryDraftModel(
             view: ledger, editing: request.editing, draft: request.draft, today: KassaDates.todayEpochDay(),
-            zone: TimeZone.current.identifier, split: request.split, openSplit: request.openSplit
+            zone: TimeZone.current.identifier, split: request.split, openSplit: request.openSplit,
+            presetAccountId: request.presetAccountId
         )
         _draft = StateObject(wrappedValue: made)
     }

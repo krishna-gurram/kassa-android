@@ -62,6 +62,16 @@ enum KassaDates {
         return formatter("yMMMM").string(from: first)
     }
 
+    /// "Mar 2029": the month and year in the short form, for a tile.
+    static func monthYearShort(year: Int, month: Int) -> String {
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = 1
+        let first = gregorianUTC.date(from: parts) ?? Date(timeIntervalSince1970: 0)
+        return formatter("yMMM").string(from: first)
+    }
+
     /// "November": the month's own name, for tight spots.
     static func monthName(year: Int, month: Int) -> String {
         var parts = DateComponents()
