@@ -1052,3 +1052,7 @@
 "settings.section.preferences" = "Preferences";
 "settings.section.money" = "Money";
 "settings.section.data" = "Data";
+/* design d2 */
+"insights.thisWeek" = "This week";
+"insights.allCount" = "All %ld";
+"insights.showLess" = "Show less";
