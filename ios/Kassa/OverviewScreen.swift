@@ -60,7 +60,6 @@ struct OverviewContent: View {
                 WaitingPill(count: notices.count, onOpen: onOpenNotices)
             }
             hero
-            topRows
             UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard, onSeeAll: notices.isEmpty ? nil : onOpenNotices)
             accountsHeader
             pinRows
