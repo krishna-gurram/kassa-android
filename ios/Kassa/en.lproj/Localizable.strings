@@ -1048,6 +1048,10 @@
 "autoBackup.alertTitle" = "Backup needs attention";
 "autoBackup.alertBody" = "Kassa couldn't save your last few automatic backups. Open Kassa to see why.";
 
+/* design d1 */
+"d1.waiting.one" = "1 payment waiting";
+"d1.waiting.other" = "%ld payments waiting";
+"d1.seeAll" = "See all";
 /* design d4 */
 "settings.section.preferences" = "Preferences";
 "settings.section.money" = "Money";

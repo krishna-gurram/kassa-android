@@ -110,4 +110,12 @@ final class DesignTests: XCTestCase {
         let names: [String] = AppShell.barItems.map { $0.identifier }
         XCTAssertEqual(names, ["tab.overview", "tab.activity", "tab.insights", "tab.accounts", "tab.settings"])
     }
+
+    func testAmountTextSplitsOnlyTheMinorUnits() {
+        XCTAssertEqual(AmountText.split("$1,815.99").0, "$1,815")
+        XCTAssertEqual(AmountText.split("$1,815.99").1, ".99")
+        XCTAssertEqual(AmountText.split("1.234,50").1, ",50")
+        XCTAssertEqual(AmountText.split("$1,234").1, "")
+        XCTAssertEqual(AmountText.split("$99").1, "")
+    }
 }
