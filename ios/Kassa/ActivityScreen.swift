@@ -75,14 +75,14 @@ struct ActivityContent: View {
                 TotalTile(label: "activity.spending", value: data.spendingText, color: Palette.ink, selected: filter == "EXPENSE")
             }
             .buttonStyle(.plain)
-            .disabled(read == nil)
+            .allowsHitTesting(read != nil)
             Button(action: { read?.onTapFilter("INCOME") }) {
                 TotalTile(
                     label: "activity.income", value: data.incomeText, color: Palette.figure(data.incomeTone), selected: filter == "INCOME"
                 )
             }
             .buttonStyle(.plain)
-            .disabled(read == nil)
+            .allowsHitTesting(read != nil)
         }
     }
 
