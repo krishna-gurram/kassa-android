@@ -543,7 +543,7 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     internal val transactions: List<Transaction> = parts.transactions
     internal val categoryById: Map<Long, Category> = parts.categories.associateBy { it.id }
     internal val accountById: Map<Long, Account> = accounts.associateBy { it.id }
-    private val balances: Map<Long, Long> = Balances.of(accounts, transactions)
+    internal val balances: Map<Long, Long> = Balances.of(accounts, transactions)
     private val loanIndex = LoanEntryIndex(parts.loanPayments, parts.loanTerms)
     private val splitEntryIds: Set<Long> = parts.loanEntries.mapNotNull { it.transactionId }.toSet()
 
@@ -2052,6 +2052,25 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     /** Every entry at one store in the last months, newest first, and this month's total. */
     fun storePage(name: String, hidden: Boolean, todayEpochDay: Int, timeZoneId: String): StorePageData =
         shown(hidden) { readViews.storePage(name, localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
+
+    // ---------- Coach, layer 1: the rules (see CoachBridge.kt) ----------
+
+    private val coachViews: CoachViews by lazy { CoachViews(this) }
+
+    /**
+     * Coach as of [todayEpochDay] in the zone [timeZoneId]; [hidden] is Hide balances (every amount is the mask and nothing that would give
+     * a size or a state away is carried). [firstWeekday] is the phone's `Calendar.firstWeekday` (1 Sunday ... 7 Saturday). Reads only; Coach never
+     * changes data.
+     */
+    fun coach(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): CoachData =
+        shown(hidden) { coachViews.build(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), firstWeekday) }
+
+    /**
+     * The exact text an opt-in question would send, one `key: value` line per total (cents as 482.00): never a name, a note, an id or a date.
+     * Call it only when the person has asked and agreed; never draw it on screen (the screens show [CoachData.facts], which is masked while hidden).
+     */
+    fun coachAskPayload(todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): String =
+        coachViews.payload(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), firstWeekday)
 
     /** Settings > Budgets: every top-level expense category against its budget in the current budget month. */
     fun budgetsPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): BudgetsData =
