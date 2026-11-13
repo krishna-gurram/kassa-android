@@ -171,6 +171,8 @@ struct AppShell: View {
     @State private var addingAccount = false
     /// The scene's kept copy of an unfinished new entry, so folding or a scene recreation never loses what was typed.
     @SceneStorage("kassa.entryDraft") private var keptDraft = ""
+    /// The same for an unfinished "Can I afford it?" form (`SimDraft.encoded`).
+    @SceneStorage("kassa.simDraft") private var keptSim = ""
 
     init(model: AppModel, lock: AppLockModel) {
         self.model = model
@@ -217,7 +219,7 @@ struct AppShell: View {
         .onChange(of: model.settingsRequest) { _ in tab = .settings }
         .overlay {
             if !model.readStack.isEmpty {
-                ReadHost(model: model)
+                ReadHost(model: model, keptSim: $keptSim)
             }
         }
         .fullScreenCover(item: $model.entryPage) { request in

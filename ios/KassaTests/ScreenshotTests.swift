@@ -44,6 +44,7 @@ final class ScreenshotTests: XCTestCase {
             try drawReadPages(target)
             try drawImportPages(target)
             try drawCoachPages(target)
+            try drawCoachSimPages(target)
         } catch {
             print("KASSA shots skipped: \(error)")
         }
@@ -487,6 +488,43 @@ final class ScreenshotTests: XCTestCase {
             save(hiddenCheckIn, scheme: scheme, to: target.appendingPathComponent("coach-checkin-hidden-\(suffix).png"))
             let settings = CoachSettingsContent(weekly: .constant(true), cards: .constant(true), facts: shown.facts)
             save(settings, scheme: scheme, to: target.appendingPathComponent("coach-settings-\(suffix).png"))
+        }
+    }
+
+    /// The Coach simulator's answer (a purchase that fits, one that does not, and hidden) and the month list of the demo backup, light and dark.
+    /// Only the layout parts are drawn: the ask form's number pad, tiles and calendar are native controls that ImageRenderer cannot draw.
+    @MainActor
+    private func drawCoachSimPages(_ target: URL) throws {
+        let view = try DemoFixture.view(directory: directory.appendingPathComponent("demo-sim", isDirectory: true), keys: MemoryKeyStore())
+        let day: Int32 = DemoFixture.lastOfOctober
+        let when = Int(day) + 3
+        let fits = SimChips.spend(cents: 90_000, day: when, shown: view.currencySymbol() + "900.00")
+        let big = SimChips.spend(cents: 99_999_999, day: when, shown: view.currencySymbol() + "999,999.99")
+        let payday = SimChips.payday(toDay: Int(day) + 9)
+        let symbol = view.currencySymbol()
+        let cushion: Int64 = 100_000
+        func run(_ chips: [SimChip], hidden: Bool) -> CoachSimData {
+            return view.coachSim(
+                hidden: hidden, todayEpochDay: day, timeZoneId: "UTC", firstWeekday: 2, whatIfs: SimChips.text(chips), cushionCents: cushion
+            )
+        }
+        let fitsData = run([fits], hidden: false)
+        let bigData = run([big], hidden: false)
+        let hiddenData = run([fits], hidden: true)
+        let monthData = run([fits, payday], hidden: false)
+        print("KASSA sim shots: fits \(fitsData.verdict), big \(bigData.verdict), month \(monthData.verdict), hidden \(hiddenData.verdict)")
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            let answer = SimAnswerContent(data: fitsData, hidden: false, cushionCents: cushion, symbol: symbol, onBack: {}, onToggleHidden: {})
+            save(answer, scheme: scheme, to: target.appendingPathComponent("coachsim-answer-\(suffix).png"))
+            let short = SimAnswerContent(data: bigData, hidden: false, cushionCents: cushion, symbol: symbol, onBack: {}, onToggleHidden: {})
+            save(short, scheme: scheme, to: target.appendingPathComponent("coachsim-answer-short-\(suffix).png"))
+            let masked = SimAnswerContent(data: hiddenData, hidden: true, cushionCents: cushion, symbol: symbol, onBack: {}, onToggleHidden: {})
+            save(masked, scheme: scheme, to: target.appendingPathComponent("coachsim-answer-hidden-\(suffix).png"))
+            let month = SimMonthContent(
+                data: monthData, hidden: false, applied: [fits, payday], cushionCents: cushion, symbol: symbol, onBack: {}, onToggleHidden: {}
+            )
+            save(month, scheme: scheme, to: target.appendingPathComponent("coachsim-month-\(suffix).png"))
         }
     }
 

@@ -11,9 +11,17 @@ enum ReadRoute: Equatable {
     /// Coach's page and its weekly check-in (`CoachScreens.swift`); their figures are `AppModel.coach`.
     case coach
     case checkIn
+    /// The Coach simulator (`CoachSimScreens.swift`): the "Can I afford it?" form, its answer and "Simulate my month". Their figures are `AppModel.sim`.
+    case coachAsk
+    case coachAnswer
+    case coachMonth
 
     var isCoach: Bool {
-        return self == ReadRoute.coach || self == ReadRoute.checkIn
+        return self == ReadRoute.coach || self == ReadRoute.checkIn || isSim
+    }
+
+    var isSim: Bool {
+        return self == ReadRoute.coachAsk || self == ReadRoute.coachAnswer || self == ReadRoute.coachMonth
     }
 }
 
@@ -80,7 +88,7 @@ extension AppModel {
             page.detail = made.insightDetail(
                 kind: kind, hidden: given.hidden, todayEpochDay: day, timeZoneId: zone, firstWeekday: first
             )
-        case .coach, .checkIn:
+        case .coach, .checkIn, .coachAsk, .coachAnswer, .coachMonth:
             break
         }
         return page

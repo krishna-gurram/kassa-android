@@ -34,10 +34,11 @@ struct ReadTop: View {
 /// The page on top of the read stack, over the whole tab view, with its own scroll.
 struct ReadHost: View {
     @ObservedObject var model: AppModel
+    var keptSim: Binding<String> = .constant("")
 
     var body: some View {
         if let route = model.readStack.last, route.isCoach {
-            CoachHost(model: model, route: route)
+            CoachHost(model: model, route: route, keptSim: keptSim)
         } else {
             pageScroll
         }

@@ -142,6 +142,8 @@ struct CoachContent: View {
     let onToggleHidden: () -> Void
     var onOpenCard: (CoachTarget) -> Void = { _ in }
     var onOpenCheckIn: () -> Void = {}
+    var onOpenAfford: () -> Void = {}
+    var onOpenMonth: () -> Void = {}
 
     private var cards: [CoachCard] {
         return CoachWording.cards(data, enabled: showCards)
@@ -160,6 +162,24 @@ struct CoachContent: View {
         VStack(alignment: .leading, spacing: 12) {
             ReadTop(title: String(localized: "coach.title"), hidden: hidden, onBack: onBack, onToggleHidden: onToggleHidden)
             top
+            SectionLabel(title: "coachsim.section")
+                .padding(.top, 6)
+            Button(action: onOpenAfford) {
+                CoachRowCard(
+                    symbol: "questionmark.circle", tint: Palette.blue, title: String(localized: "coachsim.afford.title"),
+                    detail: String(localized: "coachsim.afford.body")
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("coachAfford")
+            Button(action: onOpenMonth) {
+                CoachRowCard(
+                    symbol: "calendar", tint: Palette.teal, title: String(localized: "coachsim.simulate.title"),
+                    detail: String(localized: "coachsim.simulate.body")
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("coachSimulate")
             if showCards && !hidden || checkInLink {
                 SectionLabel(title: "coach.section.thisWeek", link: sectionLink, onLink: onOpenCheckIn)
                     .padding(.top, 6)
@@ -331,9 +351,19 @@ struct CheckInContent: View {
 struct CoachHost: View {
     @ObservedObject var model: AppModel
     let route: ReadRoute
+    /// The scene's kept copy of the "Can I afford it?" form (see `SimDraft`).
+    var keptSim: Binding<String> = .constant("")
     @State private var editing: BudgetEditRequest?
 
     var body: some View {
+        if route.isSim {
+            SimHost(model: model, route: route, kept: keptSim)
+        } else {
+            scrollBody
+        }
+    }
+
+    private var scrollBody: some View {
         ScrollView {
             if let data = model.coach {
                 page(data)
@@ -365,7 +395,9 @@ struct CoachHost: View {
                 data: data, hidden: model.hideAmounts, showCards: model.coachCards, weeklyOn: model.coachWeekly,
                 onBack: { model.closeRead() }, onToggleHidden: { model.toggleHidden() },
                 onOpenCard: { target in model.openCoachTarget(target) },
-                onOpenCheckIn: { model.openCheckIn() }
+                onOpenCheckIn: { model.openCheckIn() },
+                onOpenAfford: { model.openSimAsk() },
+                onOpenMonth: { model.openSimMonth() }
             )
         }
     }
@@ -379,6 +411,9 @@ struct CoachSettingsContent: View {
     @Binding var weekly: Bool
     @Binding var cards: Bool
     let facts: [CoachFactRowData]
+    /// The cushion field's text and the currency's symbol; nil leaves the Cushion section out (a screenshot).
+    var cushion: Binding<String>? = nil
+    var symbol: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -393,6 +428,7 @@ struct CoachSettingsContent: View {
             Hairline()
             switchRow(title: "coach.set.cards", hint: "coach.set.cardsHint", isOn: $cards, identifier: "coachCardsSwitch")
             Hairline()
+            cushionSection
             sendsCard
                 .padding(.top, 20)
             Text("coach.set.server")
@@ -403,6 +439,30 @@ struct CoachSettingsContent: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 96)
+    }
+
+    @ViewBuilder
+    private var cushionSection: some View {
+        if let text = cushion {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("coachsim.cushion.title")
+                    .kassa(.label)
+                    .foregroundColor(Palette.ink2)
+                    .padding(.top, 16)
+                FormField(label: "coachsim.cushion.label", problem: nil) {
+                    HStack(spacing: 6) {
+                        Text(symbol).foregroundColor(Palette.ink2)
+                        TextField("coachsim.cushion.hint", text: text)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+                .accessibilityIdentifier("coachCushion")
+                Text("coachsim.cushion.help")
+                    .font(Font.kassa(14, .regular, relativeTo: .footnote))
+                    .foregroundColor(Palette.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private func switchRow(title: LocalizedStringKey, hint: LocalizedStringKey, isOn: Binding<Bool>, identifier: String) -> some View {
@@ -461,11 +521,16 @@ struct CoachSettingsPage: View {
     var body: some View {
         let weekly = Binding<Bool>(get: { model.coachWeekly }, set: { value in model.setCoachWeekly(value) })
         let cards = Binding<Bool>(get: { model.coachCards }, set: { value in model.setCoachCards(value) })
+        let cushion = Binding<String>(get: { model.simCushionText }, set: { value in model.setSimCushion(value) })
         return ScrollView {
-            CoachSettingsContent(weekly: weekly, cards: cards, facts: model.coach?.facts ?? [])
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
+            CoachSettingsContent(
+                weekly: weekly, cards: cards, facts: model.coach?.facts ?? [], cushion: cushion,
+                symbol: model.picks?.currencySymbol() ?? ""
+            )
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
         }
         .background(Palette.ground.ignoresSafeArea())
+        .onAppear { model.loadSimCushionText() }
     }
 }

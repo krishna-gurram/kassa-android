@@ -7,13 +7,16 @@ struct EntryCalendar: View {
     let selected: Int
     let today: Int
     let onPick: (Int) -> Void
+    /// The days that can be picked. nil is the entry page's rule: every day up to today. The Coach simulator passes today to 30 days on.
+    let range: ClosedRange<Int>?
 
     @State private var year: Int
     @State private var month: Int
 
-    init(selected: Int, today: Int, onPick: @escaping (Int) -> Void) {
+    init(selected: Int, today: Int, range: ClosedRange<Int>? = nil, onPick: @escaping (Int) -> Void) {
         self.selected = selected
         self.today = today
+        self.range = range
         self.onPick = onPick
         let shown = KassaDates.yearMonth(epochDay: selected)
         _year = State(initialValue: shown.year)
@@ -25,8 +28,24 @@ struct EntryCalendar: View {
     }
 
     private var canGoNext: Bool {
+        if let allowed = range {
+            let last = KassaDates.yearMonth(epochDay: allowed.upperBound)
+            return year * 12 + month < last.year * 12 + last.month
+        }
         let now = current
         return year * 12 + month < now.year * 12 + now.month
+    }
+
+    /// With a range, the months before its first day are not offered; the entry page has no such limit.
+    private var canGoPrevious: Bool {
+        guard let allowed = range else { return true }
+        let first = KassaDates.yearMonth(epochDay: allowed.lowerBound)
+        return year * 12 + month > first.year * 12 + first.month
+    }
+
+    private func isPickable(_ epoch: Int) -> Bool {
+        if let allowed = range { return allowed.contains(epoch) }
+        return epoch <= today
     }
 
     /// The epoch day of the 1st of the shown month.
@@ -103,9 +122,10 @@ struct EntryCalendar: View {
             Button(action: { shift(-1) }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Palette.ink)
+                    .foregroundColor(canGoPrevious ? Palette.ink : Palette.ink3.opacity(0.5))
                     .frame(minWidth: 48, minHeight: 48)
             }
+            .disabled(!canGoPrevious)
             .accessibilityLabel(Text("a11y.previousMonth"))
             Text(KassaDates.monthYear(year: year, month: month))
                 .font(Font.kassa(17, .semibold, relativeTo: .body))
@@ -141,7 +161,7 @@ struct EntryCalendar: View {
     private func dayButton(_ day: Int) -> some View {
         let epoch: Int = firstEpoch + day - 1
         let on: Bool = epoch == selected
-        let future: Bool = epoch > today
+        let future: Bool = !isPickable(epoch)
         let isToday: Bool = epoch == today
         return Button(action: { onPick(epoch) }) {
             Text(String(day))
