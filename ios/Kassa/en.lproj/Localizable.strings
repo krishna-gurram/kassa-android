@@ -943,6 +943,7 @@
 "cats.searchIcons" = "Search icons";
 "cats.color" = "Colour";
 "cats.alsoUsedBy" = "Also used by %@";
+"cats.budget" = "Monthly budget";
 "cats.counts" = "Counts toward daily spending";
 "cats.countsNote" = "Turn off for rent, bills and other big costs you don't want in your daily figure.";
 "cats.subs" = "SUBCATEGORIES";

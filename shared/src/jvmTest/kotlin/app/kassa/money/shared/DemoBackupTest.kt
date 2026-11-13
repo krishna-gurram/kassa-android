@@ -70,6 +70,25 @@ class DemoBackupTest {
     }
 
     @Test
+    fun overviewTilesAreSizedByShareWithAFloorAndEqualWhileHidden() {
+        KassaCore.installDefaults()
+        val o = LedgerView(demo(), null).overview(false, lastOfOctober, "UTC", 2)
+        // October: 180,000 + 44,320 + 19,223 = 243,543 cents; Home is 739 per thousand, the other two are under the floor of 300.
+        assertEquals(listOf(180_000L, 44_320L, 19_223L).map { (it * 1000 / 243_543).toInt() }, listOf(739, 181, 78))
+        assertEquals(listOf(739, 300, 300), o.spending.top.map { it.tileWeight })
+        // Income's two categories: each weighs its share of the two, never under the floor.
+        assertEquals(o.income.top.size, 2)
+        o.income.top.forEach { assertTrue(it.tileWeight in 300..1000) }
+        assertTrue(o.income.top[0].tileWeight >= o.income.top[1].tileWeight)
+        // Hide balances: every tile the same, whatever it spent.
+        val hidden = LedgerView(demo(), null).overview(true, lastOfOctober, "UTC", 2)
+        assertEquals(listOf(1000, 1000, 1000), hidden.spending.top.map { it.tileWeight })
+        assertEquals(listOf(1000, 1000), hidden.income.top.map { it.tileWeight })
+        // Week view too, and a flow with nothing has no tiles.
+        hidden.weekSpending.top.forEach { assertEquals(1000, it.tileWeight) }
+    }
+
+    @Test
     fun overviewTodayIsTheCurrentMonthUpToToday() {
         KassaCore.installDefaults()
         val json = File(dir + "expected.json").readText()

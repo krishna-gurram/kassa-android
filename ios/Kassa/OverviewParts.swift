@@ -51,20 +51,6 @@ struct AmountText: View {
     }
 }
 
-/// The stacked category bar of the hero: one rounded segment per category in its colour.
-struct CategoryBar: View {
-    let colors: [Color]
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<colors.count, id: \.self) { index in
-                Capsule().fill(colors[index]).frame(height: 10)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 /// The colour a top category draws in (its own, or a neutral grey without a category).
 enum CategoryTint {
     static func color(_ item: TopCategoryData) -> Color {
@@ -77,21 +63,50 @@ enum CategoryTint {
     }
 }
 
-/// One legend entry under the bar: a dot and the category name, at least 48 pt tall. Opens the category when [onTap] is given.
-struct LegendItem: View {
+/// One of Overview's top categories as a tile: a stripe in its colour, its icon, name and amount on a pale wash of the colour. It is as
+/// wide as its row gives it (`WeightedRow`) and at least 48 pt tall. Opens the category when [onTap] is given.
+struct CategoryTile: View {
     let item: TopCategoryData
     let onTap: (() -> Void)?
 
+    private var tint: Color { CategoryTint.color(item) }
+
+    private var choice: CategoryChoiceData {
+        return CategoryChoiceData(
+            id: item.id, name: CategoryTint.name(item), parentName: "", iconKind: item.iconKind, iconValue: item.iconValue,
+            color: item.color, hasSubcategories: false
+        )
+    }
+
     private var label: some View {
-        HStack(spacing: 6) {
-            Circle().fill(CategoryTint.color(item)).frame(width: 10, height: 10)
-            Text(CategoryTint.name(item))
-                .font(Font.kassa(15, .medium, relativeTo: .subheadline))
-                .foregroundColor(Palette.ink2)
-                .lineLimit(1)
+        HStack(spacing: 0) {
+            Rectangle().fill(tint).frame(width: 3)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    CategoryIconView(choice: choice, size: 28)
+                    Text(CategoryTint.name(item))
+                        .font(Font.kassa(12, .medium, relativeTo: .caption))
+                        .foregroundColor(Palette.ink2)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Text(item.amountText)
+                    .font(Font.kassa(15, .semibold, relativeTo: .subheadline))
+                    .monospacedDigit()
+                    .foregroundColor(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .frame(minHeight: 48)
-        .contentShape(Rectangle())
+        .background(tint.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -101,6 +116,63 @@ struct LegendItem: View {
                 .buttonStyle(.plain)
         } else {
             label
+        }
+    }
+}
+
+/// The top categories as tiles in one row, each as wide as its weight (`TopCategoryData.tileWeight`, :domain's `OverviewTiles`: its share
+/// of the three, with a floor so a small one still holds its icon, equal while amounts are hidden).
+struct CategoryTiles: View {
+    let items: [TopCategoryData]
+    let onTap: ((TopCategoryData) -> Void)?
+
+    private func tap(for item: TopCategoryData) -> (() -> Void)? {
+        guard let handler = onTap else { return nil }
+        return { handler(item) }
+    }
+
+    var body: some View {
+        WeightedRow(weights: items.map { Int($0.tileWeight) }, spacing: 6) {
+            ForEach(items, id: \.id) { item in
+                CategoryTile(item: item, onTap: tap(for: item))
+            }
+        }
+    }
+}
+
+/// A row that gives each child a width in proportion to its weight (after the gaps) and the height of the tallest child.
+struct WeightedRow: Layout {
+    let weights: [Int]
+    let spacing: CGFloat
+
+    /// The width of each of [count] children in [total] points; a child without a weight counts as 1000.
+    static func widths(weights: [Int], count: Int, total: CGFloat, spacing: CGFloat) -> [CGFloat] {
+        if count == 0 { return [] }
+        let parts: [CGFloat] = (0..<count).map { index in CGFloat(index < weights.count ? max(weights[index], 1) : 1000) }
+        let sum: CGFloat = parts.reduce(0, +)
+        let room: CGFloat = max(total - spacing * CGFloat(count - 1), 0)
+        return parts.map { room * $0 / sum }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let total: CGFloat = proposal.width ?? 320
+        let widths: [CGFloat] = WeightedRow.widths(weights: weights, count: subviews.count, total: total, spacing: spacing)
+        var height: CGFloat = 0
+        for (index, view) in subviews.enumerated() {
+            height = max(height, view.sizeThatFits(ProposedViewSize(width: widths[index], height: nil)).height)
+        }
+        return CGSize(width: total, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let widths: [CGFloat] = WeightedRow.widths(weights: weights, count: subviews.count, total: bounds.width, spacing: spacing)
+        var x: CGFloat = bounds.minX
+        for (index, view) in subviews.enumerated() {
+            view.place(
+                at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                proposal: ProposedViewSize(width: widths[index], height: bounds.height)
+            )
+            x += widths[index] + spacing
         }
     }
 }

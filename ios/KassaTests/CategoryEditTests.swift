@@ -127,4 +127,96 @@ final class CategoryEditTests: XCTestCase {
             XCTAssertNotEqual(IconSymbols.symbol(for: name), "tag", name)
         }
     }
+
+    // MARK: Budget fields of the editor
+
+    private var today: Int32 { return Int32(KassaDates.todayEpochDay()) }
+
+    private func input(_ id: Int64, _ name: String, kind: String = "EXPENSE") throws -> CategoryInput {
+        let found = try ledger().categoryEdit(categoryId: id).input
+        return CategoryInput(
+            id: id, kind: kind, parentId: found.parentId, name: name, iconKind: found.iconKind, iconValue: found.iconValue,
+            color: found.color, counts: found.counts, hidden: found.hidden
+        )
+    }
+
+    private func plan(_ input: CategoryInput, every: String, thisMonth: String = "") throws -> CategorySavePlanData {
+        return try ledger().categorySavePlan(input: input, every: every, thisMonth: thisMonth, todayEpochDay: today)
+    }
+
+    func testANewCategoryIsSavedWithItsBudgetInOneTransaction() throws {
+        let blank = try ledger().categoryNew(kind: "EXPENSE").input
+        let fresh = CategoryInput(
+            id: 0, kind: "EXPENSE", parentId: 0, name: "Fuel", iconKind: "emoji", iconValue: "x",
+            color: blank.color, counts: true, hidden: false
+        )
+        let made = try plan(fresh, every: "120")
+        XCTAssertTrue(made.problems.isEmpty)
+        let id = try store.saveCategory(fresh, budgetChanges: made.changes)
+        let stored = try ledger().budgetEdit(categoryId: id, todayEpochDay: today)
+        XCTAssertEqual(stored.everyInput, "120")
+        XCTAssertEqual(stored.monthInput, "")
+    }
+
+    func testEditingChangesAndRemovesBothBudgetRows() throws {
+        let id = try make("Food")
+        let named = try input(id, "Food")
+        let set = try plan(named, every: "250", thisMonth: "300")
+        try store.saveCategory(named, budgetChanges: set.changes)
+        var stored = try ledger().budgetEdit(categoryId: id, todayEpochDay: today)
+        XCTAssertEqual(stored.everyInput, "250")
+        XCTAssertEqual(stored.monthInput, "300")
+        let cleared = try plan(named, every: "", thisMonth: "")
+        try store.saveCategory(named, budgetChanges: cleared.changes)
+        stored = try ledger().budgetEdit(categoryId: id, todayEpochDay: today)
+        XCTAssertEqual(stored.everyInput, "")
+        XCTAssertEqual(stored.monthInput, "")
+    }
+
+    func testABadAmountIsAProblemByFieldAndNothingIsPlanned() throws {
+        let id = try make("Food")
+        let bad = try plan(try input(id, "Food"), every: "0", thisMonth: "abc")
+        XCTAssertEqual(bad.problems.map { $0.field }, ["EVERY_MONTH", "THIS_MONTH"])
+        XCTAssertTrue(bad.changes.isEmpty)
+    }
+
+    func testAFailureAfterTheWritesRollsTheCategoryAndItsBudgetBack() throws {
+        let id = try make("Food")
+        let renamed = try input(id, "Eating")
+        let set = try plan(renamed, every: "400")
+        struct Boom: Error {}
+        store.afterInsertHook = { throw Boom() }
+        XCTAssertThrowsError(try store.saveCategory(renamed, budgetChanges: set.changes))
+        let blank = try ledger().categoryNew(kind: "EXPENSE").input
+        let fresh = CategoryInput(
+            id: 0, kind: "EXPENSE", parentId: 0, name: "Fuel", iconKind: "emoji", iconValue: "x",
+            color: blank.color, counts: true, hidden: false
+        )
+        XCTAssertThrowsError(try store.saveCategory(fresh, budgetChanges: try plan(fresh, every: "50").changes))
+        store.afterInsertHook = nil
+        XCTAssertEqual(try ledger().categoryEdit(categoryId: id).input.name, "Food")
+        XCTAssertEqual(try ledger().budgetEdit(categoryId: id, todayEpochDay: today).everyInput, "")
+        XCTAssertEqual(try ledger().categoryList(kind: "EXPENSE").active.count, 1)
+    }
+
+    func testARefusedBudgetAmountLeavesTheRenameUnsaved() throws {
+        let id = try make("Food")
+        let renamed = try input(id, "Eating")
+        let wrong = [BudgetChangeData(categoryId: 0, month: 0, amount: 0, isRemoval: false)]
+        XCTAssertTrue(refused { _ = try store.saveCategory(renamed, budgetChanges: wrong) })
+        XCTAssertEqual(try ledger().categoryEdit(categoryId: id).input.name, "Food")
+    }
+
+    func testIncomeCategoriesAndSubcategoriesHaveNoBudgetFields() throws {
+        let salary = try make("Salary", kind: "INCOME")
+        let top = try make("Food")
+        let sub = try store.addSubcategory(parentId: top, name: "Lunch")
+        XCTAssertFalse(try ledger().categoryEdit(categoryId: salary).hasBudget)
+        XCTAssertFalse(try ledger().categoryEdit(categoryId: sub).hasBudget)
+        let edit = try ledger().categoryEdit(categoryId: top)
+        XCTAssertTrue(edit.hasBudget)
+        XCTAssertTrue(edit.hasMonthBudget)
+        XCTAssertTrue(try ledger().categoryNew(kind: "EXPENSE").hasBudget)
+        XCTAssertFalse(try ledger().categoryNew(kind: "EXPENSE").hasMonthBudget)
+    }
 }

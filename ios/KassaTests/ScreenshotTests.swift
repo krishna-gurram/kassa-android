@@ -87,6 +87,7 @@ final class ScreenshotTests: XCTestCase {
             let hiddenOverview = OverviewContent(data: masked, hidden: true, onToggleHidden: {}, onAllAccounts: {})
             save(hiddenOverview, scheme: scheme, to: target.appendingPathComponent("overview-hidden-\(suffix).png"))
             drawInsights(target, view: view, today: expected.today, scheme: scheme, suffix: suffix)
+            drawCategoryEditor(target, view: view, scheme: scheme, suffix: suffix)
             let settings = SettingsContent(
                 hidden: false, currencyName: currencyName, working: false, message: nil, notice: nil, linked: false,
                 onSetHidden: { _ in }, onBackUp: {}, onRestore: {},
@@ -94,6 +95,21 @@ final class ScreenshotTests: XCTestCase {
             )
             save(settings, scheme: scheme, to: target.appendingPathComponent("settings-\(suffix).png"))
         }
+    }
+
+    /// The category editor's layout for the demo's first expense category (name, icon, budget fields, daily switch) and the Overview's share-sized tiles
+    /// are drawn by the Overview shots above; this draws the editor's own budget part with a saved category and with a problem shown.
+    @MainActor
+    private func drawCategoryEditor(_ target: URL, view: LedgerView, scheme: ColorScheme, suffix: String) {
+        guard let first = view.categoryList(kind: "EXPENSE").active.first else { return }
+        let found = view.categoryEdit(categoryId: first.choice.id)
+        guard found.found else { return }
+        let choice = CategoryChoiceData(
+            id: found.input.id, name: found.input.name, parentName: "", iconKind: found.input.iconKind,
+            iconValue: found.input.iconValue, color: found.input.color, hasSubcategories: false
+        )
+        let editor = CategoryEditorShot(choice: choice, hasMonth: found.hasMonthBudget)
+        save(editor, scheme: scheme, to: target.appendingPathComponent("category-editor-budget-\(suffix).png"))
     }
 
     /// The demo's Travel card page (shown and hidden) and its pay-card sheet, light and dark, on the demo's own "today".
@@ -551,5 +567,30 @@ final class ScreenshotTests: XCTestCase {
         } catch {
             print("KASSA shot not written: \(file.lastPathComponent)")
         }
+    }
+}
+
+
+/// A category editor's top and budget part, as the sheet lays them out, for the screenshots (the sheet itself needs the model).
+private struct CategoryEditorShot: View {
+    let choice: CategoryChoiceData
+    let hasMonth: Bool
+    @State private var every = "250"
+    @State private var thisMonth = "300"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                CategoryIconView(choice: choice, size: 44)
+                Text(choice.name).font(.headline)
+            }
+            CategoryBudgetFields(
+                showMonth: hasMonth, monthLabel: "October 2026", every: $every, thisMonth: $thisMonth,
+                everyProblem: nil, monthProblem: "Enter an amount."
+            )
+            Toggle(isOn: .constant(true)) { Text("cats.counts") }.frame(minHeight: 48)
+            Text("cats.countsNote").font(.footnote).foregroundColor(Palette.ink2)
+        }
+        .padding(16)
     }
 }

@@ -64,7 +64,13 @@ struct OverviewContent: View {
             if !notices.isEmpty {
                 WaitingPill(count: notices.count, onOpen: onOpenNotices)
             }
-            hero
+            VStack(alignment: .leading, spacing: 8) {
+                hero
+                if !flow.top.isEmpty {
+                    CategoryTiles(items: flow.top, onTap: tileTap)
+                        .accessibilityIdentifier("topCategoryTiles")
+                }
+            }
             if let line = coachLine {
                 CoachTeaserCard(line: line, onOpen: onOpenCoach)
             }
@@ -85,6 +91,13 @@ struct OverviewContent: View {
     /// (the rule is :shared's `weekCategoryBack`, as the spending page's).
     private var categoryBack: Int {
         return showWeek ? Int(data.weekCategoryBack) : 0
+    }
+
+    /// A spending tile opens the category's page; income tiles only show (as the legend before them).
+    private var tileTap: ((TopCategoryData) -> Void)? {
+        if showIncome { return nil }
+        let back: Int = categoryBack
+        return { item in onOpenCategory(item.id, back) }
     }
 
     private var monthTitle: String {
@@ -122,10 +135,6 @@ struct OverviewContent: View {
                 Text(showIncome ? "overview.noIncome" : "overview.noSpending")
                     .font(Font.kassa(13, .regular, relativeTo: .footnote))
                     .foregroundColor(inkColor)
-            } else {
-                CategoryBar(colors: flow.top.map { CategoryTint.color($0) })
-                    .padding(.top, 6)
-                legend
             }
         }
     }
@@ -161,28 +170,6 @@ struct OverviewContent: View {
         .confirmationDialog(Text("overview.choosePeriod"), isPresented: $choosingPeriod, titleVisibility: .visible) {
             Button(monthTitle) { showWeek = false }
             Button("overview.thisWeek") { showWeek = true }
-        }
-    }
-
-    // MARK: Top categories
-
-    /// The legend under the bar: a dot and name for each top category, on one line when they fit and stacked when they don't.
-    private var legend: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 16) { legendItems }
-            VStack(alignment: .leading, spacing: 0) { legendItems }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var legendItems: some View {
-        ForEach(flow.top, id: \.id) { item in
-            if showIncome {
-                LegendItem(item: item, onTap: nil)
-            } else {
-                LegendItem(item: item, onTap: { onOpenCategory(item.id, categoryBack) })
-            }
         }
     }
 

@@ -305,17 +305,17 @@ private fun FlowSection(ledger: Ledger, income: Boolean, setIncome: (Boolean) ->
  */
 @Composable
 private fun TopTiles(top: List<Pair<app.kassa.money.domain.Category?, Long>>, onOpenCategory: (Long) -> Unit, onOpen: () -> Unit) {
-    val sum = top.sumOf { it.second }.coerceAtLeast(1)
+    val weights = app.kassa.money.domain.OverviewTiles.weights(top.map { it.second }, Money.isHidden)
     val none = Kassa.colors.ink3
     Row(
         Modifier.fillMaxWidth().padding(top = 8.dp).height(androidx.compose.foundation.layout.IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        top.forEach { (c, amt) ->
+        top.forEachIndexed { i, (c, amt) ->
             val color = c?.let { Color(it.color) } ?: none
             val name = c?.name ?: stringResource(R.string.today_uncategorized)
             Row(
-                Modifier.weight((amt.toFloat() / sum).coerceAtLeast(0.3f)).fillMaxHeight().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
+                Modifier.weight(weights[i] / 1000f).fillMaxHeight().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
                     .background(color.copy(alpha = 0.18f)).clickable { if (c != null) onOpenCategory(c.id) else onOpen() },
             ) {
                 Box(Modifier.width(3.dp).fillMaxHeight().background(color))

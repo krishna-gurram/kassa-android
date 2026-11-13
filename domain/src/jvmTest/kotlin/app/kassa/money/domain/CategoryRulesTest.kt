@@ -138,4 +138,60 @@ class CategoryRulesTest {
         assertFalse(saved.countsTowardDaily)
         assertTrue(saved.hidden)
     }
+
+    // ---------- the editor's save plan ----------
+
+    private val oct = YearMonth(2026, 10)
+    private val budgets = listOf(Budget(1, 0, 25_000), Budget(1, 202610, 30_000))
+
+    private fun plan(c: Category, every: String?, month: String?, b: List<Budget> = budgets) = CategoryRules.savePlan(
+        all, c, oct, b, every != null, every?.toLongOrNull(), month != null, month?.toLongOrNull(),
+    )
+
+    @Test
+    fun budgetFieldsBelongToTopLevelExpenseCategories() {
+        assertTrue(CategoryRules.hasBudget(all[0]))
+        assertTrue(CategoryRules.hasMonthBudget(all[0]))
+        assertTrue(CategoryRules.hasBudget(blankExpense()))
+        assertFalse(CategoryRules.hasMonthBudget(blankExpense()))
+        assertFalse(CategoryRules.hasBudget(all[3]))
+        assertFalse(CategoryRules.hasBudget(all[4]))
+    }
+
+    private fun blankExpense() = CategoryRules.blank(all, CategoryKind.EXPENSE).copy(name = "Fuel")
+
+    @Test
+    fun savingSetsOrRemovesTheEveryMonthAndThisMonthRows() {
+        val g = all[0]
+        assertEquals(listOf(BudgetRules.Change(1, 0, 40_000, false), BudgetRules.Change(1, 202610, 0, true)), plan(g, "40000", null).changes)
+        assertEquals(listOf(BudgetRules.Change(1, 0, 0, true), BudgetRules.Change(1, 202610, 0, true)), plan(g, null, null).changes)
+        assertEquals(listOf(BudgetRules.Change(1, 0, 25_000, false), BudgetRules.Change(1, 202610, 31_000, false)), plan(g, "25000", "31000").changes)
+        // Nothing stored and nothing typed: nothing to write.
+        assertTrue(plan(g, null, null, emptyList()).changes.isEmpty())
+    }
+
+    @Test
+    fun aNewCategorySavesItsEveryMonthBudgetAgainstIdZeroAndIgnoresThisMonth() {
+        val fresh = blankExpense()
+        val p = plan(fresh, "12000", "9000", emptyList())
+        assertTrue(p.problems.isEmpty())
+        assertEquals(listOf(BudgetRules.Change(0, 0, 12_000, false)), p.changes)
+    }
+
+    @Test
+    fun problemsAreByFieldAndNothingIsPlannedWhileThereIsOne() {
+        val g = all[0]
+        val bad = plan(g.copy(name = ""), "0", "abc")
+        assertEquals(listOf(CategoryRules.SaveField.NAME, CategoryRules.SaveField.EVERY_MONTH, CategoryRules.SaveField.THIS_MONTH), bad.problems.map { it.field })
+        assertTrue(bad.changes.isEmpty())
+        val tooBig = plan(g, "${InputRules.AMOUNT_MAX + 1}", null)
+        assertEquals(listOf(CategoryRules.SaveField.EVERY_MONTH), tooBig.problems.map { it.field })
+    }
+
+    @Test
+    fun incomeCategoriesAndSubcategoriesWriteNoBudgetWhateverWasTyped() {
+        assertTrue(plan(all[3], "5000", "6000").changes.isEmpty())
+        assertTrue(plan(all[4], "5000", "oops").problems.isEmpty())
+        assertTrue(plan(all[4], "5000", "6000").changes.isEmpty())
+    }
 }
