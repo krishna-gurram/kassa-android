@@ -562,7 +562,8 @@ final class ScreenshotTests: XCTestCase {
         let insights = view.insights(hidden: false, todayEpochDay: day, timeZoneId: zone, monthsBack: 0)
         let patterns = view.patterns(hidden: false, todayEpochDay: day, timeZoneId: zone)
         let filtered = view.activityFiltered(year: 2026, month: 10, filter: "ALL", hidden: false, todayEpochDay: day, timeZoneId: zone)
-        let dayData = view.dayPage(epochDay: day, hidden: false, timeZoneId: zone)
+        // Two days before the demo's last day, which has an entry (the last day itself has none).
+        let dayData = view.dayPage(epochDay: day - 2, hidden: false, timeZoneId: zone)
         let sizes: [(String, CGFloat, CGFloat)] = [("landscape", 1024, 768), ("portrait", 820, 1180)]
         for scheme in [ColorScheme.light, ColorScheme.dark] {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
@@ -571,7 +572,7 @@ final class ScreenshotTests: XCTestCase {
                 let beside: CGFloat = width - LayoutMode.railWidth
                 let paneMode = LayoutMode.of(width: beside, regular: true)
                 func railed<C: View>(_ tab: ShellTab, _ content: C) -> some View {
-                    return HStack(spacing: 0) {
+                    return HStack(alignment: .top, spacing: 0) {
                         KassaTabRail(items: AppShell.barItems, selection: tab, onSelect: { _ in }, onAdd: {})
                         content
                             .environment(\.layoutMode, paneMode)
