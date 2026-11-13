@@ -111,7 +111,7 @@ class NavViewModel : ViewModel() {
      */
     var settingsRequest by mutableStateOf<String?>(null)
 
-    /** The budget editor asked for by the check-in's "Set the limit"; Settings opens it and clears this. */
+    /** The budget editor asked for by the check-in's "Set the budget"; Settings opens it and clears this. */
     var budgetRequest by mutableStateOf<BudgetRequest?>(null)
 
     val stack = mutableStateListOf<Page>()

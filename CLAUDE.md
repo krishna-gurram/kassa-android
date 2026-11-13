@@ -417,6 +417,11 @@ person's share (`categoryAmount`), so balance corrections, transfers and person 
 - `CoachCore.kt`: `CoachInput`, `CoachMath`, `CoachLedger` (counted entries by day and top-level category; liquid money = open checking,
   savings, cash and prepaid; "known payments" = every entry of a loan payment, entries matching an active bill, and fixed monthly, 3-monthly and
   yearly repeats (`CoachLedger.recurringIds`), which "usual" figures leave out because they are subtracted or added as they are instead).
+  **Paying a debt is not spending:** `CoachLedger.expenses` leaves out expenses that pay one of the person's own cards or other debts off
+  (`debtPaymentIds`: the category is named like a card or other-debt account, or the note is its name or starts with it; found from the person's
+  own account names, never a brand), and what repeats ignores those plus every entry of a `loan_payments` row and the notes of every loan,
+  closed ones too (`LoanNotes.repeatKeys`), so no card or loan payment is ever a subscription, a pace flag, usual spending or a fund input.
+  Kassa's own card payment is a TRANSFER and was never counted. Liquid money is only checking, savings, cash and prepaid, never a debt.
 - `SafeToSpend` (`CoachSafeToSpend.kt`): liquid money minus bills, card balances payable, loan payments and expected recurring charges due
   before the next payday, minus the usual daily spending (previous 3 full budget months, else this month so far, else none) times the days
   left. Payday is the biggest weekly, two-weekly or monthly income `Repeats` finds, strictly after today and within 62 days, else the first day of
@@ -431,9 +436,11 @@ person's share (`categoryAmount`), so balance corrections, transfers and person 
   month in 4 weeks, nothing suggested from 6 months.
 - `WeeklyCheckIn` (`CoachCheckIn.kt`): week from the phone's first weekday; spent this week against the usual week (average of up to 4 whole
   earlier weeks), day to day spending only. ONE win (biggest saving under its budget's pace or under its own usual week, never a category the
-  month flags), ONE watch-out (furthest-past pace, else the biggest subscription rise), ONE decision (a weekly limit for the watch-out category:
-  its usual week rounded down to a whole unit, from at least 2 weeks). Fewer than 14 days of entries is `NOT_ENOUGH_DATA`. A decision is a
-  suggestion only: Coach never writes a budget, an entry or any setting.
+  month flags), ONE watch-out (furthest-past pace, else the biggest subscription rise), ONE decision (a MONTHLY budget for the watch-out category, since
+  Kassa has no weekly budgets: the average counted spending of that category over the previous 3 full budget months, as many as exist and at
+  least 1, rounded down to a whole unit; only when the category has no budget yet, or it is over or on pace to pass a budget below that figure;
+  a budget at or above it, or a month-over-month watch-out with a budget, gives no decision and the watch-out stays). Fewer than 14 days of entries
+  is `NOT_ENOUGH_DATA`. A decision is a suggestion only: Coach never writes a budget, an entry or any setting.
 - `CoachFacts` (`CoachFacts.kt`) and `Coach.report(input)`: the exact payload an opt-in "ask" would send, an ordered list of `Fact(key, value,
   unit)` with system-stable keys (`KEYS`: `safe_to_spend`, `spending_month`, `upcoming_due_total`, `liquid_balance_months`, ...) and `serialize`
   (`key: 482.00` lines, no currency, no locale). **Privacy rule: only totals leave the phone, and only when the person asks.** Never a merchant,
@@ -441,11 +448,11 @@ person's share (`categoryAmount`), so balance corrections, transfers and person 
   categories. `CoachFactsTest` builds a ledger full of marker words and large ids and fails if any reaches the payload. A new fact needs a key in
   `KEYS`, a total (never text) and that test staying green.
 - `shared/.../CoachBridge.kt`: `LedgerView.coach(hidden, todayEpochDay, timeZoneId, firstWeekday)` (`CoachData`: safe, pace, subscriptions, fund,
-  checkIn, facts for "what a question sends") and `LedgerView.coachAskPayload(...)` (the text that would be sent; never drawn on screen). Amounts
+  checkIn (its decision carries `monthlyBudgetCents` and `monthlyBudgetInput` for the budget editor), facts for "what a question sends") and `LedgerView.coachAskPayload(...)` (the text that would be sent; never drawn on screen). Amounts
   are `Money.format` text. **While Hide balances is on** every amount is the mask, percents and tenths are -1, the safe state is `HIDDEN`, and pace
   rows, subscription rows, win, watch-out and decision are empty (a flag or a "rose" would give a state away); screens show a hidden note.
-- iOS UI: `ios/Kassa/CoachRules.swift` (`CoachPrefs`, `CoachWording`), `CoachScreens.swift` (Overview card, Coach page, check-in, settings) and `AppModel+Coach.swift`; `ios/KassaTests/CoachTests.swift`.
-- **Coach (Android screens)**: `ui/coach/CoachModel.kt` (plain Kotlin, JVM tests `CoachModelTest`: which cards show, where a tap goes, the Overview card's rule, Hide balances, the weekly-to-monthly limit, the facts rows), `ui/coach/CoachInputs.kt` (builds `CoachInput` from the `Ledger` plus the two-year history; `LedgerViewModel.coach` runs it only while a screen collects it), `ui/coach/CoachScreens.kt` (`CoachTeaserCard` under Overview's spending hero, `CoachPage`, `CheckInPage`; `Page.Coach` and `Page.CheckIn` open beside the list when unfolded) and `ui/settings/CoachSettings.kt` (Settings > Coach: Weekly check-in and Insight cards switches in `Settings`, "Open Coach", "What a question sends"). Strings are `strings_coach.xml` (`coach_`). "Set the limit" only opens the category budget editor in Settings with the monthly amount of the suggested weekly limit (`NavViewModel.budgetRequest`, `CategoryEditor(budgetPrefill)`); "Not now" remembers the week's start day in `Settings.coachDismissedWeek`. Ask Kassa is not built and there is no network code.
+- iOS UI: `ios/Kassa/CoachRules.swift` (`CoachPrefs`, `CoachWording`), `CoachScreens.swift` (Overview card, Coach page, check-in, settings) and `AppModel+Coach.swift`; `ios/KassaTests/CoachTests.swift`. "Set the budget" opens `BudgetEditSheet` with "Every month" prefilled (`BudgetEditRequest.prefill`); the emergency fund card has no target and is not tappable.
+- **Coach (Android screens)**: `ui/coach/CoachModel.kt` (plain Kotlin, JVM tests `CoachModelTest`: which cards show, where a tap goes, the Overview card's rule, Hide balances, the facts rows), `ui/coach/CoachInputs.kt` (builds `CoachInput` from the `Ledger` plus the two-year history; `LedgerViewModel.coach` runs it only while a screen collects it), `ui/coach/CoachScreens.kt` (`CoachTeaserCard` under Overview's spending hero, `CoachPage`, `CheckInPage`; a tap on the emergency fund card goes nowhere on purpose, since the Accounts tab lists credit cards and their due lines first; `Page.Coach` and `Page.CheckIn` open beside the list when unfolded) and `ui/settings/CoachSettings.kt` (Settings > Coach: Weekly check-in and Insight cards switches in `Settings`, "Open Coach", "What a question sends"). Strings are `strings_coach.xml` (`coach_`). "Set the budget" only opens the category budget editor in Settings prefilled with the suggested monthly amount, exactly (`NavViewModel.budgetRequest`, `CategoryEditor(budgetPrefill)`); "Not now" remembers the week's start day in `Settings.coachDismissedWeek`. Ask Kassa is not built and there is no network code.
 
 ## Style
 Plain, specific UI copy in sentence case. Lists sit on the ground with hairlines; one ink primary button per screen (on the entry and bill pages it is the button under the pad, which reads Next until everything is set, then Add or Save; their top bar has no Save and no eye); heroes are tonal, never boxes within boxes. Let figures speak: labelled numbers, not sentences explaining them. Color is only for categories and state; primary actions are ink on ground.

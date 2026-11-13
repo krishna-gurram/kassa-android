@@ -67,8 +67,12 @@ internal class CoachLedger(val input: CoachInput) {
         CountedSpending.apply(input.transactions, input.loanPayments, input.loanTerms, input.categories)
     }
 
-    /** Counted EXPENSE entries (explicit kind filter; corrections, transfers and person payments are not in it). */
-    val expenses: List<Spend> by lazy { counted.filter { it.kind == TxKind.EXPENSE }.map { spendOf(it) } }
+    /**
+     * Counted EXPENSE entries (explicit kind filter; corrections, transfers and person payments are not in it), without the entries that
+     * only pay a card or other debt off ([debtPaymentIds]): paying a card is moving money to what you owe, not spending (what was bought
+     * with the card is already in its own categories).
+     */
+    val expenses: List<Spend> by lazy { counted.filter { it.kind == TxKind.EXPENSE && it.id !in debtPaymentIds }.map { spendOf(it) } }
 
     /** Counted INCOME entries. */
     val incomes: List<Spend> by lazy { counted.filter { it.kind == TxKind.INCOME }.map { spendOf(it) } }
@@ -76,6 +80,49 @@ internal class CoachLedger(val input: CoachInput) {
     /** The top-level expense categories, by id. */
     val topExpenseIds: Set<Long> by lazy {
         input.categories.filter { it.parentId == null && it.kind == CategoryKind.EXPENSE }.map { it.id }.toSet()
+    }
+
+    /**
+     * Every card and other debt account, open or closed. Loans are left out on purpose: Kassa writes a loan's own interest and escrow as
+     * expenses with the loan's name in the note, and those are spending ([loanKeys] keeps them out of what repeats instead).
+     */
+    private val debtAccounts: List<Account> = input.accounts.filter { it.type == AccountType.CREDIT_CARD || it.type == AccountType.OTHER_DEBT }
+
+    /**
+     * The ids of expenses that pay one of the person's own debts off, found only from the person's own data and never from a brand or a
+     * word: expenses whose category is named like a card or other debt account, or whose note is its name or starts with it ("Credit card
+     * payment" on an account called "Credit card"). Kassa's own card payment is a TRANSFER and is never counted anyway; this covers payments typed in or imported as expenses. They are out of pace, usual spending, the
+     * emergency fund's monthly spending and what repeats.
+     */
+    val debtPaymentIds: Set<Long> by lazy {
+        val out = HashSet<Long>()
+        val names = debtAccounts.map { it.name.trim().lowercase() }.filter { it.length >= 2 }.toSet()
+        if (names.isNotEmpty()) {
+            for (t in input.transactions) {
+                if (t.kind != TxKind.EXPENSE) continue
+                val noteKey = Repeats.key(t.note)
+                val byNote = names.any { noteKey == it || noteKey.startsWith("$it ") }
+                val byCategory = categoryChain(t.categoryId).any { it.trim().lowercase() in names }
+                if (byNote || byCategory) out.add(t.id)
+            }
+        }
+        out
+    }
+
+    /** The entries a loan payment is made of: interest and escrow are spending, but never a subscription or a repeat. */
+    private val loanPaymentEntryIds: Set<Long> by lazy {
+        input.loanPayments.flatMap { listOfNotNull(it.principalEntryId, it.interestEntryId, it.otherEntryId) }.toSet()
+    }
+
+    private fun categoryChain(id: Long?): List<String> {
+        val out = ArrayList<String>()
+        var c = id?.let { byId[it] }
+        var guard = 0
+        while (c != null && guard++ < 4) {
+            out.add(c.name)
+            c = c.parentId?.let { byId[it] }
+        }
+        return out
     }
 
     private fun dayOf(t: Transaction): Int = dateOfMillis(t.epochMillis, input.zone).toEpochDay().toInt()
@@ -109,11 +156,13 @@ internal class CoachLedger(val input: CoachInput) {
     val hasLiquidAccount: Boolean get() = activeAccounts.any { it.type in LIQUID }
 
     /** What [Repeats] finds in the entries, biggest yearly cost first. */
-    val repeats: List<Repeat> by lazy { Repeats.find(input.transactions, input.today, input.zone) }
+    val repeats: List<Repeat> by lazy {
+        Repeats.find(input.transactions.filter { it.id !in debtPaymentIds && it.id !in loanPaymentEntryIds }, input.today, input.zone)
+    }
 
-    /** The notes loan payments carry, so a loan's steady escrow or interest is never read as a subscription. */
+    /** The notes loan payments carry (also of a closed loan), so a loan's steady escrow or interest is never read as a subscription. */
     private val loanKeys: Set<String> by lazy {
-        activeAccounts.filter { it.type == AccountType.LOAN }.flatMap { LoanNotes.repeatKeys(it.name) }.toSet()
+        input.accounts.filter { it.type == AccountType.LOAN }.flatMap { LoanNotes.repeatKeys(it.name) }.toSet()
     }
 
     /** Fixed monthly expenses: subscriptions, rent, insurance. */

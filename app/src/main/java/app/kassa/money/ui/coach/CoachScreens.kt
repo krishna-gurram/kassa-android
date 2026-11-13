@@ -107,10 +107,10 @@ private fun winTitle(w: WeeklyCheckIn.Win, l: Ledger): String = stringResource(
 
 /** A card with an icon, a title, a line under it and a chevron: the Overview card, the check-in row and the insight cards share it. */
 @Composable
-private fun CoachRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun CoachRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val base = modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Kassa.colors.raised).border(1.dp, Kassa.colors.line, RoundedCornerShape(20.dp))
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Kassa.colors.raised).border(1.dp, Kassa.colors.line, RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button, onClick = onClick).heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+        (if (onClick != null) base.clickable(role = Role.Button, onClick = onClick) else base).heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconBadge(icon, 40)
@@ -118,7 +118,7 @@ private fun CoachRow(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
             Text(title, style = KassaType.bodyStrong, color = Kassa.colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (body.isNotEmpty()) Text(body, style = KassaType.small, color = Kassa.colors.ink2, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        Icon(Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
+        if (onClick != null) Icon(Chevron(left = false), null, tint = Kassa.colors.ink3, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -159,7 +159,8 @@ fun CoachPage(
             !showCards -> Text(stringResource(R.string.coach_cards_off), style = KassaType.body, color = Kassa.colors.ink2)
             view.cards.isEmpty() -> Text(stringResource(R.string.coach_no_cards), style = KassaType.body, color = Kassa.colors.ink2)
             else -> view.cards.forEach { card ->
-                InsightRow(card, l, onClick = { onTarget(CoachModel.target(card)) })
+                val target = CoachModel.target(card)
+                InsightRow(card, l, onClick = target?.let { t -> { onTarget(t) } })
                 Gap(10)
             }
         }
@@ -168,7 +169,7 @@ fun CoachPage(
 }
 
 @Composable
-private fun InsightRow(card: InsightCard, l: Ledger, onClick: () -> Unit) {
+private fun InsightRow(card: InsightCard, l: Ledger, onClick: (() -> Unit)?) {
     when (card) {
         is InsightCard.Pace -> {
             val r = card.row
@@ -255,14 +256,14 @@ private fun partName(kind: SafeToSpend.PartKind): Int = when (kind) {
     SafeToSpend.PartKind.USUAL_SPENDING -> R.string.coach_part_usual
 }
 
-/** The weekly check-in page: one win, one watch-out, one decision. "Set the limit" opens the budget editor; it saves nothing itself. */
+/** The weekly check-in page: one win, one watch-out, one decision. "Set the budget" opens the existing budget editor with the suggested monthly amount; it saves nothing itself. */
 @Composable
 fun CheckInPage(
     l: Ledger,
     report: CoachReport?,
     contentPadding: PaddingValues,
     onBack: (() -> Unit)?,
-    onSetLimit: (categoryId: Long, monthlyCents: Long) -> Unit,
+    onSetBudget: (categoryId: Long, monthlyCents: Long) -> Unit,
     onNotNow: (weekStartDay: Int) -> Unit,
 ) {
     val hidden = Money.isHidden
@@ -307,12 +308,13 @@ fun CheckInPage(
                 c.watch?.let { w -> WatchBlock(w, l) }
                 c.decision?.let { d ->
                     SectionHeader(stringResource(R.string.coach_one_decision))
-                    val monthly = CoachModel.monthlyLimit(d.weeklyLimit, l.period.days.toInt())
-                    Text(stringResource(R.string.coach_decision_title, Money.format(d.weeklyLimit), categoryName(l, d.categoryId)), style = KassaType.section, color = Kassa.colors.ink)
-                    Text(stringResource(R.string.coach_decision_body, Money.format(d.usualWeek), Money.format(d.thisWeek)), style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
-                    Text(stringResource(R.string.coach_decision_note, Money.format(monthly)), style = KassaType.small, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp))
+                    Text(stringResource(R.string.coach_decision_title, categoryName(l, d.categoryId)), style = KassaType.section, color = Kassa.colors.ink)
+                    Text(
+                        pluralStringResource(R.plurals.coach_decision_body, d.monthsUsed, Money.format(d.monthlyBudget), d.monthsUsed, categoryName(l, d.categoryId)),
+                        style = KassaType.body, color = Kassa.colors.ink2, modifier = Modifier.padding(top = 4.dp),
+                    )
                     Gap(12)
-                    PrimaryButton(stringResource(R.string.coach_set_limit)) { onSetLimit(d.categoryId, monthly) }
+                    PrimaryButton(stringResource(R.string.coach_set_budget)) { onSetBudget(d.categoryId, d.monthlyBudget) }
                     Gap(8)
                     SecondaryButton(stringResource(R.string.coach_not_now), { onNotNow(c.weekStartDay) })
                 }

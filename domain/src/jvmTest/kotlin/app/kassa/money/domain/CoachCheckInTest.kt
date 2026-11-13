@@ -21,7 +21,7 @@ class CoachCheckInTest {
     private fun fixture(): CoachFx {
         val fx = CoachFx()
         // Earlier October: groceries 200.00, so groceries is not on pace to pass it; dining 300.00 (the Fridays 16, 23, 30).
-        fx.spend("2026-10-03", 20_000, 10)
+        fx.spend("2026-10-01", 20_000, 10)
         for (monday in listOf("2026-10-12", "2026-10-19", "2026-10-26", "2026-11-02")) fx.spend(monday, 5_000, 10)
         for (friday in listOf("2026-10-16", "2026-10-23", "2026-10-30", "2026-11-06")) fx.spend(friday, 10_000, 11)
         fx.spend("2026-11-09", 3_000, 10)
@@ -66,49 +66,94 @@ class CoachCheckInTest {
         assertEquals(3_000L, win.spent)
         assertEquals(5_000L, win.reference)
         assertEquals(2_000L, win.savedBy)
-        // The usual dining week is 100.00; that is the suggested limit. Nothing is written by asking.
+        // Dining took 300.00 in October (the one full month) and has no budget: suggest that as a MONTHLY budget. Nothing is written by asking.
         val decision = assertNotNull(r.decision)
         assertEquals(11L, decision.categoryId)
-        assertEquals(10_000L, decision.weeklyLimit)
-        assertEquals(4, decision.weeksUsed)
-        assertEquals(10_000L, decision.usualWeek)
-        assertEquals(12_000L, decision.thisWeek)
+        assertEquals(30_000L, decision.monthlyBudget)
+        assertEquals(1, decision.monthsUsed)
+        assertEquals(22_000L, decision.spentThisMonth)
+        assertNull(decision.currentBudget)
+    }
+
+    private fun diningLedger(): CoachFx {
+        val fx = CoachFx()
+        fx.spend("2026-08-01", 1_000, 10)
+        fx.spend("2026-08-15", 12_345, 11)
+        fx.spend("2026-09-15", 20_000, 11)
+        fx.spend("2026-10-15", 30_000, 11)
+        fx.spend("2026-11-05", 50_000, 11)
+        return fx
     }
 
     @Test
-    fun theLimitIsTheUsualWeekRoundedDownToAWholeUnit() {
+    fun theBudgetIsTheAverageOfThePreviousThreeFullMonthsRoundedDownToAWholeUnit() {
+        val d = assertNotNull(WeeklyCheckIn.compute(diningLedger().input()).decision)
+        // (123.45 + 200.00 + 300.00) / 3 = 207.816...: 20,781 cents -> 20,700.
+        assertEquals(20_700L, d.monthlyBudget)
+        assertEquals(3, d.monthsUsed)
+        assertNull(d.currentBudget)
+    }
+
+    @Test
+    fun oneFullMonthOfHistoryIsEnough() {
+        val fx = CoachFx()
+        fx.spend("2026-10-01", 1_000, 10)
+        fx.spend("2026-10-20", 45_050, 11)
+        fx.spend("2026-11-05", 50_000, 11)
+        val d = assertNotNull(WeeklyCheckIn.compute(fx.input()).decision)
+        assertEquals(45_000L, d.monthlyBudget)
+        assertEquals(1, d.monthsUsed)
+    }
+
+    @Test
+    fun noFullMonthOfHistoryIsNoDecision() {
+        // The first entry is on 3 October, so October is not a whole month of the person's life.
         val fx = CoachFx()
         fx.spend("2026-10-03", 1_000, 10)
-        for (friday in listOf("2026-10-16", "2026-10-23", "2026-10-30", "2026-11-06")) fx.spend(friday, 12_345, 11)
-        fx.spend("2026-11-11", 50_000, 11)
-        val d = assertNotNull(WeeklyCheckIn.compute(fx.input()).decision)
-        // 4 earlier weeks of 123.45: 12,345 -> 12,300.
-        assertEquals(12_300L, d.weeklyLimit)
-        assertEquals(12_345L, d.usualWeek)
+        fx.spend("2026-10-20", 45_050, 11)
+        fx.spend("2026-11-05", 50_000, 11)
+        val r = WeeklyCheckIn.compute(fx.input())
+        assertNotNull(r.watch)
+        assertNull(r.decision)
     }
 
     @Test
-    fun theLimitNeedsTwoWeeksAndAWholeUnit() {
-        // Only one earlier whole week (first entry 8 October: the week of 5 October is partial, the week of 12 October is whole).
-        val fx = CoachFx("2026-10-22")
-        fx.spend("2026-10-08", 100, 10)
-        fx.spend("2026-10-16", 10_000, 11)
-        fx.spend("2026-10-21", 50_000, 11)
+    fun aBudgetBelowTheAverageThatIsPassedGetsADecision() {
+        val fx = diningLedger()
+        // Budget 400.00 is passed by 500.00 spent so far; the average month is 207.00, which is below the budget: no decision.
+        fx.budgets.add(Budget(11, 0, 40_000))
+        assertNull(WeeklyCheckIn.compute(fx.input()).decision)
+        // A budget of 100.00 is below the average and already passed: suggest the average.
+        val low = diningLedger()
+        low.budgets.add(Budget(11, 0, 10_000))
+        val d = assertNotNull(WeeklyCheckIn.compute(low.input()).decision)
+        assertEquals(20_700L, d.monthlyBudget)
+        assertEquals(10_000L, d.currentBudget)
+        assertEquals(50_000L, d.spentThisMonth)
+    }
+
+    @Test
+    fun aBudgetAtOrAboveTheAverageGetsNoDecision() {
+        val fx = diningLedger()
+        fx.budgets.add(Budget(11, 0, 20_700))
+        val r = WeeklyCheckIn.compute(fx.input())
+        assertEquals(11L, r.watch?.categoryId)
+        assertNull(r.decision)
+    }
+
+    @Test
+    fun aBudgetBelowTheAverageButNotPassedGetsNoDecision() {
+        // Average month 433.00; budget 200.00; 50.00 so far is on pace for 125.00 (under the budget) but past last month's 100.00.
+        val fx = CoachFx()
+        fx.spend("2026-08-01", 1_000, 10)
+        fx.spend("2026-08-15", 60_000, 11)
+        fx.spend("2026-09-15", 60_000, 11)
+        fx.spend("2026-10-15", 10_000, 11)
+        fx.spend("2026-11-05", 5_000, 11)
         fx.budgets.add(Budget(11, 0, 20_000))
         val r = WeeklyCheckIn.compute(fx.input())
-        assertEquals(Kind.READY, r.kind)
-        assertEquals(1, r.weeksCompared)
-        assertNotNull(r.watch)
+        assertEquals(Reference.LAST_MONTH, r.watch?.referenceKind)
         assertNull(r.decision)
-        // Two weeks of 40 cents' dining: a usual week under one unit suggests no limit.
-        val fy = CoachFx()
-        fy.spend("2026-10-12", 20, 10)
-        fy.spend("2026-10-14", 30, 11)
-        fy.spend("2026-10-21", 40, 11)
-        fy.spend("2026-11-11", 900_000, 11)
-        val s = WeeklyCheckIn.compute(fy.input())
-        assertEquals(WatchKind.CATEGORY_PACE, s.watch?.kind)
-        assertNull(s.decision)
     }
 
     @Test

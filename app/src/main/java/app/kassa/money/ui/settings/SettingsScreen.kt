@@ -84,7 +84,7 @@ interface SettingsActions {
     fun openCoach()
     /** Coach's report, for "What a question sends". */
     val coach: kotlinx.coroutines.flow.StateFlow<app.kassa.money.domain.CoachReport?>
-    /** A budget editor asked for by the weekly check-in ("Set the limit"); Settings opens it and calls [budgetRequestOpened]. */
+    /** A budget editor asked for by the weekly check-in ("Set the budget"); Settings opens it and calls [budgetRequestOpened]. */
     val budgetRequest: app.kassa.money.ui.BudgetRequest?
     fun budgetRequestOpened()
     /** Debug builds only: replaces everything with the made-up household in [app.kassa.money.domain.Demo]. */

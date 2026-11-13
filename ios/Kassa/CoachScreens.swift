@@ -3,7 +3,7 @@ import KassaShared
 
 /// Coach screens (layer 1): Overview's "Your week in 3 points" card, the Coach page, the weekly check-in page and Coach settings.
 /// Every figure and kind comes from `LedgerView.coach`; the sentences are made in `CoachWording` from what the rows say. Nothing here
-/// writes anything: "Set the limit" only opens the existing budget editor.
+/// writes anything: "Set the budget" only opens the existing budget editor.
 
 // MARK: Row card
 
@@ -171,10 +171,14 @@ struct CoachContent: View {
                         .foregroundColor(Palette.ink2)
                 }
                 ForEach(cards) { card in
-                    Button(action: { onOpenCard(card.target) }) {
-                        CoachRowCard(symbol: card.symbol, tint: coachTint(card.tint), title: card.title, detail: card.body)
+                    if let target = card.target {
+                        Button(action: { onOpenCard(target) }) {
+                            CoachRowCard(symbol: card.symbol, tint: coachTint(card.tint), title: card.title, detail: card.body)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        CoachRowCard(symbol: card.symbol, tint: coachTint(card.tint), title: card.title, detail: card.body, chevron: false)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -213,7 +217,7 @@ struct CheckInContent: View {
     let hidden: Bool
     let onBack: () -> Void
     let onToggleHidden: () -> Void
-    var onSetLimit: (CheckInText.Decision) -> Void = { _ in }
+    var onSetBudget: (CheckInText.Decision) -> Void = { _ in }
     var onNotNow: () -> Void = {}
 
     var body: some View {
@@ -306,9 +310,9 @@ struct CheckInContent: View {
                 .foregroundColor(Palette.ink2)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button(action: { onSetLimit(decision) }) { Text("coach.ci.set") }
+                Button(action: { onSetBudget(decision) }) { Text("coach.ci.set") }
                     .buttonStyle(InkButtonStyle(filled: true))
-                    .accessibilityIdentifier("coachSetLimit")
+                    .accessibilityIdentifier("coachSetBudget")
                 Button(action: onNotNow) { Text("coach.ci.notNow") }
                     .buttonStyle(InkButtonStyle(filled: false))
                     .accessibilityIdentifier("coachNotNow")
@@ -322,8 +326,8 @@ struct CheckInContent: View {
 
 // MARK: Host over the tabs
 
-/// The Coach page or the check-in page on top of the read stack. "Set the limit" opens the existing budget editor with a hint of the
-/// suggested weekly figure; nothing is saved until the person saves there.
+/// The Coach page or the check-in page on top of the read stack. "Set the budget" opens the existing budget editor with the suggested
+/// monthly amount filled in; nothing is saved until the person saves there.
 struct CoachHost: View {
     @ObservedObject var model: AppModel
     let route: ReadRoute
@@ -351,8 +355,8 @@ struct CoachHost: View {
             CheckInContent(
                 text: CoachWording.checkIn(data.checkIn, dismissedWeek: model.coachDismissed),
                 hidden: model.hideAmounts, onBack: { model.closeRead() }, onToggleHidden: { model.toggleHidden() },
-                onSetLimit: { decision in
-                    editing = BudgetEditRequest(categoryId: decision.categoryId, suggestion: CoachWording.limitHint(decision.limitText))
+                onSetBudget: { decision in
+                    editing = BudgetEditRequest(categoryId: decision.categoryId, prefill: decision.budgetInput)
                 },
                 onNotNow: { model.dismissCheckIn(weekStart: Int(data.checkIn.weekStartDay)) }
             )

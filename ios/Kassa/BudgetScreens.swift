@@ -9,8 +9,8 @@ import KassaShared
 struct BudgetEditRequest: Identifiable {
     let id = UUID()
     let categoryId: Int64
-    /// A line shown under the name (Coach's suggested weekly limit); nothing is filled in from it.
-    var suggestion: String? = nil
+    /// The amount Coach suggests, as the field takes it; it fills "Every month" in place of the saved one. Nothing is saved until the person saves.
+    var prefill: String? = nil
 }
 
 struct BudgetsPage: View {
@@ -151,12 +151,6 @@ struct BudgetEditSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             if let data = loaded {
                 Text(data.name).font(.title2.weight(.bold)).lineLimit(1)
-                if let hint = request.suggestion {
-                    Text(hint)
-                        .font(.footnote)
-                        .foregroundColor(Palette.ink2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 FormField(label: "budgets.everyMonth", problem: everyProblem) {
                     TextField("budgets.amountHint", text: $every)
                         .keyboardType(.decimalPad)
@@ -194,7 +188,7 @@ struct BudgetEditSheet: View {
     private func load() {
         model.loadBudgetEdit(request.categoryId) { data in
             loaded = data
-            every = data?.everyInput ?? ""
+            every = request.prefill ?? data?.everyInput ?? ""
             thisMonth = data?.monthInput ?? ""
         }
     }

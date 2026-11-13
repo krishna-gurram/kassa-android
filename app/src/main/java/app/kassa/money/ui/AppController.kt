@@ -209,7 +209,7 @@ class AppController(
     /** Coach's page, from Overview's card or Settings > Coach. */
     fun openCoach() = openFromList(Page.Coach)
 
-    /** The check-in's "Set the limit": the existing budget editor in Settings, started with [monthlyCents]. It saves nothing by itself. */
+    /** The check-in's "Set the budget": the existing budget editor in Settings, started with [monthlyCents]. It saves nothing by itself. */
     fun openBudgetEditor(categoryId: Long, monthlyCents: Long) {
         nav.budgetRequest = BudgetRequest(categoryId, monthlyCents)
         nav.select(Tab.SETTINGS)

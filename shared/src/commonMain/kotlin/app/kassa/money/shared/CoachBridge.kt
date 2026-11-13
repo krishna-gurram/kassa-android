@@ -123,16 +123,23 @@ data class CoachWatchData(
     val usedPercent: Int,
 )
 
-/** A weekly limit the screen may offer. Only a suggestion: nothing is written until the person accepts it on the budget screen. */
+/**
+ * A MONTHLY budget the screen may offer for a category (Kassa budgets are monthly). Only a suggestion: nothing is written until the person
+ * saves it in the budget editor, which opens with exactly [monthlyBudgetCents].
+ */
 data class CoachDecisionData(
     val categoryId: Long,
     val categoryName: String,
-    val weeklyLimitText: String,
-    /** The limit in cents, for the screen to hand to the budget editor when the person accepts. */
-    val weeklyLimitCents: Long,
-    val weeksUsed: Int,
-    val usualWeekText: String,
-    val thisWeekText: String,
+    val monthlyBudgetText: String,
+    /** The suggested monthly budget in cents, for the screen to hand to the budget editor when the person accepts. */
+    val monthlyBudgetCents: Long,
+    /** The same amount as the budget editor's field takes it (`Money.toInput`: the phone's decimal mark, no grouping). */
+    val monthlyBudgetInput: String,
+    /** The full budget months the average is over, 1 to 3. */
+    val monthsUsed: Int,
+    val spentThisMonthText: String,
+    /** The category's budget now; "" with none. */
+    val currentBudgetText: String,
 )
 
 /**
@@ -290,8 +297,8 @@ internal class CoachViews(private val v: LedgerView) {
             decisions = if (shown && decision != null) {
                 listOf(
                     CoachDecisionData(
-                        decision.categoryId, name(decision.categoryId), text(decision.weeklyLimit), decision.weeklyLimit, decision.weeksUsed,
-                        text(decision.usualWeek), text(decision.thisWeek),
+                        decision.categoryId, name(decision.categoryId), text(decision.monthlyBudget), decision.monthlyBudget, Money.toInput(decision.monthlyBudget), decision.monthsUsed,
+                        text(decision.spentThisMonth), decision.currentBudget?.let { text(it) } ?: "",
                     ),
                 )
             } else emptyList(),

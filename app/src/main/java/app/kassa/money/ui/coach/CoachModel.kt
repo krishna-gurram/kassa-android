@@ -1,7 +1,6 @@
 package app.kassa.money.ui.coach
 
 import app.kassa.money.domain.CoachFacts
-import app.kassa.money.domain.CoachMath
 import app.kassa.money.domain.CoachReport
 import app.kassa.money.domain.EmergencyFund
 import app.kassa.money.domain.Money
@@ -45,7 +44,6 @@ sealed interface InsightCard {
 sealed interface Target {
     data class Category(val id: Long) : Target
     data object Repeating : Target
-    data object Accounts : Target
 }
 
 /** The weekly check-in as the screens read it: at most one win, one watch-out and one decision. */
@@ -144,11 +142,14 @@ object CoachModel {
         else -> PaceKind.ABOVE_LAST
     }
 
-    /** Where a tap on [card] goes. */
-    fun target(card: InsightCard): Target = when (card) {
+    /**
+     * Where a tap on [card] goes, or null when it goes nowhere. The emergency fund card goes nowhere on purpose: the Accounts tab lists
+     * credit cards first, with their due lines, which read as if the fund were about a card.
+     */
+    fun target(card: InsightCard): Target? = when (card) {
         is InsightCard.Pace -> Target.Category(card.row.categoryId)
         is InsightCard.Subscription -> Target.Repeating
-        is InsightCard.Fund -> Target.Accounts
+        is InsightCard.Fund -> null
     }
 
     /**
@@ -166,12 +167,6 @@ object CoachModel {
             else -> null
         }
     }
-
-    /**
-     * A weekly limit as the monthly budget the editor takes (budgets are monthly): the weekly figure over a budget month of [daysInPeriod]
-     * days, rounded half up to the cent. 100.00 a week over a 30 day month is 428.57.
-     */
-    fun monthlyLimit(weeklyLimit: Long, daysInPeriod: Int): Long = CoachMath.divHalfUp(weeklyLimit * daysInPeriod.coerceAtLeast(1), 7L)
 
     /** [items] as one phrase: "a", "a and b", "a, b and c", with the joining words given by the caller (they come from string resources). */
     fun joinList(items: List<String>, join: (String, String) -> String, last: (String, String) -> String): String = when (items.size) {

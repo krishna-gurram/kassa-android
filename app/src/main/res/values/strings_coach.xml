@@ -13,9 +13,11 @@
     <string name="coach_checkin_wait_title">Not enough to say yet</string>
     <string name="coach_checkin_under">You spent %1$s, which is %2$s under your usual week so far.</string>
     <string name="coach_checkin_over">You spent %1$s, which is %2$s over your usual week so far.</string>
-    <string name="coach_decision_body">You usually spend about %1$s a week there, and %2$s so far this week.</string>
-    <string name="coach_decision_note">Kassa budgets run by month, so the budget editor opens with %1$s a month. Nothing is saved until you save it.</string>
-    <string name="coach_decision_title">Try a %1$s weekly limit for %2$s?</string>
+    <plurals name="coach_decision_body">
+        <item quantity="one">%1$s a month is what you spent on %3$s in the last full month.</item>
+        <item quantity="other">%1$s a month is your average for %3$s over the last %2$d full months.</item>
+    </plurals>
+    <string name="coach_decision_title">Set a monthly budget for %1$s?</string>
     <string name="coach_fund_body_done">Your cash covers about %1$s months of usual spending (%2$s a month).</string>
     <plurals name="coach_fund_body_target">
         <item quantity="one">Put aside %2$s a week for %1$d week to reach %3$s months.</item>
@@ -59,7 +61,7 @@
     <string name="coach_sends_none">No merchants, notes, account names or people.</string>
     <string name="coach_sends_title">What a question sends</string>
     <string name="coach_sends_value">Totals only</string>
-    <string name="coach_set_limit">Set the limit</string>
+    <string name="coach_set_budget">Set the budget</string>
     <string name="coach_settings_cards">Insight cards</string>
     <string name="coach_settings_cards_detail">Subscription changes, pace and the emergency fund.</string>
     <string name="coach_settings_checkin">Weekly check-in</string>

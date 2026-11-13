@@ -1123,13 +1123,13 @@
 "coach.ci.watch.none.body" = "%@ so far this month.";
 "coach.ci.watch.sub.body" = "It was %1$@ and is now %2$@ a month.";
 "coach.ci.watch.chip" = "Budget: %1$@, %2$d%% used on day %3$d";
-"coach.ci.decision.title" = "Set a %1$@ weekly limit for %2$@?";
-"coach.ci.decision.body" = "You usually spend about %1$@ a week on %2$@. A limit gives you a nudge before you reach it.";
-"coach.ci.set" = "Set the limit";
+"coach.ci.decision.title" = "Set a monthly budget for %1$@?";
+"coach.ci.decision.body.one" = "%1$@ a month is what you spent on %3$@ in the last full month.";
+"coach.ci.decision.body.other" = "%1$@ a month is your average for %3$@ over the last %2$ld full months.";
+"coach.ci.set" = "Set the budget";
 "coach.ci.notNow" = "Not now";
 "coach.ci.notEnough.title" = "Not enough to go on yet";
 "coach.ci.notEnough.body" = "A check-in needs about two weeks of entries.";
-"coach.ci.suggest" = "Suggested weekly limit: %@. Budgets are per month, so enter the month's amount.";
 "settings.section.coach" = "Coach";
 "settings.coach" = "Coach settings";
 "coach.set.title" = "Coach settings";

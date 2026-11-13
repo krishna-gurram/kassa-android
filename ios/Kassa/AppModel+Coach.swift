@@ -20,17 +20,13 @@ extension AppModel {
         openRead(ReadRoute.checkIn)
     }
 
-    /// A tapped Coach card: a pace row opens Insights' category page, a subscription the repeating charges page, the fund the Accounts tab.
+    /// A tapped Coach card: a pace row opens Insights' category page, a subscription the repeating charges page. The fund card goes nowhere.
     func openCoachTarget(_ target: CoachTarget) {
         switch target {
         case .category(let id):
             openCategory(id, monthsBack: 0)
         case .subscriptions:
             openRead(ReadRoute.detail("REPEATING"))
-        case .accounts:
-            readStack = []
-            requestedTab = ShellTab.accounts
-            refreshFigures()
         }
     }
 

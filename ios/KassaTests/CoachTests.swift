@@ -95,7 +95,11 @@ final class CoachTests: XCTestCase {
         for card in cards {
             if card.id.hasPrefix("pace-") { paceCards += 1 }
             if card.id == "subscription" { subCards += 1 }
-            if card.id == "fund" { fundCards += 1 }
+            if card.id == "fund" {
+                fundCards += 1
+                // The Accounts tab lists credit cards and their due lines first, so the fund card goes nowhere.
+                XCTAssertNil(card.target)
+            }
         }
         XCTAssertEqual(paceCards, min(2, flagged))
         XCTAssertEqual(subCards, data.subscriptions.rows.isEmpty ? 0 : 1)
