@@ -2072,6 +2072,14 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     fun coachAskPayload(todayEpochDay: Int, timeZoneId: String, firstWeekday: Int): String =
         coachViews.payload(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), firstWeekday)
 
+    /**
+     * "Can I afford it?" / "Simulate my month": the next 30 days of liquid money replayed from the person's own data, with [whatIfs] (the text
+     * [CoachSimBridge] builds, at most 8 lines) applied and the lowest point judged against [cushionCents]. Reads only; nothing is written.
+     * [hidden] is Hide balances: the verdict is "HIDDEN" and every amount is the mask (see CoachSimBridge.kt).
+     */
+    fun coachSim(hidden: Boolean, todayEpochDay: Int, timeZoneId: String, firstWeekday: Int, whatIfs: String, cushionCents: Long): CoachSimData =
+        shown(hidden) { CoachSimViews(coachViews).build(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId), firstWeekday, whatIfs, cushionCents) }
+
     /** Settings > Budgets: every top-level expense category against its budget in the current budget month. */
     fun budgetsPage(hidden: Boolean, todayEpochDay: Int, timeZoneId: String): BudgetsData =
         shown(hidden) { readViews.budgetsPage(localDateOfEpochDay(todayEpochDay), zoneOf(timeZoneId)) }
