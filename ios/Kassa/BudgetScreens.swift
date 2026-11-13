@@ -9,6 +9,8 @@ import KassaShared
 struct BudgetEditRequest: Identifiable {
     let id = UUID()
     let categoryId: Int64
+    /// A line shown under the name (Coach's suggested weekly limit); nothing is filled in from it.
+    var suggestion: String? = nil
 }
 
 struct BudgetsPage: View {
@@ -149,6 +151,12 @@ struct BudgetEditSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             if let data = loaded {
                 Text(data.name).font(.title2.weight(.bold)).lineLimit(1)
+                if let hint = request.suggestion {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundColor(Palette.ink2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 FormField(label: "budgets.everyMonth", problem: everyProblem) {
                     TextField("budgets.amountHint", text: $every)
                         .keyboardType(.decimalPad)

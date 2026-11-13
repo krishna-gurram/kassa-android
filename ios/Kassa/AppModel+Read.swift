@@ -8,6 +8,13 @@ enum ReadRoute: Equatable {
     case day(Int)
     case store(String)
     case detail(String)
+    /// Coach's page and its weekly check-in (`CoachScreens.swift`); their figures are `AppModel.coach`.
+    case coach
+    case checkIn
+
+    var isCoach: Bool {
+        return self == ReadRoute.coach || self == ReadRoute.checkIn
+    }
 }
 
 /// The figures of the page that is on top of the read stack; only the one the route names is set.
@@ -73,6 +80,8 @@ extension AppModel {
             page.detail = made.insightDetail(
                 kind: kind, hidden: given.hidden, todayEpochDay: day, timeZoneId: zone, firstWeekday: first
             )
+        case .coach, .checkIn:
+            break
         }
         return page
     }

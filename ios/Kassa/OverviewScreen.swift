@@ -18,13 +18,16 @@ struct OverviewScreen: View {
     /// Batch J: a top category opens Insights' category page; the total opens the spending (or income) page: income first, then month.
     var onOpenCategory: (Int64, Int) -> Void = { _, _ in }
     var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
+    /// Coach's "Your week in 3 points" card: its first line (nil keeps the card away) and what a tap does.
+    var coachLine: String? = nil
+    var onOpenCoach: () -> Void = {}
 
     var body: some View {
         ScrollView {
             OverviewContent(
                 data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts,
                 notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard,
-                onOpenCategory: onOpenCategory, onOpenSpending: onOpenSpending
+                onOpenCategory: onOpenCategory, onOpenSpending: onOpenSpending, coachLine: coachLine, onOpenCoach: onOpenCoach
             )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
@@ -46,6 +49,8 @@ struct OverviewContent: View {
     var onOpenCard: (Int64) -> Void = { _ in }
     var onOpenCategory: (Int64, Int) -> Void = { _, _ in }
     var onOpenSpending: (Bool, Bool) -> Void = { _, _ in }
+    var coachLine: String? = nil
+    var onOpenCoach: () -> Void = {}
 
     /// Which flow the hero shows. Spending first, as on Android.
     @State private var showIncome = false
@@ -60,6 +65,9 @@ struct OverviewContent: View {
                 WaitingPill(count: notices.count, onOpen: onOpenNotices)
             }
             hero
+            if let line = coachLine {
+                CoachTeaserCard(line: line, onOpen: onOpenCoach)
+            }
             UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard, onSeeAll: notices.isEmpty ? nil : onOpenNotices)
             accountsHeader
             pinRows
