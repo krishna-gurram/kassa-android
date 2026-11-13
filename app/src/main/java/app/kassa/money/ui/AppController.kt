@@ -14,6 +14,7 @@ import app.kassa.money.data.repo.EntryDraft
 import app.kassa.money.data.repo.LoanPaymentDetail
 import app.kassa.money.domain.Account
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CoachReport
 import app.kassa.money.domain.CategoryKind
 import app.kassa.money.domain.DueKind
 import app.kassa.money.domain.InvestmentTransfer
@@ -33,6 +34,7 @@ import app.kassa.money.ui.today.Notice
 import app.kassa.money.ui.today.NoticeActions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
@@ -60,6 +62,7 @@ class AppController(
     val nav: NavViewModel,
     private val scope: CoroutineScope,
     private val context: Context,
+    private val settingsStore: Settings,
 ) {
     /** True when pages open beside the list they came from (unfolded, 720dp and wider). */
     var split by mutableStateOf(false)
@@ -203,7 +206,26 @@ class AppController(
         override fun openSpending(month: Boolean) = openFromList(Page.Spending(month))
     }
 
+    /** Coach's page, from Overview's card or Settings > Coach. */
+    fun openCoach() = openFromList(Page.Coach)
+
+    /** The check-in's "Set the limit": the existing budget editor in Settings, started with [monthlyCents]. It saves nothing by itself. */
+    fun openBudgetEditor(categoryId: Long, monthlyCents: Long) {
+        nav.budgetRequest = BudgetRequest(categoryId, monthlyCents)
+        nav.select(Tab.SETTINGS)
+    }
+
+    /** "Not now": this week's check-in stays quiet. */
+    fun dismissCheckIn(weekStartDay: Int) {
+        settingsStore.dismissCoachWeek(weekStartDay)
+        back()
+    }
+
     val settings = object : SettingsActions {
+        override fun openCoach() = this@AppController.openCoach()
+        override val coach: StateFlow<CoachReport?> get() = vm.coach
+        override val budgetRequest: BudgetRequest? get() = nav.budgetRequest
+        override fun budgetRequestOpened() { nav.budgetRequest = null }
         override fun saveCategory(category: Category, budget: Long?, quiet: Boolean, then: (Long) -> Unit) { vm.saveCategory(category, budget, quiet, then) }
         override fun setMonthBudget(categoryId: Long, amount: Long?) {
             val l = vm.ledger.value ?: return
