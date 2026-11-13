@@ -682,6 +682,8 @@ struct PageHost: View {
             .sheet(isPresented: $editing) {
                 editSheet
             }
+            .sweepsDraft("editAccount", open: editing)
+            .sweepsDraft("editPerson", open: editing)
     }
 
     @ViewBuilder

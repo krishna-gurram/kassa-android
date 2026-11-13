@@ -377,6 +377,7 @@ struct CoachHost: View {
         .sheet(item: $editing) { request in
             BudgetEditSheet(model: model, request: request)
         }
+        .sweepsDraft("budget", open: editing != nil)
     }
 
     @ViewBuilder

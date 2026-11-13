@@ -3,7 +3,7 @@ import KassaShared
 
 /// What is typed on the loan setup form, as plain Swift values, and the `LoanInput` the shared rules read. The rules are :domain's
 /// `LoanForm` (which fields a kind needs, what each says when wrong, the payment and the live calculation); this only keeps the text.
-struct LoanDraft: Equatable {
+struct LoanDraft: FormDraft {
     var stage: String
     var locked: Bool
     var kind: String

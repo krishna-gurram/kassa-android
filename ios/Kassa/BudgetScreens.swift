@@ -37,6 +37,7 @@ struct BudgetsPage: View {
         .sheet(item: $editing) { request in
             BudgetEditSheet(model: model, request: request)
         }
+        .sweepsDraft("budget", open: editing != nil)
     }
 }
 
@@ -133,6 +134,12 @@ struct BudgetRow: View {
     }
 }
 
+/// What is typed on a category's budget editor.
+struct BudgetDraft: FormDraft {
+    var every: String
+    var thisMonth: String
+}
+
 /// The editor of one category's budget.
 struct BudgetEditSheet: View {
     @ObservedObject var model: AppModel
@@ -178,6 +185,14 @@ struct BudgetEditSheet: View {
         }
         .padding(16)
         .onAppear { load() }
+        .keepsDraft(
+            FormDraftStore.key("budget", request.categoryId), current: BudgetDraft(every: every, thisMonth: thisMonth),
+            ready: loaded != nil,
+            apply: { kept in
+                every = FieldBridge.shared.typedAmount(raw: kept.every)
+                thisMonth = FieldBridge.shared.typedAmount(raw: kept.thisMonth)
+            }
+        )
     }
 
     private func justFor(_ data: BudgetEditData) -> String {

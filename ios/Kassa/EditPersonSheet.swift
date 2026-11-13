@@ -1,6 +1,13 @@
 import SwiftUI
 import KassaShared
 
+/// What is typed on Edit person.
+struct EditPersonDraft: FormDraft {
+    var name: String
+    var theyOwe: Bool
+    var amount: String
+}
+
 /// Edit a person (as Android's Edit person sheet): rename them, change what was owed when you added them, or archive them once you are
 /// square (Restore for an archived one). Splits and payments stay either way. Every rule is :domain's (`PersonForm`, `EditRules`).
 struct EditPersonSheet: View {
@@ -37,6 +44,16 @@ struct EditPersonSheet: View {
         .background(Palette.ground.ignoresSafeArea())
         .interactiveDismissDisabled(dirty)
         .onAppear { load() }
+        .keepsDraft(
+            FormDraftStore.key("editPerson", personId),
+            current: EditPersonDraft(name: name, theyOwe: theyOwe, amount: amount), ready: loaded != nil,
+            apply: { kept in
+                name = FieldBridge.shared.typedName(raw: kept.name)
+                theyOwe = kept.theyOwe
+                amount = FieldBridge.shared.typedAmount(raw: kept.amount)
+                refresh()
+            }
+        )
         .alert(Text("edit.discardTitle"), isPresented: $confirmDiscard) {
             Button("edit.keepEditing", role: .cancel) {}
             Button("edit.discard", role: .destructive) { onClose() }

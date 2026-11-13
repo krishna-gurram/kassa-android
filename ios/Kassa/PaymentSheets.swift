@@ -116,6 +116,22 @@ private func nowMillis() -> Int64 {
 
 // MARK: - Pay card
 
+/// What is typed or chosen on the pay-card sheet (kept for the scene).
+struct PayCardDraft: FormDraft {
+    var choice: String
+    var typed: String
+    var payFromId: Int64
+    var epochDay: Int
+}
+
+/// What is typed or chosen on the person payment sheet (kept for the scene).
+struct PersonPaymentDraft: FormDraft {
+    var kind: String
+    var typed: String
+    var accountId: Int64
+    var epochDay: Int
+}
+
 /// Pays a card: balance payable, the total balance or another amount (the first of what is owed is picked; nothing else is), the
 /// account it is paid from (only the card's own "pay from", when set and open, is preselected), and the date. It saves a transfer from
 /// that account to the card, as Android does. The words under each option are `LedgerView.cardPayData`'s.
@@ -179,6 +195,17 @@ struct PayCardSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("payCard", request.data.cardId),
+            current: PayCardDraft(choice: choice, typed: typed, payFromId: payFromId, epochDay: epochDay),
+            apply: { kept in
+                let known = request.data.options.contains { $0.choice == kept.choice }
+                choice = known ? kept.choice : choice
+                typed = AmountPadText.clean(kept.typed)
+                payFromId = model.keepAccount(kept.payFromId)
+                epochDay = FormDraftIds.day(kept.epochDay, fallback: model.today)
+            }
+        )
     }
 
     private var form: some View {
@@ -326,6 +353,16 @@ struct PersonPaymentSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("personPayment", request.editing?.id ?? -request.personId),
+            current: PersonPaymentDraft(kind: kind, typed: typed, accountId: accountId, epochDay: epochDay),
+            apply: { kept in
+                if kept.kind == "PERSON_IN" || kept.kind == "PERSON_OUT" { kind = kept.kind }
+                typed = AmountPadText.clean(kept.typed)
+                accountId = model.keepAccount(kept.accountId)
+                epochDay = FormDraftIds.day(kept.epochDay, fallback: model.today)
+            }
+        )
         .alert(Text("personPayment.deleteTitle"), isPresented: $confirmDelete) {
             Button("personPayment.keep", role: .cancel) {}
             Button("personPayment.deleteConfirm", role: .destructive) { delete() }

@@ -51,6 +51,13 @@ struct LoanTermsSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(FormDraftStore.key("loanTerms", request.accountId), current: draft, apply: { kept in
+            var next = kept
+            next.locked = draft.locked
+            next.payFromId = model.keepAccount(kept.payFromId)
+            next.interestCategoryId = model.keepCategory(kept.interestCategoryId)
+            draft = next
+        })
     }
 
     private var form: some View {
@@ -129,6 +136,12 @@ struct LoanTermsSheet: View {
 }
 
 // MARK: - Balance correction
+
+/// What is typed on the balance correction sheet: the figure the account should show, and "below zero" for an asset.
+struct CorrectionDraft: FormDraft {
+    var typed: String
+    var below: Bool
+}
 
 /// Corrects an account's balance to what the bank or lender shows: it asks for that figure (a debt as what is owed), shows what Kassa
 /// shows and the difference, and saves one dated correction entry; earlier entries stay as they are. Opened from an account page or
@@ -217,6 +230,11 @@ struct CorrectionSheet: View {
         .onChange(of: typed) { _ in error = nil; refresh() }
         .onChange(of: below) { _ in error = nil; refresh() }
         .onAppear { refresh() }
+        .keepsDraft(
+            FormDraftStore.key("correction", data.editingId > 0 ? data.editingId : -data.accountId),
+            current: CorrectionDraft(typed: typed, below: below),
+            apply: { kept in typed = AmountPadText.clean(kept.typed); below = kept.below }
+        )
         .alert(Text("correction.deleteTitle"), isPresented: $confirmDelete) {
             Button("correction.keep", role: .cancel) {}
             Button("correction.deleteConfirm", role: .destructive) { delete() }

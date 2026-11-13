@@ -3,7 +3,7 @@ import KassaShared
 
 /// What is typed on the payment sheet, as plain Swift values, and the `LoanPaymentInput` the shared rules read. The rules are :domain's
 /// `LoanPaymentForm` (the suggested split, the part that follows the one typed, the problems); this only keeps the text and the picks.
-struct LoanPaymentFields: Equatable {
+struct LoanPaymentFields: FormDraft {
     var amount: String
     var day: Int
     var principal: String
@@ -120,6 +120,14 @@ struct LoanPaymentSheet: View {
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { refresh() }
         .onChange(of: fields) { _ in error = nil; refresh() }
+        .keepsDraft(FormDraftStore.key("loanPayment", data.editingId > 0 ? data.editingId : -data.accountId), current: fields, apply: { kept in
+            var next = kept
+            next.fromId = model.keepAccount(kept.fromId)
+            next.categoryId = model.keepCategory(kept.categoryId)
+            next.principalCategoryId = model.keepCategory(kept.principalCategoryId)
+            next.escrowCategoryId = model.keepCategory(kept.escrowCategoryId)
+            fields = next
+        })
         .alert(Text("loanPay.deleteTitle"), isPresented: $confirmDelete) {
             Button("loanPay.keep", role: .cancel) {}
             Button("loanPay.deleteConfirm", role: .destructive) { delete() }

@@ -59,6 +59,7 @@ struct CategoriesPage: View {
         .sheet(item: $editing) { request in
             CategoryEditorSheet(model: model, request: request, onClose: { editing = nil })
         }
+        .sweepsDraft("category", open: editing != nil)
     }
 
     private func rows(_ list: [CategoryListRowData]) -> some View {
@@ -126,6 +127,16 @@ private enum IconTab {
     case symbols
 }
 
+/// What is typed or chosen on the category editor (kept for the scene).
+struct CategoryDraft: FormDraft {
+    var name: String
+    var iconKind: String
+    var iconValue: String
+    var color: Int32
+    var counts: Bool
+    var hidden: Bool
+}
+
 struct CategoryEditorSheet: View {
     @ObservedObject var model: AppModel
     let request: CategoryEditRequest
@@ -175,6 +186,22 @@ struct CategoryEditorSheet: View {
         }
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { start() }
+        .keepsDraft(
+            FormDraftStore.key("category", request.id > 0 ? request.id : (request.kind == "INCOME" ? -2 : -1)),
+            current: CategoryDraft(name: name, iconKind: iconKind, iconValue: iconValue, color: color, counts: counts, hidden: hidden),
+            ready: started,
+            apply: { kept in
+                name = CategoryIconBridge.shared.typedName(raw: kept.name)
+                if kept.iconKind == "emoji" || kept.iconKind == "symbol" {
+                    iconKind = kept.iconKind
+                    iconValue = kept.iconValue
+                    tab = kept.iconKind == "emoji" ? .emoji : .symbols
+                }
+                color = kept.color
+                counts = kept.counts
+                hidden = kept.hidden
+            }
+        )
         .sheet(item: $subEditing) { sub in
             CategoryEditorSheet(model: model, request: sub, onClose: { subEditing = nil })
         }

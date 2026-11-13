@@ -2,7 +2,7 @@ import SwiftUI
 import KassaShared
 
 /// What is typed on the Change terms page; the rules are :domain's `LoanChangeForm` (through `LoanChangeInput`).
-struct LoanChangeFields: Equatable {
+struct LoanChangeFields: FormDraft {
     var kind: String
     var day: Int
     var rate: String
@@ -69,6 +69,7 @@ struct LoanChangeScreen: View {
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { refresh() }
         .onChange(of: fields) { _ in error = nil; refresh() }
+        .keepsDraft(FormDraftStore.key("loanChange", data.accountId), current: fields, apply: { kept in fields = kept })
     }
 
     private func refresh() {
