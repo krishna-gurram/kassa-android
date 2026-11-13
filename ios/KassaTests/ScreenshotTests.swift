@@ -42,6 +42,7 @@ final class ScreenshotTests: XCTestCase {
             try drawInvestPages(target)
             try drawDuePages(target)
             try drawReadPages(target)
+            try drawWidePages(target)
             try drawImportPages(target)
             if CoachFeature.visible {
                 try drawCoachPages(target)
@@ -548,16 +549,79 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// One screen at 390 x 844 pt, scale 2. Anything that goes wrong is printed, never thrown.
+    /// Batch C, the iPad layouts of the demo backup, light and dark, at 1024 x 768 (landscape) and 820 x 1180 (portrait): Overview,
+    /// Accounts and Insights beside the tab rail in two columns, and Activity with a day page beside it (list-detail).
     @MainActor
-    private func save<V: View>(_ content: V, scheme: ColorScheme, to file: URL) {
+    private func drawWidePages(_ target: URL) throws {
+        let expected = try DemoFixture.expected()
+        let view = try DemoFixture.view(directory: directory.appendingPathComponent("demo-wide", isDirectory: true), keys: MemoryKeyStore())
+        let zone = "UTC"
+        let day = DemoFixture.lastOfOctober
+        let overview = view.overview(hidden: false, todayEpochDay: expected.today, timeZoneId: zone, firstWeekday: 2)
+        let accounts = view.accounts(hidden: false, todayEpochDay: expected.today, timeZoneId: zone)
+        let insights = view.insights(hidden: false, todayEpochDay: day, timeZoneId: zone, monthsBack: 0)
+        let patterns = view.patterns(hidden: false, todayEpochDay: day, timeZoneId: zone)
+        let filtered = view.activityFiltered(year: 2026, month: 10, filter: "ALL", hidden: false, todayEpochDay: day, timeZoneId: zone)
+        let dayData = view.dayPage(epochDay: day, hidden: false, timeZoneId: zone)
+        let sizes: [(String, CGFloat, CGFloat)] = [("landscape", 1024, 768), ("portrait", 820, 1180)]
+        for scheme in [ColorScheme.light, ColorScheme.dark] {
+            let suffix = scheme == ColorScheme.dark ? "dark" : "light"
+            for (name, width, height) in sizes {
+                let size = CGSize(width: width, height: height)
+                let beside: CGFloat = width - LayoutMode.railWidth
+                let paneMode = LayoutMode.of(width: beside, regular: true)
+                func railed<C: View>(_ tab: ShellTab, _ content: C) -> some View {
+                    return HStack(spacing: 0) {
+                        KassaTabRail(items: AppShell.barItems, selection: tab, onSelect: { _ in }, onAdd: {})
+                        content
+                            .environment(\.layoutMode, paneMode)
+                            .frame(width: beside, alignment: .top)
+                    }
+                }
+                let overviewView = railed(.overview, OverviewContent(data: overview, hidden: false, onToggleHidden: {}, onAllAccounts: {}))
+                save(overviewView, scheme: scheme, size: size, to: target.appendingPathComponent("ipad-overview-\(name)-\(suffix).png"))
+                let accountsView = railed(.accounts, AccountsContent(data: accounts, hidden: false, onToggleHidden: {}))
+                save(accountsView, scheme: scheme, size: size, to: target.appendingPathComponent("ipad-accounts-\(name)-\(suffix).png"))
+                let read = InsightsRead(
+                    patterns: patterns, week: nil, showWeek: false, today: Int(day),
+                    onSetWeek: { _ in }, onOpenDetail: { _ in }, onOpenSpending: { _ in }
+                )
+                let insightsView = railed(
+                    .insights,
+                    InsightsContent(data: insights, hidden: false, onToggleHidden: {}, onShift: { _ in }, onOpenCategory: { _ in }, read: read)
+                )
+                save(insightsView, scheme: scheme, size: size, to: target.appendingPathComponent("ipad-insights-\(name)-\(suffix).png"))
+                let list = ActivityContent(data: filtered, hidden: false, today: Int(day), lazy: false, onToggleHidden: {}, onShift: { _ in })
+                    .environment(\.layoutMode, .compact)
+                    .frame(width: LayoutMode.listPaneWidth, alignment: .top)
+                let page = DayPageContent(
+                    data: dayData, hidden: false, today: Int(day), onBack: {}, onToggleHidden: {}, onOpen: { _ in }
+                )
+                    .padding(.horizontal, 16)
+                    .frame(width: beside - LayoutMode.listPaneWidth - 1, alignment: .top)
+                let activityView = railed(
+                    .activity,
+                    HStack(alignment: .top, spacing: 0) {
+                        list
+                        Rectangle().fill(Palette.line).frame(width: 1)
+                        page
+                    }
+                )
+                save(activityView, scheme: scheme, size: size, to: target.appendingPathComponent("ipad-activity-detail-\(name)-\(suffix).png"))
+            }
+        }
+    }
+
+    /// One screen at 390 x 844 pt (or [size]), scale 2. Anything that goes wrong is printed, never thrown.
+    @MainActor
+    private func save<V: View>(_ content: V, scheme: ColorScheme, size: CGSize = CGSize(width: 390, height: 844), to file: URL) {
         let framed = content
-            .frame(width: 390, height: 844, alignment: .top)
+            .frame(width: size.width, height: size.height, alignment: .top)
             .background(Palette.ground)
             .environment(\.colorScheme, scheme)
         let renderer = ImageRenderer(content: framed)
         renderer.scale = 2
-        renderer.proposedSize = ProposedViewSize(width: 390, height: 844)
+        renderer.proposedSize = ProposedViewSize(width: size.width, height: size.height)
         guard let image = renderer.uiImage, let png = image.pngData() else {
             print("KASSA shot not drawn: \(file.lastPathComponent)")
             return

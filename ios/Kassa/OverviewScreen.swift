@@ -23,14 +23,16 @@ struct OverviewScreen: View {
     var onOpenCoach: () -> Void = {}
 
     var body: some View {
-        ScrollView {
-            OverviewContent(
-                data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts,
-                notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard,
-                onOpenCategory: onOpenCategory, onOpenSpending: onOpenSpending, coachLine: coachLine, onOpenCoach: onOpenCoach
-            )
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
+        PaneLayout { mode in
+            ScrollView {
+                OverviewContent(
+                    data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAllAccounts: onAllAccounts,
+                    notices: notices, upcoming: upcoming, onOpenNotices: onOpenNotices, onOpenCard: onOpenCard,
+                    onOpenCategory: onOpenCategory, onOpenSpending: onOpenSpending, coachLine: coachLine, onOpenCoach: onOpenCoach
+                )
+                    .frame(maxWidth: mode.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .background(Palette.ground.ignoresSafeArea())
     }
@@ -57,8 +59,51 @@ struct OverviewContent: View {
     /// Month first, as on Android: it is what budgets are measured in. The menu in the hero picks this week.
     @State private var showWeek = false
     @State private var choosingPeriod = false
+    @Environment(\.layoutMode) private var layoutMode
 
     var body: some View {
+        if layoutMode.isWide {
+            wideBody
+        } else {
+            compactBody
+        }
+    }
+
+    /// Two columns (600 pt and up, as Android's unfolded Overview): Notifications across the top, then the hero (with its categories)
+    /// and Upcoming on the left and the pinned accounts as two-column hairline cells on the right.
+    private var wideBody: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TabTop(title: "tab.overview", hidden: hidden, onToggle: onToggleHidden)
+            if !notices.isEmpty {
+                WaitingPill(count: notices.count, onOpen: onOpenNotices)
+            }
+            HStack(alignment: .top, spacing: 32) {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        hero
+                        if !flow.top.isEmpty {
+                            CategoryTiles(items: flow.top, onTap: tileTap)
+                                .accessibilityIdentifier("topCategoryTiles")
+                        }
+                    }
+                    if let line = coachLine {
+                        CoachTeaserCard(line: line, onOpen: onOpenCoach)
+                    }
+                    UpcomingSection(rows: upcoming, hidden: hidden, onOpenCard: onOpenCard, onSeeAll: notices.isEmpty ? nil : onOpenNotices)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 14) {
+                    accountsHeader
+                    pinRows
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+    }
+
+    private var compactBody: some View {
         VStack(alignment: .leading, spacing: 14) {
             TabTop(title: "tab.overview", hidden: hidden, onToggle: onToggleHidden)
             if !notices.isEmpty {

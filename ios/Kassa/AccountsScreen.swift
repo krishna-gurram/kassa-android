@@ -16,10 +16,12 @@ struct AccountsScreen: View {
     var order: AccountsOrderHooks? = nil
 
     var body: some View {
-        ScrollView {
-            AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd, onOpenRow: onOpenRow, order: order)
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
+        PaneLayout { mode in
+            ScrollView {
+                AccountsContent(data: data, hidden: hidden, onToggleHidden: onToggleHidden, onAdd: onAdd, onOpenRow: onOpenRow, order: order)
+                    .frame(maxWidth: mode.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .background(Palette.ground.ignoresSafeArea())
     }
@@ -46,15 +48,52 @@ struct AccountsContent: View {
     /// Folded groups, by key. Closed and the archived groups start folded; with `order` the saved folds replace this on appearing.
     @State private var folded: Set<String> = Set(PhonePrefs.defaultFolded)
     @State private var ordering = false
+    @Environment(\.layoutMode) private var layoutMode
+
+    /// From 600 pt: assets on the left, liabilities (and People) on the right, and the closed and archived groups across the bottom.
+    private static let closedKeys: Set<String> = ["CLOSED", "ARCHIVED", "ARCHIVED_PEOPLE"]
+
+    private var assetGroups: [AccountsGroupData] {
+        return data.groups.filter { !$0.isDebt && $0.key != "PEOPLE" && !AccountsContent.closedKeys.contains($0.key) }
+    }
+
+    private var liabilityGroups: [AccountsGroupData] {
+        return data.groups.filter { $0.isDebt || $0.key == "PEOPLE" }
+    }
+
+    private var closedGroups: [AccountsGroupData] {
+        return data.groups.filter { AccountsContent.closedKeys.contains($0.key) && !$0.isDebt }
+    }
+
+    @ViewBuilder
+    private var groupsView: some View {
+        if layoutMode.isWide {
+            HStack(alignment: .top, spacing: 32) {
+                VStack(spacing: 8) {
+                    ForEach(assetGroups, id: \.key) { group in groupView(group) }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+                VStack(spacing: 8) {
+                    ForEach(liabilityGroups, id: \.key) { group in groupView(group) }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            ForEach(closedGroups, id: \.key) { group in
+                groupView(group)
+            }
+        } else {
+            ForEach(data.groups, id: \.key) { group in
+                groupView(group)
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             TabTop(title: "accounts.title", hidden: hidden, onToggle: onToggleHidden)
             NetWorthHero(data: data, hidden: hidden)
             orderBar
-            ForEach(data.groups, id: \.key) { group in
-                groupView(group)
-            }
+            groupsView
             if let add = onAdd {
                 Button(action: add) {
                     Label("accounts.addAccount", systemImage: "plus")
