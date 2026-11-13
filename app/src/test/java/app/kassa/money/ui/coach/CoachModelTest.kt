@@ -31,7 +31,7 @@ class CoachModelTest {
     private val watch = WeeklyCheckIn.Watch(
         WeeklyCheckIn.WatchKind.CATEGORY_PACE, 11L, "", "", 47_100L, 59_000L, 52_000L, WeeklyCheckIn.Reference.BUDGET, 7_000L, 12, 30, 91,
     )
-    private val decision = WeeklyCheckIn.Decision(11L, 12_000L, 3, 14_500L, 6_000L)
+    private val decision = WeeklyCheckIn.Decision(11L, 40_000L, 3, 47_100L, null)
 
     private fun checkIn(kind: WeeklyCheckIn.Kind = WeeklyCheckIn.Kind.READY, w: WeeklyCheckIn.Win? = win, a: WeeklyCheckIn.Watch? = watch, d: WeeklyCheckIn.Decision? = decision) =
         WeeklyCheckIn.Result(kind, 20_400, 31_200L, 35_000L, 30_000L, 3, w, a, d)
@@ -79,7 +79,8 @@ class CoachModelTest {
         val cards = CoachModel.view(report(), hidden = false).cards
         assertEquals(Target.Category(11L), CoachModel.target(cards[0]))
         assertEquals(Target.Repeating, CoachModel.target(cards[1]))
-        assertEquals(Target.Accounts, CoachModel.target(cards[2]))
+        // The emergency fund card goes nowhere: the Accounts tab would show credit cards and their due lines.
+        assertNull(CoachModel.target(cards[2]))
     }
 
     @Test
@@ -135,14 +136,6 @@ class CoachModelTest {
         assertEquals(TeaserKind.NEUTRAL, t?.kind)
         assertNull(t?.watch)
         assertNull(t?.win)
-    }
-
-    @Test
-    fun aWeeklyLimitBecomesAMonthlyBudgetRoundedHalfUp() {
-        assertEquals(42_857L, CoachModel.monthlyLimit(10_000L, 30))
-        assertEquals(44_286L, CoachModel.monthlyLimit(10_000L, 31))
-        assertEquals(40_000L, CoachModel.monthlyLimit(10_000L, 28))
-        assertEquals(0L, CoachModel.monthlyLimit(0L, 30))
     }
 
     @Test

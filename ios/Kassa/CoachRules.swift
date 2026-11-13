@@ -54,8 +54,6 @@ enum CoachTarget: Equatable {
     case category(Int64)
     /// The repeating charges page.
     case subscriptions
-    /// The Accounts tab.
-    case accounts
 }
 
 enum CoachTint: Equatable {
@@ -71,7 +69,8 @@ struct CoachCard: Identifiable, Equatable {
     let tint: CoachTint
     let title: String
     let body: String
-    let target: CoachTarget
+    /// Where a tap goes; nil when the card goes nowhere (the emergency fund: the Accounts tab would show credit cards and their due lines).
+    let target: CoachTarget?
 }
 
 /// The check-in page as words: what to say for the win, the watch-out and the decision, from the shared rows.
@@ -86,7 +85,8 @@ struct CheckInText: Equatable {
         let title: String
         let body: String
         let categoryId: Int64
-        let limitText: String
+        /// The suggested monthly budget as the budget editor's field takes it.
+        let budgetInput: String
     }
 
     /// READY, NOT_ENOUGH_DATA or HIDDEN.
@@ -219,7 +219,7 @@ enum CoachWording {
         } else {
             body = String(localized: "coach.fund.body")
         }
-        return CoachCard(id: "fund", symbol: "checkmark.shield", tint: CoachTint.sage, title: title, body: body, target: CoachTarget.accounts)
+        return CoachCard(id: "fund", symbol: "checkmark.shield", tint: CoachTint.sage, title: title, body: body, target: nil)
     }
 
     // MARK: The weekly check-in
@@ -269,10 +269,16 @@ enum CoachWording {
         guard let row = rows.first else { return nil }
         if weekStart != 0 && dismissed == weekStart { return nil }
         let name = categoryName(row.categoryName)
+        let format: String
+        if row.monthsUsed == 1 {
+            format = String(localized: "coach.ci.decision.body.one")
+        } else {
+            format = String(localized: "coach.ci.decision.body.other")
+        }
         return CheckInText.Decision(
-            title: String(format: String(localized: "coach.ci.decision.title"), row.weeklyLimitText, name),
-            body: String(format: String(localized: "coach.ci.decision.body"), row.usualWeekText, name),
-            categoryId: row.categoryId, limitText: row.weeklyLimitText
+            title: String(format: String(localized: "coach.ci.decision.title"), name),
+            body: String(format: format, row.monthlyBudgetText, Int(row.monthsUsed), name),
+            categoryId: row.categoryId, budgetInput: row.monthlyBudgetInput
         )
     }
 
@@ -326,10 +332,5 @@ enum CoachWording {
     /// True when the check-in page has something to open (also what the Coach page's link needs).
     static func checkInReady(_ data: CoachData, weeklyOn: Bool) -> Bool {
         return weeklyOn && !data.hidden && data.checkIn.state == "READY"
-    }
-
-    /// "Suggested weekly limit: $120.00. Budgets are per month, so enter the month's amount." for the budget editor.
-    static func limitHint(_ limitText: String) -> String {
-        return String(format: String(localized: "coach.ci.suggest"), limitText)
     }
 }

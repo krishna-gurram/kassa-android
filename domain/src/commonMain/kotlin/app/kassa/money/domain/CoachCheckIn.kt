@@ -13,13 +13,16 @@ package app.kassa.money.domain
  *   gone) or under its own usual week. Needs spending this week in it. Never a category the month's pace flags (so never the watch-out's).
  * - Watch-out: the on-pace overspend that is furthest past ([SpendingPace]), else the monthly charge that rose most
  *   ([SubscriptionChange]), else nothing.
- * - Decision: for a category watch-out only, a suggested weekly limit: the usual weekly spending in that category (average of the same
- *   weeks) rounded down to a whole unit of money, with at least [MIN_DECISION_WEEKS] weeks behind it. A suggestion only: nothing is written.
+ * - Decision: for a category watch-out only, a suggested MONTHLY budget (Kassa budgets are monthly, per category; there are no weekly
+ *   ones): the average counted spending of that category over the previous [DECISION_MONTHS] full budget months (as many as exist, at
+ *   least one), rounded down to a whole unit of money. Only when the category has no budget yet, or it is over or on pace to pass a budget
+ *   that is below that figure. A category whose budget is already at or above the figure gets no decision (the watch-out stays). A
+ *   suggestion only: nothing is written; the budget editor opens with this exact monthly amount.
  */
 object WeeklyCheckIn {
     const val MIN_HISTORY_DAYS = 14
     const val USUAL_WEEKS = 4
-    const val MIN_DECISION_WEEKS = 2
+    const val DECISION_MONTHS = 3
 
     enum class Kind { NOT_ENOUGH_DATA, READY }
 
@@ -57,8 +60,11 @@ object WeeklyCheckIn {
         val usedPercent: Int,
     )
 
-    /** A limit to suggest for [categoryId]. [thisWeek] is what the category took this week so far, [usualWeek] its unrounded usual week. */
-    data class Decision(val categoryId: Long, val weeklyLimit: Long, val weeksUsed: Int, val usualWeek: Long, val thisWeek: Long)
+    /**
+     * A monthly budget to suggest for [categoryId]: [monthlyBudget] is the average month, [monthsUsed] the full months behind it (1 to
+     * [DECISION_MONTHS]), [spentThisMonth] what the category took this budget month so far and [currentBudget] its budget now (null with none).
+     */
+    data class Decision(val categoryId: Long, val monthlyBudget: Long, val monthsUsed: Int, val spentThisMonth: Long, val currentBudget: Long?)
 
     data class Result(
         val kind: Kind,
@@ -111,7 +117,7 @@ object WeeklyCheckIn {
         val pace = SpendingPace.compute(l)
         val watch = watchOf(l, pace)
         val win = winOf(l, pace, thisWeekBy, priorBy, n)
-        val decision = decisionOf(watch, thisWeekBy, priorBy, n)
+        val decision = decisionOf(l, watch)
         return Result(
             Kind.READY, weekStart, spent,
             usualWeek = if (n > 0) CoachMath.divHalfUp(wholeSum, n.toLong()) else 0L,
@@ -177,11 +183,18 @@ object WeeklyCheckIn {
             .firstOrNull()
     }
 
-    private fun decisionOf(watch: Watch?, thisWeekBy: Map<Long, Long>, priorBy: Map<Long, Long>, n: Int): Decision? {
-        if (watch == null || watch.kind != WatchKind.CATEGORY_PACE || n < MIN_DECISION_WEEKS) return null
-        val usual = CoachMath.divFloor(priorBy[watch.categoryId] ?: 0L, n.toLong())
-        val limit = usual / 100L * 100L
-        if (limit <= 0L) return null
-        return Decision(watch.categoryId, limit, n, usual, thisWeekBy[watch.categoryId] ?: 0L)
+    private fun decisionOf(l: CoachLedger, watch: Watch?): Decision? {
+        if (watch == null || watch.kind != WatchKind.CATEGORY_PACE) return null
+        val periods = l.fullPriorPeriods(DECISION_MONTHS)
+        if (periods.isEmpty()) return null
+        var total = 0L
+        for (p in periods) total += l.sum(l.expenses, p.start.toEpochDay().toInt(), p.endInclusive.toEpochDay().toInt(), watch.categoryId)
+        val average = CoachMath.divFloor(total, periods.size.toLong())
+        val suggested = average / 100L * 100L
+        if (suggested <= 0L) return null
+        val budget = Budgets.amountFor(watch.categoryId, l.current.yearMonth, l.input.budgets)?.takeIf { it > 0L }
+        if (budget != null && (budget >= suggested || watch.referenceKind != Reference.BUDGET)) return null
+        val spent = l.sum(l.expenses, l.current.start.toEpochDay().toInt(), l.todayDay, watch.categoryId)
+        return Decision(watch.categoryId, suggested, periods.size, spent, budget)
     }
 }

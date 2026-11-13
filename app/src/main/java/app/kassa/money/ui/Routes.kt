@@ -168,14 +168,13 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
                     when (t) {
                         is Target.Category -> app.push(Page.CategoryDetail(t.id))
                         Target.Repeating -> app.push(Page.Insight(InsightPage.REPEATING))
-                        Target.Accounts -> app.nav.select(Tab.ACCOUNTS)
                     }
                 },
             )
         }
         Page.CheckIn -> {
             val report by vm.coach.collectAsState()
-            CheckInPage(l, report, padding, onBack, onSetLimit = app::openBudgetEditor, onNotNow = app::dismissCheckIn)
+            CheckInPage(l, report, padding, onBack, onSetBudget = app::openBudgetEditor, onNotNow = app::dismissCheckIn)
         }
         Page.Import -> Box(Modifier.padding(padding)) {
             ImportScreen(firstRun = false, onFinished = { app.nav.select(Tab.TODAY) }, onCancel = back)
