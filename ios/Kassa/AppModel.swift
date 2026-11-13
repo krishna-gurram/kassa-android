@@ -57,6 +57,14 @@ final class AppModel: ObservableObject {
     @Published var coachWeekly: Bool
     @Published var coachCards: Bool
     @Published var coachDismissed: Int
+    /// Coach simulator (`AppModel+CoachSim.swift`): what is typed on the form, the what-ifs applied to the answer and the month list, the
+    /// figures for the page that is open (`simFor` is the what-if text they were worked out for), and the cushion.
+    @Published var simDraft = SimDraft()
+    @Published var simApplied: [SimChip] = []
+    @Published private(set) var sim: CoachSimData?
+    @Published private(set) var simFor: String?
+    @Published var simCushion: Int64 = 0
+    @Published var simCushionText = ""
     /// Insights shows its week view instead of its month.
     @Published var insightsWeek = false
     /// Activity's Spending or Income filter (ALL, EXPENSE or INCOME) and its search text ("" is no search).
@@ -196,6 +204,7 @@ final class AppModel: ObservableObject {
         self.coachWeekly = CoachPrefs(defaults: defaults).weeklyCheckIn
         self.coachCards = CoachPrefs(defaults: defaults).insightCards
         self.coachDismissed = CoachPrefs(defaults: defaults).dismissedWeek
+        self.simCushion = CoachPrefs(defaults: defaults).cushionCents
         self.chosenCurrency = AppModel.regionCurrency()
         let now = KassaDates.todayEpochDay()
         let current = KassaDates.yearMonth(epochDay: now)
@@ -242,6 +251,9 @@ final class AppModel: ObservableObject {
         var query: String = ""
         var route: ReadRoute? = nil
         var budgetsOpen: Bool = false
+        /// The what-if text of the Coach simulator page that is open (nil: none is open) and the cushion it is judged against.
+        var simWhatIfs: String? = nil
+        var simCushion: Int64 = 0
     }
 
     func inputs() -> Inputs {
@@ -251,7 +263,8 @@ final class AppModel: ObservableObject {
             insightsBack: insightsBack, categoryId: openCategoryId, currency: chosenCurrency,
             target: openPage, pageBack: pageBack, loanAll: loanAll, cleared: DueSettings(defaults: defaults).cleared,
             firstWeekday: Calendar.current.firstWeekday, insightsWeek: insightsWeek, filter: activityFilter, query: searchText,
-            route: readStack.last, budgetsOpen: budgetsOpen
+            route: readStack.last, budgetsOpen: budgetsOpen,
+            simWhatIfs: simText(for: readStack.last), simCushion: simCushion
         )
     }
 
@@ -410,6 +423,7 @@ final class AppModel: ObservableObject {
         )
         let read: ReadFigures = computeRead(made, given)
         let coachData: CoachData = computeCoach(made, given)
+        let simData: CoachSimData? = computeSim(made, given)
         let pinList: [PinChoiceData] = made.pinChoices()
         let convertList: [ConvertibleAccountData] = made.convertibleAccounts(hidden: given.hidden)
         let monthStart = Int(made.budgetMonthStart())
@@ -423,6 +437,10 @@ final class AppModel: ObservableObject {
             self.budgets = read.budgets
             self.searchResult = read.search
             self.coach = coachData
+            if let found = simData {
+                self.sim = found
+                self.simFor = given.simWhatIfs
+            }
             self.accounts = a
             self.overview = o
             self.insights = i
