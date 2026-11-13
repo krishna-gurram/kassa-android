@@ -12,12 +12,16 @@ extension LedgerStore {
     }
 
     /// Creates or updates a category or subcategory and returns its id. A saved top-level category's colour is also put on its
-    /// subcategories, in the same transaction. Refuses (with `WriteRefusal`) what `CategoryRules` refuses.
+    /// subcategories, and the editor's budget rows ([budgetChanges], from `LedgerView.categorySavePlan`, which names category 0 for a
+    /// new category) are written, all in the same transaction. Refuses (with `WriteRefusal`) what `CategoryRules` refuses.
     @discardableResult
-    func saveCategory(_ input: CategoryInput) throws -> Int64 {
+    func saveCategory(_ input: CategoryInput, budgetChanges: [BudgetChangeData] = []) throws -> Int64 {
         return try db.transaction { () throws -> Int64 in
             let made = try self.ledgerForCategories()
-            return try self.writeCategory(input, made: made)
+            let id = try self.writeCategory(input, made: made)
+            try self.writeBudgetRows(budgetChanges, forCategory: id)
+            try self.afterInsertHook?()
+            return id
         }
     }
 

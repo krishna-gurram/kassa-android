@@ -88,4 +88,45 @@ object CategoryRules {
     /** The top-level categories a subcategory can move under: those of its kind in use, except the one it is under, A to Z. */
     fun moveTargets(all: List<Category>, sub: Category): List<Category> =
         all.filter { it.parentId == null && it.kind == sub.kind && !it.hidden && it.id != sub.parentId }.sortedWith(Names.order { it.name })
+
+    // ---------- saving the editor, budget fields included ----------
+
+    /** Which part of the editor a [SaveProblem] is about. */
+    enum class SaveField { NAME, EVERY_MONTH, THIS_MONTH }
+
+    data class SaveProblem(val field: SaveField, val message: String)
+
+    /**
+     * What saving the category editor does besides the category itself: the [problems] by field, or the budget [changes] to write in the
+     * same transaction. A change of a new category (id 0) names category 0, which the store replaces with the id it just made.
+     */
+    data class SavePlan(val problems: List<SaveProblem>, val changes: List<BudgetRules.Change>)
+
+    /** True when the editor shows the budget fields: a top-level expense category (Android's editor, `BudgetRules`). */
+    fun hasBudget(c: Category): Boolean = c.parentId == null && c.kind == CategoryKind.EXPENSE
+
+    /** True when the editor also shows "just for this month": a saved category that has a budget at all. */
+    fun hasMonthBudget(c: Category): Boolean = hasBudget(c) && c.id != 0L
+
+    /**
+     * Checks the whole editor: the category ([problem]) and, for a category that has budget fields, the typed amounts, then says which
+     * budget rows change (`BudgetRules.plan`: a blank amount removes its row, a typed one sets it). Any other category writes no budget
+     * and its budget fields are ignored; a new category has no one-month override, so what was typed for it is ignored too. [month] is
+     * the budget month a one-month override is for. Nothing is planned while there is a problem.
+     */
+    fun savePlan(
+        all: List<Category>, c: Category, month: YearMonth, budgets: List<Budget>,
+        everyTyped: Boolean, everyCents: Long?, monthTyped: Boolean, monthCents: Long?,
+    ): SavePlan {
+        val problems = ArrayList<SaveProblem>()
+        problem(all, c)?.let { problems.add(SaveProblem(SaveField.NAME, it)) }
+        if (!hasBudget(c)) return SavePlan(problems, emptyList())
+        val plan = BudgetRules.plan(
+            c.id, month, budgets,
+            everyTyped = everyTyped, everyCents = everyCents,
+            monthTyped = monthTyped && hasMonthBudget(c), monthCents = monthCents,
+        )
+        plan.problems.forEach { problems.add(SaveProblem(if (it.field == BudgetRules.Field.EVERY_MONTH) SaveField.EVERY_MONTH else SaveField.THIS_MONTH, it.message)) }
+        return SavePlan(problems, if (problems.isEmpty()) plan.changes else emptyList())
+    }
 }

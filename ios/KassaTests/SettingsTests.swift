@@ -159,6 +159,30 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(activity.incomeText, october.income.totalText)
     }
 
+    func testOverviewTilesAreSizedByShareAndEqualWhileHidden() throws {
+        let view = try DemoFixture.view(directory: directory, keys: keys)
+        let october = view.overview(hidden: false, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
+        XCTAssertEqual(october.spending.top.map { Int($0.tileWeight) }, [739, 300, 300])
+        let hidden = view.overview(hidden: true, todayEpochDay: DemoFixture.lastOfOctober, timeZoneId: "UTC", firstWeekday: 2)
+        XCTAssertEqual(hidden.spending.top.map { Int($0.tileWeight) }, [1000, 1000, 1000])
+        XCTAssertEqual(hidden.income.top.map { Int($0.tileWeight) }, [1000, 1000])
+    }
+
+    func testWeightedRowGivesEachTileItsShareOfTheRoomAfterTheGaps() {
+        // 350 pt with two 6 pt gaps leaves 338 pt, split 739 : 300 : 300.
+        let widths = WeightedRow.widths(weights: [739, 300, 300], count: 3, total: 350, spacing: 6)
+        XCTAssertEqual(widths.reduce(0, +), 338, accuracy: 0.001)
+        XCTAssertEqual(widths[0], 338 * 739 / 1339, accuracy: 0.001)
+        XCTAssertEqual(widths[1], widths[2], accuracy: 0.001)
+        // Equal weights are equal widths; a missing weight counts as a full one; no children, no widths.
+        let equal = WeightedRow.widths(weights: [1000, 1000], count: 2, total: 206, spacing: 6)
+        XCTAssertEqual(equal, [100, 100])
+        XCTAssertEqual(WeightedRow.widths(weights: [], count: 2, total: 106, spacing: 6), [50, 50])
+        XCTAssertTrue(WeightedRow.widths(weights: [], count: 0, total: 100, spacing: 6).isEmpty)
+        // Too narrow for the gaps: no negative widths.
+        XCTAssertTrue(WeightedRow.widths(weights: [500, 500], count: 2, total: 2, spacing: 6).allSatisfy { $0 >= 0 })
+    }
+
     func testOverviewOnTheDemoDayIsTheCurrentMonthToDate() throws {
         let expected = try DemoFixture.expected()
         let view = try DemoFixture.view(directory: directory, keys: keys)

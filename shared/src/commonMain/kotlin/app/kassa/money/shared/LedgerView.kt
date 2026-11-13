@@ -44,6 +44,7 @@ import app.kassa.money.domain.LoanSummary
 import app.kassa.money.domain.InputRules
 import app.kassa.money.domain.InvestRules
 import app.kassa.money.domain.Money
+import app.kassa.money.domain.OverviewTiles
 import app.kassa.money.domain.Names
 import app.kassa.money.domain.Patterns
 import app.kassa.money.domain.Person
@@ -258,6 +259,11 @@ data class TopCategoryData(
     /** The category's colour as ARGB; 0 without a category. */
     val color: Int,
     val amountText: String,
+    /**
+     * How wide its tile is, in parts per thousand (`OverviewTiles.weights`: its share of the three with a floor so a small tile holds its
+     * icon). Equal (1000) while Hide balances is on, so a width never gives a figure away.
+     */
+    val tileWeight: Int,
 )
 
 /** The Overview hero for one flow, spending or income, over the current period: the total and its three largest categories. */
@@ -877,15 +883,17 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         val grouped = list.filter { it.kind == kind }.groupBy { Spending.topOf(it.categoryId, categoryById) }
         val rows = grouped.entries.map { e -> Pair(e.key, e.value.sumOf { it.categoryAmount }) }.sortedByDescending { it.second }
         val total = rows.sumOf { it.second }
-        val top = rows.take(3).map { r -> topCategoryOf(r.first, r.second) }
+        val firstThree = rows.take(3)
+        val weights = OverviewTiles.weights(firstThree.map { it.second }, Money.isHidden)
+        val top = firstThree.mapIndexed { i, r -> topCategoryOf(r.first, r.second, weights[i]) }
         val tone = if (positive && total > 0) figurePositive() else Tone.Ink
         return OverviewFlowData(Money.format(total), tone, top)
     }
 
-    private fun topCategoryOf(c: Category?, amount: Long): TopCategoryData {
-        if (c == null) return TopCategoryData(0L, "", "", "", 0, Money.format(amount))
+    private fun topCategoryOf(c: Category?, amount: Long, weight: Int): TopCategoryData {
+        if (c == null) return TopCategoryData(0L, "", "", "", 0, Money.format(amount), weight)
         val icon = iconParts(c.icon)
-        return TopCategoryData(c.id, c.name, icon.first, icon.second, c.color, Money.format(amount))
+        return TopCategoryData(c.id, c.name, icon.first, icon.second, c.color, Money.format(amount), weight)
     }
 
     /** Every account open on the tab in the order Overview follows (the arrangement when Your order is on, else A to Z). */
@@ -1174,13 +1182,13 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
         } else emptyList()
         val merge = if (isNew) emptyList() else CategoryRules.mergeTargets(all, c).map { CategoryTargetData(it.id, it.name) }
         val move = if (isNew || isTop) emptyList() else CategoryRules.moveTargets(all, c).map { CategoryTargetData(it.id, it.name) }
-        return CategoryEditData(true, CategoryInput.of(c), isNew, isTop, colors, subs, merge, move)
+        return CategoryEditData(true, CategoryInput.of(c), isNew, isTop, colors, subs, merge, move, CategoryRules.hasBudget(c), CategoryRules.hasMonthBudget(c))
     }
 
     /** The editor for the stored category [categoryId] (top-level or a subcategory). */
     fun categoryEdit(categoryId: Long): CategoryEditData {
         val c = categoryById[categoryId]
-            ?: return CategoryEditData(false, CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false), true, true, emptyList(), emptyList(), emptyList(), emptyList())
+            ?: return CategoryEditData(false, CategoryInput(0, "EXPENSE", 0, "", "emoji", "", 0, true, false), true, true, emptyList(), emptyList(), emptyList(), emptyList(), false, false)
         return editData(c, false)
     }
 
@@ -1194,6 +1202,27 @@ class LedgerView(data: BackupData, fallbackCurrency: String?) {
     fun categoryProblem(input: CategoryInput): String {
         val c = input.category() ?: return CategoryRules.GONE
         return CategoryRules.problem(parts.categories, c) ?: ""
+    }
+
+    /**
+     * Saving the editor with [input] and the typed budget amounts ([every] for every month, [thisMonth] for the budget month of [todayEpochDay]):
+     * the problems by field, or the budget rows to write with the category (`CategoryRules.savePlan`). Budget fields of a category that has
+     * none are ignored.
+     */
+    fun categorySavePlan(input: CategoryInput, every: String, thisMonth: String, todayEpochDay: Int): CategorySavePlanData {
+        val c = input.category() ?: return CategorySavePlanData(listOf(FieldProblemData("NAME", CategoryRules.GONE)), emptyList())
+        val month = Period.containing(localDateOfEpochDay(todayEpochDay), monthStartDay).yearMonth
+        val e = every.trim()
+        val m = thisMonth.trim()
+        val plan = CategoryRules.savePlan(
+            parts.categories, c, month, parts.budgets,
+            everyTyped = e.isNotEmpty(), everyCents = if (e.isEmpty()) null else Money.parseCents(e),
+            monthTyped = m.isNotEmpty(), monthCents = if (m.isEmpty()) null else Money.parseCents(m),
+        )
+        return CategorySavePlanData(
+            plan.problems.map { FieldProblemData(it.field.name, it.message) },
+            plan.changes.map { BudgetChangeData(it.categoryId, it.month, it.amount, it.delete) },
+        )
     }
 
     /** The problem of adding a subcategory named [name] under [parentId], or empty text. */

@@ -6,9 +6,19 @@ import KassaShared
 /// are asked of `picks` on the main thread, like the pickers.
 extension AppModel {
 
-    /// Creates or updates a category or subcategory; the outcome's id is its own.
-    func saveCategory(_ input: CategoryInput, done: @escaping (WriteOutcome) -> Void) {
-        perform({ opened in try opened.saveCategory(input) }, done: done)
+    /// Creates or updates a category or subcategory; the outcome's id is its own. The typed budget amounts of the editor ([every] for
+    /// every month, [thisMonth] for this budget month) go through the domain's save plan, which refuses by field (NAME, EVERY_MONTH,
+    /// THIS_MONTH) or says which budget rows change; the store writes the category and those rows in one transaction. With [every] nil
+    /// (archive, restore, move: the budget fields were not on screen) no budget is touched.
+    func saveCategory(_ input: CategoryInput, every: String? = nil, thisMonth: String = "", done: @escaping (WriteOutcome) -> Void) {
+        let day = Int32(KassaDates.todayEpochDay())
+        perform({ opened in
+            guard let typed = every else { return try opened.saveCategory(input) }
+            guard let made = self.view else { throw WriteRefusal(message: String(localized: "write.failed")) }
+            let plan: CategorySavePlanData = made.categorySavePlan(input: input, every: typed, thisMonth: thisMonth, todayEpochDay: day)
+            if let first = plan.problems.first { throw WriteRefusal(field: first.field, message: first.message) }
+            return try opened.saveCategory(input, budgetChanges: plan.changes)
+        }, done: done)
     }
 
     /// Adds a subcategory under the top-level category [parentId] (the picker's "+ New"); the outcome's id is the new one.

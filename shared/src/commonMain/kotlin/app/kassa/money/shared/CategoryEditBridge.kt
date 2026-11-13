@@ -73,7 +73,15 @@ data class CategoryEditData(
     val subs: List<SubcategoryRowData>,
     val mergeTargets: List<CategoryTargetData>,
     val moveTargets: List<CategoryTargetData>,
+    val hasBudget: Boolean,
+    val hasMonthBudget: Boolean,
 )
+
+/**
+ * What saving the editor does: the [problems] by field (NAME, EVERY_MONTH, THIS_MONTH), or the budget [changes] to write in the same
+ * transaction as the category. A change that names category 0 is the category being created: the store puts its new id there.
+ */
+data class CategorySavePlanData(val problems: List<FieldProblemData>, val changes: List<BudgetChangeData>)
 
 /** One row of Settings > Categories: the category as the pickers show it, how many subcategories it has in use, and whether it is a bill. */
 data class CategoryListRowData(val choice: CategoryChoiceData, val subCount: Int, val bill: Boolean)

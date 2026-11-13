@@ -7,6 +7,8 @@ struct CategoryEditRequest: Identifiable {
     /// 0 for a new category of [kind].
     let id: Int64
     let kind: String
+    /// The amount Coach suggests, as the field takes it; it fills "Every month" in place of the saved one. Nothing is saved until the person saves.
+    var budgetPrefill: String? = nil
 }
 
 struct CategoriesPage: View {
@@ -90,6 +92,35 @@ struct CategoriesPage: View {
     }
 }
 
+/// The budget part of the category editor: "Every month" and, for a saved category, "Just for <month>". Only lays out; the typed text
+/// goes to `LedgerView.categorySavePlan` on save.
+struct CategoryBudgetFields: View {
+    let showMonth: Bool
+    let monthLabel: String
+    @Binding var every: String
+    @Binding var thisMonth: String
+    let everyProblem: String?
+    let monthProblem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("cats.budget").font(.footnote.weight(.semibold)).foregroundColor(Palette.ink2)
+            FormField(label: "budgets.everyMonth", problem: everyProblem) {
+                TextField("budgets.amountHint", text: $every)
+                    .keyboardType(.decimalPad)
+                    .accessibilityIdentifier("categoryBudgetEvery")
+            }
+            if showMonth {
+                FormField(label: LocalizedStringKey(String(format: String(localized: "budgets.justFor"), monthLabel)), problem: monthProblem) {
+                    TextField("budgets.sameAsEvery", text: $thisMonth)
+                        .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("categoryBudgetMonth")
+                }
+            }
+        }
+    }
+}
+
 private enum IconTab {
     case emoji
     case symbols
@@ -111,6 +142,11 @@ struct CategoryEditorSheet: View {
     @State private var query = ""
     @State private var typed = ""
     @State private var problem: String?
+    @State private var every = ""
+    @State private var thisMonth = ""
+    @State private var everyProblem: String?
+    @State private var monthProblem: String?
+    @State private var monthLabel = ""
     @State private var busy = false
     @State private var confirmArchive = false
     @State private var mergeInto: CategoryTargetData?
@@ -155,6 +191,15 @@ struct CategoryEditorSheet: View {
         counts = found.input.counts
         hidden = found.input.hidden
         tab = found.input.iconKind == "emoji" ? .emoji : .symbols
+        every = request.budgetPrefill ?? ""
+        if found.hasBudget && !found.isNew {
+            model.loadBudgetEdit(found.input.id) { loaded in
+                guard let budget = loaded, budget.found else { return }
+                every = request.budgetPrefill ?? budget.everyInput
+                thisMonth = budget.monthInput
+                monthLabel = KassaDates.monthYear(year: Int(budget.year), month: Int(budget.month))
+            }
+        }
     }
 
     private func content(_ found: CategoryEditData) -> some View {
@@ -177,6 +222,9 @@ struct CategoryEditorSheet: View {
                 if found.isTop {
                     iconSection
                     colorSection(found)
+                    if found.hasBudget {
+                        budgetSection(found)
+                    }
                     if found.input.kind == "EXPENSE" {
                         Toggle(isOn: $counts) { Text("cats.counts") }
                             .frame(minHeight: 48)
@@ -347,6 +395,15 @@ struct CategoryEditorSheet: View {
         }
     }
 
+    /// Monthly budget: an amount for every month and, for a saved category, one just for this budget month. Blank removes it. The
+    /// rules are :domain's (`CategoryRules.savePlan`); the amounts are saved with the category in one transaction.
+    private func budgetSection(_ found: CategoryEditData) -> some View {
+        CategoryBudgetFields(
+            showMonth: found.hasMonthBudget, monthLabel: monthLabel, every: $every, thisMonth: $thisMonth,
+            everyProblem: everyProblem, monthProblem: monthProblem
+        )
+    }
+
     private func subsSection(_ found: CategoryEditData) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("cats.subs").font(.footnote.weight(.semibold)).foregroundColor(Palette.ink2).padding(.bottom, 4)
@@ -420,8 +477,14 @@ struct CategoryEditorSheet: View {
         switch outcome {
         case .saved:
             if closes { onClose() }
-        case .refused(_, let message):
-            problem = message
+        case .refused(let field, let message):
+            if field == "EVERY_MONTH" {
+                everyProblem = message
+            } else if field == "THIS_MONTH" {
+                monthProblem = message
+            } else {
+                problem = message
+            }
         case .failed(let message):
             problem = message
         }
@@ -436,7 +499,9 @@ struct CategoryEditorSheet: View {
             return
         }
         busy = true
-        model.saveCategory(input) { outcome in finish(outcome, closes: true) }
+        everyProblem = nil
+        monthProblem = nil
+        model.saveCategory(input, every: found.hasBudget ? every : nil, thisMonth: thisMonth) { outcome in finish(outcome, closes: true) }
     }
 
     private func archive(_ found: CategoryEditData) {

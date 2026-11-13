@@ -1,5 +1,6 @@
 package app.kassa.money.shared
 
+import app.kassa.money.backup.BackupBudget
 import app.kassa.money.backup.BackupCategory
 import app.kassa.money.backup.BackupData
 import app.kassa.money.domain.CategoryColors
@@ -19,6 +20,7 @@ class CategoryEditBridgeTest {
 
     private fun data() = BackupData(
         createdAt = 0, monthStartDay = 1, currency = "USD",
+        budgets = listOf(BackupBudget(1, 0, 25_000), BackupBudget(1, 202610, 30_000)),
         categories = listOf(
             cat(1, "Groceries", icon = "emoji:🛒"),
             cat(2, "Dining", color = p[1]),
@@ -184,6 +186,46 @@ class CategoryEditBridgeTest {
         assertEquals("a b", CategoryIconBridge.typedName("a\nb"))
         assertTrue(CategoryIconBridge.emoji().isNotEmpty())
     }
+
+    private val lastOfOctober = java.time.LocalDate.parse("2026-10-31").toEpochDay().toInt()
+
+    @Test
+    fun theEditorShowsBudgetFieldsOnlyWhereTheyBelong() {
+        val v = view()
+        assertTrue(v.categoryEdit(1).hasBudget)
+        assertTrue(v.categoryEdit(1).hasMonthBudget)
+        assertTrue(v.categoryNew("EXPENSE").hasBudget)
+        assertFalse(v.categoryNew("EXPENSE").hasMonthBudget)
+        assertFalse(v.categoryNew("INCOME").hasBudget)
+        assertFalse(v.categoryEdit(5).hasBudget)
+        assertFalse(v.categoryEdit(10).hasBudget)
+    }
+
+    @Test
+    fun savingTheEditorPlansTheBudgetRowsWithTheCategory() {
+        val v = view()
+        val groceries = CategoryInput(1, "EXPENSE", 0, "Groceries", "emoji", "🛒", p[0], true, false)
+        val same = v.categorySavePlan(groceries, "250", "300", lastOfOctober)
+        assertTrue(same.problems.isEmpty())
+        assertEquals(listOf(BudgetChangeData(1, 0, 25_000, false), BudgetChangeData(1, 202610, 30_000, false)), same.changes)
+        assertEquals(listOf(BudgetChangeData(1, 0, 0, true), BudgetChangeData(1, 202610, 0, true)), v.categorySavePlan(groceries, "", " ", lastOfOctober).changes)
+        // A new category's budget is planned against 0; a one-month amount typed for it is dropped.
+        val fresh = CategoryInput(0, "EXPENSE", 0, "Fuel", "emoji", "x", p[2], true, false)
+        assertEquals(listOf(BudgetChangeData(0, 0, 12_000, false)), v.categorySavePlan(fresh, "120", "90", lastOfOctober).changes)
+        // Problems come by field and plan nothing.
+        val bad = v.categorySavePlan(CategoryInput(0, "EXPENSE", 0, "dining", "emoji", "x", p[2], true, false), "0", "", lastOfOctober)
+        assertEquals(listOf("NAME", "EVERY_MONTH"), bad.problems.map { it.field })
+        assertTrue(bad.changes.isEmpty())
+        // The budget month follows the month start day: the saved override is for the month today is in.
+        assertEquals(1, v.categorySavePlan(groceries, "250", "300", day("2026-11-05")).changes.count { it.month == 202611 })
+        // Income categories write no budget.
+        val salary = CategoryInput(5, "INCOME", 0, "Salary", "symbol", "payments", p[0], true, false)
+        assertTrue(v.categorySavePlan(salary, "100", "100", lastOfOctober).changes.isEmpty())
+        // A category that is gone.
+        assertEquals("NAME", v.categorySavePlan(CategoryInput(99, "EXPENSE", 0, "Ghost", "emoji", "x", p[0], true, false), "", "", lastOfOctober).problems.single().field)
+    }
+
+    private fun day(text: String): Int = java.time.LocalDate.parse(text).toEpochDay().toInt()
 
     private val CategoryRulesGone = "That category is no longer here."
 }

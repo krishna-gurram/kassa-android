@@ -12,17 +12,24 @@ extension LedgerStore {
     /// and refused as a whole, so nothing is half written. A change that removes a row that is not there does nothing.
     func applyBudgetChanges(_ changes: [BudgetChangeData]) throws {
         try db.transaction { () throws -> Void in
-            for change in changes {
-                if change.isRemoval {
-                    try self.removeBudgetRow(categoryId: change.categoryId, month: change.month)
-                } else {
-                    if let problem = ActivityBridge.shared.budgetProblem(cents: change.amount) {
-                        throw WriteRefusal(message: problem)
-                    }
-                    try self.setBudgetRow(categoryId: change.categoryId, month: change.month, amount: change.amount)
-                }
-            }
+            try self.writeBudgetRows(changes, forCategory: nil)
             try self.afterInsertHook?()
+        }
+    }
+
+    /// The writes of [changes] inside the caller's transaction (the budget editor's, and the category editor's, which saves its category
+    /// and its budget rows together). [forCategory], when given, replaces the category of a change that names 0: the category being made.
+    func writeBudgetRows(_ changes: [BudgetChangeData], forCategory id: Int64?) throws {
+        for change in changes {
+            let target: Int64 = (change.categoryId == 0 ? id : nil) ?? change.categoryId
+            if change.isRemoval {
+                try removeBudgetRow(categoryId: target, month: change.month)
+            } else {
+                if let problem = ActivityBridge.shared.budgetProblem(cents: change.amount) {
+                    throw WriteRefusal(message: problem)
+                }
+                try setBudgetRow(categoryId: target, month: change.month, amount: change.amount)
+            }
         }
     }
 
