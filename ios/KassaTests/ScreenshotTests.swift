@@ -102,6 +102,15 @@ final class ScreenshotTests: XCTestCase {
         let shown = view.cardPage(cardId: cardId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", back: 0)
         let masked = view.cardPage(cardId: cardId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", back: 0)
         let payData = view.cardPayData(cardId: cardId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC")
+        let accountId: Int64 = 1
+        let accountShown = view.accountPage(accountId: accountId, hidden: false, todayEpochDay: expected.today, timeZoneId: "UTC", monthsBack: 0)
+        let accountMasked = view.accountPage(accountId: accountId, hidden: true, todayEpochDay: expected.today, timeZoneId: "UTC", monthsBack: 0)
+        var personShown: PersonPageData? = nil
+        let personIds: [Int64] = [1, 2, 3, 4]
+        for personId in personIds {
+            let found = view.personPage(personId: personId, hidden: false, timeZoneId: "UTC")
+            if found.found && personShown == nil { personShown = found }
+        }
         let sheetDirectory = directory.appendingPathComponent("demo-sheet", isDirectory: true)
         let keys = MemoryKeyStore()
         let model = AppModel(defaults: UserDefaults(suiteName: "kassa-shots-" + UUID().uuidString) ?? UserDefaults.standard, openStore: {
@@ -111,7 +120,7 @@ final class ScreenshotTests: XCTestCase {
             let suffix = scheme == ColorScheme.dark ? "dark" : "light"
             let page = CardPageContent(
                 data: shown, hidden: false, today: today, onToggleHidden: {}, onBack: {}, onPay: {}, onShift: { _ in },
-                onSetClosed: { _, _ in }
+                onSetClosed: { _, _ in }, onCorrect: {}
             )
             save(page, scheme: scheme, to: target.appendingPathComponent("card-\(suffix).png"))
             let hiddenPage = CardPageContent(
@@ -121,6 +130,22 @@ final class ScreenshotTests: XCTestCase {
             save(hiddenPage, scheme: scheme, to: target.appendingPathComponent("card-hidden-\(suffix).png"))
             let sheet = PayCardSheet(model: model, request: PaySheetRequest(data: payData))
             save(sheet, scheme: scheme, to: target.appendingPathComponent("pay-card-\(suffix).png"))
+            let accountPage = AccountPageContent(
+                data: accountShown, hidden: false, today: today, onToggleHidden: {}, onBack: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }, onCorrect: {}, onAddEntry: {}
+            )
+            save(accountPage, scheme: scheme, to: target.appendingPathComponent("account-page-\(suffix).png"))
+            let hiddenAccountPage = AccountPageContent(
+                data: accountMasked, hidden: true, today: today, onToggleHidden: {}, onBack: {}, onShift: { _ in },
+                onSetClosed: { _, _ in }, onCorrect: {}, onAddEntry: {}
+            )
+            save(hiddenAccountPage, scheme: scheme, to: target.appendingPathComponent("account-page-hidden-\(suffix).png"))
+            if let person = personShown {
+                let personPage = PersonPageContent(
+                    data: person, hidden: false, onToggleHidden: {}, onBack: {}, onRecord: {}, onOpenPayment: { _ in }
+                )
+                save(personPage, scheme: scheme, to: target.appendingPathComponent("person-page-\(suffix).png"))
+            }
         }
     }
 

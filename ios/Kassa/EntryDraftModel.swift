@@ -52,7 +52,7 @@ final class EntryDraftModel: ObservableObject {
 
     init(
         view: LedgerView, editing: EntryEditData?, draft: String, today: Int, zone: String,
-        split startSplit: SplitState? = nil, openSplit: Bool = false
+        split startSplit: SplitState? = nil, openSplit: Bool = false, presetAccountId: Int64 = 0
     ) {
         self.view = view
         self.editing = editing
@@ -82,6 +82,10 @@ final class EntryDraftModel: ObservableObject {
         panel = openSplit ? .split : .amount
         initial = encoded
         if editing == nil && !draft.isEmpty { restore(draft) }
+        if editing == nil && draft.isEmpty && presetAccountId > 0 {
+            accountId = presetAccountId
+            initial = encoded
+        }
     }
 
     // MARK: Draft kept across a scene's recreation

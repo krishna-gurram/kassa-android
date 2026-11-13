@@ -52,6 +52,10 @@ sealed interface Page {
     data object Notifications : Page
     /** The account tiles pinned on Overview. */
     data object PinAccounts : Page
+    /** Coach: safe to spend and this week's cards. */
+    data object Coach : Page
+    /** The weekly check-in: one win, one watch-out, one decision. */
+    data object CheckIn : Page
     data object Import : Page { override val besideList: Boolean get() = false }
     /** Add or edit a recurring bill; built like the entry page, so it takes the full screen too. */
     data class Bill(val bill: app.kassa.money.domain.Recurring?) : Page { override val besideList: Boolean get() = false }
@@ -61,6 +65,9 @@ sealed interface Page {
  * The current tab and the pages stacked on it. Kept in a view model so folding or unfolding the phone,
  * which recreates the activity, keeps you where you were.
  */
+/** A budget editor asked for from the weekly check-in: the category and the monthly amount to start it with. Nothing is saved until the person saves it. */
+data class BudgetRequest(val categoryId: Long, val monthlyCents: Long)
+
 class NavViewModel : ViewModel() {
     var tab by mutableStateOf(Tab.TODAY)
         private set
@@ -103,6 +110,9 @@ class NavViewModel : ViewModel() {
      * Settings opens it and clears this. Kept here so it survives the tab being recreated before it is read.
      */
     var settingsRequest by mutableStateOf<String?>(null)
+
+    /** The budget editor asked for by the check-in's "Set the limit"; Settings opens it and clears this. */
+    var budgetRequest by mutableStateOf<BudgetRequest?>(null)
 
     val stack = mutableStateListOf<Page>()
     val top: Page? get() = stack.lastOrNull()

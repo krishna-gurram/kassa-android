@@ -23,6 +23,10 @@ import app.kassa.money.ui.accounts.EditAccountPage
 import app.kassa.money.ui.accounts.PersonPage
 import app.kassa.money.ui.activity.ActivityScreen
 import app.kassa.money.ui.cards.CardPage
+import app.kassa.money.ui.coach.CheckInPage
+import app.kassa.money.ui.coach.CoachPage
+import app.kassa.money.ui.coach.Target
+import app.kassa.money.ui.insights.InsightPage
 import app.kassa.money.ui.common.PageTop
 import app.kassa.money.ui.entry.BillPage
 import app.kassa.money.ui.entry.EntryPage
@@ -53,6 +57,8 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
     when (app.nav.tab) {
         Tab.TODAY -> TodayScreen(
             l, padding,
+            coach = app.vm.coach.collectAsState().value,
+            onCoach = { app.openCoach() },
             onOpenCard = { app.openFromList(Page.CardDetail(it)) },
             onSpending = { month, income -> app.openFromList(Page.Spending(month, income)) },
             onOpenCategory = { app.openFromList(Page.CategoryDetail(it)) },
@@ -152,6 +158,25 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
         Page.Upcoming -> UpcomingPage(l, padding, onBack, onOpenCard = { app.push(Page.CardDetail(it)) })
         Page.Notifications -> NotificationsPage(l, padding, onBack, app.notices)
         Page.PinAccounts -> PinAccountsPage(l, padding, onBack)
+        Page.Coach -> {
+            val report by vm.coach.collectAsState()
+            val cards by LocalSettings.current.coachCards.collectAsState()
+            CoachPage(
+                l, report, cards, padding, onBack,
+                onCheckIn = { app.push(Page.CheckIn) },
+                onTarget = { t ->
+                    when (t) {
+                        is Target.Category -> app.push(Page.CategoryDetail(t.id))
+                        Target.Repeating -> app.push(Page.Insight(InsightPage.REPEATING))
+                        Target.Accounts -> app.nav.select(Tab.ACCOUNTS)
+                    }
+                },
+            )
+        }
+        Page.CheckIn -> {
+            val report by vm.coach.collectAsState()
+            CheckInPage(l, report, padding, onBack, onSetLimit = app::openBudgetEditor, onNotNow = app::dismissCheckIn)
+        }
         Page.Import -> Box(Modifier.padding(padding)) {
             ImportScreen(firstRun = false, onFinished = { app.nav.select(Tab.TODAY) }, onCancel = back)
         }

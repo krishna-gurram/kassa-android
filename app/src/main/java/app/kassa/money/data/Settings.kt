@@ -189,6 +189,21 @@ class Settings(context: Context) {
     val pins: StateFlow<Set<String>?> = _pins
     fun setPins(keys: Set<String>) { prefs.edit().putStringSet(PINS, keys).apply(); _pins.value = keys }
 
+    private val _coachCheckIn = MutableStateFlow(prefs.getBoolean(COACH_CHECK_IN, true))
+    /** Coach's weekly check-in (the Overview card and the check-in page) is on. Worked out on the phone; on until switched off. */
+    val coachCheckIn: StateFlow<Boolean> = _coachCheckIn
+    fun setCoachCheckIn(on: Boolean) { prefs.edit().putBoolean(COACH_CHECK_IN, on).apply(); _coachCheckIn.value = on }
+
+    private val _coachCards = MutableStateFlow(prefs.getBoolean(COACH_CARDS, true))
+    /** The insight cards on the Coach page (pace, subscription changes, emergency fund) are on. */
+    val coachCards: StateFlow<Boolean> = _coachCards
+    fun setCoachCards(on: Boolean) { prefs.edit().putBoolean(COACH_CARDS, on).apply(); _coachCards.value = on }
+
+    private val _coachDismissedWeek = MutableStateFlow(prefs.getInt(COACH_DISMISSED_WEEK, NO_WEEK))
+    /** The epoch day a week started on when the person chose "Not now" on its check-in; [NO_WEEK] for none. Only that week stays quiet. */
+    val coachDismissedWeek: StateFlow<Int> = _coachDismissedWeek
+    fun dismissCoachWeek(weekStartDay: Int) { prefs.edit().putInt(COACH_DISMISSED_WEEK, weekStartDay).apply(); _coachDismissedWeek.value = weekStartDay }
+
     var startedFresh: Boolean
         get() = prefs.getBoolean(STARTED_FRESH, false)
         set(value) { prefs.edit().putBoolean(STARTED_FRESH, value).apply() }
@@ -199,32 +214,37 @@ class Settings(context: Context) {
         _monthStartDay.value = d
     }
 
-    private companion object {
-        const val MONTH_START = "month_start_day"
-        const val HIDE_AMOUNTS = "hide_amounts"
-        const val ACCOUNT_SORT = "account_sort"
-        const val ACCOUNT_ARRANGEMENT = "account_arrangement"
-        const val AUTO_BACKUP = "auto_backup"
-        const val BACKUP_FOLDER = "backup_folder"
-        const val BACKUP_MINUTE = "backup_minute"
-        const val LAST_BACKUP = "last_backup"
-        const val BACKUP_PROBLEM = "backup_problem"
-        const val REMINDER = "daily_reminder"
-        const val REMINDER_MINUTE = "daily_reminder_minute"
-        const val STARTED_FRESH = "started_fresh"
-        const val LOCK = "app_lock"
-        const val LOCK_NOTICE = "app_lock_notice"
-        const val BACKUP_FAIL_DAYS = "backup_fail_days"
-        const val BACKUP_FAIL_LAST = "backup_fail_last"
-        const val BACKUP_ALERTED = "backup_alerted"
-        const val BACKUP_NOTE_SEEN = "backup_note_seen"
-        const val THEME = "theme"
-        const val CURRENCY = "currency"
-        const val NOTIFY_ASKED = "notify_asked"
-        const val CLEARED = "cleared_notifications"
-        const val TIP = "first_run_tip"
-        const val OPEN_TAB = "open_tab"
-        const val PINS = "overview_pins"
+    companion object {
+        /** [coachDismissedWeek] when no week was dismissed. */
+        const val NO_WEEK = Int.MIN_VALUE
+        private const val COACH_CHECK_IN = "coach_check_in"
+        private const val COACH_CARDS = "coach_cards"
+        private const val COACH_DISMISSED_WEEK = "coach_dismissed_week"
+        private const val MONTH_START = "month_start_day"
+        private const val HIDE_AMOUNTS = "hide_amounts"
+        private const val ACCOUNT_SORT = "account_sort"
+        private const val ACCOUNT_ARRANGEMENT = "account_arrangement"
+        private const val AUTO_BACKUP = "auto_backup"
+        private const val BACKUP_FOLDER = "backup_folder"
+        private const val BACKUP_MINUTE = "backup_minute"
+        private const val LAST_BACKUP = "last_backup"
+        private const val BACKUP_PROBLEM = "backup_problem"
+        private const val REMINDER = "daily_reminder"
+        private const val REMINDER_MINUTE = "daily_reminder_minute"
+        private const val STARTED_FRESH = "started_fresh"
+        private const val LOCK = "app_lock"
+        private const val LOCK_NOTICE = "app_lock_notice"
+        private const val BACKUP_FAIL_DAYS = "backup_fail_days"
+        private const val BACKUP_FAIL_LAST = "backup_fail_last"
+        private const val BACKUP_ALERTED = "backup_alerted"
+        private const val BACKUP_NOTE_SEEN = "backup_note_seen"
+        private const val THEME = "theme"
+        private const val CURRENCY = "currency"
+        private const val NOTIFY_ASKED = "notify_asked"
+        private const val CLEARED = "cleared_notifications"
+        private const val TIP = "first_run_tip"
+        private const val OPEN_TAB = "open_tab"
+        private const val PINS = "overview_pins"
     }
 }
 

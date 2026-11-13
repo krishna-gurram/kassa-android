@@ -82,6 +82,8 @@ fun CategoryEditor(
     onSaveSub: (Category, Boolean) -> Unit,
     onMergeSub: (Category, Category) -> Unit,
     onMerge: (Category, Category) -> Unit,
+    /** The monthly budget to start the "every month" field with (from the weekly check-in), or null to start from the saved one. Saved only when the person saves. */
+    budgetPrefill: Long? = null,
 ) {
     val context = LocalContext.current
     val isNew = original.id == 0L
@@ -95,7 +97,7 @@ fun CategoryEditor(
     val month = ledger.period.yearMonth
     val defaultBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == 0 }?.amount
     val monthBudget = if (isNew) null else ledger.budgets.firstOrNull { it.categoryId == original.id && it.month == Budgets.key(month) }?.amount
-    var budget by remember { mutableStateOf(defaultBudget?.let { Money.toInput(it) } ?: "") }
+    var budget by remember { mutableStateOf((budgetPrefill ?: defaultBudget)?.let { Money.toInput(it) } ?: "") }
     var thisMonth by remember { mutableStateOf(monthBudget?.let { Money.toInput(it) } ?: "") }
     var iconTab by remember { mutableStateOf(if (original.icon is CategoryIcon.Symbol) 1 else 0) }
     var iconQuery by remember { mutableStateOf("") }

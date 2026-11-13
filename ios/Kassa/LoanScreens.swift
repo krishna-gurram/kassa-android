@@ -12,20 +12,19 @@ struct LoanLine: View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(label)
-                    .font(.body)
+                    .font(Font.kassa(16, .regular, relativeTo: .body))
                     .foregroundColor(Palette.ink2)
                     .lineLimit(2)
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(value)
-                        .font(.body.weight(.semibold))
-                        .monospacedDigit()
+                        .font(Font.kassa(16, .bold, relativeTo: .body).monospacedDigit())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .foregroundColor(color)
                     if !detail.isEmpty {
                         Text(detail)
-                            .font(.footnote)
+                            .font(Font.kassa(13, .regular, relativeTo: .footnote))
                             .foregroundColor(Palette.ink2)
                             .lineLimit(1)
                     }
@@ -46,14 +45,40 @@ struct LoanProgressBar: View {
     var body: some View {
         GeometryReader { box in
             ZStack(alignment: .leading) {
-                Capsule().fill(Palette.ground.opacity(0.6))
+                Capsule().fill(Palette.track)
                 Capsule()
                     .fill(Palette.ink)
                     .frame(width: box.size.width * CGFloat(max(0, min(1000, permille))) / 1000.0)
             }
         }
-        .frame(height: 8)
+        .frame(height: 10)
         .accessibilityHidden(true)
+    }
+}
+
+/// A small figure under a label on a chip: Payment, Due and Paid off under a loan's hero.
+struct StatTile: View {
+    let label: LocalizedStringKey
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                .foregroundColor(Palette.ink2)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            Text(value)
+                .font(Font.kassa(17, .bold, relativeTo: .body).monospacedDigit())
+                .foregroundColor(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Palette.chip))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -90,7 +115,8 @@ struct LoanPageContent: View {
         VStack(alignment: .leading, spacing: 12) {
             PageTop(title: title, hidden: hidden, onToggle: onToggleHidden, onBack: onBack)
             hero
-            paymentLines
+            tiles
+            interestSection
             scheduleSection
             termsSection
             actions
@@ -112,64 +138,92 @@ struct LoanPageContent: View {
     // MARK: Hero
 
     private var hero: some View {
-        PageHero(tint: Palette.heroTint(data.heroTone)) {
-            HeroCaption(text: String(localized: "loan.outstanding"))
-            HeroFigure(text: data.balanceText, color: Palette.figure(data.balanceTone))
+        TonalHero(tone: data.heroTone, hidden: true) {
+            HeroLabel(text: "loan.outstanding", tone: data.heroTone, hidden: true)
+            HeroAmount(text: data.balanceText, tone: data.balanceTone, hidden: hidden, grey: true)
             if data.hasProgress {
                 LoanProgressBar(permille: Int(data.permille))
-                Text(String(format: String(localized: "loan.repaidOf"), Int(data.percent), data.originalText))
-                    .font(.footnote)
-                    .foregroundColor(Palette.ink2)
+                    .padding(.top, 6)
+                Text(String(format: String(localized: "d6.loan.paidOf"), Int(data.percent), data.originalText))
+                    .font(Font.kassa(14, .regular, relativeTo: .footnote))
+                    .foregroundColor(Palette.heroGreyInk)
+                    .padding(.top, 6)
             }
         }
     }
 
-    // MARK: Payment
+    // MARK: Stat tiles and interest
 
     @ViewBuilder
-    private var paymentLines: some View {
-        VStack(spacing: 0) {
-            if data.paying {
-                let paymentLabel: String = data.hasEscrow ? String(localized: "loan.paymentWithEscrow") : String(localized: "loan.payment")
-                LoanLine(
-                    label: paymentLabel, value: data.paymentText, detail: dueDetail
-                )
-                LoanLine(label: String(localized: "loan.paidOff"), value: Wording.payoffLine(day: Int(data.payoffDay)))
-            }
-            LoanLine(label: Wording.interestPaidLabel(data.profit), value: data.interestPaidText)
-            if data.paying {
-                LoanLine(label: Wording.interestLeftLabel(data.profit), value: data.interestLeftText)
+    private var tiles: some View {
+        if data.paying {
+            HStack(spacing: 10) {
+                StatTile(label: tileLabel, value: data.paymentText)
+                StatTile(label: LocalizedStringKey("d6.loan.dueLabel"), value: dueTileText)
+                StatTile(label: LocalizedStringKey("loan.paidOff"), value: payoffTileText)
             }
         }
         if data.doesntCover {
             Text("loan.doesntCover")
-                .font(.footnote)
+                .font(Font.kassa(13, .regular, relativeTo: .footnote))
                 .foregroundColor(Palette.orange)
         }
     }
 
-    private var dueDetail: String {
-        if data.nextPaymentDay <= 0 { return "" }
-        return Wording.dueLine(day: Int(data.nextPaymentDay))
+    private var tileLabel: LocalizedStringKey {
+        if data.hasEscrow { return LocalizedStringKey("loan.paymentWithEscrow") }
+        return LocalizedStringKey("loan.payment")
+    }
+
+    private var dueTileText: String {
+        if data.nextPaymentDay <= 0 { return "\u{2013}" }
+        return KassaDates.shortDate(epochDay: Int(data.nextPaymentDay))
+    }
+
+    private var payoffTileText: String {
+        if data.payoffDay <= 0 { return String(localized: "loan.noPayoff") }
+        let parts: (year: Int, month: Int) = KassaDates.yearMonth(epochDay: Int(data.payoffDay))
+        return KassaDates.monthYearShort(year: parts.year, month: parts.month)
+    }
+
+    private var interestTitle: LocalizedStringKey {
+        if data.profit { return LocalizedStringKey("loan.profit") }
+        return LocalizedStringKey("loan.interest")
+    }
+
+    private var interestSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(title: interestTitle)
+            Hairline()
+            LoanLine(label: String(localized: "d6.loan.paidSoFar"), value: data.interestPaidText)
+            if data.paying {
+                LoanLine(label: String(localized: "d6.loan.stillToPay"), value: data.interestLeftText)
+            }
+        }
     }
 
     // MARK: Schedule
 
+    private var hasMoreRows: Bool {
+        return Int(data.scheduleCount) > data.rows.count || showAll
+    }
+
+    private var scheduleLink: LocalizedStringKey? {
+        if !hasMoreRows { return nil }
+        if showAll { return LocalizedStringKey("loan.showFewer") }
+        return LocalizedStringKey("d6.loan.showFull")
+    }
+
     @ViewBuilder
     private var scheduleSection: some View {
         if !data.rows.isEmpty {
-            GroupLabel(text: String(localized: "loan.schedule"))
+            VStack(spacing: 0) {
+                SectionLabel(title: "loan.schedule", link: scheduleLink, onLink: { onShowAll(!showAll) })
+                Hairline()
+            }
             VStack(spacing: 0) {
                 ForEach(data.rows, id: \.day) { row in
                     scheduleRow(row)
-                }
-            }
-            if Int(data.scheduleCount) > data.rows.count || showAll {
-                Button(action: { onShowAll(!showAll) }) {
-                    Text(showAll ? "loan.showFewer" : "loan.showFull")
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(Palette.ink)
-                        .frame(maxWidth: .infinity, minHeight: 48)
                 }
             }
         }
@@ -179,16 +233,16 @@ struct LoanPageContent: View {
         return VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(KassaDates.shortDateYear(epochDay: Int(row.day)))
-                    .font(.subheadline)
+                    .font(Font.kassa(16, .regular, relativeTo: .body))
+                    .foregroundColor(Palette.ink2)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(row.principalText)
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
+                        .font(Font.kassa(16, .bold, relativeTo: .body).monospacedDigit())
                         .lineLimit(1)
                     Text(String(format: String(localized: "loan.rowInterest"), row.interestText, row.balanceText))
-                        .font(.caption)
+                        .font(Font.kassa(12, .regular, relativeTo: .caption))
                         .foregroundColor(Palette.ink2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -205,7 +259,8 @@ struct LoanPageContent: View {
 
     private var termsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            GroupLabel(text: String(localized: "loan.terms"))
+            SectionLabel(title: "loan.terms")
+            Hairline()
             LoanLine(label: String(localized: "loan.interestType"), value: Wording.loanTypeTitle(data.interestType))
             LoanLine(label: Wording.rateLabel(data.profit), value: data.rateText)
             LoanLine(
@@ -225,7 +280,7 @@ struct LoanPageContent: View {
                 changeRow(change)
             }
             if let text = removeFailure {
-                Text(text).font(.footnote).foregroundColor(Palette.orange)
+                Text(text).font(Font.kassa(13, .regular, relativeTo: .footnote)).foregroundColor(Palette.orange)
             }
         }
     }
@@ -257,21 +312,27 @@ struct LoanPageContent: View {
     // MARK: Actions and entries
 
     private var actions: some View {
-        VStack(spacing: 8) {
-            actionButton("loan.recordPayment", filled: true, action: onRecord)
-            actionButton("loan.changeTerms", filled: false, action: onChangeTerms)
-            actionButton("loan.editDetails", filled: false, action: onEditDetails)
-            actionButton("correction.open", filled: false, action: onCorrect)
+        HStack(spacing: 12) {
+            PagePill(title: "loan.recordPayment", filled: true, action: onRecord)
+            moreMenu
         }
     }
 
-    private func actionButton(_ key: LocalizedStringKey, filled: Bool, action: @escaping () -> Void) -> some View {
-        return Button(action: action) {
-            Text(key)
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 48)
+    private var moreMenu: some View {
+        Menu {
+            Button(action: onChangeTerms) { Text("loan.changeTerms") }
+            Button(action: onEditDetails) { Text("loan.editDetails") }
+            Button(action: onCorrect) { Text("correction.open") }
+        } label: {
+            Text("loan.more")
+                .font(Font.kassa(16, .semibold))
+                .foregroundColor(Palette.ink)
+                .lineLimit(1)
+                .padding(.horizontal, 24)
+                .frame(minHeight: 56)
+                .background(Capsule().fill(Palette.chip))
         }
-        .buttonStyle(InkButtonStyle(filled: filled))
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -282,7 +343,7 @@ struct LoanPageContent: View {
         )
         if data.entryCount == 0 {
             Text("accountPage.nothingThisMonth")
-                .font(.body)
+                .font(Font.kassa(15, .regular, relativeTo: .body))
                 .foregroundColor(Palette.ink2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)

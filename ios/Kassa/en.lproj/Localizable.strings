@@ -1143,3 +1143,12 @@
 "coach.set.noNames" = "No merchants, notes, account names or people.";
 "coach.set.noFacts" = "Add an account to see the totals.";
 "coach.set.server" = "Kassa has no accounts and no ads. Nothing is stored on a server.";
+/* design d6 */
+"d6.correct" = "Correct";
+"d6.addEntry" = "Add entry";
+"d6.card.payCard" = "Pay card";
+"d6.loan.paidOf" = "%1$ld%% paid of %2$@";
+"d6.loan.dueLabel" = "Due";
+"d6.loan.paidSoFar" = "Paid so far";
+"d6.loan.stillToPay" = "Still to pay";
+"d6.loan.showFull" = "Show full";
