@@ -8,6 +8,8 @@ import app.kassa.money.domain.SafeToSpend
 import app.kassa.money.domain.SpendingPace
 import app.kassa.money.domain.SubscriptionChange
 import app.kassa.money.domain.WeeklyCheckIn
+import app.kassa.money.ui.NavViewModel
+import app.kassa.money.ui.Page
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -15,6 +17,36 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CoachModelTest {
+    /** The Overview card rule with Coach switched on, so these tests keep proving the rule whatever [CoachFeature.VISIBLE] is. */
+    private fun shownTeaser(v: CoachView, enabled: Boolean, dismissed: Int) = CoachModel.teaser(v, enabled, dismissed, visible = true)
+
+    @Test
+    fun hiddenCoachShowsNoOverviewCard() {
+        val v = CoachModel.view(report(), hidden = false)
+        assertNotNull(CoachModel.teaser(v, true, Int.MIN_VALUE, visible = true))
+        assertNull(CoachModel.teaser(v, true, Int.MIN_VALUE, visible = false))
+        // The shipped default follows the switch: hidden means no card.
+        assertEquals(CoachFeature.VISIBLE, CoachModel.teaser(v, true, Int.MIN_VALUE) != null)
+    }
+
+    @Test
+    fun hiddenCoachIgnoresEveryCoachRoute() {
+        val coachPages = listOf(Page.Coach, Page.CheckIn, Page.CanIAfford, Page.SimulateMonth(), Page.SimulateMonth("x"))
+        for (p in coachPages) {
+            assertTrue(CoachFeature.isCoachPage(p))
+            assertEquals(false, CoachFeature.allows(p, visible = false))
+            assertEquals(true, CoachFeature.allows(p, visible = true))
+        }
+        assertEquals(true, CoachFeature.allows(Page.Upcoming, visible = false))
+        assertEquals(true, CoachFeature.allows(Page.Notifications, visible = false))
+        // With the shipped default, navigation drops a Coach route (only while hidden) and keeps others.
+        val nav = NavViewModel()
+        nav.open(Page.Coach, besideList = true)
+        nav.push(Page.CheckIn)
+        assertEquals(if (CoachFeature.VISIBLE) 2 else 0, nav.stack.size)
+        nav.push(Page.Upcoming)
+        assertEquals(if (CoachFeature.VISIBLE) 3 else 1, nav.stack.size)
+    }
 
     private fun safe(kind: SafeToSpend.Kind = SafeToSpend.Kind.SPENDABLE) = SafeToSpend.Result(
         kind, 48_200L, 0L, 20_000, SafeToSpend.UntilKind.NEXT_INCOME, 3, 40, 100_000L, 4_000L, SafeToSpend.Basis.HISTORY, emptyList(),
@@ -115,24 +147,24 @@ class CoachModelTest {
     fun theOverviewCardShowsOnlyWhenThereIsSomethingToSay() {
         val v = CoachModel.view(report(), hidden = false)
         val none = Int.MIN_VALUE
-        assertEquals(TeaserKind.WATCH, CoachModel.teaser(v, true, none)?.kind)
-        assertEquals(TeaserKind.WIN, CoachModel.teaser(CoachModel.view(report(c = checkIn(a = null, d = null)), false), true, none)?.kind)
+        assertEquals(TeaserKind.WATCH, shownTeaser(v, true, none)?.kind)
+        assertEquals(TeaserKind.WIN, shownTeaser(CoachModel.view(report(c = checkIn(a = null, d = null)), false), true, none)?.kind)
         // Nothing to say, too little data, switched off.
-        assertNull(CoachModel.teaser(CoachModel.view(report(c = checkIn(w = null, a = null, d = null)), false), true, none))
-        assertNull(CoachModel.teaser(CoachModel.view(report(c = checkIn(WeeklyCheckIn.Kind.NOT_ENOUGH_DATA)), false), true, none))
-        assertNull(CoachModel.teaser(v, false, none))
+        assertNull(shownTeaser(CoachModel.view(report(c = checkIn(w = null, a = null, d = null)), false), true, none))
+        assertNull(shownTeaser(CoachModel.view(report(c = checkIn(WeeklyCheckIn.Kind.NOT_ENOUGH_DATA)), false), true, none))
+        assertNull(shownTeaser(v, false, none))
     }
 
     @Test
     fun notNowQuietsOnlyThatWeek() {
         val v = CoachModel.view(report(), hidden = false)
-        assertNull(CoachModel.teaser(v, true, v.checkIn.weekStartDay))
-        assertNotNull(CoachModel.teaser(v, true, v.checkIn.weekStartDay - 7))
+        assertNull(shownTeaser(v, true, v.checkIn.weekStartDay))
+        assertNotNull(shownTeaser(v, true, v.checkIn.weekStartDay - 7))
     }
 
     @Test
     fun hiddenBalancesLeaveOnlyANeutralCard() {
-        val t = CoachModel.teaser(CoachModel.view(report(), hidden = true), true, Int.MIN_VALUE)
+        val t = shownTeaser(CoachModel.view(report(), hidden = true), true, Int.MIN_VALUE)
         assertEquals(TeaserKind.NEUTRAL, t?.kind)
         assertNull(t?.watch)
         assertNull(t?.win)

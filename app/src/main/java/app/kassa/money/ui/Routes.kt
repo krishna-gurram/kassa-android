@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -24,6 +25,7 @@ import app.kassa.money.ui.accounts.PersonPage
 import app.kassa.money.ui.activity.ActivityScreen
 import app.kassa.money.ui.cards.CardPage
 import app.kassa.money.ui.coach.CheckInPage
+import app.kassa.money.ui.coach.CoachFeature
 import app.kassa.money.ui.coach.CoachPage
 import app.kassa.money.ui.coach.CanIAffordPage
 import app.kassa.money.ui.coach.SimulateMonthPage
@@ -59,7 +61,8 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
     when (app.nav.tab) {
         Tab.TODAY -> TodayScreen(
             l, padding,
-            coach = app.vm.coach.collectAsState().value,
+            // Coach figures are only collected (so only computed) while Coach is shown.
+            coach = if (CoachFeature.VISIBLE) app.vm.coach.collectAsState().value else null,
             onCoach = { app.openCoach() },
             onOpenCard = { app.openFromList(Page.CardDetail(it)) },
             onSpending = { month, income -> app.openFromList(Page.Spending(month, income)) },
@@ -94,6 +97,11 @@ fun TabContent(app: AppController, l: Ledger, padding: PaddingValues, selected: 
 fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValues, onBack: (() -> Unit)?) {
     val vm = app.vm
     val back = onBack ?: {}
+    // A Coach page is never drawn while Coach is hidden, even if a route to it was left behind: step back off it.
+    if (!CoachFeature.allows(page)) {
+        LaunchedEffect(page) { app.back() }
+        return
+    }
     when (page) {
         is Page.Entry -> EntryPage(
             ledger = l, start = page.start, contentPadding = padding,

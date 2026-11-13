@@ -6,7 +6,9 @@ import KassaShared
 extension AppModel {
 
     /// Works Coach's figures out of [made]. Queue only.
-    func computeCoach(_ made: LedgerView, _ given: Inputs) -> CoachData {
+    /// nil while Coach is hidden (`CoachFeature.visible`): nothing is worked out for a feature nobody can see.
+    func computeCoach(_ made: LedgerView, _ given: Inputs) -> CoachData? {
+        if !CoachFeature.visible { return nil }
         return made.coach(
             hidden: given.hidden, todayEpochDay: Int32(given.today), timeZoneId: given.zone, firstWeekday: Int32(given.firstWeekday)
         )

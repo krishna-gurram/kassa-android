@@ -123,10 +123,11 @@ class NavViewModel : ViewModel() {
 
     fun select(t: Tab) { tab = t; stack.clear() }
 
-    fun push(p: Page) { stack.add(p) }
+    fun push(p: Page) { if (app.kassa.money.ui.coach.CoachFeature.allows(p)) stack.add(p) }
 
     /** Opens [p] from a list. When it shows beside the list, it replaces whatever was there instead of stacking. */
     fun open(p: Page, besideList: Boolean) {
+        if (!app.kassa.money.ui.coach.CoachFeature.allows(p)) return
         if (besideList && p.besideList) stack.clear()
         stack.add(p)
     }

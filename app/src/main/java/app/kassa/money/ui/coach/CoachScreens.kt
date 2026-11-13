@@ -154,7 +154,7 @@ fun CoachPage(
         Gap(10)
         CoachRow(Icons.Outlined.Insights, stringResource(R.string.coach_sim_month_title), stringResource(R.string.coach_sim_month_body), onSimulate)
         SectionHeader(stringResource(R.string.coach_this_week))
-        val teaser = CoachModel.teaser(view, enabled = true, dismissedWeek = app.kassa.money.data.Settings.NO_WEEK)
+        val teaser = CoachModel.teaser(view, enabled = true, dismissedWeek = app.kassa.money.data.Settings.NO_WEEK, visible = true)
         val checkInBody = when {
             view.checkIn.state == CheckInState.NOT_ENOUGH_DATA -> stringResource(R.string.coach_checkin_not_ready)
             teaser != null -> teaserLine(teaser, l)

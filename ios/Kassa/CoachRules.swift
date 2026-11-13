@@ -5,6 +5,18 @@ import KassaShared
 /// in words what a shared row says. No amount is worked out here: every figure is the text a row carries (the mask while hidden).
 /// Coach never writes anything; the one decision it offers opens the existing budget editor, and nothing is saved until the person saves.
 
+/// The one switch for Coach on iOS. While `visible` is false nothing of Coach can be reached (no Overview card, no Settings > Coach, no Coach,
+/// check-in or simulator pages) and Coach's figures are never worked out. The rules, screens, strings, preference keys and tests stay; flip
+/// this to true (and `CoachFeature.VISIBLE` in the Android app) to bring Coach back.
+enum CoachFeature {
+    static let visible = false
+
+    /// False for a Coach route while Coach is hidden, so a route to one (even a stale one) is ignored. `visible` is injectable for tests.
+    static func allows(_ route: ReadRoute, visible: Bool = CoachFeature.visible) -> Bool {
+        return visible || !route.isCoach
+    }
+}
+
 /// What the phone remembers about Coach, in UserDefaults (not in a backup, as on Android's `Settings`).
 struct CoachPrefs {
 
@@ -327,6 +339,12 @@ enum CoachWording {
         if let watch = found.checkIn.watches.first { return watchTitle(watch) }
         if let win = found.checkIn.wins.first { return winTitle(win) }
         return nil
+    }
+
+    /// Overview's card line: `teaser`, or nil whenever Coach is hidden. `visible` is injectable for tests.
+    static func overviewLine(_ data: CoachData?, weeklyOn: Bool, visible: Bool = CoachFeature.visible) -> String? {
+        if !visible { return nil }
+        return teaser(data, weeklyOn: weeklyOn)
     }
 
     /// True when the check-in page has something to open (also what the Coach page's link needs).

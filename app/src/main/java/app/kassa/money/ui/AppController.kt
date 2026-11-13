@@ -207,7 +207,7 @@ class AppController(
     }
 
     /** Coach's page, from Overview's card or Settings > Coach. */
-    fun openCoach() = openFromList(Page.Coach)
+    fun openCoach() = openFromList(Page.Coach) // ignored while CoachFeature.VISIBLE is false (NavViewModel.open)
 
     /** The check-in's "Set the budget": the existing budget editor in Settings, started with [monthlyCents]. It saves nothing by itself. */
     fun openBudgetEditor(categoryId: Long, monthlyCents: Long) {
