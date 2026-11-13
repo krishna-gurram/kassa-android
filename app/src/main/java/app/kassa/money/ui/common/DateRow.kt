@@ -38,16 +38,18 @@ import java.time.format.FormatStyle
 /**
  * Today, Yesterday, or another day, as the entry page's date panel offers them, for sheets with no room for a whole
  * calendar. The third button shows the picked day and opens [MonthCalendar] in a dialog. [allowFuture] lets it pick days
- * after today, for dates that are still ahead, like a loan's next payment.
+ * after today, for dates that are still ahead, like a loan's next payment. [min] and [max] limit the choice to a window.
  */
 @Composable
-fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onPick: (LocalDate) -> Unit) {
+fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, min: LocalDate? = null, max: LocalDate? = null, onPick: (LocalDate) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     val yesterday = today.minusDays(1)
     val other = date != today && date != yesterday
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        QuickButton(stringResource(R.string.common_today), on = date == today, modifier = Modifier.weight(1f)) { onPick(today) }
-        QuickButton(stringResource(R.string.common_yesterday), on = date == yesterday, modifier = Modifier.weight(1f)) { onPick(yesterday) }
+        // Inside a window ([min], [max]) only the quick days that are in it are offered.
+        fun inside(d: LocalDate) = (min == null || d >= min) && (max == null || d <= max)
+        if (inside(today)) QuickButton(stringResource(R.string.common_today), on = date == today, modifier = Modifier.weight(1f)) { onPick(today) }
+        if (inside(yesterday)) QuickButton(stringResource(R.string.common_yesterday), on = date == yesterday, modifier = Modifier.weight(1f)) { onPick(yesterday) }
         QuickButton(if (other) date.toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) else stringResource(R.string.common_other_day), on = other, modifier = Modifier.weight(1f)) {
             picking = true
         }
@@ -56,7 +58,7 @@ fun DateRow(date: LocalDate, today: LocalDate, allowFuture: Boolean = false, onP
         var month by remember { mutableStateOf(YearMonth.from(date)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Kassa.colors.raised).padding(16.dp)) {
             Text(stringResource(R.string.common_date), style = KassaType.section, color = Kassa.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
-            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.heightIn(min = 300.dp), allowFuture = allowFuture) { picked ->
+            MonthCalendar(month, date, today, onMonth = { month = it }, modifier = Modifier.heightIn(min = 300.dp), allowFuture = allowFuture, min = min, max = max) { picked ->
                 onPick(picked)
                 picking = false
             }

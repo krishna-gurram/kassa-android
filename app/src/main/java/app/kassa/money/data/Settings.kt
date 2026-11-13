@@ -199,6 +199,14 @@ class Settings(context: Context) {
     val coachCards: StateFlow<Boolean> = _coachCards
     fun setCoachCards(on: Boolean) { prefs.edit().putBoolean(COACH_CARDS, on).apply(); _coachCards.value = on }
 
+    private val _coachCushion = MutableStateFlow(prefs.getLong(COACH_CUSHION, 0L))
+    /**
+     * The cushion of Coach's "Can I afford it?": cents the person wants to keep in cash. Kassa warns when the money would dip below it.
+     * A phone preference like the others here (not in the .kassa backup); zero until set.
+     */
+    val coachCushion: StateFlow<Long> = _coachCushion
+    fun setCoachCushion(cents: Long) { prefs.edit().putLong(COACH_CUSHION, cents).apply(); _coachCushion.value = cents }
+
     private val _coachDismissedWeek = MutableStateFlow(prefs.getInt(COACH_DISMISSED_WEEK, NO_WEEK))
     /** The epoch day a week started on when the person chose "Not now" on its check-in; [NO_WEEK] for none. Only that week stays quiet. */
     val coachDismissedWeek: StateFlow<Int> = _coachDismissedWeek
@@ -219,6 +227,7 @@ class Settings(context: Context) {
         const val NO_WEEK = Int.MIN_VALUE
         private const val COACH_CHECK_IN = "coach_check_in"
         private const val COACH_CARDS = "coach_cards"
+        private const val COACH_CUSHION = "coach_cushion"
         private const val COACH_DISMISSED_WEEK = "coach_dismissed_week"
         private const val MONTH_START = "month_start_day"
         private const val HIDE_AMOUNTS = "hide_amounts"

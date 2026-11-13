@@ -53,7 +53,7 @@ import java.util.Locale
  * Kassa's one calendar: a month of days, starting on the phone's first day of the week. Arrows or a swipe change the
  * month. Days after [today] can't be picked, and neither can months after this one, unless [allowFuture] is set (the
  * next payment date of a loan is ahead of today). Every date choice in the app uses it, through the entry page's date
- * panel or [DateRow].
+ * panel or [DateRow]. [min] and [max] (both optional) disable the days outside them, for a choice inside a window like the simulator's next 30 days.
  */
 @Composable
 fun MonthCalendar(
@@ -63,15 +63,18 @@ fun MonthCalendar(
     onMonth: (YearMonth) -> Unit,
     modifier: Modifier,
     allowFuture: Boolean = false,
+    min: LocalDate? = null,
+    max: LocalDate? = null,
     onPick: (LocalDate) -> Unit,
 ) {
     val locale = Locale.getDefault()
     val firstDay = WeekFields.of(locale).firstDayOfWeek
-    val canNext = allowFuture || month < YearMonth.from(today)
-    Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) onMonth(month.minusMonths(1)) else if (canNext) onMonth(month.plusMonths(1)) }) {
+    val canNext = (allowFuture || month < YearMonth.from(today)) && (max == null || month < YearMonth.from(max))
+    val canPrev = min == null || month > YearMonth.from(min)
+    Column(modifier.fillMaxWidth().swipeShift { d -> if (d < 0) { if (canPrev) onMonth(month.minusMonths(1)) } else if (canNext) onMonth(month.plusMonths(1)) }) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onMonth(month.minusMonths(1)) }, modifier = Modifier.size(48.dp)) {
-                Icon(Chevron(left = true), stringResource(R.string.common_previous_month), tint = Kassa.colors.ink)
+            IconButton(onClick = { onMonth(month.minusMonths(1)) }, enabled = canPrev, modifier = Modifier.size(48.dp)) {
+                Icon(Chevron(left = true), stringResource(R.string.common_previous_month), tint = if (canPrev) Kassa.colors.ink else Kassa.colors.ink3.copy(alpha = 0.4f))
             }
             Text(monthYear(month), style = KassaType.bodyStrong, color = Kassa.colors.ink,
                 textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
@@ -93,7 +96,7 @@ fun MonthCalendar(
             Row(Modifier.fillMaxWidth().weight(1f, fill = false).height(48.dp)) {
                 (0 until 7).forEach { i ->
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        week.getOrNull(i)?.let { d -> CalendarDay(d, selected = d == selected, today = today, allowFuture = allowFuture, onPick = onPick) }
+                        week.getOrNull(i)?.let { d -> CalendarDay(d, selected = d == selected, today = today, allowFuture = allowFuture, outside = (min != null && d < min) || (max != null && d > max), onPick = onPick) }
                     }
                 }
             }
@@ -102,8 +105,8 @@ fun MonthCalendar(
 }
 
 @Composable
-private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, allowFuture: Boolean, onPick: (LocalDate) -> Unit) {
-    val future = d.isAfter(today) && !allowFuture
+private fun CalendarDay(d: LocalDate, selected: Boolean, today: LocalDate, allowFuture: Boolean, outside: Boolean, onPick: (LocalDate) -> Unit) {
+    val future = (d.isAfter(today) && !allowFuture) || outside
     Box(
         Modifier.fillMaxSize().clickable(enabled = !future, role = Role.Button) { onPick(d) }
             .semantics { contentDescription = d.toJavaLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)); this.selected = selected },

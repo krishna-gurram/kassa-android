@@ -25,6 +25,7 @@ import app.kassa.money.domain.Account
 import app.kassa.money.domain.AccountType
 import app.kassa.money.domain.Budgets
 import app.kassa.money.domain.Category
+import app.kassa.money.domain.CoachInput
 import app.kassa.money.domain.CoachReport
 import app.kassa.money.domain.CountedSpending
 import app.kassa.money.domain.CategoryKind
@@ -43,6 +44,7 @@ import app.kassa.money.domain.Transaction
 import app.kassa.money.domain.TxKind
 import app.kassa.money.domain.YearMonth
 import app.kassa.money.domain.millisAt
+import app.kassa.money.ui.coach.coachInput
 import app.kassa.money.ui.coach.coachReport
 import app.kassa.money.ui.entry.EntryStart
 import app.kassa.money.ui.today.Notice
@@ -128,6 +130,13 @@ class LedgerViewModel(app: Application) : AndroidViewModel(app) {
      * screen shows it (Overview's card, the Coach pages, Settings > Coach); null until the ledger is there. Never written anywhere.
      */
     val coach: StateFlow<CoachReport?> = combine(ledger.filterNotNull(), history) { l, h -> coachReport(l, h) }
+        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * The input of the Coach simulator, built from the ledger and the same history. Like [coach] it exists only while a screen collects it; the
+     * simulation itself runs on the screen's side (off the main thread) so a typed what-if never rebuilds the input.
+     */
+    val coachSimInput: StateFlow<CoachInput?> = combine(ledger.filterNotNull(), history) { l, h -> coachInput(l, h) }
         .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
