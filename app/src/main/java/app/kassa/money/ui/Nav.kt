@@ -56,6 +56,10 @@ sealed interface Page {
     data object Coach : Page
     /** The weekly check-in: one win, one watch-out, one decision. */
     data object CheckIn : Page
+    /** "Can I afford it?": the ask form, then its answer. Nothing is written. */
+    data object CanIAfford : Page
+    /** "Simulate my month": the next 30 days day by day. [whatIfs] is the what-if text (`WhatIfText`) it opens with; empty for "as planned". */
+    data class SimulateMonth(val whatIfs: String = "") : Page
     data object Import : Page { override val besideList: Boolean get() = false }
     /** Add or edit a recurring bill; built like the entry page, so it takes the full screen too. */
     data class Bill(val bill: app.kassa.money.domain.Recurring?) : Page { override val besideList: Boolean get() = false }

@@ -25,6 +25,8 @@ import app.kassa.money.ui.activity.ActivityScreen
 import app.kassa.money.ui.cards.CardPage
 import app.kassa.money.ui.coach.CheckInPage
 import app.kassa.money.ui.coach.CoachPage
+import app.kassa.money.ui.coach.CanIAffordPage
+import app.kassa.money.ui.coach.SimulateMonthPage
 import app.kassa.money.ui.coach.Target
 import app.kassa.money.ui.insights.InsightPage
 import app.kassa.money.ui.common.PageTop
@@ -164,6 +166,8 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
             CoachPage(
                 l, report, cards, padding, onBack,
                 onCheckIn = { app.push(Page.CheckIn) },
+                onCanIAfford = { app.push(Page.CanIAfford) },
+                onSimulate = { app.push(Page.SimulateMonth()) },
                 onTarget = { t ->
                     when (t) {
                         is Target.Category -> app.push(Page.CategoryDetail(t.id))
@@ -171,6 +175,16 @@ fun PageContent(app: AppController, page: Page, l: Ledger, padding: PaddingValue
                     }
                 },
             )
+        }
+        Page.CanIAfford -> {
+            val input by vm.coachSimInput.collectAsState()
+            val cushion by LocalSettings.current.coachCushion.collectAsState()
+            CanIAffordPage(l, input, cushion, padding, onBack, onEveryDay = { app.push(Page.SimulateMonth(it)) })
+        }
+        is Page.SimulateMonth -> {
+            val input by vm.coachSimInput.collectAsState()
+            val cushion by LocalSettings.current.coachCushion.collectAsState()
+            SimulateMonthPage(input, cushion, page.whatIfs, padding, onBack)
         }
         Page.CheckIn -> {
             val report by vm.coach.collectAsState()

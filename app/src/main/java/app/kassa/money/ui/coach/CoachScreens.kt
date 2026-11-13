@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Shield
@@ -138,6 +139,8 @@ fun CoachPage(
     onBack: (() -> Unit)?,
     onCheckIn: () -> Unit,
     onTarget: (Target) -> Unit,
+    onCanIAfford: () -> Unit,
+    onSimulate: () -> Unit,
 ) {
     val hidden = Money.isHidden
     val view = remember(report, hidden, showCards) { report?.let { CoachModel.view(it, hidden, showCards) } }
@@ -145,6 +148,11 @@ fun CoachPage(
         PageTop(stringResource(R.string.coach_title), onBack)
         if (view == null) return@Column
         SafeHero(view)
+        SectionHeader(stringResource(R.string.coach_sim_what_if))
+        Gap(8)
+        CoachRow(Icons.Outlined.HelpOutline, stringResource(R.string.coach_sim_entry_title), stringResource(R.string.coach_sim_entry_body), onCanIAfford)
+        Gap(10)
+        CoachRow(Icons.Outlined.Insights, stringResource(R.string.coach_sim_month_title), stringResource(R.string.coach_sim_month_body), onSimulate)
         SectionHeader(stringResource(R.string.coach_this_week))
         val teaser = CoachModel.teaser(view, enabled = true, dismissedWeek = app.kassa.money.data.Settings.NO_WEEK)
         val checkInBody = when {
