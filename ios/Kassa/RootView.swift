@@ -165,6 +165,7 @@ enum ShellTab: Hashable {
 struct AppShell: View {
     @ObservedObject var model: AppModel
     @ObservedObject var lock: AppLockModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     // Kassa opens on the tab Settings > Open Kassa on names (Overview until the person picks another).
     @State private var tab: ShellTab
@@ -180,25 +181,54 @@ struct AppShell: View {
         _tab = State(initialValue: PhonePrefs.shellTab(model.homeTab))
     }
 
-    /// The five tabs. The native bar is hidden (`KassaTabBar` below replaces it), so each tab keeps its own state as before.
-    private var tabs: some View {
-        TabView(selection: $tab) {
-            withAdd(overviewTab)
+    /// The five tabs. The native bar is hidden (`KassaTabBar` below replaces it), so each tab keeps its own state as before. At regular
+    /// width (`layout.rail`) the rail replaces the bar and holds Add, and from 720 pt a page opens beside its tab's list (`paned`).
+    private func tabs(_ layout: ShellLayout) -> some View {
+        let split: Bool = layout.content == .listDetail
+        return TabView(selection: $tab) {
+            withAdd(paned(.overview, overviewTab, split), layout)
                 .tabItem { Label("tab.overview", systemImage: "house") }
                 .tag(ShellTab.overview)
-            withAdd(activityTab)
+            withAdd(paned(.activity, activityTab, split), layout)
                 .tabItem { Label("tab.activity", systemImage: "list.bullet") }
                 .tag(ShellTab.activity)
-            withAdd(insightsTab)
+            withAdd(paned(.insights, insightsTab(split), split), layout)
                 .tabItem { Label("tab.insights", systemImage: "chart.pie") }
                 .tag(ShellTab.insights)
-            withAdd(accountsTab)
+            withAdd(paned(.accounts, accountsTab(split), split), layout)
                 .tabItem { Label("tab.accounts", systemImage: "building.columns") }
                 .tag(ShellTab.accounts)
-            withAdd(SettingsScreen(model: model, lock: lock))
+            withAdd(SettingsScreen(model: model, lock: lock), layout)
                 .tabItem { Label("tab.settings", systemImage: "gearshape") }
                 .tag(ShellTab.settings)
         }
+    }
+
+    /// List-detail (720 pt and up): the tab's list with the page that is open beside it, when one is. The list stays in the same place in
+    /// the tree, so opening or closing a page never resets it. Below 720 [split] is false and the tab is as before.
+    @ViewBuilder
+    private func paned<Base: View>(_ which: ShellTab, _ base: Base, _ split: Bool) -> some View {
+        if split {
+            ListDetailSplit(list: base, detail: detailPage(which))
+        } else {
+            base
+        }
+    }
+
+    /// The page beside a tab's list: a read page (spending, day, store, detail, Coach) on any tab, an account, card, loan or person page
+    /// on Accounts, a category page on Insights. Add and Edit are never here (they take the whole screen).
+    private func detailPage(_ which: ShellTab) -> AnyView? {
+        if which == .settings { return nil }
+        if !model.readStack.isEmpty {
+            return AnyView(ReadHost(model: model, keptSim: $keptSim))
+        }
+        if which == .accounts, !model.arranging, let target = model.openPage {
+            return AnyView(PageHost(model: model, target: target))
+        }
+        if which == .insights, let openId = model.openCategoryId {
+            return AnyView(insightsCategory(openId))
+        }
+        return nil
     }
 
     static let barItems: [TabBarItem] = [
@@ -210,15 +240,34 @@ struct AppShell: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            tabs
-            KassaTabBar(items: AppShell.barItems, selection: tab, onSelect: { picked in tab = picked })
+        GeometryReader { proxy in
+            let layout: ShellLayout = ShellLayout.of(width: proxy.size.width, regular: sizeClass == .regular)
+            shell(layout)
+                .environment(\.layoutMode, layout.content)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+
+    private func shell(_ layout: ShellLayout) -> some View {
+        HStack(spacing: 0) {
+            if layout.rail {
+                KassaTabRail(
+                    items: AppShell.barItems, selection: tab, onSelect: { picked in tab = picked },
+                    onAdd: { model.openAdd(draft: keptDraft) }
+                )
+            }
+            VStack(spacing: 0) {
+                tabs(layout)
+                if !layout.rail {
+                    KassaTabBar(items: AppShell.barItems, selection: tab, onSelect: { picked in tab = picked })
+                }
+            }
         }
         .background(Palette.ground.ignoresSafeArea())
         .accentColor(Palette.ink)
         .onChange(of: model.settingsRequest) { _ in tab = .settings }
         .overlay {
-            if !model.readStack.isEmpty {
+            if !model.readStack.isEmpty && (layout.content != .listDetail || tab == .settings) {
                 ReadHost(model: model, keptSim: $keptSim)
             }
         }
@@ -300,13 +349,16 @@ struct AppShell: View {
         }
     }
 
-    private func withAdd<Content: View>(_ content: Content) -> some View {
+    /// Hides the native tab bar and, below the rail's width, floats Add above the bar. With the rail Add sits at its foot.
+    private func withAdd<Content: View>(_ content: Content, _ layout: ShellLayout) -> some View {
         content
             .toolbar(.hidden, for: .tabBar)
             .overlay(alignment: .bottomTrailing) {
-                AddFab(action: { model.openAdd(draft: keptDraft) })
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 16)
+                if !layout.rail {
+                    AddFab(action: { model.openAdd(draft: keptDraft) })
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 16)
+                }
             }
     }
 
@@ -330,20 +382,11 @@ struct AppShell: View {
         }
     }
 
+    /// [split]: with a page beside the list, the category page is that page (`detailPage`) and this is the list alone.
     @ViewBuilder
-    private var insightsTab: some View {
-        if let openId = model.openCategoryId {
-            if let page = model.categoryPage, page.id == openId {
-                InsightsCategoryScreen(
-                    data: page, hidden: model.hideAmounts, today: model.today,
-                    onToggleHidden: { model.toggleHidden() },
-                    onShift: { months in model.shiftInsights(months) },
-                    onBack: { model.closeInsightsCategory() },
-                    onOpen: { row in model.openEntry(id: row.id) }
-                )
-            } else {
-                ProgressView()
-            }
+    private func insightsTab(_ split: Bool) -> some View {
+        if !split, let openId = model.openCategoryId {
+            insightsCategory(openId)
         } else if let data = model.insights {
             InsightsScreen(
                 data: data, hidden: model.hideAmounts, onToggleHidden: { model.toggleHidden() },
@@ -363,8 +406,24 @@ struct AppShell: View {
     }
 
     @ViewBuilder
-    private var accountsTab: some View {
-        if let target = model.openPage {
+    private func insightsCategory(_ openId: Int64) -> some View {
+        if let page = model.categoryPage, page.id == openId {
+            InsightsCategoryScreen(
+                data: page, hidden: model.hideAmounts, today: model.today,
+                onToggleHidden: { model.toggleHidden() },
+                onShift: { months in model.shiftInsights(months) },
+                onBack: { model.closeInsightsCategory() },
+                onOpen: { row in model.openEntry(id: row.id) }
+            )
+        } else {
+            ProgressView()
+        }
+    }
+
+    /// [split]: with a page beside the list, the page is that page (`detailPage`) and this is the list alone.
+    @ViewBuilder
+    private func accountsTab(_ split: Bool) -> some View {
+        if !split, let target = model.openPage {
             PageHost(model: model, target: target)
         } else if let data = model.accounts, model.arranging {
             ArrangeAccountsScreen(

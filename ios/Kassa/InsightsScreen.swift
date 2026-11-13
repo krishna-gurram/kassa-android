@@ -15,13 +15,15 @@ struct InsightsScreen: View {
     var read: InsightsRead? = nil
 
     var body: some View {
-        ScrollView {
-            InsightsContent(
-                data: data, hidden: hidden, onToggleHidden: onToggleHidden, onShift: onShift, onOpenCategory: onOpenCategory,
-                read: read
-            )
-            .frame(maxWidth: 720)
-            .frame(maxWidth: .infinity)
+        PaneLayout { mode in
+            ScrollView {
+                InsightsContent(
+                    data: data, hidden: hidden, onToggleHidden: onToggleHidden, onShift: onShift, onOpenCategory: onOpenCategory,
+                    read: read
+                )
+                .frame(maxWidth: mode.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+            }
         }
         .background(Palette.ground.ignoresSafeArea())
     }
@@ -38,8 +40,11 @@ struct InsightsContent: View {
 
     /// By category shows the biggest few until "All N" is tapped.
     @State private var showAll: Bool = false
+    @Environment(\.layoutMode) private var layoutMode
 
     private static let collapsedCount: Int = 5
+    /// The two-column layout shows the first eight, as Android's unfolded Insights.
+    private static let wideCollapsedCount: Int = 8
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -61,7 +66,120 @@ struct InsightsContent: View {
         .padding(.bottom, 96)
     }
 
+    @ViewBuilder
     private var monthBody: some View {
+        if layoutMode.isWide {
+            wideMonthBody
+        } else {
+            compactMonthBody
+        }
+    }
+
+    /// 600 pt and up: the compact hero strip (total left, "Up to" right), the Patterns tiles in one row, then By category in two columns.
+    private var wideMonthBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MonthSwitcher(
+                label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
+                canForward: !data.isCurrentMonth,
+                canBack: data.hasEarlier,
+                onShift: onShift
+            )
+            heroStripButton
+            if let extra = read, let patterns = extra.patterns {
+                PatternsRow(tiles: patterns.tiles, onOpen: extra.onOpenDetail)
+            }
+            sectionHeader
+            wideLines
+        }
+    }
+
+    @ViewBuilder
+    private var heroStripButton: some View {
+        if let extra = read {
+            Button(action: { extra.onOpenSpending(true) }) { heroStrip }
+                .buttonStyle(.plain)
+        } else {
+            heroStrip
+        }
+    }
+
+    private var heroStrip: some View {
+        let ink: Color = hidden ? Palette.heroGreyInk : Palette.heroGreenInk
+        let month = KassaDates.monthYear(year: Int(data.year), month: Int(data.month))
+        return HStack(alignment: .firstTextBaseline, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(format: String(localized: "insights.spentIn"), month))
+                    .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                    .foregroundColor(ink)
+                    .lineLimit(1)
+                Text(data.totalText)
+                    .scaledNumeral(44)
+                    .foregroundColor(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            Spacer(minLength: 8)
+            if data.hasCompare {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(String(format: String(localized: "insights.upTo"), KassaDates.shortDate(epochDay: Int(data.compareDay))))
+                        .font(Font.kassa(14, .semibold, relativeTo: .subheadline))
+                        .foregroundColor(ink)
+                        .lineLimit(1)
+                    Text(data.compareText)
+                        .font(Font.kassa(20, .semibold, relativeTo: .title3).monospacedDigit())
+                        .foregroundColor(Palette.ink)
+                        .lineLimit(1)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(hidden ? Palette.heroGrey : Palette.heroGreen))
+    }
+
+    /// The shown lines split in two columns, the larger half first (largest first reads down the left column, then the right).
+    private var wideShown: (first: [InsightLineData], second: [InsightLineData]) {
+        var shown: [InsightLineData] = data.lines
+        if !showAll && shown.count > InsightsContent.wideCollapsedCount {
+            shown = Array(shown.prefix(InsightsContent.wideCollapsedCount))
+        }
+        let half: Int = (shown.count + 1) / 2
+        return (Array(shown.prefix(half)), Array(shown.dropFirst(half)))
+    }
+
+    @ViewBuilder
+    private var wideLines: some View {
+        if data.lines.isEmpty {
+            if !hidden {
+                Text("insights.noSpending")
+                    .font(Font.kassa(13, .regular, relativeTo: .footnote))
+                    .foregroundColor(Palette.ink2)
+                    .padding(.vertical, 12)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 32) {
+                lineColumn(wideShown.first)
+                lineColumn(wideShown.second)
+            }
+        }
+    }
+
+    private func lineColumn(_ column: [InsightLineData]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(column, id: \.id) { line in
+                Button(action: { onOpenCategory(line.id) }) {
+                    InsightLineView(line: line)
+                }
+                .buttonStyle(.plain)
+                Hairline()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var compactMonthBody: some View {
         VStack(alignment: .leading, spacing: 12) {
             MonthSwitcher(
                 label: KassaDates.monthYear(year: Int(data.year), month: Int(data.month)),
@@ -128,7 +246,8 @@ struct InsightsContent: View {
     // MARK: By category
 
     private var allLink: LocalizedStringKey? {
-        if data.lines.count <= InsightsContent.collapsedCount { return nil }
+        let collapsed: Int = layoutMode.isWide ? InsightsContent.wideCollapsedCount : InsightsContent.collapsedCount
+        if data.lines.count <= collapsed { return nil }
         if showAll { return "insights.showLess" }
         return LocalizedStringKey(String(format: String(localized: "insights.allCount"), data.lines.count))
     }

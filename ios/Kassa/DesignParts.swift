@@ -212,3 +212,56 @@ struct KassaTabBar: View {
         .accessibilityIdentifier(item.identifier)
     }
 }
+
+/// The tab rail of the regular-width layouts (iPad, from 600 pt): the same tabs as `KassaTabBar`, stacked at the leading edge, with
+/// Add at its foot (there is no floating Add button beside it). Cells are at least 48 pt; the active tab is its icon on a chip pill with
+/// an ink bold label. Identifiers are the bar's (`tab.<name>`, `addButton`).
+struct KassaTabRail: View {
+    let items: [TabBarItem]
+    let selection: ShellTab
+    let onSelect: (ShellTab) -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 6) {
+                ForEach(items) { item in
+                    cell(item)
+                }
+                Spacer(minLength: 12)
+                AddFab(action: onAdd)
+                    .padding(.bottom, 16)
+            }
+            .padding(.top, 12)
+            .padding(.horizontal, 6)
+            .frame(minWidth: LayoutMode.railWidth)
+            Rectangle()
+                .fill(Palette.line)
+                .frame(width: 1)
+                .ignoresSafeArea(edges: .vertical)
+        }
+        .background(Palette.ground.ignoresSafeArea(edges: .vertical))
+    }
+
+    private func cell(_ item: TabBarItem) -> some View {
+        let on: Bool = item.tab == selection
+        return Button(action: { onSelect(item.tab) }) {
+            VStack(spacing: 2) {
+                Image(systemName: item.symbol)
+                    .font(.system(size: 20, weight: .regular))
+                    .frame(width: 56, height: 30)
+                    .background(Capsule().fill(on ? Palette.chip : Color.clear))
+                Text(item.title)
+                    .font(Font.kassa(11, on ? .bold : .medium, relativeTo: .caption2))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundColor(on ? Palette.ink : Palette.ink2)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityIdentifier(item.identifier)
+    }
+}
