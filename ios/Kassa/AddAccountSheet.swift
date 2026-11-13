@@ -1,6 +1,21 @@
 import SwiftUI
 import KassaShared
 
+/// What is typed on Add account: which form is open, every field of the account, person and loan forms, and the picks.
+struct AddAccountDraft: FormDraft {
+    var kind: String
+    var name: String
+    var last4: String
+    var balance: String
+    var statementDay: String
+    var dueDay: String
+    var limit: String
+    var payFromId: Int64
+    var maturityDay: Int
+    var theyOwe: Bool
+    var loan: LoanDraft
+}
+
 /// Add an account, type first (as on Android): a list of kinds, then a form with only that kind's fields and a back arrow. Every
 /// rule (the bounds, what a card needs, the sentence under a field) is :domain's `AccountForm`, asked through `AccountBridge`;
 /// this only lays the fields out. Kinds that need more setup than this form (Investment, Fixed deposit) are not
@@ -62,6 +77,51 @@ struct AddAccountSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(FormDraftStore.key("addAccount"), current: keptDraft, apply: { kept in restore(kept) })
+    }
+
+    // MARK: Draft kept across a scene's recreation
+
+    /// Which form is open, as the draft names it: "" for the list of kinds, "PERSON", or an account kind's key. The pickers are not kept.
+    private var openKind: String {
+        switch stage {
+        case .kinds: return ""
+        case .person: return "PERSON"
+        case .account(let key), .payFrom(let key), .maturity(let key): return key
+        case .day: return "LOAN"
+        }
+    }
+
+    private var keptDraft: AddAccountDraft {
+        return AddAccountDraft(
+            kind: openKind, name: name, last4: last4, balance: balance, statementDay: statementDay, dueDay: dueDay, limit: limit,
+            payFromId: payFromId, maturityDay: maturityDay, theyOwe: theyOwe, loan: loan
+        )
+    }
+
+    /// Puts a kept draft back: the form it was on, what was typed, and only the picks that still exist.
+    private func restore(_ kept: AddAccountDraft) {
+        name = FieldBridge.shared.typedName(raw: kept.name)
+        last4 = FieldBridge.shared.typedDigits(raw: kept.last4, max: 4)
+        balance = FieldBridge.shared.typedBalance(raw: kept.balance)
+        statementDay = FieldBridge.shared.typedDigits(raw: kept.statementDay, max: 2)
+        dueDay = FieldBridge.shared.typedDigits(raw: kept.dueDay, max: 2)
+        limit = FieldBridge.shared.typedAmount(raw: kept.limit)
+        payFromId = model.keepAccount(kept.payFromId)
+        maturityDay = max(kept.maturityDay, 0)
+        theyOwe = kept.theyOwe
+        var next = kept.loan
+        next.payFromId = payFromId
+        next.interestCategoryId = model.keepCategory(kept.loan.interestCategoryId)
+        loan = next
+        if kept.kind == "PERSON" {
+            stage = .person
+        } else if kept.kind == "LOAN" || (!kept.kind.isEmpty && kind(kept.kind) != nil) {
+            stage = .account(kept.kind)
+        } else {
+            stage = .kinds
+        }
+        if !kept.kind.isEmpty { refresh(kept.kind) }
     }
 
     // MARK: Account form

@@ -2,7 +2,7 @@ import SwiftUI
 import KassaShared
 
 /// What is typed on Edit details; the rules are :domain's `LoanDetailsForm` (through `LoanDetailsInput`).
-struct LoanDetailsFields: Equatable {
+struct LoanDetailsFields: FormDraft {
     var name: String
     var dueDay: String
     var payFromId: Int64
@@ -113,6 +113,13 @@ struct LoanDetailsSheet: View {
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { refresh() }
         .onChange(of: fields) { _ in error = nil; refresh() }
+        .keepsDraft(FormDraftStore.key("loanDetails", data.accountId), current: fields, apply: { kept in
+            var next = kept
+            next.payFromId = model.keepAccount(kept.payFromId)
+            next.interestCategoryId = model.keepCategory(kept.interestCategoryId)
+            next.principalCategoryId = model.keepCategory(kept.principalCategoryId)
+            fields = next
+        })
     }
 
     private var accountPicker: some View {

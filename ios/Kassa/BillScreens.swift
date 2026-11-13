@@ -9,7 +9,7 @@ enum BillSheetStage: Equatable {
 }
 
 /// What is typed on the bill sheet; the rules are :domain's `BillRules` (through `BillInput`).
-struct BillFields: Equatable {
+struct BillFields: FormDraft {
     var id: Int64
     var name: String
     var categoryId: Int64
@@ -32,6 +32,11 @@ struct BillFields: Equatable {
         let dayNumber: Int32 = Int32(day) ?? 0
         return BillInput(id: id, name: name, categoryId: categoryId, accountId: accountId, day: dayNumber, amount: amount, active: active)
     }
+}
+
+/// What is typed on a bill notice's "Enter amount" sheet.
+struct BillAmountDraft: FormDraft {
+    var typed: String
 }
 
 /// Add or edit a bill: name, category, account, due day, an optional fixed amount, and whether it is on. The checks are :domain's.
@@ -83,6 +88,13 @@ struct BillSheet: View {
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { refresh() }
         .onChange(of: fields) { _ in error = nil; refresh() }
+        .keepsDraft(FormDraftStore.key("bill", request.data.id), current: fields, apply: { kept in
+            var next = kept
+            next.id = fields.id
+            next.categoryId = model.keepCategory(kept.categoryId)
+            next.accountId = model.keepAccount(kept.accountId)
+            fields = next
+        })
     }
 
     private func problem(_ field: String) -> String? {
@@ -238,6 +250,11 @@ struct BillAmountSheet: View {
                 .padding(16)
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("billAmount", request.notice.id),
+            current: BillAmountDraft(typed: typed),
+            apply: { kept in typed = AmountPadText.clean(kept.typed) }
+        )
     }
 
     private func add() {

@@ -2,7 +2,7 @@ import SwiftUI
 import KassaShared
 
 /// What is typed on Edit account / Edit card; the rules are :domain's `AccountForm` and `EditRules` (through `AccountInput`).
-struct EditAccountFields: Equatable {
+struct EditAccountFields: FormDraft {
     var type: String
     var name: String
     var last4: String
@@ -97,6 +97,13 @@ struct EditAccountSheet: View {
         .interactiveDismissDisabled(dirty)
         .onAppear { load() }
         .onChange(of: fields) { _ in failure = nil; refresh() }
+        .keepsDraft(FormDraftStore.key("editAccount", accountId), current: fields, ready: loaded != nil, apply: { kept in
+            var next = kept
+            let kinds: [String] = loaded?.kinds ?? []
+            if !kinds.contains(kept.type) { next.type = fields.type }
+            next.payFromId = model.keepAccount(kept.payFromId)
+            fields = next
+        })
         .alert(Text("edit.discardTitle"), isPresented: $confirmDiscard) {
             Button("edit.keepEditing", role: .cancel) {}
             Button("edit.discard", role: .destructive) { onClose() }

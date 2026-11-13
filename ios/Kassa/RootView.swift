@@ -169,7 +169,11 @@ struct AppShell: View {
 
     // Kassa opens on the tab Settings > Open Kassa on names (Overview until the person picks another).
     @State private var tab: ShellTab
-    @State private var addingAccount = false
+    /// Add account is open. Kept for the scene, so a rebuilt scene opens it again with what was typed (`FormDrafts.swift`).
+    @SceneStorage("kassa.addingAccount") private var addingAccount = false
+    /// Every other unfinished form, as one text (`FormDraftStore`); the sheets read and write it through the environment.
+    @SceneStorage("kassa.formDrafts") private var keptForms = ""
+    @StateObject private var drafts = FormDraftStore()
     /// The scene's kept copy of an unfinished new entry, so folding or a scene recreation never loses what was typed.
     @SceneStorage("kassa.entryDraft") private var keptDraft = ""
     /// The same for an unfinished "Can I afford it?" form (`SimDraft.encoded`).
@@ -240,7 +244,15 @@ struct AppShell: View {
     ]
 
     var body: some View {
-        GeometryReader { proxy in
+        withDrafts()
+    }
+
+    /// The store starts from what the scene kept before any sheet below can ask it (only the first call reads it).
+    private func withDrafts() -> some View {
+        drafts.adopt(keptForms)
+        let kept = $keptForms
+        drafts.persist = { text in kept.wrappedValue = text }
+        return GeometryReader { proxy in
             let layout: ShellLayout = ShellLayout.of(width: proxy.size.width, regular: sizeClass == .regular)
             shell(layout)
                 .environment(\.layoutMode, layout.content)
@@ -340,6 +352,9 @@ struct AppShell: View {
             openTappedNotice()
         }
         .onAppear { openTappedNotice() }
+        .modifier(SheetDraftSweepers(model: model))
+        .sweepsDraft("addAccount", open: addingAccount)
+        .environment(\.formDrafts, drafts)
     }
 
     /// A notification that was tapped (also one that launched the app) goes to its page once.
@@ -470,5 +485,29 @@ struct AppShell: View {
         } else {
             ProgressView()
         }
+    }
+}
+
+/// Clears a form's kept draft the moment its sheet goes away (saved, back arrow, or swiped down), so a draft only outlives a scene that
+/// was rebuilt or killed with the sheet open, never a sheet that was closed.
+struct SheetDraftSweepers: ViewModifier {
+    @ObservedObject var model: AppModel
+
+    func body(content: Content) -> some View {
+        content
+            .sweepsDraft("payCard", open: model.paySheet != nil)
+            .sweepsDraft("personPayment", open: model.personSheet != nil)
+            .sweepsDraft("correction", open: model.correctionSheet != nil)
+            .sweepsDraft("loanTerms", open: model.termsSheet != nil)
+            .sweepsDraft("loanPayment", open: model.loanPaymentSheet != nil)
+            .sweepsDraft("loanChange", open: model.loanChangeSheet != nil)
+            .sweepsDraft("loanDetails", open: model.loanDetailsSheet != nil)
+            .sweepsDraft("holding", open: model.holdingSheet != nil)
+            .sweepsDraft("prices", open: model.pricesSheet != nil)
+            .sweepsDraft("trade", open: model.tradeSheet != nil)
+            .sweepsDraft("tradeEdit", open: model.tradeEditSheet != nil)
+            .sweepsDraft("allocate", open: model.allocateSheet != nil)
+            .sweepsDraft("bill", open: model.billSheet != nil)
+            .sweepsDraft("billAmount", open: model.billAmountSheet != nil)
     }
 }

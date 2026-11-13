@@ -115,6 +115,47 @@ private func investFinish(
     }
 }
 
+// MARK: - Drafts kept for the scene
+
+/// What is typed on the holding sheet.
+struct HoldingDraft: FormDraft {
+    var ticker: String
+    var shares: String
+    var price: String
+    var paid: String
+}
+
+/// What is typed on Update prices: one text per holding, in the sheet's order.
+struct PricesDraft: FormDraft {
+    var prices: [String]
+}
+
+/// What is typed or chosen on the Buy or sell sheet.
+struct TradeDraft: FormDraft {
+    var buy: Bool
+    var ticker: String
+    var shares: String
+    var price: String
+    var epochDay: Int
+}
+
+/// What is typed on an existing trade's sheet.
+struct TradeEditDraft: FormDraft {
+    var ticker: String
+    var shares: String
+    var price: String
+    var epochDay: Int
+}
+
+/// What is typed or chosen on "Where did it go?".
+struct AllocateDraft: FormDraft {
+    var buying: Bool
+    var ticker: String
+    var shares: String
+    var price: String
+    var epochDay: Int
+}
+
 // MARK: - Holding
 
 /// A holding's sheet. "Add shares you own" (a new holding): ticker, shares and what you paid per share, no cash moving. A holding you have: its
@@ -188,6 +229,17 @@ struct HoldingSheet: View {
             Spacer(minLength: 8)
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("holding", data.isNew ? -data.accountId : data.id),
+            current: HoldingDraft(ticker: ticker, shares: shares, price: price, paid: paid),
+            apply: { kept in
+                ticker = InvestBridge.shared.typedTicker(raw: kept.ticker)
+                shares = InvestBridge.shared.typedShares(raw: kept.shares)
+                price = FieldBridge.shared.typedAmount(raw: kept.price)
+                paid = FieldBridge.shared.typedAmount(raw: kept.paid)
+                refreshPreview()
+            }
+        )
         .alert(Text(String(format: String(localized: "invest.removeTitle"), data.ticker)), isPresented: $confirmRemove) {
             Button("invest.keep", role: .cancel) {}
             Button("invest.remove", role: .destructive) { remove() }
@@ -328,6 +380,10 @@ struct PricesSheet: View {
                 .padding(16)
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(FormDraftStore.key("prices", request.data.accountId), current: PricesDraft(prices: prices), apply: { kept in
+            if kept.prices.count != prices.count { return }
+            prices = kept.prices.map { FieldBridge.shared.typedAmount(raw: $0) }
+        })
     }
 
     private func priceBinding(_ index: Int) -> Binding<String> {
@@ -446,6 +502,18 @@ struct TradeSheet: View {
         }
         .background(Palette.ground.ignoresSafeArea())
         .onAppear { refreshPreview() }
+        .keepsDraft(
+            FormDraftStore.key("trade", data.accountId),
+            current: TradeDraft(buy: buy, ticker: ticker, shares: shares, price: price, epochDay: epochDay),
+            apply: { kept in
+                buy = kept.buy
+                ticker = InvestBridge.shared.typedTicker(raw: kept.ticker)
+                shares = InvestBridge.shared.typedShares(raw: kept.shares)
+                price = FieldBridge.shared.typedAmount(raw: kept.price)
+                epochDay = FormDraftIds.day(kept.epochDay, fallback: model.today)
+                refreshPreview()
+            }
+        )
     }
 
     private var saveTitle: String {
@@ -632,6 +700,16 @@ struct TradeEditSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("tradeEdit", data.entryId),
+            current: TradeEditDraft(ticker: ticker, shares: shares, price: price, epochDay: epochDay),
+            apply: { kept in
+                ticker = InvestBridge.shared.typedTicker(raw: kept.ticker)
+                shares = InvestBridge.shared.typedShares(raw: kept.shares)
+                price = FieldBridge.shared.typedAmount(raw: kept.price)
+                epochDay = FormDraftIds.day(kept.epochDay, fallback: Int(data.day))
+            }
+        )
         .alert(Text(deleteAlertTitle), isPresented: $confirmDelete) {
             Button("invest.keep", role: .cancel) {}
             Button("invest.delete", role: .destructive) { delete() }
@@ -761,6 +839,18 @@ struct AllocateSheet: View {
             }
         }
         .background(Palette.ground.ignoresSafeArea())
+        .keepsDraft(
+            FormDraftStore.key("allocate", data.transferId),
+            current: AllocateDraft(buying: buying, ticker: ticker, shares: shares, price: price, epochDay: epochDay),
+            apply: { kept in
+                buying = kept.buying
+                ticker = InvestBridge.shared.typedTicker(raw: kept.ticker)
+                shares = InvestBridge.shared.typedShares(raw: kept.shares)
+                price = FieldBridge.shared.typedAmount(raw: kept.price)
+                epochDay = FormDraftIds.day(kept.epochDay, fallback: Int(data.day))
+                refreshPreview()
+            }
+        )
     }
 
     private var content: some View {
