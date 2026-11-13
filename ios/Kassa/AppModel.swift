@@ -422,7 +422,7 @@ final class AppModel: ObservableObject {
             timeZoneId: given.zone
         )
         let read: ReadFigures = computeRead(made, given)
-        let coachData: CoachData = computeCoach(made, given)
+        let coachData: CoachData? = computeCoach(made, given)
         let simData: CoachSimData? = computeSim(made, given)
         let pinList: [PinChoiceData] = made.pinChoices()
         let convertList: [ConvertibleAccountData] = made.convertibleAccounts(hidden: given.hidden)
@@ -464,6 +464,10 @@ final class AppModel: ObservableObject {
 
     /// Works the figures out again for the current switch, month and day (no new read of the store).
     func refreshFigures() {
+        // A Coach page left on the stack while Coach is hidden is dropped, so it can never be drawn.
+        if !CoachFeature.visible && readStack.contains(where: { !CoachFeature.allows($0) }) {
+            readStack.removeAll(where: { !CoachFeature.allows($0) })
+        }
         let given = inputs()
         queue.async {
             guard let made = self.view else { return }

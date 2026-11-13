@@ -43,8 +43,12 @@ final class ScreenshotTests: XCTestCase {
             try drawDuePages(target)
             try drawReadPages(target)
             try drawImportPages(target)
-            try drawCoachPages(target)
-            try drawCoachSimPages(target)
+            if CoachFeature.visible {
+                try drawCoachPages(target)
+                try drawCoachSimPages(target)
+            } else {
+                print("KASSA coach shots skipped: Coach is hidden (CoachFeature.visible is false)")
+            }
         } catch {
             print("KASSA shots skipped: \(error)")
         }

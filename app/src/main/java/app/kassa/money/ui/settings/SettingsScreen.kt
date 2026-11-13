@@ -185,8 +185,13 @@ fun SettingsScreen(ledger: Ledger, actions: SettingsActions, contentPadding: Pad
                     onMerge = { from, into -> actions.mergeCategory(from, into); page = p.back },
                 )
             }
-            SettingsPage.Coach -> CoachSettingsPage(actions, openSends = { page = SettingsPage.CoachSends })
-            SettingsPage.CoachSends -> CoachSendsPage(actions)
+            SettingsPage.Coach, SettingsPage.CoachSends ->
+                if (app.kassa.money.ui.coach.CoachFeature.VISIBLE) {
+                    if (p == SettingsPage.Coach) CoachSettingsPage(actions, openSends = { page = SettingsPage.CoachSends }) else CoachSendsPage(actions)
+                } else {
+                    // Hidden: never show a Coach settings page, whatever opened it.
+                    LaunchedEffect(Unit) { page = SettingsPage.Main }
+                }
             SettingsPage.PersonAccounts -> AccountsToPeople(ledger, actions)
             SettingsPage.Bills -> BillsPage(ledger, actions)
             SettingsPage.Notifications -> NotificationSettingsPage(actions)
@@ -231,8 +236,10 @@ private fun MainList(ledger: Ledger, actions: SettingsActions, open: (SettingsPa
     NavRow(stringResource(R.string.settings_page_income_categories), "${topLevel(CategoryKind.INCOME)}") { open(SettingsPage.Categories(CategoryKind.INCOME)) }
     NavRow(stringResource(R.string.settings_page_budget_month), stringResource(R.string.settings_budget_month_value, ledger.monthStartDay)) { open(SettingsPage.BudgetMonth) }
 
-    val coachOn by settings.coachCheckIn.collectAsState()
-    NavRow(stringResource(R.string.coach_settings_title), stringResource(if (coachOn) R.string.coach_on else R.string.coach_off)) { open(SettingsPage.Coach) }
+    if (app.kassa.money.ui.coach.CoachFeature.VISIBLE) {
+        val coachOn by settings.coachCheckIn.collectAsState()
+        NavRow(stringResource(R.string.coach_settings_title), stringResource(if (coachOn) R.string.coach_on else R.string.coach_off)) { open(SettingsPage.Coach) }
+    }
 
     SectionHeader(stringResource(R.string.settings_section_bills))
     NavRow(stringResource(R.string.settings_page_bills), "${ledger.bills.size}") { open(SettingsPage.Bills) }

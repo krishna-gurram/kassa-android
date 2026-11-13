@@ -46,7 +46,7 @@ struct SettingsScreen: View {
                     versionText: AppVersion.text,
                     autoBackupDestination: AnyView(AutoBackupPage(model: model)),
                     autoBackupDetail: autoBackupDetail,
-                    coachDestination: AnyView(CoachSettingsPage(model: model))
+                    coachDestination: CoachFeature.visible ? AnyView(CoachSettingsPage(model: model)) : nil
                 )
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)

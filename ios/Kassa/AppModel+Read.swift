@@ -97,6 +97,7 @@ extension AppModel {
     // MARK: The read stack
 
     func openRead(_ route: ReadRoute) {
+        if !CoachFeature.allows(route) { return }
         readStack.append(route)
         refreshFigures()
     }

@@ -157,9 +157,9 @@ object CoachModel {
      * person chose "Not now" for this very week ([dismissedWeek] is the week's start day), or it has nothing to say. While balances are hidden it
      * is only a neutral line, since a win or a watch-out would give a state away.
      */
-    fun teaser(view: CoachView, enabled: Boolean, dismissedWeek: Int): Teaser? {
+    fun teaser(view: CoachView, enabled: Boolean, dismissedWeek: Int, visible: Boolean = CoachFeature.VISIBLE): Teaser? {
         val c = view.checkIn
-        if (!enabled || c.state == CheckInState.NOT_ENOUGH_DATA || dismissedWeek == c.weekStartDay) return null
+        if (!visible || !enabled || c.state == CheckInState.NOT_ENOUGH_DATA || dismissedWeek == c.weekStartDay) return null
         if (c.state == CheckInState.HIDDEN) return Teaser(TeaserKind.NEUTRAL, null, null)
         return when {
             c.watch != null -> Teaser(TeaserKind.WATCH, c.watch, c.win)

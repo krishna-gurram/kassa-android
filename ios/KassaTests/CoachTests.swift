@@ -30,6 +30,31 @@ final class CoachTests: XCTestCase {
 
     // MARK: Prefs
 
+    // MARK: Hidden behind CoachFeature
+
+    func testHiddenCoachIsUnreachable() throws {
+        let routes: [ReadRoute] = [.coach, .checkIn, .coachAsk, .coachAnswer, .coachMonth]
+        for route in routes {
+            XCTAssertFalse(CoachFeature.allows(route, visible: false))
+            XCTAssertTrue(CoachFeature.allows(route, visible: true))
+        }
+        XCTAssertTrue(CoachFeature.allows(.day(1), visible: false))
+        XCTAssertTrue(CoachFeature.allows(.detail("REPEATING"), visible: false))
+
+        // The Overview card rule: nothing while hidden, the shared line when shown.
+        let data = try demoView().coach(hidden: false, todayEpochDay: 20_400, timeZoneId: "UTC", firstWeekday: 2)
+        XCTAssertNil(CoachWording.overviewLine(data, weeklyOn: true, visible: false))
+        XCTAssertEqual(CoachWording.overviewLine(data, weeklyOn: true, visible: true), CoachWording.teaser(data, weeklyOn: true))
+
+        // With the shipped default the model ignores Coach routes and never keeps Coach figures.
+        let model = AppModel(defaults: defaults())
+        model.openCoach()
+        model.openCheckIn()
+        model.openRead(.coachAsk)
+        XCTAssertEqual(model.readStack.isEmpty, !CoachFeature.visible)
+        if !CoachFeature.visible { XCTAssertNil(model.coach) }
+    }
+
     func testSwitchesStartOnAndAreRemembered() {
         let store = defaults()
         let prefs = CoachPrefs(defaults: store)
