@@ -178,7 +178,7 @@ internal class CoachViews(private val v: LedgerView) {
 
     private fun text(cents: Long): String = Money.format(cents)
 
-    private fun inputFor(today: LocalDate, zone: TimeZone, firstWeekday: Int): CoachInput {
+    internal fun inputFor(today: LocalDate, zone: TimeZone, firstWeekday: Int): CoachInput {
         val parts = v.parts
         // Repeats and the history look back about two years, like Android's `Ledger.repeats`; balances read every entry.
         val from = QueryWindows.historyFrom(today, zone)

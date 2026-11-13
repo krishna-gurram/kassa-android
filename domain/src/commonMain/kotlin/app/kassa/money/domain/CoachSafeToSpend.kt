@@ -115,7 +115,7 @@ object SafeToSpend {
     /** The day the money must last until and why: the next payday, else the start of the next budget month. */
     private fun untilOf(l: CoachLedger): Pair<Int, UntilKind> {
         val today = l.input.today
-        val income = l.repeats.firstOrNull { it.kind == TxKind.INCOME && it.cadence in PAYDAY_CADENCES }
+        val income = paydayRepeat(l)
         if (income != null) {
             var d = income.next(today)
             while (!d.isAfter(today)) d = income.cadence.after(d)
@@ -124,6 +124,10 @@ object SafeToSpend {
         }
         return Pair(l.current.endInclusive.toEpochDay().toInt() + 1, UntilKind.MONTH_END)
     }
+
+    /** The repeat taken as payday: the biggest weekly, two-weekly or monthly income [Repeats] finds. Shared with [CoachSim]. */
+    internal fun paydayRepeat(l: CoachLedger): Repeat? =
+        l.repeats.firstOrNull { it.kind == TxKind.INCOME && it.cadence in PAYDAY_CADENCES }
 
     private fun dueSum(kind: PartKind, list: List<DueItem>): Part? {
         if (list.isEmpty()) return null
@@ -142,10 +146,10 @@ object SafeToSpend {
         return Part(PartKind.RECURRING, expected.sumOf { it.typical }, expected.size, first.categoryId ?: 0L, first.name)
     }
 
-    private class Usual(val daily: Long, val basis: Basis, val topCategory: Long)
+    internal class Usual(val daily: Long, val basis: Basis, val topCategory: Long)
 
     /** The usual day to day spending per day, without known payments. */
-    private fun usualOf(l: CoachLedger): Usual {
+    internal fun usualOf(l: CoachLedger): Usual {
         val first = l.firstEntryDay ?: return Usual(0L, Basis.NONE, 0L)
         val windows = ArrayList<IntRange>()
         for (p in l.fullPriorPeriods(HISTORY_MONTHS)) windows.add(p.start.toEpochDay().toInt()..p.endInclusive.toEpochDay().toInt())
